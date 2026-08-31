@@ -67,16 +67,20 @@ def cmd_promote(args: argparse.Namespace) -> int:
     node_path = _find_local_node(repo_root, args.node_id)
 
     if node_path is None:
-        print(f"Local node '{args.node_id}' not found in {repo_root}/knowledge/local-nodes/",
-              file=sys.stderr)
+        print(
+            f"Local node '{args.node_id}' not found in {repo_root}/knowledge/local-nodes/",
+            file=sys.stderr,
+        )
         return 1
 
     # Verify current status is tentative
     post = fm.load(str(node_path))
     current = post.metadata.get("status", "")
     if current != "tentative":
-        print(f"Cannot promote: node '{args.node_id}' is '{current}', not 'tentative'",
-              file=sys.stderr)
+        print(
+            f"Cannot promote: node '{args.node_id}' is '{current}', not 'tentative'",
+            file=sys.stderr,
+        )
         return 1
 
     return 0 if _update_node_status(node_path, "established") else 1
@@ -88,8 +92,10 @@ def cmd_suppress(args: argparse.Namespace) -> int:
     node_path = _find_local_node(repo_root, args.node_id)
 
     if node_path is None:
-        print(f"Local node '{args.node_id}' not found in {repo_root}/knowledge/local-nodes/",
-              file=sys.stderr)
+        print(
+            f"Local node '{args.node_id}' not found in {repo_root}/knowledge/local-nodes/",
+            file=sys.stderr,
+        )
         return 1
 
     return 0 if _update_node_status(node_path, "draft") else 1
@@ -101,8 +107,10 @@ def cmd_deprecate(args: argparse.Namespace) -> int:
     node_path = _find_local_node(repo_root, args.node_id)
 
     if node_path is None:
-        print(f"Local node '{args.node_id}' not found in {repo_root}/knowledge/local-nodes/",
-              file=sys.stderr)
+        print(
+            f"Local node '{args.node_id}' not found in {repo_root}/knowledge/local-nodes/",
+            file=sys.stderr,
+        )
         return 1
 
     return 0 if _update_node_status(node_path, "deprecated") else 1
@@ -132,7 +140,11 @@ def _load_cli_config(repo_root: Path) -> PropagationConfig:
     from akms.schema.validators import parse_propagation_config
 
     config_path = repo_root / "knowledge" / "graph" / "propagation_config.yaml"
-    return parse_propagation_config(config_path) if config_path.exists() else PropagationConfig()
+    return (
+        parse_propagation_config(config_path)
+        if config_path.exists()
+        else PropagationConfig()
+    )
 
 
 def _resolve_cli_path(repo_root: Path, value: str | None, default: Path) -> Path:
@@ -165,7 +177,9 @@ def _serialize_ranked_nodes(ranked_nodes: list[tuple[str, dict]]) -> list[dict]:
     result = []
     for node_id, data in ranked_nodes:
         entry = {
-            "confidence": data.get("confidence") if data.get("confidence") is not None else 0.0,
+            "confidence": data.get("confidence")
+            if data.get("confidence") is not None
+            else 0.0,
             "domain": data.get("domain") or "",
             "id": node_id,
             "node_origin": data.get("node_origin") or "",
@@ -176,7 +190,6 @@ def _serialize_ranked_nodes(ranked_nodes: list[tuple[str, dict]]) -> list[dict]:
             entry["tags"] = sorted([tags] if isinstance(tags, str) else tags)
         result.append(entry)
     return result
-
 
 
 def _display_path(path: Path, repo_root: Path) -> str:
@@ -214,20 +227,28 @@ def cmd_query(args: argparse.Namespace) -> int:
         print(f"Query failed: {exc}", file=sys.stderr)
         return 1
 
-    print(json.dumps({
-        "count": len(ranked),
-        # Relative to the repo when inside it: the JSON output is shareable,
-        # and an absolute path would leak the local directory layout.
-        "graph_path": _display_path(graph_path, repo_root),
-        "nodes": _serialize_ranked_nodes(ranked),
-    }, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "count": len(ranked),
+                # Relative to the repo when inside it: the JSON output is shareable,
+                # and an absolute path would leak the local directory layout.
+                "graph_path": _display_path(graph_path, repo_root),
+                "nodes": _serialize_ranked_nodes(ranked),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 
 def _validate_task_id(task_id: str) -> None:
     """Reject task identifiers that could be interpreted as paths."""
     if not task_id or task_id in {".", ".."} or "/" in task_id or "\\" in task_id:
-        raise ValueError("task_id must be a non-empty identifier without path separators")
+        raise ValueError(
+            "task_id must be a non-empty identifier without path separators"
+        )
 
 
 def _canonical_loadout_path(repo_root: Path, phase: int, task_id: str) -> Path:
@@ -277,12 +298,18 @@ def cmd_loadout(args: argparse.Namespace) -> int:
         print(f"Loadout generation failed: {exc}", file=sys.stderr)
         return 1
 
-    print(json.dumps({
-        "graph_version": graph_version,
-        "loadout_path": str(output_path),
-        "mode": args.mode,
-        "node_count": len(ranked),
-    }, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "graph_version": graph_version,
+                "loadout_path": str(output_path),
+                "mode": args.mode,
+                "node_count": len(ranked),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 
@@ -447,21 +474,27 @@ def cmd_orchestrate(args: argparse.Namespace) -> int:
             return 1
 
     from akms.agents.base import AKMSAgent
-    from akms.orchestrator.checkpoint import FileCheckpointHandler, TerminalCheckpointHandler
+    from akms.orchestrator.checkpoint import (
+        FileCheckpointHandler,
+        TerminalCheckpointHandler,
+    )
     from akms.orchestrator.orchestrator import run_pipeline
     from akms.schema.validators import parse_propagation_config
 
     repo_root = Path(args.repo).resolve()
 
     # Load config
-    config_path = Path(args.config) if args.config else (
-        repo_root / "knowledge" / "graph" / "propagation_config.yaml"
+    config_path = (
+        Path(args.config)
+        if args.config
+        else (repo_root / "knowledge" / "graph" / "propagation_config.yaml")
     )
     if config_path.exists():
         config = parse_propagation_config(config_path)
     else:
         print(f"Config not found at {config_path}, using defaults", file=sys.stderr)
         from akms.schema.models import PropagationConfig
+
         config = PropagationConfig()
 
     # Resolve agent class. --agent (explicit dotted path) wins; otherwise
@@ -473,7 +506,9 @@ def cmd_orchestrate(args: argparse.Namespace) -> int:
         try:
             agent_cls = _import_agent_class(dotted_path)
         except (ImportError, AttributeError) as exc:
-            print(f"Failed to import agent class '{dotted_path}': {exc}", file=sys.stderr)
+            print(
+                f"Failed to import agent class '{dotted_path}': {exc}", file=sys.stderr
+            )
             return 1
         except TypeError as exc:
             print(str(exc), file=sys.stderr)
@@ -487,8 +522,7 @@ def cmd_orchestrate(args: argparse.Namespace) -> int:
 
     # Select checkpoint handler
     checkpoint_handler = (
-        TerminalCheckpointHandler() if args.terminal
-        else FileCheckpointHandler()
+        TerminalCheckpointHandler() if args.terminal else FileCheckpointHandler()
     )
 
     # Run the pipeline. Preflight and stage failures surface as short
@@ -498,17 +532,19 @@ def cmd_orchestrate(args: argparse.Namespace) -> int:
     from akms.orchestrator.orchestrator import StageFailedError
 
     try:
-        state = asyncio.run(run_pipeline(
-            repo_root=repo_root,
-            spec_path=args.spec or "",
-            goal=args.goal or "",
-            plan_name=args.plan or config.orchestrator.plan_name,
-            resume=args.resume,
-            config=config,
-            agent_cls=agent_cls,
-            model=args.model,
-            checkpoint_handler=checkpoint_handler,
-        ))
+        state = asyncio.run(
+            run_pipeline(
+                repo_root=repo_root,
+                spec_path=args.spec or "",
+                goal=args.goal or "",
+                plan_name=args.plan or config.orchestrator.plan_name,
+                resume=args.resume,
+                config=config,
+                agent_cls=agent_cls,
+                model=args.model,
+                checkpoint_handler=checkpoint_handler,
+            )
+        )
     except AgentPreflightError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -522,10 +558,13 @@ def cmd_orchestrate(args: argparse.Namespace) -> int:
     return 0
 
 
-def _add_repo_argument(parser: argparse.ArgumentParser, *, top_level: bool = False) -> None:
+def _add_repo_argument(
+    parser: argparse.ArgumentParser, *, top_level: bool = False
+) -> None:
     """Add ``--repo`` without overwriting a value parsed by a parent parser."""
     parser.add_argument(
-        "--repo", "-r",
+        "--repo",
+        "-r",
         default="." if top_level else argparse.SUPPRESS,
         help="Repository root path (default: current directory)",
     )
@@ -543,7 +582,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     # promote
     promote_parser = subparsers.add_parser(
-        "promote", help="Promote tentative node to established",
+        "promote",
+        help="Promote tentative node to established",
     )
     _add_repo_argument(promote_parser)
     promote_parser.add_argument("node_id", help="Node ID to promote")
@@ -551,7 +591,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     # suppress
     suppress_parser = subparsers.add_parser(
-        "suppress", help="Suppress node (set to draft)",
+        "suppress",
+        help="Suppress node (set to draft)",
     )
     _add_repo_argument(suppress_parser)
     suppress_parser.add_argument("node_id", help="Node ID to suppress")
@@ -559,7 +600,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     # deprecate
     deprecate_parser = subparsers.add_parser(
-        "deprecate", help="Deprecate a node",
+        "deprecate",
+        help="Deprecate a node",
     )
     _add_repo_argument(deprecate_parser)
     deprecate_parser.add_argument("node_id", help="Node ID to deprecate")
@@ -567,14 +609,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     # status
     status_parser = subparsers.add_parser(
-        "status", help="Run graph health report",
+        "status",
+        help="Run graph health report",
     )
     _add_repo_argument(status_parser)
     status_parser.set_defaults(func=cmd_status)
 
     # query
     query_parser = subparsers.add_parser(
-        "query", help="Query the compiled graph by seed tags",
+        "query",
+        help="Query the compiled graph by seed tags",
     )
     _add_repo_argument(query_parser)
     query_parser.add_argument("tags", nargs="+", help="One or more seed tags")
@@ -585,24 +629,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Agent role query profile (default: implementer)",
     )
     query_parser.add_argument(
-        "--max-depth", type=int, default=2,
+        "--max-depth",
+        type=int,
+        default=2,
         help="Maximum traversal depth from seed nodes (default: 2)",
     )
     query_parser.add_argument(
-        "--graph", default=None,
+        "--graph",
+        default=None,
         help="Compiled graph path relative to repo (default: knowledge/graph/graph.json)",
     )
     query_parser.set_defaults(func=cmd_query)
 
     # loadout
     loadout_parser = subparsers.add_parser(
-        "loadout", help="Query the graph and generate a task loadout",
+        "loadout",
+        help="Query the graph and generate a task loadout",
     )
     _add_repo_argument(loadout_parser)
     loadout_parser.add_argument("task_id", help="Task identifier for the loadout")
-    loadout_parser.add_argument("--phase", type=int, required=True, help="Task phase number")
     loadout_parser.add_argument(
-        "--tags", nargs="+", required=True, help="One or more query seed tags",
+        "--phase", type=int, required=True, help="Task phase number"
+    )
+    loadout_parser.add_argument(
+        "--tags",
+        nargs="+",
+        required=True,
+        help="One or more query seed tags",
     )
     loadout_parser.add_argument(
         "--role",
@@ -611,23 +664,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="Agent role query profile (default: implementer)",
     )
     loadout_parser.add_argument(
-        "--mode", choices=("routing", "full"), default="routing",
+        "--mode",
+        choices=("routing", "full"),
+        default="routing",
         help="Loadout content mode (default: routing)",
     )
     loadout_parser.add_argument(
-        "--max-depth", type=int, default=2,
+        "--max-depth",
+        type=int,
+        default=2,
         help="Maximum traversal depth from seed nodes (default: 2)",
     )
     loadout_parser.add_argument(
-        "--available-context", type=int, default=0,
+        "--available-context",
+        type=int,
+        default=0,
         help="Estimated available context tokens recorded in the header",
     )
     loadout_parser.add_argument(
-        "--graph", default=None,
+        "--graph",
+        default=None,
         help="Compiled graph path relative to repo (default: knowledge/graph/graph.json)",
     )
     loadout_parser.add_argument(
-        "--output", default=None,
+        "--output",
+        default=None,
         help="Exact output path relative to repo (default: canonical loadout path)",
     )
     loadout_parser.set_defaults(func=cmd_loadout)
@@ -716,21 +777,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     # orchestrate
     orch_parser = subparsers.add_parser(
-        "orchestrate", help="Run the orchestrator pipeline",
+        "orchestrate",
+        help="Run the orchestrator pipeline",
     )
     _add_repo_argument(orch_parser)
     orch_parser.add_argument(
-        "--plan", "-p",
+        "--plan",
+        "-p",
         default="",
         help="Plan name (used for branch naming)",
     )
     orch_parser.add_argument(
-        "--config", "-c",
+        "--config",
+        "-c",
         default=None,
         help="Path to propagation_config.yaml (default: knowledge/graph/propagation_config.yaml)",
     )
     orch_parser.add_argument(
-        "--backend", "-B",
+        "--backend",
+        "-B",
         default=None,
         choices=sorted(BACKENDS),
         help=(
@@ -743,7 +808,8 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     orch_parser.add_argument(
-        "--agent", "-a",
+        "--agent",
+        "-a",
         default=None,
         help=(
             "Dotted import path to an AKMSAgent subclass "
@@ -753,29 +819,34 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     orch_parser.add_argument(
-        "--model", "-m",
+        "--model",
+        "-m",
         default=None,
         help="Model override (e.g. claude-opus-4-6 for high-risk tasks)",
     )
     orch_parser.add_argument(
-        "--resume", "-R",
+        "--resume",
+        "-R",
         action="store_true",
         default=False,
         help="Resume from saved pipeline state",
     )
     orch_parser.add_argument(
-        "--terminal", "-t",
+        "--terminal",
+        "-t",
         action="store_true",
         default=False,
         help="Use terminal checkpoint mode instead of file-based",
     )
     orch_parser.add_argument(
-        "--spec", "-s",
+        "--spec",
+        "-s",
         default=None,
         help="Path to specification file",
     )
     orch_parser.add_argument(
-        "--goal", "-g",
+        "--goal",
+        "-g",
         default=None,
         help="Goal description for the pipeline",
     )

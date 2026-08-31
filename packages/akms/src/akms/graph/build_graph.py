@@ -173,7 +173,9 @@ def build_graph(
     # ── Step 1: Load Global Nodes ────────────────────────────────────
     global_files = _collect_md_files(vault_path)
     for md_path in global_files:
-        data = _load_node_frontmatter(md_path, strict=strict, skipped_accumulator=skipped_files)
+        data = _load_node_frontmatter(
+            md_path, strict=strict, skipped_accumulator=skipped_files
+        )
         if data is None:
             continue
 
@@ -219,7 +221,9 @@ def build_graph(
     local_count = 0
 
     for md_path in local_files:
-        data = _load_node_frontmatter(md_path, strict=strict, skipped_accumulator=skipped_files)
+        data = _load_node_frontmatter(
+            md_path, strict=strict, skipped_accumulator=skipped_files
+        )
         if data is None:
             continue
 
@@ -271,7 +275,9 @@ def build_graph(
     mirror_count = 0
 
     for md_path in mirror_files:
-        data = _load_node_frontmatter(md_path, strict=strict, skipped_accumulator=skipped_files)
+        data = _load_node_frontmatter(
+            md_path, strict=strict, skipped_accumulator=skipped_files
+        )
         if data is None:
             continue
 
@@ -387,7 +393,6 @@ def build_graph(
     return G
 
 
-
 def _sanitize_vault_path(vault: Path) -> str:
     """Return the vault path with the user's home directory abbreviated to ``~``.
 
@@ -397,9 +402,12 @@ def _sanitize_vault_path(vault: Path) -> str:
     — nothing reads it back — so the abbreviated form loses nothing.
     """
     try:
-        return "~/" + str(Path(vault).resolve().relative_to(Path.home())).replace("\\", "/")
+        return "~/" + str(Path(vault).resolve().relative_to(Path.home())).replace(
+            "\\", "/"
+        )
     except ValueError:
         return str(vault)
+
 
 def _serialize_graph(
     G: nx.DiGraph,

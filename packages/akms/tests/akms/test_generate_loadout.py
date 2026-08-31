@@ -32,7 +32,9 @@ from tests.akms.conftest import make_global_node, set_overlay
 @pytest.fixture(autouse=True)
 def _default_qmd_available(monkeypatch):
     """Keep qmd-enabled behavior by default; opt out explicitly in degraded-mode tests."""
-    monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: "/usr/bin/qmd")
+    monkeypatch.setattr(
+        "akms.graph.generate_loadout.shutil.which", lambda _: "/usr/bin/qmd"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -49,10 +51,13 @@ class TestRoutingMode:
         make_global_node(tmp_vault, id="n2", tags=["taichi"], confidence=0.8)
         G = build_graph(tmp_repo, global_vault=tmp_vault)
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
-        nodes = [(nid, {**data, "content_ref": "global-nodes/n1.md"}) for nid, data in nodes]
+        nodes = [
+            (nid, {**data, "content_ref": "global-nodes/n1.md"}) for nid, data in nodes
+        ]
 
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -73,7 +78,8 @@ class TestRoutingMode:
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
 
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -103,7 +109,8 @@ class TestRoutingMode:
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
 
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-CTX",
             phase=1,
             graph_version="abc123",
@@ -127,7 +134,8 @@ class TestRoutingMode:
 
         output_dir = tmp_repo / "knowledge" / "loadouts"
         generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -150,7 +158,8 @@ class TestRoutingMode:
 
         explicit_path = tmp_repo / "knowledge" / "loadouts" / "custom-loadout.md"
         generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-CUSTOM",
             phase=1,
             graph_version="abc123",
@@ -164,14 +173,17 @@ class TestRoutingMode:
         content = explicit_path.read_text()
         assert "# Loadout: TSK-CUSTOM" in content
 
-    def test_output_dir_and_output_path_are_mutually_exclusive(self, tmp_vault, tmp_repo):
+    def test_output_dir_and_output_path_are_mutually_exclusive(
+        self, tmp_vault, tmp_repo
+    ):
         make_global_node(tmp_vault, id="n1", tags=["taichi"])
         G = build_graph(tmp_repo, global_vault=tmp_vault)
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
 
         with pytest.raises(ValueError):
             generate_loadout(
-                G, nodes,
+                G,
+                nodes,
                 task_id="TSK-ERR",
                 phase=1,
                 graph_version="abc123",
@@ -194,7 +206,10 @@ class TestFullMode:
     def test_full_mode_includes_content(self, tmp_vault, tmp_repo):
         """Full mode loadout embeds node content inline."""
         make_global_node(
-            tmp_vault, id="n1", tags=["taichi"], confidence=0.9,
+            tmp_vault,
+            id="n1",
+            tags=["taichi"],
+            confidence=0.9,
             content="# Node Content\n\nThis is detailed content about Taichi patterns.",
         )
         G = build_graph(tmp_repo, global_vault=tmp_vault)
@@ -203,7 +218,8 @@ class TestFullMode:
         # The content_ref points to a skill file that may not exist in test env
         # So we test the structure, not the content itself
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -222,7 +238,8 @@ class TestFullMode:
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
 
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -253,20 +270,23 @@ class TestPitfallWarnings:
 
         set_overlay(
             tmp_repo,
-            local_edges=[{
-                "from": "n1",
-                "to": "n2",
-                "type": "pitfall",
-                "weight": 0.8,
-                "note": "Watch for race conditions",
-            }],
+            local_edges=[
+                {
+                    "from": "n1",
+                    "to": "n2",
+                    "type": "pitfall",
+                    "weight": 0.8,
+                    "note": "Watch for race conditions",
+                }
+            ],
         )
 
         G = build_graph(tmp_repo, global_vault=tmp_vault)
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
 
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -318,7 +338,8 @@ class TestReadingOrder:
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
 
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -366,9 +387,7 @@ class TestModeSelection:
         config.loadout.mode_selection.budget_fraction = 0.15
 
         # Many large nodes
-        nodes = [
-            (f"n{i}", {"context_size": "large"}) for i in range(20)
-        ]
+        nodes = [(f"n{i}", {"context_size": "large"}) for i in range(20)]
 
         mode = select_loadout_mode(nodes, available_context=50000, config=config)
         # 20 * 3000 = 60000 > 50000 * 0.15 = 7500
@@ -427,7 +446,8 @@ class TestLoadoutEdgeCases:
         G = build_graph(tmp_repo, global_vault=tmp_vault)
 
         content = generate_loadout(
-            G, [],
+            G,
+            [],
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -440,7 +460,10 @@ class TestLoadoutEdgeCases:
         assert "node_count: 0" in content
 
     def test_qmd_absent_still_renders_content_via_file_fallback(
-        self, tmp_vault, tmp_repo, monkeypatch,
+        self,
+        tmp_vault,
+        tmp_repo,
+        monkeypatch,
     ):
         """PR20-T1: with `qmd` binary absent, retrieval falls back to the
         run_qmd.sh grep path AND `_load_node_content` reads the file body
@@ -449,12 +472,15 @@ class TestLoadoutEdgeCases:
         make_global_node(tmp_vault, id="n1", tags=["taichi"], content="# N1\n\nbody")
         G = build_graph(tmp_repo, global_vault=tmp_vault)
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
-        nodes = [(nid, {**data, "content_ref": "global-nodes/n1.md"}) for nid, data in nodes]
+        nodes = [
+            (nid, {**data, "content_ref": "global-nodes/n1.md"}) for nid, data in nodes
+        ]
         # Simulate a host without the `qmd` binary on PATH.
         monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
 
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -480,9 +506,13 @@ class TestQmdRetrievalOrchestration:
         make_global_node(tmp_vault, id="n1", tags=["taichi"], content="# X\n\nalpha")
         G = build_graph(tmp_repo, global_vault=tmp_vault)
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
-        nodes = [(nid, {**data, "content_ref": "global-nodes/n1.md"}) for nid, data in nodes]
+        nodes = [
+            (nid, {**data, "content_ref": "global-nodes/n1.md"}) for nid, data in nodes
+        ]
 
-        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: "/usr/bin/qmd")
+        monkeypatch.setattr(
+            "akms.graph.generate_loadout.shutil.which", lambda _: "/usr/bin/qmd"
+        )
 
         captured = {}
 
@@ -502,7 +532,8 @@ class TestQmdRetrievalOrchestration:
         monkeypatch.setattr("akms.graph.generate_loadout.subprocess.run", _fake_run)
 
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -523,9 +554,13 @@ class TestQmdRetrievalOrchestration:
         make_global_node(tmp_vault, id="n1", tags=["taichi"])
         G = build_graph(tmp_repo, global_vault=tmp_vault)
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
-        nodes = [(nid, {**data, "content_ref": "global-nodes/n1.md"}) for nid, data in nodes]
+        nodes = [
+            (nid, {**data, "content_ref": "global-nodes/n1.md"}) for nid, data in nodes
+        ]
 
-        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: "/usr/bin/qmd")
+        monkeypatch.setattr(
+            "akms.graph.generate_loadout.shutil.which", lambda _: "/usr/bin/qmd"
+        )
         # Cache payload carries `line` so the list-shaped branch is taken.
         monkeypatch.setattr(
             "akms.graph.generate_loadout.get_cached",
@@ -540,7 +575,8 @@ class TestQmdRetrievalOrchestration:
         monkeypatch.setattr("akms.graph.generate_loadout.subprocess.run", _boom)
 
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -555,12 +591,21 @@ class TestQmdRetrievalOrchestration:
         make_global_node(tmp_vault, id="n1", tags=["taichi"])
         G = build_graph(tmp_repo, global_vault=tmp_vault)
         nodes = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
-        nodes = [(nid, {**data, "content_ref": "global-nodes/n1.md"}) for nid, data in nodes]
+        nodes = [
+            (nid, {**data, "content_ref": "global-nodes/n1.md"}) for nid, data in nodes
+        ]
 
-        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: "/usr/bin/qmd")
-        monkeypatch.setattr("akms.graph.generate_loadout.get_cached", lambda *args, **kwargs: None)
+        monkeypatch.setattr(
+            "akms.graph.generate_loadout.shutil.which", lambda _: "/usr/bin/qmd"
+        )
+        monkeypatch.setattr(
+            "akms.graph.generate_loadout.get_cached", lambda *args, **kwargs: None
+        )
         put_calls = []
-        monkeypatch.setattr("akms.graph.generate_loadout.put_cached", lambda *args, **kwargs: put_calls.append((args, kwargs)))
+        monkeypatch.setattr(
+            "akms.graph.generate_loadout.put_cached",
+            lambda *args, **kwargs: put_calls.append((args, kwargs)),
+        )
         # run_qmd.sh output shape.
         monkeypatch.setattr(
             "akms.graph.generate_loadout.subprocess.run",
@@ -575,7 +620,8 @@ class TestQmdRetrievalOrchestration:
         )
 
         content = generate_loadout(
-            G, nodes,
+            G,
+            nodes,
             task_id="TSK-001",
             phase=1,
             graph_version="abc123",
@@ -599,7 +645,8 @@ class TestDeterministicOrdering:
         reverse = list(reversed(forward))
 
         c1 = generate_loadout(
-            G, forward,
+            G,
+            forward,
             task_id="TSK-DET",
             phase=1,
             graph_version="abc123",
@@ -607,7 +654,8 @@ class TestDeterministicOrdering:
             agent_role=AgentRole.IMPLEMENTER,
         )
         c2 = generate_loadout(
-            G, reverse,
+            G,
+            reverse,
             task_id="TSK-DET",
             phase=1,
             graph_version="abc123",

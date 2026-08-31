@@ -174,7 +174,10 @@ class TestPartialFields:
 
     @pytest.mark.unit
     def test_assessment_items_preserved_as_tuple(self) -> None:
-        items = [{"type": "mcq", "question": "What is X?"}, {"type": "fib", "prompt": "Fill in"}]
+        items = [
+            {"type": "mcq", "question": "What is X?"},
+            {"type": "fib", "prompt": "Fill in"},
+        ]
         node = _bare_node(assessment_items=items)
         meta = read_v21_metadata(node)
         assert isinstance(meta.assessment_items, tuple)
@@ -343,7 +346,11 @@ class TestDeterminism:
         node = _bare_node(skipped_prerequisites=["c", "a", "b"])
         first = read_v21_metadata(node)
         second = read_v21_metadata(node)
-        assert first.skipped_prerequisites == second.skipped_prerequisites == ("a", "b", "c")
+        assert (
+            first.skipped_prerequisites
+            == second.skipped_prerequisites
+            == ("a", "b", "c")
+        )
 
     @pytest.mark.unit
     def test_assessment_items_order_preserved(self) -> None:

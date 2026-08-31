@@ -42,7 +42,9 @@ def _codex_mcp_overrides(repo_root: str | Path) -> list[str]:
     ``mcp__akms__akms_*`` tools as the SDK backends where the Codex version
     supports MCP servers.
     """
-    args = json.dumps(["-m", "akms.orchestrator.mcp_stdio", "--repo-root", str(repo_root)])
+    args = json.dumps(
+        ["-m", "akms.orchestrator.mcp_stdio", "--repo-root", str(repo_root)]
+    )
     return [
         "-c",
         f"mcp_servers.akms.command={json.dumps(sys.executable)}",

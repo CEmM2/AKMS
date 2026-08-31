@@ -142,16 +142,22 @@ _IMPORT_RE = re.compile(
 )
 
 # Detects "from X import *" — must be checked before the no-imports early-return.
-_STAR_IMPORT_RE = re.compile(
-    r"^\s*from\s+[\w.]+\s+import\s+\*", re.MULTILINE
-)
+_STAR_IMPORT_RE = re.compile(r"^\s*from\s+[\w.]+\s+import\s+\*", re.MULTILINE)
 
 # Top-level package names whose presence in an import statement classifies the
 # snippet as ``"unsafe"``. Comparison is module-name-granular (see Step 2 below)
 # so multi-import lines like ``import math, os`` are caught reliably.
-_UNSAFE_MODULES: frozenset[str] = frozenset({
-    "os", "subprocess", "requests", "urllib", "socket", "shutil", "sys",
-})
+_UNSAFE_MODULES: frozenset[str] = frozenset(
+    {
+        "os",
+        "subprocess",
+        "requests",
+        "urllib",
+        "socket",
+        "shutil",
+        "sys",
+    }
+)
 
 # Regex form kept for the raw-text fast path (Step 1) — catches snippets where
 # Step 2's module-name extraction would have run anyway, plus the dotted-from
@@ -172,12 +178,12 @@ _UNSAFE_CALL_RE = re.compile(
 # ---------------------------------------------------------------------------
 
 _SECTION_TO_HEADINGS: dict[str, tuple[str, ...]] = {
-    "explanation":            ("concept", "motivation"),
-    "equations":              ("derivation",),
+    "explanation": ("concept", "motivation"),
+    "equations": ("derivation",),
     "minimal implementation": ("implementation", "worked_example"),
-    "diagnostics":            ("pitfalls",),
-    "verification":           ("assessment",),
-    "exercises":              ("assessment",),
+    "diagnostics": ("pitfalls",),
+    "verification": ("assessment",),
+    "exercises": ("assessment",),
 }
 
 
@@ -352,12 +358,7 @@ def _find_content_for_slot(
     # Fallback: check node body/summary for content-rich nodes.
     for nid in ordered_nodes:
         node = nodes_by_id.get(nid) or {}
-        body = (
-            node.get("body")
-            or node.get("markdown")
-            or node.get("summary")
-            or ""
-        )
+        body = node.get("body") or node.get("markdown") or node.get("summary") or ""
         if body.strip():
             return body.strip(), nid
 
@@ -604,13 +605,9 @@ def notebook_source_mode(
     # ------------------------------------------------------------------
     # Provenance lists (deterministic — sorted).
     # ------------------------------------------------------------------
-    source_node_ids = sorted(
-        nid for nid in ordered_nodes if nid in nodes_by_id
-    )
+    source_node_ids = sorted(nid for nid in ordered_nodes if nid in nodes_by_id)
     edge_ids = sorted(
-        str(e.get("edge_id", ""))
-        for e in graph_slice.edges
-        if e.get("edge_id")
+        str(e.get("edge_id", "")) for e in graph_slice.edges if e.get("edge_id")
     )
 
     result = NotebookSourceResult(

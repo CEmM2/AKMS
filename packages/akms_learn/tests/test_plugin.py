@@ -99,6 +99,5 @@ def test_capabilities_membership_initial() -> None:
     assert all(isinstance(c, str) for c in caps)
     assert len(caps) >= 10
     assert REQUIRED_CAPABILITIES <= set(caps), (
-        f"capabilities() missing required strings: "
-        f"{REQUIRED_CAPABILITIES - set(caps)}"
+        f"capabilities() missing required strings: {REQUIRED_CAPABILITIES - set(caps)}"
     )

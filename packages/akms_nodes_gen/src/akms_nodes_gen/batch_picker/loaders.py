@@ -26,14 +26,14 @@ class Paper:
     url: str = ""
     publication: str = ""
     abstract: str = ""
-    tags: list[str] = field(default_factory=list)        # Zotero tags
+    tags: list[str] = field(default_factory=list)  # Zotero tags
     keywords: list[str] = field(default_factory=list)
     paper_type: str = ""
     collections: list[str] = field(default_factory=list)  # collection names
-    pdf_path: str = ""                                    # absolute, may not exist
+    pdf_path: str = ""  # absolute, may not exist
     has_pdf: bool = False
     summary: dict[str, str] = field(default_factory=dict)
-    item_key: str = ""                                    # Zotero internal key
+    item_key: str = ""  # Zotero internal key
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

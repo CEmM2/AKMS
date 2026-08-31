@@ -175,14 +175,11 @@ class TestModeRespectsExplicitProvider:
         request = LearningRequest(
             topic="t", goal="g", generation_option="deterministic_outline"
         )
-        cfg = LLMExpansionRequest(
-            enable_llm=True, provider="explicit_recorder_prov"
-        )
+        cfg = LLMExpansionRequest(enable_llm=True, provider="explicit_recorder_prov")
 
-        with patch(
-            "akms_learn.modes.llm_expanded.resolve_default_provider"
-        ) as auto, patch(
-            "akms_learn.modes.llm_expanded.require_capability"
+        with (
+            patch("akms_learn.modes.llm_expanded.resolve_default_provider") as auto,
+            patch("akms_learn.modes.llm_expanded.require_capability"),
         ):
             result, _ = llm_expanded_mode(
                 slice_, ["n1"], request, expansion_request=cfg
@@ -231,6 +228,4 @@ class TestModeRespectsExplicitProvider:
         # The stub does run (it's always-available) and produces sections; the
         # deterministic baseline (pre_expansion_packet) is preserved verbatim.
         assert result.pre_expansion_packet["node_ids"] == ["n1", "n2"]
-        assert (
-            result.packet["node_ids"] == result.pre_expansion_packet["node_ids"]
-        )
+        assert result.packet["node_ids"] == result.pre_expansion_packet["node_ids"]

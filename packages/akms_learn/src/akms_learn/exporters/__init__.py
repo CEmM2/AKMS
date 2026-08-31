@@ -64,7 +64,13 @@ __all__ = ["Exporter", "KNOWN_EXPORTERS"]
 #: ``akms_learn.exporters.<name>`` for each entry in ``request.exporters``
 #: that is a member of this tuple. Names outside this set always emit
 #: ``exporter_unavailable`` warnings.
-KNOWN_EXPORTERS: tuple[str, ...] = ("markdown", "bundle", "notebook", "assessment", "html")
+KNOWN_EXPORTERS: tuple[str, ...] = (
+    "markdown",
+    "bundle",
+    "notebook",
+    "assessment",
+    "html",
+)
 
 
 @runtime_checkable
@@ -80,5 +86,4 @@ class Exporter(Protocol):
         packet: "LearningSourcePacket",
         output_dir: Path,
         /,
-    ) -> list[Path]:
-        ...
+    ) -> list[Path]: ...

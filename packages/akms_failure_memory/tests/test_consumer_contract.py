@@ -74,7 +74,9 @@ REPO_ROOT = PACKAGE_ROOT.parents[1]
 # fingerprint moved with it. Deliberate re-freeze -- the pin stays literal so an
 # accidental pack edit still fails loudly. Previous value:
 # 8efa2a0135d0481f2b7281f0ba1dce436f2fcc190137d1070ead63c0741108f3
-EXPECTED_PACK_SHA256 = "90ad2801481723e224e7215fffb3a7b1cd661e615bcbaa9c5a62565a40c94eb7"
+EXPECTED_PACK_SHA256 = (
+    "90ad2801481723e224e7215fffb3a7b1cd661e615bcbaa9c5a62565a40c94eb7"
+)
 
 # The pack's pinned deterministic graph timestamp. Canonical publication feeds
 # this to the project-owned finalizer, which is what makes every fingerprint in
@@ -213,7 +215,9 @@ def staged(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
     return repo, vault
 
 
-def _resolve(repo: Path, request: str, *, write_artifacts: bool = True) -> dict[str, Any]:
+def _resolve(
+    repo: Path, request: str, *, write_artifacts: bool = True
+) -> dict[str, Any]:
     return resolve_provider(
         config_path=repo / "project.toml",
         repository_root=repo,
@@ -246,7 +250,10 @@ def test_pack_checksum_is_pinned_and_verifiable_in_one_command() -> None:
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
-    assert EXPECTED_PACK_SHA256 in _load("fixture-manifest.json")["checksum"]["pack_sha256"]
+    assert (
+        EXPECTED_PACK_SHA256
+        in _load("fixture-manifest.json")["checksum"]["pack_sha256"]
+    )
 
 
 def test_pack_checksum_detects_any_edit(tmp_path: Path) -> None:
@@ -298,23 +305,27 @@ def test_generated_artifacts_are_real_compiler_output(tmp_path: Path) -> None:
 def test_pack_identity_matches_the_integration_lock() -> None:
     manifest = _manifest()
     config = load_project_config(PACK / "project.toml")
-    assert config.toolchain["akms_public_api_sha256"] == manifest["identity"][
-        "akms_public_api_sha256"
-    ]
-    assert config.toolchain["repo2md_fixture_sha256"] == manifest["identity"][
-        "repo2md_fixture_sha256"
-    ]
+    assert (
+        config.toolchain["akms_public_api_sha256"]
+        == manifest["identity"]["akms_public_api_sha256"]
+    )
+    assert (
+        config.toolchain["repo2md_fixture_sha256"]
+        == manifest["identity"]["repo2md_fixture_sha256"]
+    )
     assert config.fingerprint == manifest["project"]["config_fingerprint"]
 
     lock_path = REPO_ROOT / manifest["identity"]["integration_lock"]
     if lock_path.is_file():
         lock = json.loads(lock_path.read_text(encoding="utf-8"))
-        assert lock["akms"]["public_api_sha256"] == config.toolchain[
-            "akms_public_api_sha256"
-        ]
-        assert lock["repo2md"]["fixture_pack_sha256"] == config.toolchain[
-            "repo2md_fixture_sha256"
-        ]
+        assert (
+            lock["akms"]["public_api_sha256"]
+            == config.toolchain["akms_public_api_sha256"]
+        )
+        assert (
+            lock["repo2md"]["fixture_pack_sha256"]
+            == config.toolchain["repo2md_fixture_sha256"]
+        )
 
 
 def test_manifest_behaviour_matrix_is_complete() -> None:
@@ -486,7 +497,9 @@ def test_record_and_recompile_round_trip(tmp_path: Path) -> None:
         global_vault=vault,
         mode="check",
     )
-    assert {"status": check["status"], "counts": check["counts"]} == expected["recompile"]
+    assert {"status": check["status"], "counts": check["counts"]} == expected[
+        "recompile"
+    ]
 
     routes = json.loads((repo / "generated/routes.json").read_text(encoding="utf-8"))
     assert "src/engine/recorder.py" in routes["by_path"]
@@ -510,7 +523,9 @@ def test_readonly_mutation_is_rejected(tmp_path: Path) -> None:
     repo, vault = _stage(tmp_path)
     expected = _case("errors.json", "readonly_mutation_rejection")["expect"]
 
-    proposal = json.loads((repo / "recording/proposal.json").read_text(encoding="utf-8"))
+    proposal = json.loads(
+        (repo / "recording/proposal.json").read_text(encoding="utf-8")
+    )
     proposal["id"] = "L900"
     forged = repo / "forged-proposal.json"
     forged.write_text(json.dumps(proposal), encoding="utf-8")
@@ -524,8 +539,8 @@ def test_readonly_mutation_is_rejected(tmp_path: Path) -> None:
             request_path=forged,
         )
     assert raised.value.code == expected["self_allocated_id"]["error"]["code"]
-    assert (
-        expected["self_allocated_id"]["error"]["message_contains"] in str(raised.value)
+    assert expected["self_allocated_id"]["error"]["message_contains"] in str(
+        raised.value
     )
     assert registry.read_bytes() == before
     assert expected["self_allocated_id"]["registry_unchanged"] is True
@@ -602,7 +617,9 @@ def test_absent_package_degradation() -> None:
         print(json.dumps(envelope, sort_keys=True))
         """
     )
-    environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    environment = {
+        key: value for key, value in os.environ.items() if key != "PYTHONPATH"
+    }
     completed = subprocess.run(
         [sys.executable, "-c", script],
         cwd=str(Path(os.sep)),
@@ -643,13 +660,17 @@ def test_docs_only_scope_suppresses_the_required_lane(
     assert [record["node_id"] for record in docs_route] == ["cc-failure-l006"]
 
     result = _resolve(repo, "docs-only.json")
-    _assert_matches(_case("docs-routing.json", "docs_only_suppressed_to_advisory"), result)
+    _assert_matches(
+        _case("docs-routing.json", "docs_only_suppressed_to_advisory"), result
+    )
 
     by_class: dict[str, set[str]] = {}
     for record in result["records"]:
         by_class.setdefault(record["selection_class"], set()).add(record["node_id"])
     assert "cc-failure-l006" in by_class.get("advisory", set()), "present in advisory"
-    assert "cc-failure-l006" not in by_class.get("required", set()), "absent from required"
+    assert "cc-failure-l006" not in by_class.get("required", set()), (
+        "absent from required"
+    )
     assert by_class.get("required", set()) == set()
     assert result["resolution"]["required_count"] == 0
     assert result["resolution"]["advisory_count"] == 1
@@ -694,7 +715,9 @@ def test_docs_lesson_is_required_once_any_declared_path_is_code(
 
     untagged = _load("requests/docs-only-untagged.json")["declared_paths"]
     mixed = _load("requests/docs-mixed.json")["declared_paths"]
-    assert set(untagged) < set(mixed), "the mixed request only ADDS a non-documentation path"
+    assert set(untagged) < set(mixed), (
+        "the mixed request only ADDS a non-documentation path"
+    )
 
 
 # ── amendment 1: fingerprint portability and staleness decidability ───────
@@ -772,8 +795,7 @@ def test_fingerprint_portability(tmp_path: Path) -> None:
         == pinned["input_fingerprints"]["graph_sha256"]
     )
     assert (
-        result_a["resolution"]["graph_version"]
-        == pinned["resolution"]["graph_version"]
+        result_a["resolution"]["graph_version"] == pinned["resolution"]["graph_version"]
     )
     assert _project(result_a) == _project(result_b) == pinned
 
@@ -781,7 +803,9 @@ def test_fingerprint_portability(tmp_path: Path) -> None:
     assert set(result_a["resolution"]) - set(pinned["resolution"]) == set(
         REDUCED_RESOLUTION
     )
-    assert result_a["resolution"]["loadout_path"] != result_b["resolution"]["loadout_path"]
+    assert (
+        result_a["resolution"]["loadout_path"] != result_b["resolution"]["loadout_path"]
+    )
 
 
 def _staleness_case(case_id: str) -> dict[str, Any]:
@@ -795,9 +819,10 @@ def _recorded_result(tmp_path: Path) -> bytes:
     repo, vault = _stage(tmp_path / "recorded")
     _publish_graph(repo, vault)
     result = _resolve(repo, "exact-path.json")
-    assert result["fingerprint"] == _load("expected/staleness.json")["recorded_baseline"][
-        "fingerprint"
-    ]
+    assert (
+        result["fingerprint"]
+        == _load("expected/staleness.json")["recorded_baseline"]["fingerprint"]
+    )
     return (repo / result["artifacts"]["result"]).read_bytes()
 
 
@@ -933,9 +958,13 @@ def test_init_default_layout_feeds_the_graph_and_resolves(tmp_path: Path) -> Non
     config = load_project_config(config_path)
     assert config.resolve(repo, "local_nodes").is_relative_to(
         config.resolve(repo, "akms_repo_root")
-    ), "init's default local_nodes must live inside akms_repo_root or build_graph cannot see it"
+    ), (
+        "init's default local_nodes must live inside akms_repo_root or build_graph cannot see it"
+    )
 
-    proposal = json.loads((PACK / "recording/proposal.json").read_text(encoding="utf-8"))
+    proposal = json.loads(
+        (PACK / "recording/proposal.json").read_text(encoding="utf-8")
+    )
     proposal["related"] = []  # this registry starts empty, so L001 is the new id
     request = tmp_path / "proposal.json"
     request.write_text(json.dumps(proposal), encoding="utf-8")
@@ -952,9 +981,9 @@ def test_init_default_layout_feeds_the_graph_and_resolves(tmp_path: Path) -> Non
         output_path=config.resolve(repo, "graph"),
         strict=True,
     )
-    assert list(graph.nodes) == [
-        "demo-failure-l001"
-    ], "the recorded lesson's compiled node must reach the graph"
+    assert list(graph.nodes) == ["demo-failure-l001"], (
+        "the recorded lesson's compiled node must reach the graph"
+    )
 
     provider_request = {
         "schema_version": "failure-memory-provider-request/v1",

@@ -130,17 +130,14 @@ class TestPlanningPipeline:
     def test_mechanics_query_for_physics_reviewer(self, seed_graph):
         """Physics reviewer query with mechanics tags finds domain nodes."""
         G, repo = seed_graph
-        result = query_subgraph(
-            G, ["fem", "plasticity"], AgentRole.PHYSICS_REVIEWER
-        )
+        result = query_subgraph(G, ["fem", "plasticity"], AgentRole.PHYSICS_REVIEWER)
 
         node_ids = [nid for nid, _ in result]
         assert "skill-computational-mechanics" in node_ids
         # Physics reviewer excludes project-meta domain
         for nid, ndata in result:
             assert ndata.get("domain") != "project-meta" or nid in {
-                n for n, _ in result
-                if G.nodes[n].get("domain") != "project-meta"
+                n for n, _ in result if G.nodes[n].get("domain") != "project-meta"
             }
 
     def test_full_pipeline_compile_query_loadout(self, seed_graph):
@@ -163,7 +160,8 @@ class TestPlanningPipeline:
         # Step 4: Generate loadout
         output_dir = repo / "knowledge" / "loadouts"
         content = generate_loadout(
-            G, result,
+            G,
+            result,
             task_id="TSK-TAICHI-001",
             phase=1,
             graph_version=graph_version,
@@ -201,7 +199,8 @@ class TestPlanningPipeline:
         result = query_subgraph(G, ["taichi", "gpu"], AgentRole.IMPLEMENTER)
 
         content = generate_loadout(
-            G, result,
+            G,
+            result,
             task_id="TSK-001",
             phase=1,
             graph_version="test",
@@ -231,7 +230,8 @@ class TestPlanningPipeline:
         result = query_subgraph(G, ["taichi", "gpu"], AgentRole.IMPLEMENTER)
 
         content = generate_loadout(
-            G, result,
+            G,
+            result,
             task_id="TSK-001",
             phase=1,
             graph_version="test",
@@ -327,20 +327,23 @@ class TestPipelineWithOverlay:
 
         set_overlay(
             tmp_repo,
-            local_edges=[{
-                "from": "n1",
-                "to": "n2",
-                "type": "pitfall",
-                "weight": 0.9,
-                "note": "Memory leak when batch > 1024",
-            }],
+            local_edges=[
+                {
+                    "from": "n1",
+                    "to": "n2",
+                    "type": "pitfall",
+                    "weight": 0.9,
+                    "note": "Memory leak when batch > 1024",
+                }
+            ],
         )
 
         G = build_graph(tmp_repo, global_vault=tmp_vault)
         result = query_subgraph(G, ["taichi"], AgentRole.IMPLEMENTER)
 
         content = generate_loadout(
-            G, result,
+            G,
+            result,
             task_id="TSK-001",
             phase=1,
             graph_version="test",

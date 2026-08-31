@@ -216,10 +216,7 @@ def _find_source_edge(
     the slice (the node was matched by node_id directly, not via a graph edge).
     """
     for edge in edges:
-        if (
-            edge.get("type") == "requires"
-            and edge.get("to") == node_id
-        ):
+        if edge.get("type") == "requires" and edge.get("to") == node_id:
             eid = edge.get("edge_id")
             if eid is not None:
                 return str(eid)

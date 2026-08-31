@@ -80,7 +80,9 @@ def _validate_slice_payload(payload: dict[str, Any]) -> GraphSlice:
     edges = _coerce_list_to_tuple(payload.get("edges", []))
     metadata = payload.get("metadata", {})
     if not isinstance(metadata, dict):
-        raise TypeError(f"GraphSlice.metadata must be a dict, got {type(metadata).__name__}")
+        raise TypeError(
+            f"GraphSlice.metadata must be a dict, got {type(metadata).__name__}"
+        )
     return GraphSlice(nodes=nodes, edges=edges, metadata=metadata)
 
 

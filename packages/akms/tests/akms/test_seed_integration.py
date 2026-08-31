@@ -153,7 +153,9 @@ class TestSeedNodeValidation:
         for md_file in SEED_NODES_DIR.glob("skill-*.md"):
             node = parse_node_frontmatter(md_file, is_local=False)
             assert node.content_ref, f"Node {node.id} missing content_ref"
-            assert node.content_ref.startswith("content/"), f"Node {node.id} content_ref should start with 'content/'"
+            assert node.content_ref.startswith("content/"), (
+                f"Node {node.id} content_ref should start with 'content/'"
+            )
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -320,7 +322,9 @@ class TestCompileWithOverlay:
 
         G = build_graph(seed_repo)
 
-        expected_count = len(list(SEED_NODES_DIR.glob("*.md"))) + 1  # global + 1 session
+        expected_count = (
+            len(list(SEED_NODES_DIR.glob("*.md"))) + 1
+        )  # global + 1 session
         assert G.number_of_nodes() == expected_count
         assert G.has_edge("skill-taichi-gpu-sim", "session-test-1")
         edge = G.edges["skill-taichi-gpu-sim", "session-test-1"]
@@ -370,7 +374,9 @@ class TestCompileWithLocalNode:
 class TestDeterminism:
     """NFR-D01: build output is deterministic."""
 
-    def test_build_twice_identical(self, seed_vault: Path, seed_repo: Path, monkeypatch):
+    def test_build_twice_identical(
+        self, seed_vault: Path, seed_repo: Path, monkeypatch
+    ):
         """Building twice produces identical graph.json (excluding timestamp)."""
         monkeypatch.setenv("AKMS_GLOBAL_VAULT", str(seed_vault))
 
@@ -389,7 +395,9 @@ class TestDeterminism:
 
         assert data1 == data2
 
-    def test_roundtrip_preserves_data(self, seed_vault: Path, seed_repo: Path, monkeypatch):
+    def test_roundtrip_preserves_data(
+        self, seed_vault: Path, seed_repo: Path, monkeypatch
+    ):
         """build → serialize → load_graph preserves all node and edge data."""
         monkeypatch.setenv("AKMS_GLOBAL_VAULT", str(seed_vault))
 
@@ -444,7 +452,9 @@ class TestQMDScripts:
                 capture_output=True,
                 text=True,
             )
-            assert result.returncode == 0, f"Syntax error in {qmd_file.name}: {result.stderr}"
+            assert result.returncode == 0, (
+                f"Syntax error in {qmd_file.name}: {result.stderr}"
+            )
 
     def test_run_qmd_valid_bash(self):
         """run_qmd.sh passes bash -n syntax check."""
@@ -461,7 +471,9 @@ class TestQMDScripts:
         assert "AKMS_GLOBAL_VAULT" in content
         assert "local-nodes" in content
 
-    def test_run_qmd_search_nodes_executes(self, seed_repo: Path, seed_vault: Path, monkeypatch):
+    def test_run_qmd_search_nodes_executes(
+        self, seed_repo: Path, seed_vault: Path, monkeypatch
+    ):
         """run_qmd.sh search_nodes runs without error against seed data."""
         monkeypatch.setenv("AKMS_GLOBAL_VAULT", str(seed_vault))
 

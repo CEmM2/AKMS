@@ -89,6 +89,7 @@ def _match_canonical(heading_text: str) -> Optional[str]:
         return canonical
     return _ALIAS_TO_CANONICAL.get(stripped)
 
+
 # ATX heading pattern: optional leading whitespace (≤3 spaces), one or more #,
 # at least one space, then the heading text.
 _ATX_RE = re.compile(r"^[ \t]{0,3}(#{1,6})[ \t]+(.+?)[ \t]*(?:#+[ \t]*)?$")
@@ -321,8 +322,7 @@ def merge_sections_into_node_view(
     the packet body without depending on this helper having a side-effect.
     """
     serialised: dict[str, Any] = {
-        k: v.model_dump() if v is not None else None
-        for k, v in sections_dict.items()
+        k: v.model_dump() if v is not None else None for k, v in sections_dict.items()
     }
     if hasattr(node_view, "included_sections"):
         node_view.included_sections = serialised

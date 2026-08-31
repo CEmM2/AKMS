@@ -95,8 +95,6 @@ def _build_and_load(tmp_repo, tmp_vault):
     return build_graph(tmp_repo, global_vault=tmp_vault)
 
 
-
-
 class TestConfidenceMutations:
     """Tests for _process_nodes_used (Task 4.1)."""
 
@@ -108,8 +106,12 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         events = _process_nodes_used(
-            G, overlay, [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         assert len(events) == 1
@@ -124,13 +126,19 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         events = _process_nodes_used(
-            G, overlay, [{"id": "node-a", "useful": False, "coverage": "missing-detail"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "node-a", "useful": False, "coverage": "missing-detail"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         assert any(e["action"] == "decay" for e in events)
         # 0.90 * 0.85 = 0.765
-        assert overlay["nodes"]["node-a"]["confidence"] == pytest.approx(0.765, abs=1e-3)
+        assert overlay["nodes"]["node-a"]["confidence"] == pytest.approx(
+            0.765, abs=1e-3
+        )
 
     def test_decay_outdated(self, tmp_vault, tmp_repo):
         """coverage=outdated → same decay as missing-detail."""
@@ -140,8 +148,12 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         events = _process_nodes_used(
-            G, overlay, [{"id": "node-a", "useful": False, "coverage": "outdated"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "node-a", "useful": False, "coverage": "outdated"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         assert any(e["action"] == "decay" for e in events)
@@ -156,12 +168,18 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         events = _process_nodes_used(
-            G, overlay, [{"id": "node-a", "useful": True, "coverage": "missing-detail"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "node-a", "useful": True, "coverage": "missing-detail"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         # boost: 0.90 + 0.02 = 0.92, then decay: 0.92 * 0.85 = 0.782
-        assert overlay["nodes"]["node-a"]["confidence"] == pytest.approx(0.782, abs=1e-3)
+        assert overlay["nodes"]["node-a"]["confidence"] == pytest.approx(
+            0.782, abs=1e-3
+        )
 
     def test_skip_auto_update_node(self, tmp_vault, tmp_repo):
         """auto_update=true nodes are skipped entirely."""
@@ -171,8 +189,12 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         events = _process_nodes_used(
-            G, overlay, [{"id": "mirror-node", "useful": True, "coverage": "sufficient"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "mirror-node", "useful": True, "coverage": "sufficient"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         assert len(events) == 0
@@ -186,8 +208,12 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         events = _process_nodes_used(
-            G, overlay, [{"id": "node-a", "useful": False, "coverage": "missing-detail"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "node-a", "useful": False, "coverage": "missing-detail"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         # 0.72 * 0.85 = 0.612 → clamped to floor 0.70
@@ -201,8 +227,12 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         events = _process_nodes_used(
-            G, overlay, [{"id": "node-a", "useful": False, "coverage": "outdated"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "node-a", "useful": False, "coverage": "outdated"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         # 0.12 * 0.85 = 0.102 → above min_confidence (0.10), kept
@@ -216,8 +246,12 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         events = _process_nodes_used(
-            G, overlay, [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         # 0.98 + 0.02 = 1.00 → clamped to 0.99
@@ -231,8 +265,12 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         _process_nodes_used(
-            G, overlay, [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         assert overlay["nodes"]["node-a"]["activations"] == 1
@@ -245,8 +283,12 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         _process_nodes_used(
-            G, overlay, [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         assert "sessions/task-001.md" in overlay["nodes"]["node-a"]["session_refs"]
@@ -259,8 +301,12 @@ class TestConfidenceMutations:
         overlay = {"nodes": {}}
         config = PropagationConfig()
         events = _process_nodes_used(
-            G, overlay, [{"id": "nonexistent", "useful": True, "coverage": "sufficient"}],
-            config, "task-001", date(2026, 3, 7),
+            G,
+            overlay,
+            [{"id": "nonexistent", "useful": True, "coverage": "sufficient"}],
+            config,
+            "task-001",
+            date(2026, 3, 7),
         )
 
         assert len(events) == 0
@@ -292,15 +338,15 @@ class TestConfidenceMutations:
         assert overlay["nodes"]["node-a"]["activations"] == 2
 
 
-
-
 class TestNeighborPropagation:
     """Tests for _propagate_to_neighbors (Task 4.2)."""
 
     def test_predecessor_receives_propagated_decay(self, tmp_vault, tmp_repo):
         """Predecessor of a decayed node gets a proportional confidence hit."""
         make_global_node(
-            tmp_vault, id="parent", confidence=0.90,
+            tmp_vault,
+            id="parent",
+            confidence=0.90,
             edges=[{"to": "child", "type": "requires", "weight": 0.8}],
         )
         make_global_node(tmp_vault, id="child", confidence=0.80)
@@ -310,13 +356,15 @@ class TestNeighborPropagation:
         config = PropagationConfig()
 
         # Simulate a decay event on 'child'
-        decay_events = [{
-            "node_id": "child",
-            "action": "decay",
-            "old": 0.80,
-            "new": 0.68,
-            "reason": "coverage=missing-detail",
-        }]
+        decay_events = [
+            {
+                "node_id": "child",
+                "action": "decay",
+                "old": 0.80,
+                "new": 0.68,
+                "reason": "coverage=missing-detail",
+            }
+        ]
 
         prop_events = _propagate_to_neighbors(G, overlay, decay_events, config)
 
@@ -330,7 +378,9 @@ class TestNeighborPropagation:
     def test_edge_type_multiplier_refines(self, tmp_vault, tmp_repo):
         """refines edge has multiplier 0.7."""
         make_global_node(
-            tmp_vault, id="parent", confidence=0.90,
+            tmp_vault,
+            id="parent",
+            confidence=0.90,
             edges=[{"to": "child", "type": "refines", "weight": 0.7}],
         )
         make_global_node(tmp_vault, id="child", confidence=0.80)
@@ -339,13 +389,15 @@ class TestNeighborPropagation:
         overlay = {"nodes": {}}
         config = PropagationConfig()
 
-        decay_events = [{
-            "node_id": "child",
-            "action": "decay",
-            "old": 0.80,
-            "new": 0.68,
-            "reason": "decay",
-        }]
+        decay_events = [
+            {
+                "node_id": "child",
+                "action": "decay",
+                "old": 0.80,
+                "new": 0.68,
+                "reason": "decay",
+            }
+        ]
 
         prop_events = _propagate_to_neighbors(G, overlay, decay_events, config)
 
@@ -355,11 +407,15 @@ class TestNeighborPropagation:
 
     def test_mixed_edge_weights_propagate_proportionally(self, tmp_vault, tmp_repo):
         make_global_node(
-            tmp_vault, id="parent-high", confidence=0.90,
+            tmp_vault,
+            id="parent-high",
+            confidence=0.90,
             edges=[{"to": "child", "type": "requires", "weight": 0.9}],
         )
         make_global_node(
-            tmp_vault, id="parent-low", confidence=0.90,
+            tmp_vault,
+            id="parent-low",
+            confidence=0.90,
             edges=[{"to": "child", "type": "requires", "weight": 0.2}],
         )
         make_global_node(tmp_vault, id="child", confidence=0.80)
@@ -367,13 +423,15 @@ class TestNeighborPropagation:
 
         overlay = {"nodes": {}}
         config = PropagationConfig()
-        decay_events = [{
-            "node_id": "child",
-            "action": "decay",
-            "old": 0.80,
-            "new": 0.68,
-            "reason": "decay",
-        }]
+        decay_events = [
+            {
+                "node_id": "child",
+                "action": "decay",
+                "old": 0.80,
+                "new": 0.68,
+                "reason": "decay",
+            }
+        ]
 
         prop_events = _propagate_to_neighbors(G, overlay, decay_events, config)
         events_by_node = {event["node_id"]: event for event in prop_events}
@@ -381,12 +439,16 @@ class TestNeighborPropagation:
         assert set(events_by_node) == {"parent-high", "parent-low"}
         assert events_by_node["parent-high"]["hit"] == pytest.approx(0.0324, abs=1e-3)
         assert events_by_node["parent-low"]["hit"] == pytest.approx(0.0072, abs=1e-3)
-        assert events_by_node["parent-high"]["hit"] > events_by_node["parent-low"]["hit"]
+        assert (
+            events_by_node["parent-high"]["hit"] > events_by_node["parent-low"]["hit"]
+        )
 
     def test_contradicts_no_propagation(self, tmp_vault, tmp_repo):
         """contradicts edge has multiplier 0.0 — no propagation."""
         make_global_node(
-            tmp_vault, id="parent", confidence=0.90,
+            tmp_vault,
+            id="parent",
+            confidence=0.90,
             edges=[{"to": "child", "type": "contradicts", "weight": 0.5}],
         )
         make_global_node(tmp_vault, id="child", confidence=0.80)
@@ -395,13 +457,15 @@ class TestNeighborPropagation:
         overlay = {"nodes": {}}
         config = PropagationConfig()
 
-        decay_events = [{
-            "node_id": "child",
-            "action": "decay",
-            "old": 0.80,
-            "new": 0.68,
-            "reason": "decay",
-        }]
+        decay_events = [
+            {
+                "node_id": "child",
+                "action": "decay",
+                "old": 0.80,
+                "new": 0.68,
+                "reason": "decay",
+            }
+        ]
 
         prop_events = _propagate_to_neighbors(G, overlay, decay_events, config)
 
@@ -411,7 +475,9 @@ class TestNeighborPropagation:
     def test_pitfall_edge_no_propagation(self, tmp_vault, tmp_repo):
         """pitfall edge has multiplier 0.0 — no propagation."""
         make_global_node(
-            tmp_vault, id="parent", confidence=0.90,
+            tmp_vault,
+            id="parent",
+            confidence=0.90,
             edges=[{"to": "child", "type": "pitfall", "weight": 0.5}],
         )
         make_global_node(tmp_vault, id="child", confidence=0.80)
@@ -420,13 +486,15 @@ class TestNeighborPropagation:
         overlay = {"nodes": {}}
         config = PropagationConfig()
 
-        decay_events = [{
-            "node_id": "child",
-            "action": "decay",
-            "old": 0.80,
-            "new": 0.68,
-            "reason": "decay",
-        }]
+        decay_events = [
+            {
+                "node_id": "child",
+                "action": "decay",
+                "old": 0.80,
+                "new": 0.68,
+                "reason": "decay",
+            }
+        ]
 
         prop_events = _propagate_to_neighbors(G, overlay, decay_events, config)
         assert len(prop_events) == 0
@@ -434,7 +502,9 @@ class TestNeighborPropagation:
     def test_implements_no_propagation(self, tmp_vault, tmp_repo):
         """implements edge has multiplier 0.0 — no propagation."""
         make_global_node(
-            tmp_vault, id="parent", confidence=0.90,
+            tmp_vault,
+            id="parent",
+            confidence=0.90,
             edges=[{"to": "child", "type": "implements", "weight": 0.5}],
         )
         make_global_node(tmp_vault, id="child", confidence=0.80)
@@ -443,13 +513,15 @@ class TestNeighborPropagation:
         overlay = {"nodes": {}}
         config = PropagationConfig()
 
-        decay_events = [{
-            "node_id": "child",
-            "action": "decay",
-            "old": 0.80,
-            "new": 0.68,
-            "reason": "decay",
-        }]
+        decay_events = [
+            {
+                "node_id": "child",
+                "action": "decay",
+                "old": 0.80,
+                "new": 0.68,
+                "reason": "decay",
+            }
+        ]
 
         prop_events = _propagate_to_neighbors(G, overlay, decay_events, config)
         assert len(prop_events) == 0
@@ -457,7 +529,9 @@ class TestNeighborPropagation:
     def test_boost_events_not_propagated(self, tmp_vault, tmp_repo):
         """Only decay events trigger neighbor propagation."""
         make_global_node(
-            tmp_vault, id="parent", confidence=0.90,
+            tmp_vault,
+            id="parent",
+            confidence=0.90,
             edges=[{"to": "child", "type": "requires", "weight": 0.8}],
         )
         make_global_node(tmp_vault, id="child", confidence=0.80)
@@ -466,13 +540,15 @@ class TestNeighborPropagation:
         overlay = {"nodes": {}}
         config = PropagationConfig()
 
-        boost_events = [{
-            "node_id": "child",
-            "action": "boost",
-            "old": 0.80,
-            "new": 0.82,
-            "reason": "useful=true",
-        }]
+        boost_events = [
+            {
+                "node_id": "child",
+                "action": "boost",
+                "old": 0.80,
+                "new": 0.82,
+                "reason": "useful=true",
+            }
+        ]
 
         prop_events = _propagate_to_neighbors(G, overlay, boost_events, config)
         assert len(prop_events) == 0
@@ -491,18 +567,18 @@ class TestNeighborPropagation:
         overlay = {"nodes": {}}
         config = PropagationConfig()
 
-        decay_events = [{
-            "node_id": "child",
-            "action": "decay",
-            "old": 0.80,
-            "new": 0.68,
-            "reason": "decay",
-        }]
+        decay_events = [
+            {
+                "node_id": "child",
+                "action": "decay",
+                "old": 0.80,
+                "new": 0.68,
+                "reason": "decay",
+            }
+        ]
 
         prop_events = _propagate_to_neighbors(G, overlay, decay_events, config)
         assert len(prop_events) == 0
-
-
 
 
 class TestPitfallEdges:
@@ -513,7 +589,13 @@ class TestPitfallEdges:
         overlay = {"local_edges": []}
         events = _process_pitfalls(
             overlay,
-            [{"node_ref": "node-a", "description": "Watch out for X", "severity": "high"}],
+            [
+                {
+                    "node_ref": "node-a",
+                    "description": "Watch out for X",
+                    "severity": "high",
+                }
+            ],
             "session-task-001",
         )
 
@@ -531,7 +613,13 @@ class TestPitfallEdges:
         overlay = {"local_edges": []}
         _process_pitfalls(
             overlay,
-            [{"node_ref": "node-a", "description": "Minor issue", "severity": "medium"}],
+            [
+                {
+                    "node_ref": "node-a",
+                    "description": "Minor issue",
+                    "severity": "medium",
+                }
+            ],
             "session-task-001",
         )
 
@@ -551,9 +639,17 @@ class TestPitfallEdges:
 
     def test_duplicate_pitfall_edge_preserved_as_additive_evidence(self):
         """Repeated pitfall discoveries are preserved as separate evidence entries."""
-        overlay = {"local_edges": [
-            {"from": "node-a", "to": "session-task-001", "type": "pitfall", "weight": 0.8, "note": "old"},
-        ]}
+        overlay = {
+            "local_edges": [
+                {
+                    "from": "node-a",
+                    "to": "session-task-001",
+                    "type": "pitfall",
+                    "weight": 0.8,
+                    "note": "old",
+                },
+            ]
+        }
         events = _process_pitfalls(
             overlay,
             [{"node_ref": "node-a", "description": "Same issue", "severity": "high"}],
@@ -562,8 +658,6 @@ class TestPitfallEdges:
 
         assert len(events) == 1
         assert len(overlay["local_edges"]) == 2
-
-
 
 
 class TestSessionNodes:
@@ -594,7 +688,10 @@ class TestSessionNodes:
         """Dict source creates a session node."""
         overlay = {"session_nodes": {}}
         session_id = _create_session_node(
-            overlay, "task-dict", {"outcome": "success"}, 1,
+            overlay,
+            "task-dict",
+            {"outcome": "success"},
+            1,
         )
 
         assert session_id == "session-task-dict"
@@ -602,9 +699,17 @@ class TestSessionNodes:
 
     def test_duplicate_session_node_skipped(self):
         """Existing session node is not overwritten."""
-        overlay = {"session_nodes": {
-            "session-task-001": {"title": "Original", "tags": [], "outcome": "failed", "content_ref": "x", "phase": 1},
-        }}
+        overlay = {
+            "session_nodes": {
+                "session-task-001": {
+                    "title": "Original",
+                    "tags": [],
+                    "outcome": "failed",
+                    "content_ref": "x",
+                    "phase": 1,
+                },
+            }
+        }
         mem = _make_agent_memory(task_id="task-001", status=TaskStatus.COMPLETE)
         session_id = _create_session_node(overlay, "task-001", mem, 1)
 
@@ -626,8 +731,6 @@ class TestSessionNodes:
             assert node["outcome"] == expected_outcome, f"Failed for {status}"
 
 
-
-
 class TestNewKnowledge:
     """Tests for _process_new_knowledge (Task 4.3)."""
 
@@ -637,9 +740,17 @@ class TestNewKnowledge:
         config = PropagationConfig()
 
         events = _process_new_knowledge(
-            G, tmp_repo,
-            [{"suggested_id": "new-concept", "title": "New Concept", "domain": "test",
-              "tags": ["test"], "content_draft": "Some new knowledge."}],
+            G,
+            tmp_repo,
+            [
+                {
+                    "suggested_id": "new-concept",
+                    "title": "New Concept",
+                    "domain": "test",
+                    "tags": ["test"],
+                    "content_draft": "Some new knowledge.",
+                }
+            ],
             config,
         )
 
@@ -650,6 +761,7 @@ class TestNewKnowledge:
 
         # Verify frontmatter
         import frontmatter as fm
+
         post = fm.load(str(node_path))
         assert post.metadata["id"] == "new-concept"
         assert post.metadata["status"] == "tentative"
@@ -664,9 +776,17 @@ class TestNewKnowledge:
         config = PropagationConfig()
 
         events = _process_new_knowledge(
-            G, tmp_repo,
-            [{"suggested_id": "existing-concept", "title": "Existing", "domain": "test-domain",
-              "tags": ["test"], "content_draft": "Appended content."}],
+            G,
+            tmp_repo,
+            [
+                {
+                    "suggested_id": "existing-concept",
+                    "title": "Existing",
+                    "domain": "test-domain",
+                    "tags": ["test"],
+                    "content_draft": "Appended content.",
+                }
+            ],
             config,
         )
 
@@ -675,6 +795,7 @@ class TestNewKnowledge:
 
         # Verify content was appended
         import frontmatter as fm
+
         node_path = tmp_repo / "knowledge" / "local-nodes" / "existing-concept.md"
         post = fm.load(str(node_path))
         assert "Original content." in post.content
@@ -682,14 +803,24 @@ class TestNewKnowledge:
 
     def test_dedup_global_tentative_creates_local_variant(self, tmp_vault, tmp_repo):
         """Global tentative match → create local variant with -local suffix."""
-        make_global_node(tmp_vault, id="global-concept", status="tentative", confidence=0.50)
+        make_global_node(
+            tmp_vault, id="global-concept", status="tentative", confidence=0.50
+        )
         G = _build_and_load(tmp_repo, tmp_vault)
         config = PropagationConfig()
 
         events = _process_new_knowledge(
-            G, tmp_repo,
-            [{"suggested_id": "global-concept", "title": "Global Concept", "domain": "test-domain",
-              "tags": ["test"], "content_draft": "Local variant content."}],
+            G,
+            tmp_repo,
+            [
+                {
+                    "suggested_id": "global-concept",
+                    "title": "Global Concept",
+                    "domain": "test-domain",
+                    "tags": ["test"],
+                    "content_draft": "Local variant content.",
+                }
+            ],
             config,
         )
 
@@ -708,7 +839,8 @@ class TestNewKnowledge:
         config = PropagationConfig()
 
         events = _process_new_knowledge(
-            G, tmp_repo,
+            G,
+            tmp_repo,
             [{"suggested_id": "", "content_draft": "No id."}],
             config,
         )
@@ -760,18 +892,18 @@ class TestNewKnowledge:
         assert "new_node" in high_actions
 
 
-
-
 class TestPruneSessionRefs:
     """Tests for _prune_session_refs."""
 
     def test_prune_excess_refs(self):
         """Session refs beyond max are pruned (oldest removed)."""
-        overlay = {"nodes": {
-            "node-a": {
-                "session_refs": [f"sessions/task-{i:03d}.md" for i in range(15)],
-            },
-        }}
+        overlay = {
+            "nodes": {
+                "node-a": {
+                    "session_refs": [f"sessions/task-{i:03d}.md" for i in range(15)],
+                },
+            }
+        }
         _prune_session_refs(overlay, max_refs=10)
 
         assert len(overlay["nodes"]["node-a"]["session_refs"]) == 10
@@ -780,9 +912,11 @@ class TestPruneSessionRefs:
 
     def test_no_prune_under_limit(self):
         """Refs under limit are not touched."""
-        overlay = {"nodes": {
-            "node-a": {"session_refs": ["sessions/a.md", "sessions/b.md"]},
-        }}
+        overlay = {
+            "nodes": {
+                "node-a": {"session_refs": ["sessions/a.md", "sessions/b.md"]},
+            }
+        }
         _prune_session_refs(overlay, max_refs=10)
 
         assert len(overlay["nodes"]["node-a"]["session_refs"]) == 2
@@ -799,8 +933,12 @@ class TestPersistentZoneExtraction:
     def test_extract_from_agent_memory(self):
         """AgentMemory persistent zone extraction."""
         mem = _make_agent_memory(
-            nodes_used=[NodeUsedFeedback(id="n1", useful=True, coverage=Coverage.SUFFICIENT)],
-            pitfalls_discovered=[PitfallDiscovered(node_ref="n1", description="bug", severity="high")],
+            nodes_used=[
+                NodeUsedFeedback(id="n1", useful=True, coverage=Coverage.SUFFICIENT)
+            ],
+            pitfalls_discovered=[
+                PitfallDiscovered(node_ref="n1", description="bug", severity="high")
+            ],
         )
         pz = _extract_persistent_zone(mem)
 
@@ -811,7 +949,9 @@ class TestPersistentZoneExtraction:
     def test_extract_from_pcd(self):
         """PCD persistent zone extraction."""
         pcd = _make_pcd(
-            nodes_used=[NodeUsedFeedback(id="n1", useful=True, coverage=Coverage.SUFFICIENT)],
+            nodes_used=[
+                NodeUsedFeedback(id="n1", useful=True, coverage=Coverage.SUFFICIENT)
+            ],
         )
         pz = _extract_persistent_zone(pcd)
 
@@ -840,15 +980,24 @@ class TestUpdateGraphIntegration:
     def test_full_mutation_chain(self, tmp_vault, tmp_repo):
         """Full pipeline: AgentMemory → confidence + pitfall + session + knowledge."""
         make_global_node(tmp_vault, id="node-a", confidence=0.90, tags=["test"])
-        make_global_node(tmp_vault, id="node-b", confidence=0.85, tags=["test"],
-                         edges=[{"to": "node-a", "type": "requires", "weight": 0.8}])
+        make_global_node(
+            tmp_vault,
+            id="node-b",
+            confidence=0.85,
+            tags=["test"],
+            edges=[{"to": "node-a", "type": "requires", "weight": 0.8}],
+        )
 
         mem = _make_agent_memory(
             nodes_used=[
-                NodeUsedFeedback(id="node-a", useful=True, coverage=Coverage.MISSING_DETAIL),
+                NodeUsedFeedback(
+                    id="node-a", useful=True, coverage=Coverage.MISSING_DETAIL
+                ),
             ],
             pitfalls_discovered=[
-                PitfallDiscovered(node_ref="node-a", description="Edge case X", severity="high"),
+                PitfallDiscovered(
+                    node_ref="node-a", description="Edge case X", severity="high"
+                ),
             ],
             new_knowledge=[
                 NewKnowledge(
@@ -913,7 +1062,9 @@ class TestUpdateGraphIntegration:
 
         pcd = _make_pcd(
             nodes_used=[
-                NodeUsedFeedback(id="node-a", useful=True, coverage=Coverage.SUFFICIENT),
+                NodeUsedFeedback(
+                    id="node-a", useful=True, coverage=Coverage.SUFFICIENT
+                ),
             ],
         )
 
@@ -948,10 +1099,13 @@ class TestUpdateGraphIntegration:
         original_mtime = graph_json.stat().st_mtime
 
         import time
+
         time.sleep(0.05)
 
         mem = _make_agent_memory(
-            nodes_used=[NodeUsedFeedback(id="node-a", useful=True, coverage=Coverage.SUFFICIENT)],
+            nodes_used=[
+                NodeUsedFeedback(id="node-a", useful=True, coverage=Coverage.SUFFICIENT)
+            ],
         )
 
         update_graph(mem, tmp_repo, global_vault=tmp_vault, recompile=False)
@@ -966,7 +1120,9 @@ class TestUpdateGraphIntegration:
 
         mem = _make_agent_memory(
             nodes_used=[
-                NodeUsedFeedback(id="node-a", useful=True, coverage=Coverage.SUFFICIENT),
+                NodeUsedFeedback(
+                    id="node-a", useful=True, coverage=Coverage.SUFFICIENT
+                ),
             ],
         )
 
@@ -985,7 +1141,9 @@ class TestUpdateGraphIntegration:
 
         mem = _make_agent_memory(
             nodes_used=[
-                NodeUsedFeedback(id="node-a", useful=True, coverage=Coverage.SUFFICIENT),
+                NodeUsedFeedback(
+                    id="node-a", useful=True, coverage=Coverage.SUFFICIENT
+                ),
             ],
             new_knowledge=[
                 NewKnowledge(
@@ -1043,7 +1201,9 @@ class TestUpdateGraphIntegration:
 
         mem = _make_agent_memory(
             nodes_used=[
-                NodeUsedFeedback(id="node-a", useful=True, coverage=Coverage.SUFFICIENT),
+                NodeUsedFeedback(
+                    id="node-a", useful=True, coverage=Coverage.SUFFICIENT
+                ),
             ],
         )
 

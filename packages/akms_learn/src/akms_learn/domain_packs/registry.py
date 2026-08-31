@@ -59,8 +59,7 @@ class DomainPackRegistry:
         """
         if descriptor.id in self._descriptors:
             raise ValueError(
-                f"DomainPackDescriptor id {descriptor.id!r} is already "
-                "registered."
+                f"DomainPackDescriptor id {descriptor.id!r} is already registered."
             )
         self._descriptors[descriptor.id] = descriptor
 

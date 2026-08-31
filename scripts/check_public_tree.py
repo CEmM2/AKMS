@@ -15,7 +15,7 @@ FORBIDDEN_TOP_LEVEL = {
     ".claude",
     ".codex",
     ".orchestra",
-    "AKMS",          # historical nested working area
+    "AKMS",  # historical nested working area
     "Sources_Evals",
     "artifacts",
     "dev",
@@ -83,9 +83,27 @@ SKIP_DIRS = {
 }
 
 BINARY_SUFFIXES = {
-    ".7z", ".bz2", ".class", ".dmg", ".docx", ".gz", ".ico", ".jar",
-    ".jpeg", ".jpg", ".lock", ".pdf", ".png", ".pyc", ".so", ".tar",
-    ".tgz", ".webp", ".whl", ".xlsx", ".zip",
+    ".7z",
+    ".bz2",
+    ".class",
+    ".dmg",
+    ".docx",
+    ".gz",
+    ".ico",
+    ".jar",
+    ".jpeg",
+    ".jpg",
+    ".lock",
+    ".pdf",
+    ".png",
+    ".pyc",
+    ".so",
+    ".tar",
+    ".tgz",
+    ".webp",
+    ".whl",
+    ".xlsx",
+    ".zip",
 }
 
 
@@ -143,18 +161,22 @@ def main() -> int:
         for path in ROOT.rglob("*"):
             if any(part in SKIP_DIRS for part in path.parts):
                 continue
-            if any(fragment.lower() in path.name.lower()
-                   for fragment in FORBIDDEN_NAME_FRAGMENTS):
+            if any(
+                fragment.lower() in path.name.lower()
+                for fragment in FORBIDDEN_NAME_FRAGMENTS
+            ):
                 findings.append(
                     f"{path.relative_to(ROOT)}: private-development filename"
                 )
 
     patterns = dict(SECRET_PATTERNS)
-    patterns.update({
-        key: value
-        for key, value in HISTORY_PATTERNS.items()
-        if args.security_only and "path" in key
-    })
+    patterns.update(
+        {
+            key: value
+            for key, value in HISTORY_PATTERNS.items()
+            if args.security_only and "path" in key
+        }
+    )
     if not args.security_only:
         patterns.update(HISTORY_PATTERNS)
 

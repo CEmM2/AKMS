@@ -95,9 +95,7 @@ def _record_then_validate(repo: Path) -> dict:
 
 
 def _problems(repo: Path) -> list[str]:
-    return validate_publication(
-        config_path=repo / "project.toml", repository_root=repo
-    )
+    return validate_publication(config_path=repo / "project.toml", repository_root=repo)
 
 
 def test_canonical_publication_is_valid_and_current(tmp_path: Path) -> None:
@@ -134,9 +132,7 @@ def test_fabricated_project_node_refuses_current(tmp_path: Path) -> None:
     graph_path = _publish_graph(repo, vault)
 
     def fabricate(document: dict) -> None:
-        node = dict(
-            next(n for n in document["nodes"] if n["id"] == "cc-failure-l001")
-        )
+        node = dict(next(n for n in document["nodes"] if n["id"] == "cc-failure-l001"))
         node["id"] = "cc-failure-l999"
         document["nodes"].append(node)
 

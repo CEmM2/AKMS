@@ -132,7 +132,9 @@ def update(root: Path) -> str:
 
 def main(argv: list[str]) -> int:
     arguments = [item for item in argv[1:] if item != "--update"]
-    root = Path(arguments[0]).resolve() if arguments else Path(__file__).resolve().parent
+    root = (
+        Path(arguments[0]).resolve() if arguments else Path(__file__).resolve().parent
+    )
     if "--update" in argv[1:]:
         print(f"UPDATED pack_sha256 = {update(root)}")
         return 0
@@ -140,7 +142,9 @@ def main(argv: list[str]) -> int:
     if ok:
         print(f"PASS consumer-contract pack verified: {root}")
         return 0
-    print(f"FAIL consumer-contract pack is NOT the pinned pack: {root}", file=sys.stderr)
+    print(
+        f"FAIL consumer-contract pack is NOT the pinned pack: {root}", file=sys.stderr
+    )
     for problem in problems:
         print(f"  - {problem}", file=sys.stderr)
     return 1

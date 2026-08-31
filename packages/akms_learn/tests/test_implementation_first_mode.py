@@ -281,8 +281,7 @@ class TestMissingSourceWarning:
         gs = fixture_graph_toy_executable_bridge()
         _, warnings = _run_mode(gs)
         missing = [
-            w for w in warnings
-            if w.code == IMPLEMENTATION_ANCHOR_MISSING_SOURCE_CODE
+            w for w in warnings if w.code == IMPLEMENTATION_ANCHOR_MISSING_SOURCE_CODE
         ]
         assert any(w.source_ref == "bridge_code_mirror" for w in missing), (
             "Expected bridge_code_mirror in missing-source warning source_refs; "
@@ -293,8 +292,7 @@ class TestMissingSourceWarning:
         gs = fixture_graph_toy_executable_bridge()
         _, warnings = _run_mode(gs)
         missing = [
-            w for w in warnings
-            if w.code == IMPLEMENTATION_ANCHOR_MISSING_SOURCE_CODE
+            w for w in warnings if w.code == IMPLEMENTATION_ANCHOR_MISSING_SOURCE_CODE
         ]
         for w in missing:
             assert isinstance(w, LearningWarning)
@@ -305,8 +303,7 @@ class TestMissingSourceWarning:
         gs = _policy_fixture()
         _, warnings = _run_mode(gs)
         missing = [
-            w for w in warnings
-            if w.code == IMPLEMENTATION_ANCHOR_MISSING_SOURCE_CODE
+            w for w in warnings if w.code == IMPLEMENTATION_ANCHOR_MISSING_SOURCE_CODE
         ]
         assert not missing, (
             "Did not expect missing-source warnings on the policy fixture; "
@@ -318,8 +315,7 @@ class TestMissingSourceWarning:
         gs = fixture_graph_toy_concept_kit()
         result, warnings = _run_mode(gs)
         missing = [
-            w for w in warnings
-            if w.code == IMPLEMENTATION_ANCHOR_MISSING_SOURCE_CODE
+            w for w in warnings if w.code == IMPLEMENTATION_ANCHOR_MISSING_SOURCE_CODE
         ]
         assert not missing
         assert set(result.ordered_nodes) == {n["node_id"] for n in gs.nodes}

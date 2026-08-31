@@ -85,7 +85,9 @@ class TestMirrorConfig:
     def test_parse_propagation_without_mirror_block(self, tmp_path: Path):
         path = tmp_path / "propagation_config.yaml"
         path.write_text(
-            yaml.safe_dump({"akms_schema": "v2", "global_vault": str(tmp_path / "vault")}),
+            yaml.safe_dump(
+                {"akms_schema": "v2", "global_vault": str(tmp_path / "vault")}
+            ),
             encoding="utf-8",
         )
         pc = parse_propagation_config(path)

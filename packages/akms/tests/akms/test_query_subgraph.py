@@ -280,7 +280,9 @@ class TestPitfallInjection:
     def test_pitfall_nodes_always_included(self, tmp_vault, tmp_repo):
         """Nodes connected by pitfall edges are always in the result."""
         make_global_node(tmp_vault, id="n1", tags=["taichi"], confidence=0.9)
-        make_global_node(tmp_vault, id="pitfall-target", tags=["taichi"], confidence=0.3)
+        make_global_node(
+            tmp_vault, id="pitfall-target", tags=["taichi"], confidence=0.3
+        )
 
         set_overlay(
             tmp_repo,
@@ -306,12 +308,14 @@ class TestPitfallInjection:
         edges = []
         for i in range(10):
             make_global_node(tmp_vault, id=f"pit-{i}", tags=["taichi"], confidence=0.9)
-            edges.append({
-                "from": "n1",
-                "to": f"pit-{i}",
-                "type": "pitfall",
-                "weight": 0.5,
-            })
+            edges.append(
+                {
+                    "from": "n1",
+                    "to": f"pit-{i}",
+                    "type": "pitfall",
+                    "weight": 0.5,
+                }
+            )
 
         set_overlay(tmp_repo, local_edges=edges)
 
@@ -323,11 +327,15 @@ class TestPitfallInjection:
         pitfall_set = _find_pitfall_nodes(G, set(G.nodes))
         assert len(pitfall_set) > 3  # more pitfall nodes than cap
 
-    def test_session_nodes_excluded_from_result_but_pitfall_edges_keep_working(self, tmp_vault, tmp_repo):
+    def test_session_nodes_excluded_from_result_but_pitfall_edges_keep_working(
+        self, tmp_vault, tmp_repo
+    ):
         make_global_node(tmp_vault, id="n1", tags=["taichi"], confidence=0.9)
         set_overlay(
             tmp_repo,
-            local_edges=[{"from": "n1", "to": "session-task-1", "type": "pitfall", "weight": 0.8}],
+            local_edges=[
+                {"from": "n1", "to": "session-task-1", "type": "pitfall", "weight": 0.8}
+            ],
             session_nodes={
                 "session-task-1": {
                     "title": "Session",
@@ -391,12 +399,16 @@ class TestEdgeTypeFiltering:
         )
 
         G = build_graph(tmp_repo, global_vault=tmp_vault)
-        result = query_subgraph(G, ["mechanics"], AgentRole.PHYSICS_REVIEWER, max_depth=2)
+        result = query_subgraph(
+            G, ["mechanics"], AgentRole.PHYSICS_REVIEWER, max_depth=2
+        )
         node_ids = [nid for nid, _ in result]
         assert "n1" in node_ids
         assert "n2" in node_ids
 
-    def test_seed_anchored_strict_filter_drops_disallowed_bridge(self, tmp_vault, tmp_repo):
+    def test_seed_anchored_strict_filter_drops_disallowed_bridge(
+        self, tmp_vault, tmp_repo
+    ):
         """Nodes reached via disallowed bridge edges are excluded."""
         make_global_node(
             tmp_vault,
@@ -530,11 +542,17 @@ class TestLoadWithCoactivation:
         """A loadable node referenced via load_with is pulled in even with no
         edge path to the seed, and is tagged ``_coactivated``."""
         make_global_node(
-            tmp_vault, id="seed", tags=["taichi"], confidence=0.9,
+            tmp_vault,
+            id="seed",
+            tags=["taichi"],
+            confidence=0.9,
             load_with=["companion"],
         )
         make_global_node(
-            tmp_vault, id="companion", tags=["unrelated"], confidence=0.9,
+            tmp_vault,
+            id="companion",
+            tags=["unrelated"],
+            confidence=0.9,
         )
         G = build_graph(tmp_repo, global_vault=tmp_vault)
 
@@ -549,12 +567,18 @@ class TestLoadWithCoactivation:
     def test_non_loadable_companion_not_coactivated(self, tmp_vault, tmp_repo):
         """A non-loadable (draft) load_with target is not promoted."""
         make_global_node(
-            tmp_vault, id="seed", tags=["taichi"], confidence=0.9,
+            tmp_vault,
+            id="seed",
+            tags=["taichi"],
+            confidence=0.9,
             load_with=["draft-comp"],
         )
         make_global_node(
-            tmp_vault, id="draft-comp", tags=["unrelated"],
-            status="draft", confidence=0.9,
+            tmp_vault,
+            id="draft-comp",
+            tags=["unrelated"],
+            status="draft",
+            confidence=0.9,
         )
         G = build_graph(tmp_repo, global_vault=tmp_vault)
 

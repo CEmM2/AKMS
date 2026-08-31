@@ -242,9 +242,7 @@ class TestCompileDictRequest:
         always returned ``[]`` and the check was skipped silently. The new
         ``_request_get`` helper handles both shapes.
         """
-        request = _make_request_dict(
-            required_capabilities=["nonexistent_capability"]
-        )
+        request = _make_request_dict(required_capabilities=["nonexistent_capability"])
         with pytest.raises(LearningCapabilityError, match="nonexistent_capability"):
             compile_learning_source(
                 request=request,

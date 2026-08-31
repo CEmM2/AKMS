@@ -109,8 +109,8 @@ WEAK_SUPPORT_THRESHOLD_CHARS: int = 50
 KIND_TO_SECTION_NAMES: dict[AssessmentItemKind, tuple[str, ...]] = {
     "conceptual": ("concept", "motivation"),
     "derivation": ("derivation",),
-    "coding":     ("implementation",),
-    "debugging":  ("pitfalls",),
+    "coding": ("implementation",),
+    "debugging": ("pitfalls",),
 }
 
 #: Canonical ordering of the four kinds — used for deterministic emission.

@@ -365,7 +365,9 @@ def _build_context(packet: "LearningSourcePacket") -> dict[str, Any]:
     # ------------------------------------------------------------------
     # topic
     # ------------------------------------------------------------------
-    topic: str = str(packet.request.topic) if packet.request.topic else "<unknown topic>"
+    topic: str = (
+        str(packet.request.topic) if packet.request.topic else "<unknown topic>"
+    )
 
     # ------------------------------------------------------------------
     # learning_goal — from request.goal if non-empty
@@ -379,9 +381,7 @@ def _build_context(packet: "LearningSourcePacket") -> dict[str, Any]:
 
     # prerequisites — sorted list of display strings for prereq nodes
     prerequisites: list[str] = sorted(
-        _node_display(node)
-        for node in nodes
-        if node.node_id in prereq_ids
+        _node_display(node) for node in nodes if node.node_id in prereq_ids
     )
 
     # concept_map — sorted list of all node_ids in the packet

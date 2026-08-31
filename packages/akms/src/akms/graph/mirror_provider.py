@@ -153,7 +153,9 @@ ProviderFactory = Callable[[], MirrorProvider]
 _PROVIDER_REGISTRY: dict[str, ProviderFactory] = {}
 
 
-def register_provider(name: str, factory: ProviderFactory, *, replace: bool = False) -> None:
+def register_provider(
+    name: str, factory: ProviderFactory, *, replace: bool = False
+) -> None:
     """Register a provider factory under *name*.
 
     Raises ValueError on duplicate names unless *replace* is True.
@@ -313,7 +315,10 @@ def run_mirror_provider(
             request.generated_at = resolve_generated_at(request, mirror_cfg)
         except MirrorProviderError:
             # Only fatal for non-legacy / epoch-required paths.
-            if name != "legacy" and mirror_cfg.generated_at_source == "source_date_epoch":
+            if (
+                name != "legacy"
+                and mirror_cfg.generated_at_source == "source_date_epoch"
+            ):
                 raise
             request.generated_at = datetime.now(tz=timezone.utc)
 
@@ -347,7 +352,9 @@ def run_mirror_provider(
             if result.errors
             else f"Provider {name!r} reported success=False",
             provider=name,
-            code=(result.errors[0].get("code") if result.errors else "provider_failure"),
+            code=(
+                result.errors[0].get("code") if result.errors else "provider_failure"
+            ),
             details={"errors": result.errors},
         )
         return _handle_provider_failure(
@@ -369,10 +376,7 @@ def _handle_provider_failure(
     primary_name: str,
 ) -> MirrorResult:
     """Apply explicit fallback policy or re-raise."""
-    can_fallback = (
-        primary_name != "legacy"
-        and mirror_cfg.fallback_on_error
-    )
+    can_fallback = primary_name != "legacy" and mirror_cfg.fallback_on_error
     if not can_fallback:
         logger.error(
             "Mirror provider %r failed (fallback disabled): %s",

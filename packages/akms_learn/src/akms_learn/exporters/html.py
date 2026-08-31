@@ -130,7 +130,9 @@ def _warning_text(warning: Any) -> str:
     return str(warning)
 
 
-def _build_sections(packet: LearningSourcePacket, *, rich: bool = False) -> list[dict[str, str]]:
+def _build_sections(
+    packet: LearningSourcePacket, *, rich: bool = False
+) -> list[dict[str, str]]:
     """Build the per-section context list for the template.
 
     Each dict has keys:
@@ -151,7 +153,9 @@ def _build_sections(packet: LearningSourcePacket, *, rich: bool = False) -> list
     node_by_id: dict[str, Any] = {n.node_id: n for n in packet.body.nodes}
     reading_order = list(packet.body.reading_order or [])
     seen: set[str] = set(reading_order)
-    fallback_tail = sorted(n.node_id for n in packet.body.nodes if n.node_id not in seen)
+    fallback_tail = sorted(
+        n.node_id for n in packet.body.nodes if n.node_id not in seen
+    )
     ordered_node_ids = reading_order + fallback_tail
     ordered_nodes = [node_by_id[nid] for nid in ordered_node_ids if nid in node_by_id]
 
@@ -218,14 +222,18 @@ def _build_context(packet: LearningSourcePacket) -> dict[str, Any]:
     # ------------------------------------------------------------------
     # Scalar metadata
     # ------------------------------------------------------------------
-    topic: str = str(packet.request.topic) if packet.request.topic else "<unknown topic>"
+    topic: str = (
+        str(packet.request.topic) if packet.request.topic else "<unknown topic>"
+    )
     packet_id: str = str(packet.packet_id)
     graph_hash: str = str(packet.source.graph_hash or "")
     graph_version: str = str(getattr(packet.source, "graph_version", None) or "")
     compiler_name: str = str(getattr(packet.compiler, "name", "") or "")
     compiler_version: str = str(getattr(packet.compiler, "version", "") or "")
     request_hash: str = str(packet.request.request_hash or "")
-    generation_option: str = str(getattr(packet.request, "generation_option", None) or "")
+    generation_option: str = str(
+        getattr(packet.request, "generation_option", None) or ""
+    )
     learning_goal: str = (
         str(packet.request.goal or "") if getattr(packet.request, "goal", None) else ""
     )

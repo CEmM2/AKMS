@@ -61,9 +61,7 @@ def main() -> int:
             re.MULTILINE,
         )
         if not heading.search(text):
-            errors.append(
-                f"CHANGELOG.md has no release heading for version {expected}"
-            )
+            errors.append(f"CHANGELOG.md has no release heading for version {expected}")
     elif expected:
         errors.append("CHANGELOG.md is missing")
 

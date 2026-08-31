@@ -325,9 +325,15 @@ def preflight(*, config: ProjectConfig, repository_root: str | Path) -> dict[str
             tool_root = editable_root
     except OSError as exc:
         tool_root = editable_root
-        note("repo2md_root_unresolved", f"Cannot resolve configured repo2md root: {exc}")
+        note(
+            "repo2md_root_unresolved", f"Cannot resolve configured repo2md root: {exc}"
+        )
 
-    if tool_root is not None and editable_root is not None and tool_root != editable_root:
+    if (
+        tool_root is not None
+        and editable_root is not None
+        and tool_root != editable_root
+    ):
         note(
             "repo2md_checkout_mismatch",
             "repo2md executable is not linked to the configured checkout",

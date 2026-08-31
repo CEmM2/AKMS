@@ -55,7 +55,9 @@ def _stub_claude_agent_sdk(captured: dict):
 
 class TestExecuteMcpRegistration:
     def test_mcp_server_registered_on_claude_agent_options(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """Default `execute` must register the AKMS MCP server so the tools
         in `TOOL_NAME_MAP['search']` / `['search_mirror']` are reachable."""
@@ -86,7 +88,9 @@ class TestExecuteMcpRegistration:
 
         asyncio.run(agent.execute(task_json, _make_loadout(), system_prompt="sys"))
 
-        assert "options_kwargs" in captured, "execute() did not build ClaudeAgentOptions"
+        assert "options_kwargs" in captured, (
+            "execute() did not build ClaudeAgentOptions"
+        )
         opts = captured["options_kwargs"]
         assert "mcp_servers" in opts, (
             "ClaudeAgentOptions was constructed without mcp_servers — the "

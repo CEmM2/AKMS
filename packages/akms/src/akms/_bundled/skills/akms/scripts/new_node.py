@@ -84,17 +84,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("node_id", help="Stable kebab-case node id (also the filename)")
     p.add_argument("--title", help="Human-readable title (default: derived from id)")
-    p.add_argument("--domain", required=True, help="Broad area, e.g. computational-mechanics")
+    p.add_argument(
+        "--domain", required=True, help="Broad area, e.g. computational-mechanics"
+    )
     p.add_argument("--subdomain", default=None, help="Narrower area (optional)")
-    p.add_argument("--tags", nargs="+", required=True, help="One or more retrieval tags")
+    p.add_argument(
+        "--tags", nargs="+", required=True, help="One or more retrieval tags"
+    )
     p.add_argument("--status", choices=STATUSES, default="tentative")
     p.add_argument("--source", choices=SOURCES, default="agent")
-    p.add_argument("--confidence", type=float, default=None,
-                   help="0.0-1.0 (default: 0.5 tentative, 0.9 established)")
+    p.add_argument(
+        "--confidence",
+        type=float,
+        default=None,
+        help="0.0-1.0 (default: 0.5 tentative, 0.9 established)",
+    )
     p.add_argument("--context-size", choices=CONTEXT_SIZES, default="medium")
     p.add_argument("--reading-priority", choices=READING_PRIORITIES, default="summary")
     p.add_argument("--repo", "-r", default=".", help="Repository root (default: cwd)")
-    p.add_argument("--force", action="store_true", help="Overwrite an existing node file")
+    p.add_argument(
+        "--force", action="store_true", help="Overwrite an existing node file"
+    )
     return p
 
 
@@ -125,7 +135,10 @@ def main() -> int:
     out_path = out_dir / f"{args.node_id}.md"
 
     if out_path.exists() and not args.force:
-        print(f"refusing: {out_path} already exists (use --force to overwrite)", file=sys.stderr)
+        print(
+            f"refusing: {out_path} already exists (use --force to overwrite)",
+            file=sys.stderr,
+        )
         return 1
 
     content_ref = f"knowledge/local-nodes/{args.node_id}.md"
@@ -144,7 +157,9 @@ def main() -> int:
     )
     out_path.write_text(body)
 
-    print(f"created {out_path.relative_to(repo) if out_path.is_relative_to(repo) else out_path}")
+    print(
+        f"created {out_path.relative_to(repo) if out_path.is_relative_to(repo) else out_path}"
+    )
     print("next:")
     print("  1. write the content (the TODOs)")
     print(f"  2. python -m akms.tools.node_validator {content_ref} --strict")

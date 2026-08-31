@@ -82,9 +82,7 @@ class TestWaveDispatchE2E:
         assert waves[2][0]["task_id"] == "join"
 
         # Patch trace_agent_call to avoid OTel span issues
-        with patch(
-            "akms.orchestrator.wave_dispatch.trace_agent_call"
-        ) as mock_trace:
+        with patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace:
             from unittest.mock import MagicMock
 
             mock_span = MagicMock()
@@ -102,7 +100,9 @@ class TestWaveDispatchE2E:
         # All 4 tasks should complete
         assert len(results) == 4
         for r in results:
-            assert r.status == "complete", f"Task {r.task_id} status={r.status}, error={r.error}"
+            assert r.status == "complete", (
+                f"Task {r.task_id} status={r.status}, error={r.error}"
+            )
 
         # Verify memory files exist
         for task in tasks:

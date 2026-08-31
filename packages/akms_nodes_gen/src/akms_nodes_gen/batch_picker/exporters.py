@@ -173,7 +173,9 @@ def stage_pdfs(
     )
 
 
-def _run_nlm(args: list[str], timeout: float = 600.0) -> subprocess.CompletedProcess[str]:
+def _run_nlm(
+    args: list[str], timeout: float = 600.0
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["nlm", *args],
         capture_output=True,
@@ -269,9 +271,13 @@ def create_notebook_and_upload(
         pdf_path = str(staged if staged.exists() else paper.pdf_path)
 
         cmd = [
-            "source", "add", nb_id,
-            "--file", pdf_path,
-            "--title", _short_label(paper),
+            "source",
+            "add",
+            nb_id,
+            "--file",
+            pdf_path,
+            "--title",
+            _short_label(paper),
         ]
         if wait:
             cmd.append("--wait")
@@ -283,7 +289,10 @@ def create_notebook_and_upload(
             log.append("[stderr] " + cp.stderr.strip())
         if cp.returncode != 0:
             failures.append(
-                {"citekey": ck, "reason": f"nlm exited {cp.returncode}: {cp.stderr.strip()[:200]}"}
+                {
+                    "citekey": ck,
+                    "reason": f"nlm exited {cp.returncode}: {cp.stderr.strip()[:200]}",
+                }
             )
             continue
         uploaded_now.append(ck)

@@ -2,6 +2,7 @@
 
 Bundle directory: ``artifacts/review_bundles/akms_learn_pedagogical/``
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -13,12 +14,7 @@ from pathlib import Path
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_BUNDLE = (
-    _REPO_ROOT
-    / "artifacts"
-    / "review_bundles"
-    / "akms_learn_pedagogical"
-)
+_BUNDLE = _REPO_ROOT / "artifacts" / "review_bundles" / "akms_learn_pedagogical"
 _GENERATOR = (
     _REPO_ROOT
     / "packages"
@@ -31,12 +27,11 @@ _GENERATOR = (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _require_bundle_file(name: str) -> Path:
     """Return bundle path for *name*, skipping if the bundle dir is absent."""
     if not _BUNDLE.is_dir():
-        pytest.skip(
-            "canonical bundle dir not present — run regenerate.sh first"
-        )
+        pytest.skip("canonical bundle dir not present — run regenerate.sh first")
     p = _BUNDLE / name
     assert p.exists(), f"{name} missing from bundle at {p}"
     return p
@@ -45,9 +40,7 @@ def _require_bundle_file(name: str) -> Path:
 def _load_generator_module():
     """Import the pedagogical bundle generator script by file path."""
     assert _GENERATOR.is_file(), f"generator script missing: {_GENERATOR}"
-    spec = importlib.util.spec_from_file_location(
-        "_p4_2_gen_probe", _GENERATOR
-    )
+    spec = importlib.util.spec_from_file_location("_p4_2_gen_probe", _GENERATOR)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -78,8 +71,7 @@ class TestPedagogicalClosureSurface:
 
         # Title must be exactly the pedagogical-bundle variant.
         assert "# Review Feedback: akms_learn_pedagogical" in form_text, (
-            "feedback_form.md must contain "
-            "'# Review Feedback: akms_learn_pedagogical'"
+            "feedback_form.md must contain '# Review Feedback: akms_learn_pedagogical'"
         )
 
         # All §14 section headings verbatim.
@@ -167,15 +159,10 @@ class TestPedagogicalClosureSurface:
                 if m:
                     sections_seen.add(m.group(1).strip())
 
-            assert sections_seen, (
-                f"No ## sections found in {lesson_name}"
-            )
+            assert sections_seen, f"No ## sections found in {lesson_name}"
 
             trace_lower = traceability_text.lower()
-            missing = [
-                s for s in sections_seen
-                if s.lower() not in trace_lower
-            ]
+            missing = [s for s in sections_seen if s.lower() not in trace_lower]
             assert not missing, (
                 f"{lesson_name}: the following sections have no row in "
                 f"traceability.md: {missing}"
@@ -282,6 +269,7 @@ class TestPedagogicalClosureSurface:
         # Verify "plan_closed" is not used in any dict literal assignment
         # of the form {"status": "plan_closed"} or status = "plan_closed".
         import ast
+
         tree = ast.parse(source)
         for node in ast.walk(tree):
             # Check assignments: status = "plan_closed"

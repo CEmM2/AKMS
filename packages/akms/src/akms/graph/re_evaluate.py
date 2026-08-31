@@ -88,7 +88,10 @@ def re_evaluate(
 
     # Query subgraph
     ranked_nodes = query_subgraph(
-        G, seed_tags, agent_role, config=config,
+        G,
+        seed_tags,
+        agent_role,
+        config=config,
     )
 
     # Select mode
@@ -130,7 +133,9 @@ def re_evaluate(
 
     logger.info(
         "re_evaluate: generated loadout %s (%d nodes, %s mode)",
-        output_path, len(ranked_nodes), result["mode"],
+        output_path,
+        len(ranked_nodes),
+        result["mode"],
     )
 
     return result

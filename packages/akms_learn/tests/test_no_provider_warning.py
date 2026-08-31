@@ -57,12 +57,16 @@ def test_disabled_emits_no_warning():
 def test_real_provider_selected_emits_no_such_warning():
     """Auto-selection resolving to a real provider must not carry the warning."""
     cfg = LLMExpansionRequest(enable_llm=True)
-    with patch(
-        "akms_learn.modes.llm_expanded.resolve_default_provider",
-        return_value="akms",
-    ), patch("akms_learn.modes.llm_expanded.require_capability"), patch(
-        "akms_learn.modes.llm_expanded.resolve",
-        return_value=lambda topic, ids, policy, *, sources=None: [],
+    with (
+        patch(
+            "akms_learn.modes.llm_expanded.resolve_default_provider",
+            return_value="akms",
+        ),
+        patch("akms_learn.modes.llm_expanded.require_capability"),
+        patch(
+            "akms_learn.modes.llm_expanded.resolve",
+            return_value=lambda topic, ids, policy, *, sources=None: [],
+        ),
     ):
         _, warnings = _invoke(cfg)
     assert "llm_no_provider_configured" not in [w.code for w in warnings]

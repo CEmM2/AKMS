@@ -257,9 +257,7 @@ class TestRunSubagent:
 
         task_json = {"task_id": "task-1", "agent_role": "implementer"}
 
-        with patch(
-            "akms.orchestrator.wave_dispatch.trace_agent_call"
-        ) as mock_trace:
+        with patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace:
             mock_span = MagicMock()
             mock_trace.return_value = mock_span
 
@@ -284,17 +282,13 @@ class TestRunSubagent:
         config = PropagationConfig()
 
         mock_agent_instance = MagicMock()
-        mock_agent_instance.run = AsyncMock(
-            side_effect=RuntimeError("agent crashed")
-        )
+        mock_agent_instance.run = AsyncMock(side_effect=RuntimeError("agent crashed"))
 
         mock_agent_cls = MagicMock(return_value=mock_agent_instance)
 
         task_json = {"task_id": "task-2", "agent_role": "implementer"}
 
-        with patch(
-            "akms.orchestrator.wave_dispatch.trace_agent_call"
-        ) as mock_trace:
+        with patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace:
             mock_span = MagicMock()
             mock_trace.return_value = mock_span
 
@@ -340,23 +334,27 @@ class TestDispatchPhaseFailureIsolation:
             error="boom",
         )
 
-        async def fake_run_subagent(task_json, agent_cls, config, repo_root, model_override=None):
+        async def fake_run_subagent(
+            task_json, agent_cls, config, repo_root, model_override=None
+        ):
             if task_json["task_id"] == "ok-task":
                 return ok_result
             return bad_result
 
-        with patch(
-            "akms.orchestrator.wave_dispatch.run_subagent",
-            side_effect=fake_run_subagent,
-        ), patch(
-            "akms.orchestrator.wave_dispatch.build_waves",
-            return_value=[tasks],
-        ), patch(
-            "akms.orchestrator.wave_dispatch.validate_scope_disjointness",
+        with (
+            patch(
+                "akms.orchestrator.wave_dispatch.run_subagent",
+                side_effect=fake_run_subagent,
+            ),
+            patch(
+                "akms.orchestrator.wave_dispatch.build_waves",
+                return_value=[tasks],
+            ),
+            patch(
+                "akms.orchestrator.wave_dispatch.validate_scope_disjointness",
+            ),
         ):
-            results = asyncio.run(
-                dispatch_phase(tasks, MagicMock(), config, tmp_path)
-            )
+            results = asyncio.run(dispatch_phase(tasks, MagicMock(), config, tmp_path))
 
         assert len(results) == 2
         statuses = {r.task_id: r.status for r in results}

@@ -79,9 +79,7 @@ def coerce_line_range(value: Any) -> tuple[int, int]:
 def build_code_links(
     edges: tuple[dict[str, Any], ...] | list[dict[str, Any]],
     nodes_by_id: dict[str, dict[str, Any]],
-    on_missing_mirror_source: Optional[
-        Callable[[str, str], None]
-    ] = None,
+    on_missing_mirror_source: Optional[Callable[[str, str], None]] = None,
 ) -> list[CodeLinkView]:
     """Walk ``implements`` edges and emit one :class:`CodeLinkView` per edge.
 
@@ -141,9 +139,7 @@ def build_code_links(
                 file_path=usable_path,
                 line_range=usable_line_range,
                 mirror_node_id=(
-                    target_id
-                    if target_node.get("kind") == "code_mirror"
-                    else None
+                    target_id if target_node.get("kind") == "code_mirror" else None
                 ),
             )
         )

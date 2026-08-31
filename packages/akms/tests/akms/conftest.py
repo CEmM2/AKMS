@@ -136,9 +136,7 @@ def make_local_node(
         "akms_schema": "v2",
     }
     fm.update(kwargs)
-    return write_node_md(
-        repo / "knowledge" / "local-nodes" / f"{id}.md", fm, content
-    )
+    return write_node_md(repo / "knowledge" / "local-nodes" / f"{id}.md", fm, content)
 
 
 def make_mirror_node(
@@ -166,9 +164,7 @@ def make_mirror_node(
         "generated_by_phase": phase,
         "akms_schema": "v2",
     }
-    return write_node_md(
-        repo / "knowledge" / "code-mirror" / f"{id}.md", fm, content
-    )
+    return write_node_md(repo / "knowledge" / "code-mirror" / f"{id}.md", fm, content)
 
 
 def make_ctx(

@@ -104,7 +104,7 @@ class TestExtractDefinitions:
         assert defs == []
 
     def test_multiple_functions(self):
-        source = textwrap.dedent('''\
+        source = textwrap.dedent("""\
         def a():
             pass
 
@@ -113,7 +113,7 @@ class TestExtractDefinitions:
 
         def c():
             pass
-        ''')
+        """)
         defs = extract_definitions(source)
         assert len(defs) == 3
         assert [d["name"] for d in defs] == ["a", "b", "c"]
@@ -134,7 +134,10 @@ class TestWriteMirrorFile:
             return x * 2
         ''')
         result = write_mirror_file(
-            tmp_repo, "src/module.py", source, phase=1,
+            tmp_repo,
+            "src/module.py",
+            source,
+            phase=1,
             generated_at=datetime(2026, 3, 7, 12, 0, 0),
         )
 
@@ -148,7 +151,10 @@ class TestWriteMirrorFile:
     def test_frontmatter_fields(self, tmp_repo):
         source = 'def fn():\n    """Doc."""\n    pass\n'
         write_mirror_file(
-            tmp_repo, "src/module.py", source, phase=2,
+            tmp_repo,
+            "src/module.py",
+            source,
+            phase=2,
             generated_at=datetime(2026, 3, 7, 12, 0, 0),
         )
 
@@ -172,7 +178,10 @@ class TestWriteMirrorFile:
             return f"Hello {name}"
         ''')
         write_mirror_file(
-            tmp_repo, "src/greet.py", source, phase=1,
+            tmp_repo,
+            "src/greet.py",
+            source,
+            phase=1,
             generated_at=datetime(2026, 3, 7, 12, 0, 0),
         )
 
@@ -187,17 +196,31 @@ class TestWriteMirrorFile:
 
     def test_no_definitions_returns_none(self, tmp_repo):
         result = write_mirror_file(
-            tmp_repo, "src/empty.py", "# just a comment\n", phase=1,
+            tmp_repo,
+            "src/empty.py",
+            "# just a comment\n",
+            phase=1,
         )
         assert result is None
 
     def test_nested_directory_created(self, tmp_repo):
         source = 'def fn():\n    """Doc."""\n    pass\n'
         write_mirror_file(
-            tmp_repo, "src/deep/nested/module.py", source, phase=1,
+            tmp_repo,
+            "src/deep/nested/module.py",
+            source,
+            phase=1,
         )
 
-        mirror_path = tmp_repo / "knowledge" / "code-mirror" / "src" / "deep" / "nested" / "module.md"
+        mirror_path = (
+            tmp_repo
+            / "knowledge"
+            / "code-mirror"
+            / "src"
+            / "deep"
+            / "nested"
+            / "module.md"
+        )
         assert mirror_path.exists()
 
 
@@ -210,77 +233,89 @@ class TestDriftStructural:
     """Tests for check_docstring_drift_structural()."""
 
     def test_no_drift_clean_function(self):
-        defs = [{
-            "name": "compute",
-            "type": "function",
-            "docstring": "Compute the result for the given value x.",
-            "parameters": ["self", "x"],
-            "return_annotation": "int",
-            "decorators": [],
-        }]
+        defs = [
+            {
+                "name": "compute",
+                "type": "function",
+                "docstring": "Compute the result for the given value x.",
+                "parameters": ["self", "x"],
+                "return_annotation": "int",
+                "decorators": [],
+            }
+        ]
         warnings = check_docstring_drift_structural(defs)
         assert len(warnings) == 0
 
     def test_missing_param_in_docstring(self):
-        defs = [{
-            "name": "compute",
-            "type": "function",
-            "docstring": "Compute something.",
-            "parameters": ["self", "alpha_factor", "beta_range"],
-            "return_annotation": None,
-            "decorators": [],
-        }]
+        defs = [
+            {
+                "name": "compute",
+                "type": "function",
+                "docstring": "Compute something.",
+                "parameters": ["self", "alpha_factor", "beta_range"],
+                "return_annotation": None,
+                "decorators": [],
+            }
+        ]
         warnings = check_docstring_drift_structural(defs)
         # alpha_factor and beta_range not mentioned
         assert len(warnings) >= 1
         assert any("alpha_factor" in w["detail"] for w in warnings)
 
     def test_return_type_contradiction(self):
-        defs = [{
-            "name": "compute",
-            "type": "function",
-            "docstring": "Returns None when done.",
-            "parameters": ["self"],
-            "return_annotation": "int",
-            "decorators": [],
-        }]
+        defs = [
+            {
+                "name": "compute",
+                "type": "function",
+                "docstring": "Returns None when done.",
+                "parameters": ["self"],
+                "return_annotation": "int",
+                "decorators": [],
+            }
+        ]
         warnings = check_docstring_drift_structural(defs)
         assert any(w["type"] == "return_type_contradiction" for w in warnings)
 
     def test_class_defs_skipped(self):
-        defs = [{
-            "name": "MyClass",
-            "type": "class",
-            "docstring": "A class with no params.",
-            "parameters": [],
-            "return_annotation": None,
-            "decorators": [],
-        }]
+        defs = [
+            {
+                "name": "MyClass",
+                "type": "class",
+                "docstring": "A class with no params.",
+                "parameters": [],
+                "return_annotation": None,
+                "decorators": [],
+            }
+        ]
         warnings = check_docstring_drift_structural(defs)
         assert len(warnings) == 0
 
     def test_no_docstring_no_warning(self):
-        defs = [{
-            "name": "fn",
-            "type": "function",
-            "docstring": None,
-            "parameters": ["x"],
-            "return_annotation": "int",
-            "decorators": [],
-        }]
+        defs = [
+            {
+                "name": "fn",
+                "type": "function",
+                "docstring": None,
+                "parameters": ["x"],
+                "return_annotation": "int",
+                "decorators": [],
+            }
+        ]
         warnings = check_docstring_drift_structural(defs)
         assert len(warnings) == 0
 
     def test_short_param_names_not_flagged(self):
         """Parameters with <= 2 chars are not flagged (too many false positives)."""
-        defs = [{
-            "name": "fn",
-            "type": "function",
-            "docstring": "A function.",
-            "parameters": ["x", "y"],
-            "return_annotation": None,
-            "decorators": [],
-        }]
+        defs = [
+            {
+                "name": "fn",
+                "type": "function",
+                "docstring": "A function.",
+                "parameters": ["x", "y"],
+                "return_annotation": None,
+                "decorators": [],
+            }
+        ]
         warnings = check_docstring_drift_structural(defs)
         assert len(warnings) == 0
 
@@ -295,14 +330,16 @@ class TestDriftLLM:
 
     def test_falls_back_to_structural_without_llm(self):
         """When llm_fn is None, falls back to structural check."""
-        defs = [{
-            "name": "fn",
-            "type": "function",
-            "docstring": "Returns None.",
-            "parameters": ["self"],
-            "return_annotation": "int",
-            "decorators": [],
-        }]
+        defs = [
+            {
+                "name": "fn",
+                "type": "function",
+                "docstring": "Returns None.",
+                "parameters": ["self"],
+                "return_annotation": "int",
+                "decorators": [],
+            }
+        ]
         warnings = check_docstring_drift_llm(defs, llm_fn=None)
         assert any(w["type"] == "return_type_contradiction" for w in warnings)
 
@@ -310,14 +347,16 @@ class TestDriftLLM:
         def mock_llm(prompt: str) -> str:
             return "NO — the docstring is inaccurate."
 
-        defs = [{
-            "name": "fn",
-            "type": "function",
-            "docstring": "Does X.",
-            "parameters": ["y"],
-            "return_annotation": "str",
-            "decorators": [],
-        }]
+        defs = [
+            {
+                "name": "fn",
+                "type": "function",
+                "docstring": "Does X.",
+                "parameters": ["y"],
+                "return_annotation": "str",
+                "decorators": [],
+            }
+        ]
         warnings = check_docstring_drift_llm(defs, llm_fn=mock_llm)
         assert len(warnings) == 1
         assert warnings[0]["type"] == "llm_drift"
@@ -326,14 +365,16 @@ class TestDriftLLM:
         def mock_llm(prompt: str) -> str:
             return "YES — the docstring is accurate."
 
-        defs = [{
-            "name": "fn",
-            "type": "function",
-            "docstring": "Does X.",
-            "parameters": ["x"],
-            "return_annotation": "str",
-            "decorators": [],
-        }]
+        defs = [
+            {
+                "name": "fn",
+                "type": "function",
+                "docstring": "Does X.",
+                "parameters": ["x"],
+                "return_annotation": "str",
+                "decorators": [],
+            }
+        ]
         warnings = check_docstring_drift_llm(defs, llm_fn=mock_llm)
         assert len(warnings) == 0
 
@@ -341,14 +382,16 @@ class TestDriftLLM:
         def failing_llm(prompt: str) -> str:
             raise RuntimeError("API error")
 
-        defs = [{
-            "name": "fn",
-            "type": "function",
-            "docstring": "Doc.",
-            "parameters": ["x"],
-            "return_annotation": None,
-            "decorators": [],
-        }]
+        defs = [
+            {
+                "name": "fn",
+                "type": "function",
+                "docstring": "Doc.",
+                "parameters": ["x"],
+                "return_annotation": None,
+                "decorators": [],
+            }
+        ]
         warnings = check_docstring_drift_llm(defs, llm_fn=failing_llm)
         assert len(warnings) == 0  # Gracefully handles error
 
@@ -365,7 +408,8 @@ class TestGenerateMirror:
         """Processes explicit source files, writes mirrors, returns summary."""
         src_dir = tmp_repo / "src"
         src_dir.mkdir(exist_ok=True)
-        (src_dir / "module.py").write_text(textwrap.dedent('''\
+        (src_dir / "module.py").write_text(
+            textwrap.dedent('''\
         def compute(x: int) -> int:
             """Compute x squared."""
             return x ** 2
@@ -375,10 +419,12 @@ class TestGenerateMirror:
             def run(self, data):
                 """Run the processor."""
                 pass
-        '''))
+        ''')
+        )
 
         result = generate_mirror(
-            tmp_repo, phase=1,
+            tmp_repo,
+            phase=1,
             source_files=["src/module.py"],
             drift_check=True,
         )
@@ -393,7 +439,8 @@ class TestGenerateMirror:
 
     def test_nonexistent_file_skipped(self, tmp_repo):
         result = generate_mirror(
-            tmp_repo, phase=1,
+            tmp_repo,
+            phase=1,
             source_files=["nonexistent.py"],
         )
         assert result["files_processed"] == 1
@@ -402,7 +449,8 @@ class TestGenerateMirror:
     def test_non_python_file_skipped(self, tmp_repo):
         (tmp_repo / "readme.md").write_text("# Readme")
         result = generate_mirror(
-            tmp_repo, phase=1,
+            tmp_repo,
+            phase=1,
             source_files=["readme.md"],
         )
         assert len(result["mirrors"]) == 0
@@ -410,14 +458,17 @@ class TestGenerateMirror:
     def test_drift_warnings_collected(self, tmp_repo):
         src_dir = tmp_repo / "src"
         src_dir.mkdir(exist_ok=True)
-        (src_dir / "drifty.py").write_text(textwrap.dedent('''\
+        (src_dir / "drifty.py").write_text(
+            textwrap.dedent('''\
         def process(alpha_factor: float, beta_range: list) -> dict:
             """Process something generic."""
             return {}
-        '''))
+        ''')
+        )
 
         result = generate_mirror(
-            tmp_repo, phase=1,
+            tmp_repo,
+            phase=1,
             source_files=["src/drifty.py"],
             drift_check=True,
         )
@@ -429,14 +480,17 @@ class TestGenerateMirror:
     def test_drift_check_disabled(self, tmp_repo):
         src_dir = tmp_repo / "src"
         src_dir.mkdir(exist_ok=True)
-        (src_dir / "module.py").write_text(textwrap.dedent('''\
+        (src_dir / "module.py").write_text(
+            textwrap.dedent('''\
         def process(alpha_factor: float) -> dict:
             """Process something."""
             return {}
-        '''))
+        ''')
+        )
 
         result = generate_mirror(
-            tmp_repo, phase=1,
+            tmp_repo,
+            phase=1,
             source_files=["src/module.py"],
             drift_check=False,
         )
@@ -450,7 +504,8 @@ class TestGenerateMirror:
         (src_dir / "b.py").write_text('def fn_b():\n    """B."""\n    pass\n')
 
         result = generate_mirror(
-            tmp_repo, phase=1,
+            tmp_repo,
+            phase=1,
             source_files=["src/a.py", "src/b.py"],
         )
 

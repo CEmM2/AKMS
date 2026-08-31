@@ -55,15 +55,26 @@ def validate_file(md_path: Path, strict: bool = False) -> tuple[int, list[str]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate an AKMS node .md against the v2 schema.")
+    parser = argparse.ArgumentParser(
+        description="Validate an AKMS node .md against the v2 schema."
+    )
     parser.add_argument("md_path", type=Path, help="Path to the node .md file")
     parser.add_argument(
         "--validate-only",
         action="store_true",
         help="Validate without writing fixes (accepted for call-contract compatibility; this tool never writes).",
     )
-    parser.add_argument("--strict", action="store_true", help="Treat WARNING-level issues as failures too.")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Print all issues, not just errors.")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Treat WARNING-level issues as failures too.",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print all issues, not just errors.",
+    )
     args = parser.parse_args(argv)
 
     code, lines = validate_file(args.md_path, strict=args.strict)

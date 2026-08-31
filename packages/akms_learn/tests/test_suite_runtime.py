@@ -37,9 +37,7 @@ class TestSuiteRuntime:
     """Suite wall-clock < 30s; tests use isolated tmp dirs."""
 
     @pytest.mark.integration
-    def test_suite_runtime_under_30s(
-        self, tmp_path: Path, make_request
-    ) -> None:
+    def test_suite_runtime_under_30s(self, tmp_path: Path, make_request) -> None:
         """3 sequential full-exporter compiles complete in < 30 seconds.
 
         Stand-in for "the §19 suite runs in under 30 seconds" — the 10

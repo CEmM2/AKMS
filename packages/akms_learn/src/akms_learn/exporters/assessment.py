@@ -201,8 +201,7 @@ def _render_assessment_md(
         lines.append("")
         lines.append(f"- **kind:** {item['kind']}")
         lines.append(
-            "- **target_node_ids:** "
-            + (", ".join(item["target_node_ids"]) or "_none_")
+            "- **target_node_ids:** " + (", ".join(item["target_node_ids"]) or "_none_")
         )
         lines.append("")
         lines.append("**Prompt:**")
@@ -316,9 +315,7 @@ def export(
     # Collect items.  Sort by item_id for determinism.
     # ------------------------------------------------------------------
     raw_items = list(getattr(packet.body, "assessments", None) or [])
-    items: list[dict[str, Any]] = [
-        d for d in (_coerce_item(r) for r in raw_items) if d
-    ]
+    items: list[dict[str, Any]] = [d for d in (_coerce_item(r) for r in raw_items) if d]
     items.sort(key=_normalise_item_id)
 
     # Public surface — allowlist projection.

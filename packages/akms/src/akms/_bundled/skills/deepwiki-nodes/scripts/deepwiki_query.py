@@ -30,8 +30,7 @@ try:
     import httpx
 except ImportError:
     print(
-        "ERROR: httpx is required.\n"
-        "Install with: uv add httpx",
+        "ERROR: httpx is required.\nInstall with: uv add httpx",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -83,7 +82,9 @@ class EvalConfig:
     supplement_threshold: float = 2.0
     auth_token: str = ""  # Bearer token for authenticated endpoints (e.g. Devin MCP)
     org_id: str = ""  # Organization ID for Devin MCP (from Settings > Service Users)
-    response_format: str = ""  # Optional format suffix appended to every ask_question body
+    response_format: str = (
+        ""  # Optional format suffix appended to every ask_question body
+    )
 
 
 @dataclass
@@ -272,6 +273,7 @@ def _skip_response_block(start: int, lines: list[str]) -> int:
 
 # ─── MCP HTTP Client ─────────────────────────────────────────────────────────
 
+
 # Default MCP request headers.  The official DeepWiki endpoint at
 # mcp.deepwiki.com/mcp uses Streamable HTTP (the current MCP transport).
 # We request a plain JSON response (no streaming) so httpx can parse it
@@ -408,7 +410,9 @@ def _extract_text(obj: object) -> str:
 # ─── Schema Discovery ────────────────────────────────────────────────────────
 
 
-async def discover_endpoint(endpoint: str, auth_token: str = "", org_id: str = "") -> EndpointSchema:
+async def discover_endpoint(
+    endpoint: str, auth_token: str = "", org_id: str = ""
+) -> EndpointSchema:
     """
     Query the MCP endpoint for its tool list and parameter schemas.
 
@@ -424,9 +428,7 @@ async def discover_endpoint(endpoint: str, auth_token: str = "", org_id: str = "
 
     headers = _build_headers(auth_token, org_id)
     async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            endpoint, json=payload, headers=headers, timeout=30.0
-        )
+        resp = await client.post(endpoint, json=payload, headers=headers, timeout=30.0)
         resp.raise_for_status()
 
         content_type = resp.headers.get("content-type", "")
@@ -471,9 +473,9 @@ async def discover_endpoint(endpoint: str, auth_token: str = "", org_id: str = "
 
 def print_discovery(schema: EndpointSchema, endpoint: str) -> None:
     """Pretty-print discovered endpoint schema."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"DeepWiki MCP Endpoint Discovery")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Endpoint: {endpoint}")
     print(f"Tools found: {len(schema.tools)}")
     print(f"Repo parameter name: {schema.repo_param}")
@@ -496,7 +498,7 @@ def print_discovery(schema: EndpointSchema, endpoint: str) -> None:
             print(f"   (no schema or empty properties)")
         print()
 
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Use these parameter names in your eval questions.")
     print(f"The eval engine will auto-detect on first run.\n")
 
@@ -565,7 +567,9 @@ async def run_queries(
     print(f"Topics:     {len(topics)}")
     print(f"Queries:    {total}")
     if config.response_format:
-        print(f"Format:     response_format active ({len(config.response_format)} chars)")
+        print(
+            f"Format:     response_format active ({len(config.response_format)} chars)"
+        )
     print()
 
     async with httpx.AsyncClient() as client:
@@ -578,12 +582,18 @@ async def run_queries(
                 print(f"{label}...", end="", flush=True)
 
                 args = build_arguments(
-                    query.tool, query.body, config.repo, schema,
+                    query.tool,
+                    query.body,
+                    config.repo,
+                    schema,
                     response_format=config.response_format,
                 )
                 t0 = time.monotonic()
                 text, status = await call_mcp(
-                    client, config.mcp_endpoint, query.tool, args,
+                    client,
+                    config.mcp_endpoint,
+                    query.tool,
+                    args,
                     auth_token=config.auth_token,
                     org_id=config.org_id,
                 )
@@ -672,7 +682,9 @@ def inject_responses(
                 output.append("```\n")
                 for resp_line in q.response.splitlines():
                     # Escape any ``` inside the response
-                    if resp_line.strip() == "```" or resp_line.strip().startswith("```"):
+                    if resp_line.strip() == "```" or resp_line.strip().startswith(
+                        "```"
+                    ):
                         resp_line = resp_line.replace("```", "` ` `")
                     output.append(resp_line + "\n")
                 output.append("```\n")
@@ -706,17 +718,12 @@ def _build_summary(topics: list[Topic], config: EvalConfig) -> list[str]:
         n = len(topic.queries)
         ok = sum(1 for q in topic.queries if q.status == "success")
         fail = n - ok
-        avg_len = (
-            sum(q.response_len for q in topic.queries) // max(n, 1)
-        )
+        avg_len = sum(q.response_len for q in topic.queries) // max(n, 1)
         total_queries += n
         total_success += ok
         total_elapsed += sum(q.elapsed for q in topic.queries)
 
-        lines.append(
-            f"| {topic.title} | {n} | {ok} | {fail} | "
-            f"{avg_len:,} chars |\n"
-        )
+        lines.append(f"| {topic.title} | {n} | {ok} | {fail} | {avg_len:,} chars |\n")
 
     # Metadata
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -745,17 +752,13 @@ def _build_summary(topics: list[Topic], config: EvalConfig) -> list[str]:
     # Decision checkboxes
     lines.append("\n### Decision\n\n")
     lines.append(
-        f"- [ ] ≥ {config.proceed_threshold} → "
-        "Proceed with extraction pipeline\n"
+        f"- [ ] ≥ {config.proceed_threshold} → Proceed with extraction pipeline\n"
     )
     lines.append(
         f"- [ ] {config.supplement_threshold}–{config.proceed_threshold} → "
         "Proceed with heavy supplementation\n"
     )
-    lines.append(
-        f"- [ ] < {config.supplement_threshold} → "
-        "Abandon as primary source\n"
-    )
+    lines.append(f"- [ ] < {config.supplement_threshold} → Abandon as primary source\n")
 
     lines.append("\n### Qualitative Notes\n\n")
     lines.append("**Strongest area:**\n\n\n")
@@ -763,10 +766,7 @@ def _build_summary(topics: list[Topic], config: EvalConfig) -> list[str]:
     lines.append("**Unexpected findings:**\n\n\n")
     lines.append("**Prompt refinement ideas (if proceeding):**\n\n\n")
 
-    lines.append(
-        "\n---\n\n*Generated by deepwiki-eval · "
-        f"{ts}*\n"
-    )
+    lines.append(f"\n---\n\n*Generated by deepwiki-eval · {ts}*\n")
 
     return lines
 
@@ -908,7 +908,9 @@ def main() -> None:
         print(f"  Organization ID: {config.org_id}")
     schema: EndpointSchema | None = None
     try:
-        schema = asyncio.run(discover_endpoint(config.mcp_endpoint, config.auth_token, config.org_id))
+        schema = asyncio.run(
+            discover_endpoint(config.mcp_endpoint, config.auth_token, config.org_id)
+        )
         print(f"  Repo param: {schema.repo_param}")
         print(f"  Topic param: {schema.topic_param}")
         print(f"  Tools: {', '.join(schema.tools.keys())}")

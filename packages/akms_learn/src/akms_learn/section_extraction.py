@@ -209,9 +209,7 @@ def _node_body_text(node: dict[str, Any]) -> str:
             return raw
     extracted = node.get("extracted")
     if isinstance(extracted, dict) and extracted:
-        return "\n\n".join(
-            str(extracted[k]) for k in sorted(extracted.keys())
-        )
+        return "\n\n".join(str(extracted[k]) for k in sorted(extracted.keys()))
     return ""
 
 
@@ -299,9 +297,7 @@ def extract_sections_from_node(node: dict[str, Any]) -> list[ExtractedSection]:
 
     # Pass 2 — emit in canonical approved-heading order.
     results: list[ExtractedSection] = [
-        canonical_to_record[h]
-        for h in APPROVED_HEADINGS
-        if h in canonical_to_record
+        canonical_to_record[h] for h in APPROVED_HEADINGS if h in canonical_to_record
     ]
 
     # If at least one approved heading hit, the fallback tier is

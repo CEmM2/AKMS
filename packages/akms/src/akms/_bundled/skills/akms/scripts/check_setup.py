@@ -43,6 +43,7 @@ def check_package() -> bool:
         return False
     try:
         from importlib.metadata import version
+
         report(OK, f"akms package importable (version {version('akms')})")
     except Exception:
         report(OK, "akms package importable (version unknown)")
@@ -62,8 +63,11 @@ def check_mcp() -> None:
     if path:
         report(OK, f"`akms-mcp-stdio` on PATH: {path}")
     else:
-        report(WARN, "`akms-mcp-stdio` not on PATH — use "
-                     "`python -m akms.orchestrator.mcp_stdio --repo-root .`")
+        report(
+            WARN,
+            "`akms-mcp-stdio` not on PATH — use "
+            "`python -m akms.orchestrator.mcp_stdio --repo-root .`",
+        )
     try:
         importlib.import_module("akms.orchestrator.mcp_stdio")
         report(OK, "MCP stdio module importable")
@@ -73,6 +77,7 @@ def check_mcp() -> None:
     try:
         importlib.import_module("mcp")
         from importlib.metadata import version
+
         report(OK, f"mcp runtime present (version {version('mcp')}, transitive dep)")
     except Exception:
         report(BAD, "mcp runtime missing — pin `mcp` explicitly if you trimmed deps")
@@ -80,11 +85,16 @@ def check_mcp() -> None:
 
 def check_vault() -> None:
     env = os.environ.get("AKMS_GLOBAL_VAULT")
-    vault = Path(env).expanduser() if env else Path.home() / ".claude" / "akms" / "nodes"
+    vault = (
+        Path(env).expanduser() if env else Path.home() / ".claude" / "akms" / "nodes"
+    )
     src = "AKMS_GLOBAL_VAULT" if env else "default"
     if not vault.exists():
-        report(WARN, f"global vault absent at {vault} ({src}) — "
-                     "project-local knowledge only, which is a valid setup")
+        report(
+            WARN,
+            f"global vault absent at {vault} ({src}) — "
+            "project-local knowledge only, which is a valid setup",
+        )
         return
     count = len(list(vault.rglob("*.md")))
     if count == 0:
@@ -100,8 +110,11 @@ def check_layout(repo: Path) -> None:
         return
     nodes = list(local.glob("*.md"))
     if not nodes:
-        report(WARN, f"{local.relative_to(repo)} exists but is empty — "
-                     "no project knowledge yet; queries will return nothing")
+        report(
+            WARN,
+            f"{local.relative_to(repo)} exists but is empty — "
+            "no project knowledge yet; queries will return nothing",
+        )
     else:
         report(OK, f"local nodes: {len(nodes)} in {local.relative_to(repo)}")
 
@@ -113,6 +126,7 @@ def check_graph(repo: Path) -> None:
         return
     try:
         import json
+
         data = json.loads(graph.read_text())
         n = len(data.get("nodes", []))
         report(OK if n else WARN, f"graph compiled: {n} node(s)")
@@ -124,6 +138,7 @@ def check_qmd(repo: Path) -> None:
     """qmd powers the three akms_search_* tools; absence is silent by design."""
     try:
         from akms._resources import seed_qmd_path
+
         wrapper = seed_qmd_path("run_qmd.sh")
         has_wrapper = wrapper.exists()
     except Exception as exc:
@@ -134,13 +149,19 @@ def check_qmd(repo: Path) -> None:
     if has_wrapper and binary:
         report(OK, f"qmd search wired (wrapper bundled, binary at {binary})")
     elif has_wrapper and not binary:
-        report(WARN, "run_qmd.sh is bundled but the `qmd` binary is not on PATH — "
-                     "the wrapper falls back to grep-style matching, so results "
-                     "will be poorer but not empty")
+        report(
+            WARN,
+            "run_qmd.sh is bundled but the `qmd` binary is not on PATH — "
+            "the wrapper falls back to grep-style matching, so results "
+            "will be poorer but not empty",
+        )
     else:
-        report(BAD, f"run_qmd.sh not found at {wrapper} — akms_search_* will "
-                    "return EMPTY LISTS, not errors. An empty search result "
-                    "then does NOT mean the knowledge is absent.")
+        report(
+            BAD,
+            f"run_qmd.sh not found at {wrapper} — akms_search_* will "
+            "return EMPTY LISTS, not errors. An empty search result "
+            "then does NOT mean the knowledge is absent.",
+        )
 
 
 def main() -> int:
@@ -171,8 +192,10 @@ def main() -> int:
     fails = [m for s, m in results if s == BAD]
     warns = [m for s, m in results if s == WARN]
     print(f"\n{'-' * 58}")
-    print(f"ok: {sum(1 for s, _ in results if s == OK)}   "
-          f"warnings: {len(warns)}   failures: {len(fails)}")
+    print(
+        f"ok: {sum(1 for s, _ in results if s == OK)}   "
+        f"warnings: {len(warns)}   failures: {len(fails)}"
+    )
     if fails:
         print("\nresult: NOT USABLE")
         return 1

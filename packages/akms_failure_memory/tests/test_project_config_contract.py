@@ -52,8 +52,7 @@ def test_generic_contract_contains_no_consumer_identity() -> None:
             encoding="utf-8"
         )
         + (
-            PACKAGE_ROOT.parents[1]
-            / "docs/reference/failure-memory/internals.md"
+            PACKAGE_ROOT.parents[1] / "docs/reference/failure-memory/internals.md"
         ).read_text(encoding="utf-8")
     ).lower()
     assert "nw-failure" not in generic

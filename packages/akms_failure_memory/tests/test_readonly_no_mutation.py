@@ -254,7 +254,9 @@ def test_write_operations_still_create_what_they_need(tmp_path: Path) -> None:
         request_path=request_path,
     )
     assert result["status"] == "created"
-    assert lock_parent.is_dir(), "a write operation must be free to create what it needs"
+    assert lock_parent.is_dir(), (
+        "a write operation must be free to create what it needs"
+    )
     assert not (lock_parent / ".lock").exists(), (
         "the lock FILE itself is still released/removed after a write completes"
     )
@@ -280,11 +282,15 @@ def test_project_lock_read_mode_rejects_missing_parent_without_touching_disk(
         with ProjectLock(lock_path, create_parent_directories=False):
             pass  # pragma: no cover - must not be reached
     assert raised.value.code == "lock_parent_missing"
-    assert not missing_parent.exists(), "acquire() must not create anything before raising"
+    assert not missing_parent.exists(), (
+        "acquire() must not create anything before raising"
+    )
 
     # The default (write) behavior is completely unchanged.
     with ProjectLock(lock_path):
         assert missing_parent.is_dir()
         assert lock_path.is_file()
     assert not lock_path.exists(), "the lock file is released"
-    assert missing_parent.is_dir(), "the parent directory a write created is not rolled back"
+    assert missing_parent.is_dir(), (
+        "the parent directory a write created is not rolled back"
+    )

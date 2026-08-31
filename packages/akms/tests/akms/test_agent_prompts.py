@@ -39,6 +39,7 @@ class TestSystemPromptAdditions:
             "loadout_path": "",
         }
         from akms.agents.base import Loadout
+
         loadout = Loadout(path="")
         prompt = bare_agent._build_system_prompt(loadout, task_json)
 
@@ -49,6 +50,7 @@ class TestSystemPromptAdditions:
         """When system_prompt_additions is absent, no extra section appears."""
         task_json = {"task_id": "t1", "loadout_path": ""}
         from akms.agents.base import Loadout
+
         loadout = Loadout(path="")
         prompt = bare_agent._build_system_prompt(loadout, task_json)
 
@@ -139,7 +141,9 @@ class TestPromptIntegration:
                 out_path = out_dir / f"{memory.task_id}.md"
                 out_path.write_text(
                     "---\n"
-                    + yaml.dump(memory.model_dump(mode="json"), default_flow_style=False)
+                    + yaml.dump(
+                        memory.model_dump(mode="json"), default_flow_style=False
+                    )
                     + "---\n"
                 )
 
@@ -154,11 +158,10 @@ class TestPromptIntegration:
         }
 
         from unittest.mock import patch
+
         with patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace:
             mock_trace.return_value = MagicMock()
-            result = asyncio.run(
-                run_subagent(task_json, CapturingAgent, config, repo)
-            )
+            result = asyncio.run(run_subagent(task_json, CapturingAgent, config, repo))
 
         assert result.status == "complete"
 
@@ -173,7 +176,9 @@ class TestPromptIntegration:
             "Decomposer role instructions should mention 'tasks' key requirement"
         )
 
-        assert len(captured_task) >= 1, "Task prompt should have been captured at least once"
+        assert len(captured_task) >= 1, (
+            "Task prompt should have been captured at least once"
+        )
         task_prompt = captured_task[0]
         assert "/path/to/instructions.md" in task_prompt, (
             "task_instructions_path should appear in task prompt"

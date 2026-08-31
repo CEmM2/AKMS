@@ -192,7 +192,9 @@ def _node_id(node: dict[str, Any]) -> str:
     return str(nid)
 
 
-def _request_get(request: LearningRequest | dict[str, Any], name: str, default: Any = None) -> Any:
+def _request_get(
+    request: LearningRequest | dict[str, Any], name: str, default: Any = None
+) -> Any:
     """Look up *name* on *request*, supporting both Pydantic models and dicts.
 
     ``compile_learning_source`` accepts ``request`` as either a
@@ -333,7 +335,9 @@ def _filter_by_seed_tags(slice_: GraphSlice, seed_tags: list[str]) -> GraphSlice
             kept_nodes.append(node)
             kept_ids.add(_node_id(node))
 
-    kept_edges = [e for e in slice_.edges if e.get("from") in kept_ids and e.get("to") in kept_ids]
+    kept_edges = [
+        e for e in slice_.edges if e.get("from") in kept_ids and e.get("to") in kept_ids
+    ]
 
     kept_nodes.sort(key=_node_id)
     kept_edges.sort(key=lambda e: e.get("edge_id", ""))
@@ -471,9 +475,13 @@ def _build_pitfalls(
                     source_node_id=nid,
                     source_path=node.get("source_path"),
                     line_range=(
-                        _coerce_line_range(node["line_range"]) if "line_range" in node else None
+                        _coerce_line_range(node["line_range"])
+                        if "line_range" in node
+                        else None
                     ),
-                    message=str(node.get("title") or node.get("message") or f"Pitfall: {nid}"),
+                    message=str(
+                        node.get("title") or node.get("message") or f"Pitfall: {nid}"
+                    ),
                     severity="warning",
                 )
             )
@@ -867,7 +875,9 @@ def compile_learning_source(
     # -----------------------------------------------------------------
     # Resolve domain-pack / source-pack provenance up-front so we know which
     # capabilities ended up unsatisfied.
-    domain_pack_provenance, _registry = _resolve_domain_pack_provenance(domain_pack_paths)
+    domain_pack_provenance, _registry = _resolve_domain_pack_provenance(
+        domain_pack_paths
+    )
     source_pack_provenance = _resolve_source_pack_provenance(source_pack_paths)
 
     node_views = [
@@ -911,7 +921,8 @@ def compile_learning_source(
             )
             accumulator.extend(assessment_warnings)
             assessment_views = [
-                AssessmentView(**item.model_dump()) for item in assessment_result.assessment_items
+                AssessmentView(**item.model_dump())
+                for item in assessment_result.assessment_items
             ]
 
     body = PacketBody(
@@ -1032,7 +1043,9 @@ def compile_learning_source(
                     LearningWarning(
                         severity="warning",
                         code="exporter_unavailable",
-                        message=(f"Exporter {exporter_name!r} module not available; skipped."),
+                        message=(
+                            f"Exporter {exporter_name!r} module not available; skipped."
+                        ),
                         source_ref=exporter_name,
                     )
                 )
@@ -1049,7 +1062,9 @@ def compile_learning_source(
                         LearningWarning(
                             severity="warning",
                             code="exporter_failed",
-                            message=(f"Exporter {exporter_name!r} raised an exception: {exc}"),
+                            message=(
+                                f"Exporter {exporter_name!r} raised an exception: {exc}"
+                            ),
                             source_ref=exporter_name,
                         )
                     )

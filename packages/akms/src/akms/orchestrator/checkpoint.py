@@ -182,9 +182,7 @@ def read_checkpoint_response(
     Returns:
         CheckpointResponse if found, None if timeout/not found.
     """
-    response_path = checkpoint_path.with_name(
-        checkpoint_path.stem + "_response.yaml"
-    )
+    response_path = checkpoint_path.with_name(checkpoint_path.stem + "_response.yaml")
 
     if timeout is None:
         if response_path.exists():
@@ -223,9 +221,7 @@ def write_checkpoint_response(
     Returns:
         Path to the written response file.
     """
-    response_path = checkpoint_path.with_name(
-        checkpoint_path.stem + "_response.yaml"
-    )
+    response_path = checkpoint_path.with_name(checkpoint_path.stem + "_response.yaml")
     data: dict[str, Any] = {"action": action}
     if reason:
         data["reason"] = reason
@@ -260,13 +256,15 @@ def list_checkpoints(repo_root: Path) -> list[dict]:
 
         response_path = cp_file.with_name(cp_file.stem + "_response.yaml")
 
-        results.append({
-            "path": str(cp_file),
-            "stage": data.get("stage", "unknown"),
-            "status": data.get("status", "unknown"),
-            "timestamp": data.get("timestamp", ""),
-            "has_response": response_path.exists(),
-        })
+        results.append(
+            {
+                "path": str(cp_file),
+                "stage": data.get("stage", "unknown"),
+                "status": data.get("status", "unknown"),
+                "timestamp": data.get("timestamp", ""),
+                "has_response": response_path.exists(),
+            }
+        )
 
     return results
 

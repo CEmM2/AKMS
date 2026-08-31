@@ -56,7 +56,14 @@ class TestADM003ModelRoutingSchema:
         Acceptance criterion 4: PropagationConfig.model_validate({'model_routing': {...}}) works with explicit values
         """
         config = PropagationConfig.model_validate(
-            {"model_routing": {"dedup_similarity": {"provider": "gemini", "model": "gemini-2.0-flash"}}}
+            {
+                "model_routing": {
+                    "dedup_similarity": {
+                        "provider": "gemini",
+                        "model": "gemini-2.0-flash",
+                    }
+                }
+            }
         )
         assert config.model_routing.dedup_similarity.provider == "gemini"
         assert config.model_routing.dedup_similarity.model == "gemini-2.0-flash"
@@ -72,7 +79,9 @@ class TestADM003ModelRoutingSchema:
         assert config is not None
 
         # Construction with existing fields (no model_routing) works
-        config2 = PropagationConfig.model_validate({"global_vault": "~/.claude/akms/nodes"})
+        config2 = PropagationConfig.model_validate(
+            {"global_vault": "~/.claude/akms/nodes"}
+        )
         assert config2 is not None
         assert isinstance(config2.model_routing, ModelRoutingConfig)
 

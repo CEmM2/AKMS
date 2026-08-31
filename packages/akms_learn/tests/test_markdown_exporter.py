@@ -94,9 +94,7 @@ class TestMarkdownExporter:
         assert graph_hash in content, (
             f"lesson.md must contain graph_hash {graph_hash!r}"
         )
-        assert req_hash in content, (
-            f"lesson.md must contain request_hash {req_hash!r}"
-        )
+        assert req_hash in content, f"lesson.md must contain request_hash {req_hash!r}"
 
         # Every node_id from the fixture must appear in the rendered output.
         node_ids = [node.node_id for node in result.packet.body.nodes]

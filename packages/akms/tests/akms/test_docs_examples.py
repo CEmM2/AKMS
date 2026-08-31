@@ -42,9 +42,13 @@ def _python_fences(path: Path) -> Iterator[PythonFence]:
             index += 1
 
         if index == len(lines):
-            raise AssertionError(f"{path.relative_to(REPO_ROOT)}:{opening_line}: unclosed Python fence")
+            raise AssertionError(
+                f"{path.relative_to(REPO_ROOT)}:{opening_line}: unclosed Python fence"
+            )
 
-        yield PythonFence(path=path, line=opening_line + 1, source=dedent("\n".join(body)))
+        yield PythonFence(
+            path=path, line=opening_line + 1, source=dedent("\n".join(body))
+        )
         index += 1
 
 

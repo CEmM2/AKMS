@@ -191,7 +191,11 @@ def _find_slot_content(
 
     # Fallback: first node's id as provenance anchor
     first_node = nodes[0] if nodes else None
-    first_path = str(getattr(first_node, "source_path", "<unknown>") or "<unknown>") if first_node else "<unknown>"
+    first_path = (
+        str(getattr(first_node, "source_path", "<unknown>") or "<unknown>")
+        if first_node
+        else "<unknown>"
+    )
     first_lr = getattr(first_node, "line_range", None) if first_node else None
     return SECTION_PLACEHOLDER, primary_node_id, first_path, first_lr
 
@@ -301,9 +305,7 @@ def _build_notebook_metadata(packet: "LearningSourcePacket") -> dict[str, Any]:
     * ``execution.no_execute`` / ``execution.illustrative_only`` /
       ``execution.adapter_executable``
     """
-    graph_version = (
-        getattr(packet.source, "graph_version", None) or ""
-    )
+    graph_version = getattr(packet.source, "graph_version", None) or ""
     compiler_version = getattr(packet.compiler, "version", "") or ""
 
     return {
@@ -411,9 +413,7 @@ def export(
         n.node_id for n in packet.body.nodes if n.node_id not in seen
     )
     ordered_node_ids = reading_order + fallback_tail
-    ordered_nodes = [
-        node_by_id[nid] for nid in ordered_node_ids if nid in node_by_id
-    ]
+    ordered_nodes = [node_by_id[nid] for nid in ordered_node_ids if nid in node_by_id]
 
     # Section cells.
     if ordered_nodes:
@@ -426,9 +426,7 @@ def export(
     try:
         nbformat.validate(nb)
     except nbformat.ValidationError as exc:
-        raise PacketValidationError(
-            [f"nbformat validation failed: {exc}"]
-        ) from exc
+        raise PacketValidationError([f"nbformat validation failed: {exc}"]) from exc
 
     # ------------------------------------------------------------------
     # Write to disk.

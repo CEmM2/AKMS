@@ -29,18 +29,19 @@ class Stage(IntEnum):
     """Orchestrator pipeline stages per §3 of system design."""
 
     INIT = 0
-    PLAN = 1            # planning agent + loadout
+    PLAN = 1  # planning agent + loadout
     TASK_BREAKDOWN = 2
     SCAFFOLD = 3
     EXECUTE = 4
-    REVIEW = 5          # code + physics reviewers
-    FINALIZE = 6        # final report, branch merge
-    COMPLETE = 7        # terminal state — pipeline finished
+    REVIEW = 5  # code + physics reviewers
+    FINALIZE = 6  # final report, branch merge
+    COMPLETE = 7  # terminal state — pipeline finished
 
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Stage Wire Serialization
 # ═══════════════════════════════════════════════════════════════════════
+
 
 def stage_to_wire(stage: Stage) -> str:
     """Serialize Stage to wire format (lowercase string).
@@ -159,8 +160,12 @@ STAGE_DEFINITIONS: dict[Stage, StageDefinition] = {
         name="Execute",
         requires_checkpoint=True,
         akms_operations=[
-            "generate_loadout", "derive_tags", "update_graph",
-            "generate_mirror", "graph_status", "re_evaluate",
+            "generate_loadout",
+            "derive_tags",
+            "update_graph",
+            "generate_mirror",
+            "graph_status",
+            "re_evaluate",
         ],
         valid_next=[Stage.REVIEW],
         description="Phase loop: dispatch subagents, collect memories, update graph",
@@ -280,25 +285,29 @@ class PipelineState:
                 f"Valid targets: {[s.name for s in STAGE_DEFINITIONS[self.current_stage].valid_next]}"
             )
 
-        self.stage_history.append({
-            "from_stage": self.current_stage.name,
-            "to_stage": next_stage.name,
-            "timestamp": datetime.now().isoformat(),
-            "phase": self.current_phase,
-            **(metadata or {}),
-        })
+        self.stage_history.append(
+            {
+                "from_stage": self.current_stage.name,
+                "to_stage": next_stage.name,
+                "timestamp": datetime.now().isoformat(),
+                "phase": self.current_phase,
+                **(metadata or {}),
+            }
+        )
         self.current_stage = next_stage
 
     def abort(self, reason: str = "") -> None:
         """Abort the pipeline, preserving state for resumption."""
         self.aborted = True
         self.abort_reason = reason
-        self.stage_history.append({
-            "action": "abort",
-            "stage": self.current_stage.name,
-            "timestamp": datetime.now().isoformat(),
-            "reason": reason,
-        })
+        self.stage_history.append(
+            {
+                "action": "abort",
+                "stage": self.current_stage.name,
+                "timestamp": datetime.now().isoformat(),
+                "reason": reason,
+            }
+        )
 
     def resume(self) -> None:
         """Resume from an aborted state."""
@@ -306,20 +315,24 @@ class PipelineState:
             raise ValueError("Pipeline is not aborted — cannot resume")
         self.aborted = False
         self.abort_reason = ""
-        self.stage_history.append({
-            "action": "resume",
-            "stage": self.current_stage.name,
-            "timestamp": datetime.now().isoformat(),
-        })
+        self.stage_history.append(
+            {
+                "action": "resume",
+                "stage": self.current_stage.name,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
     def mark_completed(self) -> None:
         """Mark the pipeline as completed."""
         self.completed = True
-        self.stage_history.append({
-            "action": "completed",
-            "stage": self.current_stage.name,
-            "timestamp": datetime.now().isoformat(),
-        })
+        self.stage_history.append(
+            {
+                "action": "completed",
+                "stage": self.current_stage.name,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
     def to_dict(self) -> dict:
         """Serialize to a dict for JSON persistence."""

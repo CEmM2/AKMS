@@ -43,16 +43,18 @@ def _aggregate_lessons(memories: list[AgentMemory]) -> Lessons:
     failed: list[Any] = []
     for m in memories:
         l = m.lessons
-        for w in (l.worked if l else []):
+        for w in l.worked if l else []:
             if w not in worked:
                 worked.append(w)
-        for f in (l.failed if l else []):
+        for f in l.failed if l else []:
             if f not in failed:
                 failed.append(f)
     return Lessons(worked=worked, failed=failed)
 
 
-def _aggregate_overall_test_status(memories: list[AgentMemory]) -> OverallTestStatus | None:
+def _aggregate_overall_test_status(
+    memories: list[AgentMemory],
+) -> OverallTestStatus | None:
     """Sum tests_passed / tests_total across memories."""
     if not memories:
         return None
@@ -164,7 +166,11 @@ def write_handoff(
     Returns the absolute Path of the file that was written.
     """
     repo_root = Path(repo_root)
-    target = Path(output_path) if output_path else _default_handoff_path(repo_root, pcd.phase_id)
+    target = (
+        Path(output_path)
+        if output_path
+        else _default_handoff_path(repo_root, pcd.phase_id)
+    )
     target.parent.mkdir(parents=True, exist_ok=True)
 
     meta = pcd.model_dump(mode="json")

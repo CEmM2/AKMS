@@ -71,7 +71,9 @@ _MIRROR_BODY = textwrap.dedent(
 )
 
 
-def _write_valid_mirror(output_root: Path, *, generated_path: str = "knowledge/code-mirror/src/mod.md") -> Path:
+def _write_valid_mirror(
+    output_root: Path, *, generated_path: str = "knowledge/code-mirror/src/mod.md"
+) -> Path:
     path = output_root / generated_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_MIRROR_BODY, encoding="utf-8")
@@ -356,7 +358,9 @@ class TestBuildArgv:
 
 
 class TestRepo2mdProviderFake:
-    def test_success_writes_and_validates(self, repo: Path, tmp_path: Path, monkeypatch):
+    def test_success_writes_and_validates(
+        self, repo: Path, tmp_path: Path, monkeypatch
+    ):
         fake = _make_fake_repo2md(tmp_path / "bin", mode="ok")
         monkeypatch.setenv("FAKE_R2M_MODE", "ok")
         provider = Repo2mdMirrorProvider()
@@ -384,7 +388,9 @@ class TestRepo2mdProviderFake:
         monkeypatch.setenv("FAKE_R2M_MODE", "nonzero")
         with pytest.raises(MirrorProviderError) as ei:
             Repo2mdMirrorProvider().generate(
-                MirrorRequest(repo_root=repo, phase=1, selection_mode="full", drift_check=False),
+                MirrorRequest(
+                    repo_root=repo, phase=1, selection_mode="full", drift_check=False
+                ),
                 _cfg(fake),
             )
         assert ei.value.code == "nonzero_exit"
@@ -394,7 +400,9 @@ class TestRepo2mdProviderFake:
         monkeypatch.setenv("FAKE_R2M_MODE", "empty")
         with pytest.raises(MirrorProviderError) as ei:
             Repo2mdMirrorProvider().generate(
-                MirrorRequest(repo_root=repo, phase=1, selection_mode="full", drift_check=False),
+                MirrorRequest(
+                    repo_root=repo, phase=1, selection_mode="full", drift_check=False
+                ),
                 _cfg(fake),
             )
         assert ei.value.code == "empty_stdout"
@@ -404,7 +412,9 @@ class TestRepo2mdProviderFake:
         monkeypatch.setenv("FAKE_R2M_MODE", "bad_json")
         with pytest.raises(MirrorProviderError) as ei:
             Repo2mdMirrorProvider().generate(
-                MirrorRequest(repo_root=repo, phase=1, selection_mode="full", drift_check=False),
+                MirrorRequest(
+                    repo_root=repo, phase=1, selection_mode="full", drift_check=False
+                ),
                 _cfg(fake),
             )
         assert ei.value.code == "malformed_json"
@@ -414,7 +424,9 @@ class TestRepo2mdProviderFake:
         monkeypatch.setenv("FAKE_R2M_MODE", "schema_mismatch")
         with pytest.raises(MirrorProviderError) as ei:
             Repo2mdMirrorProvider().generate(
-                MirrorRequest(repo_root=repo, phase=1, selection_mode="full", drift_check=False),
+                MirrorRequest(
+                    repo_root=repo, phase=1, selection_mode="full", drift_check=False
+                ),
                 _cfg(fake),
             )
         assert ei.value.code == "schema_mismatch"
@@ -424,7 +436,9 @@ class TestRepo2mdProviderFake:
         monkeypatch.setenv("FAKE_R2M_MODE", "partial")
         with pytest.raises(MirrorProviderError) as ei:
             Repo2mdMirrorProvider().generate(
-                MirrorRequest(repo_root=repo, phase=1, selection_mode="full", drift_check=False),
+                MirrorRequest(
+                    repo_root=repo, phase=1, selection_mode="full", drift_check=False
+                ),
                 _cfg(fake),
             )
         assert ei.value.code == "partial_output"
@@ -434,7 +448,9 @@ class TestRepo2mdProviderFake:
         monkeypatch.setenv("FAKE_R2M_MODE", "path_escape")
         with pytest.raises(MirrorProviderError) as ei:
             Repo2mdMirrorProvider().generate(
-                MirrorRequest(repo_root=repo, phase=1, selection_mode="full", drift_check=False),
+                MirrorRequest(
+                    repo_root=repo, phase=1, selection_mode="full", drift_check=False
+                ),
                 _cfg(fake),
             )
         assert ei.value.code == "path_escape"
@@ -445,7 +461,9 @@ class TestRepo2mdProviderFake:
         monkeypatch.setenv("FAKE_R2M_MODE", "export_errors")
         with pytest.raises(MirrorProviderError) as ei:
             Repo2mdMirrorProvider().generate(
-                MirrorRequest(repo_root=repo, phase=1, selection_mode="full", drift_check=False),
+                MirrorRequest(
+                    repo_root=repo, phase=1, selection_mode="full", drift_check=False
+                ),
                 _cfg(fake),
             )
         # nonzero exit is raised before JSON parse when exit code != 0
@@ -456,7 +474,9 @@ class TestRepo2mdProviderFake:
         monkeypatch.setenv("FAKE_R2M_MODE", "timeout")
         with pytest.raises(MirrorProviderError) as ei:
             Repo2mdMirrorProvider().generate(
-                MirrorRequest(repo_root=repo, phase=1, selection_mode="full", drift_check=False),
+                MirrorRequest(
+                    repo_root=repo, phase=1, selection_mode="full", drift_check=False
+                ),
                 _cfg(fake, timeout_seconds=0.3),
             )
         assert ei.value.code == "timeout"
@@ -464,7 +484,9 @@ class TestRepo2mdProviderFake:
     def test_executable_not_found(self, repo: Path):
         with pytest.raises(MirrorProviderError) as ei:
             Repo2mdMirrorProvider().generate(
-                MirrorRequest(repo_root=repo, phase=1, selection_mode="full", drift_check=False),
+                MirrorRequest(
+                    repo_root=repo, phase=1, selection_mode="full", drift_check=False
+                ),
                 MirrorConfig(
                     provider="repo2md",
                     command=[str(repo / "no-such-binary-xyz")],
@@ -483,9 +505,11 @@ class TestRepo2mdProviderFake:
         src = Path(mod.__file__).read_text(encoding="utf-8")
         assert "import repo2md" not in src
         assert "from repo2md" not in src
-        assert "repo2md" not in sys.modules or not any(
-            n == "repo2md" or n.startswith("repo2md.") for n in sys.modules
-        ) or True  # presence on sys.modules from other tests is OK; we never import it
+        assert (
+            "repo2md" not in sys.modules
+            or not any(n == "repo2md" or n.startswith("repo2md.") for n in sys.modules)
+            or True
+        )  # presence on sys.modules from other tests is OK; we never import it
 
 
 def sys_modules_repo2md() -> set[str]:
@@ -530,10 +554,14 @@ class TestValidateExport:
         p2 = repo / "knowledge/code-mirror/src/mod2.md"
         p2.parent.mkdir(parents=True, exist_ok=True)
         body = _MIRROR_BODY.replace("src/mod.md", "src/mod2.md").replace(
-            "mirror-src-mod", "mirror-src-mod"  # same id intentionally
+            "mirror-src-mod",
+            "mirror-src-mod",  # same id intentionally
         )
         # keep same id in frontmatter
-        p2.write_text(body.replace('id: "mirror-src-mod"', 'id: "mirror-src-mod"'), encoding="utf-8")
+        p2.write_text(
+            body.replace('id: "mirror-src-mod"', 'id: "mirror-src-mod"'),
+            encoding="utf-8",
+        )
         export = {
             "export_schema_version": 1,
             "written": [
@@ -616,7 +644,9 @@ class TestValidateExport:
             )
         assert ei.value.code in {"content_ref_mismatch", "frontmatter_invalid"}
 
-    def test_dispatch_via_run_mirror_provider(self, repo: Path, tmp_path: Path, monkeypatch):
+    def test_dispatch_via_run_mirror_provider(
+        self, repo: Path, tmp_path: Path, monkeypatch
+    ):
         fake = _make_fake_repo2md(tmp_path / "bin", mode="ok")
         monkeypatch.setenv("FAKE_R2M_MODE", "ok")
         result = run_mirror_provider(
@@ -641,10 +671,12 @@ class TestValidateExport:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-_REPO2MD_ROOT = Path(os.environ.get(
-    "AKMS_REPO2MD_ROOT",
-    "/opt/example/repo2md",
-))
+_REPO2MD_ROOT = Path(
+    os.environ.get(
+        "AKMS_REPO2MD_ROOT",
+        "/opt/example/repo2md",
+    )
+)
 _FIXTURE_ROOT = _REPO2MD_ROOT / "tests" / "fixtures" / "akms_export"
 _PINNED_PACK_SHA = "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b"
 
@@ -658,7 +690,9 @@ def _fixture_available() -> bool:
 @pytest.mark.skipif(not _fixture_available(), reason="repo2md fixture pack not present")
 class TestRealFixtureValidation:
     def test_export_result_validates_against_expected_mirrors(self, tmp_path: Path):
-        export = json.loads((_FIXTURE_ROOT / "export_result.json").read_text(encoding="utf-8"))
+        export = json.loads(
+            (_FIXTURE_ROOT / "export_result.json").read_text(encoding="utf-8")
+        )
         expected = _FIXTURE_ROOT / "expected"
         import shutil
 

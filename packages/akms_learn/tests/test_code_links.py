@@ -168,9 +168,7 @@ class TestMissingSourcePathWarning:
         )
         # Source ref must identify the offending mirror node.
         warn = next(
-            w
-            for w in result.warnings
-            if w.code == "code_mirror_missing_source_path"
+            w for w in result.warnings if w.code == "code_mirror_missing_source_path"
         )
         assert warn.source_ref == "bridge_code_mirror"
 
@@ -256,8 +254,6 @@ class TestCodeLinkDeterminism:
         slice_ = fixture_graph_toy_executable_bridge()
         a = compile_learning_source(request=_make_request(), graph_slice=slice_)
         b = compile_learning_source(request=_make_request(), graph_slice=slice_)
-        assert [
-            link.model_dump() for link in a.packet.body.code_links
-        ] == [
+        assert [link.model_dump() for link in a.packet.body.code_links] == [
             link.model_dump() for link in b.packet.body.code_links
         ]

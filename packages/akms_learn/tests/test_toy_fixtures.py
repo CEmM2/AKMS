@@ -102,17 +102,13 @@ class TestFixtureCompiles:
             (fixture_graph_toy_executable_bridge, "toy_executable_bridge"),
         ],
     )
-    def test_compile_each_fixture_produces_valid_packet(
-        self, factory, family
-    ):
+    def test_compile_each_fixture_produces_valid_packet(self, factory, family):
         result = compile_learning_source(
             request=_make_request(),
             graph_slice=factory(),
         )
         assert result.packet is not None
-        assert result.packet.body.nodes, (
-            f"compiled body for {family!r} has no nodes"
-        )
+        assert result.packet.body.nodes, f"compiled body for {family!r} has no nodes"
         # Stage log must be complete — compare to the canonical STAGES tuple
         # rather than a hard-coded count so adding/renaming a stage can't make
         # this assertion silently wrong.
@@ -171,9 +167,7 @@ class TestGenericVocabulary:
         module_path = Path(toy_fixtures_mod.__file__)
         text = module_path.read_text(encoding="utf-8")
         # Strip every triple-quoted string (docstrings) before scanning.
-        sanitised = re.sub(
-            r'"""[\s\S]*?"""', "<DOCSTRING>", text
-        )
+        sanitised = re.sub(r'"""[\s\S]*?"""', "<DOCSTRING>", text)
         # Strip the RESERVED_DOMAIN_TERMS literal block: from the
         # assignment header up to the closing-paren line. We match the
         # whole region by anchoring on the literal opening "(" line and
@@ -212,9 +206,7 @@ class TestGenericVocabulary:
 class TestExecutableBridgeImplementsEdge:
     def test_bridge_has_implements_edge(self):
         slice_ = fixture_graph_toy_executable_bridge()
-        implements_edges = [
-            e for e in slice_.edges if e.get("type") == "implements"
-        ]
+        implements_edges = [e for e in slice_.edges if e.get("type") == "implements"]
         assert implements_edges, (
             "toy_executable_bridge must contain ≥1 implements edge "
             "for CodeLinkView consumers."
@@ -227,19 +219,14 @@ class TestExecutableBridgeImplementsEdge:
 
     def test_bridge_has_code_mirror_with_provenance(self):
         slice_ = fixture_graph_toy_executable_bridge()
-        mirrors = [
-            n for n in slice_.nodes if n.get("kind") == "code_mirror"
-        ]
+        mirrors = [n for n in slice_.nodes if n.get("kind") == "code_mirror"]
         assert mirrors, (
             "toy_executable_bridge should include a code-mirror node "
             "(per the specification implementation_first source-pack provenance)."
         )
         # At least one mirror's provenance carries a source_pack/code_repo
         # field — even if code_path is 'unknown' (graceful warning path).
-        assert any(
-            (m.get("provenance") or {}).get("code_repo")
-            for m in mirrors
-        )
+        assert any((m.get("provenance") or {}).get("code_repo") for m in mirrors)
 
 
 # ---------------------------------------------------------------------------
@@ -252,9 +239,7 @@ class TestWorkbenchDerivationSection:
     def test_workbench_node_has_derivation_section(self):
         slice_ = fixture_graph_toy_workbench()
         derivation_nodes = [
-            n
-            for n in slice_.nodes
-            if "Derivation" in (n.get("extracted") or {})
+            n for n in slice_.nodes if "Derivation" in (n.get("extracted") or {})
         ]
         assert derivation_nodes, (
             "toy_workbench must include ≥1 node carrying a Derivation "
@@ -282,6 +267,4 @@ class TestWorkbenchDerivationSection:
             if "assume" in extracted.get("Derivation", "").lower():
                 ok = True
                 break
-        assert ok, (
-            "toy_workbench must carry an assumption or Self-check signal."
-        )
+        assert ok, "toy_workbench must carry an assumption or Self-check signal."

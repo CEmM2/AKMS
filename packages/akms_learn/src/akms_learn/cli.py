@@ -132,7 +132,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         choices=list(KNOWN_EXPORTERS),
-        help=(f"Exporter name (repeatable). Must be one of: {', '.join(KNOWN_EXPORTERS)}."),
+        help=(
+            f"Exporter name (repeatable). Must be one of: {', '.join(KNOWN_EXPORTERS)}."
+        ),
     )
     compile_parser.add_argument(
         "--output",
@@ -186,7 +188,9 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument(
         "--llm-policy",
         default=None,
-        help=("LLM expansion policy override (source_locked | explanatory_only | no_new_claims)."),
+        help=(
+            "LLM expansion policy override (source_locked | explanatory_only | no_new_claims)."
+        ),
     )
     compile_parser.add_argument(
         "--llm-notebook-id",
@@ -290,11 +294,15 @@ def _format_warnings_lines(warnings_iter: Sequence[Any]) -> list[str]:
     """Render a warnings list as ``"  - code | source_ref | message"`` lines."""
     rendered: list[str] = []
     for w in warnings_iter:
-        code = getattr(w, "code", None) or (w.get("code") if isinstance(w, dict) else "")
+        code = getattr(w, "code", None) or (
+            w.get("code") if isinstance(w, dict) else ""
+        )
         source_ref = getattr(w, "source_ref", None) or (
             w.get("source_ref") if isinstance(w, dict) else ""
         )
-        message = getattr(w, "message", None) or (w.get("message") if isinstance(w, dict) else "")
+        message = getattr(w, "message", None) or (
+            w.get("message") if isinstance(w, dict) else ""
+        )
         rendered.append(f"  - {code} | {source_ref} | {message}")
     return rendered
 

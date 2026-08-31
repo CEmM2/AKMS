@@ -184,9 +184,7 @@ def pitfall_mode(
 
     # ---- Step 1: Collect pitfall edges, sort deterministically ---------------
     pitfall_edges: list[dict[str, Any]] = [
-        edge
-        for edge in graph_slice.edges
-        if edge.get("type") in PITFALL_EDGE_TYPES
+        edge for edge in graph_slice.edges if edge.get("type") in PITFALL_EDGE_TYPES
     ]
     pitfall_edges.sort(
         key=lambda e: (
@@ -208,9 +206,9 @@ def pitfall_mode(
         target_node: dict[str, Any] = nodes_by_id.get(target_node_id, {})
 
         # ---- Step 2: Parse Pitfalls section for structured fields ------------
-        pitfalls_section = (
-            sections_by_node.get(target_node_id, {}) or {}
-        ).get("Pitfalls")
+        pitfalls_section = (sections_by_node.get(target_node_id, {}) or {}).get(
+            "Pitfalls"
+        )
 
         structured: dict[str, str] = {k: "" for k in STRUCTURED_FIELDS}
         if pitfalls_section is not None:

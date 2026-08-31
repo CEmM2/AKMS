@@ -30,8 +30,12 @@ from akms.graph.re_evaluate import re_evaluate
 from akms.graph.tag_derivation import derive_tags, fill_task_tags
 from akms.graph.update_graph import update_graph
 from akms.orchestrator.orchestrator import (
-    handle_init, handle_plan, handle_task_breakdown,
-    handle_scaffold, handle_execute, handle_review,
+    handle_init,
+    handle_plan,
+    handle_task_breakdown,
+    handle_scaffold,
+    handle_execute,
+    handle_review,
     handle_finalize,
 )
 from akms.orchestrator.stages import PipelineState, Stage
@@ -109,7 +113,9 @@ class TestEndToEndPipeline:
 
         # Verify tags derived
         assert "taichi" in tasks[0].get("akms_tags", [])
-        assert "mechanics" in tasks[1].get("akms_tags", []) or "fem" in tasks[1].get("akms_tags", [])
+        assert "mechanics" in tasks[1].get("akms_tags", []) or "fem" in tasks[1].get(
+            "akms_tags", []
+        )
 
         # Advance state
         state.advance_to(Stage.SCAFFOLD)
@@ -171,14 +177,15 @@ class TestEndToEndPipeline:
 
         # Check that pitfall edge exists
         pitfall_edges = [
-            (u, v, d) for u, v, d in G.edges(data=True)
-            if d.get("type") == "pitfall"
+            (u, v, d) for u, v, d in G.edges(data=True) if d.get("type") == "pitfall"
         ]
         assert len(pitfall_edges) >= 1, "Pitfall from Phase 1 should exist in graph"
 
         # Verify mechanics node confidence was decayed (from outdated review)
         mech_conf = G.nodes["skill-mechanics"].get("confidence", 1.0)
-        assert mech_conf < 0.90, "Mechanics node should be decayed from outdated + missing-detail"
+        assert mech_conf < 0.90, (
+            "Mechanics node should be decayed from outdated + missing-detail"
+        )
 
         pcd_phase2 = {
             "phase_id": 2,
@@ -208,7 +215,9 @@ class TestEndToEndPipeline:
     def test_pitfall_appears_in_next_phase_loadout(self, tmp_vault, tmp_repo):
         """Criterion #2: Pitfall from Phase 1 appears in Phase 2 loadout."""
         make_global_node(
-            tmp_vault, id="node-a", tags=["test"],
+            tmp_vault,
+            id="node-a",
+            tags=["test"],
             confidence=0.90,
         )
         build_graph(tmp_repo, global_vault=tmp_vault)
@@ -216,11 +225,13 @@ class TestEndToEndPipeline:
         update_graph(
             {
                 "nodes_used": [],
-                "pitfalls_discovered": [{
-                    "node_ref": "node-a",
-                    "description": "Important pitfall from phase 1",
-                    "severity": "high",
-                }],
+                "pitfalls_discovered": [
+                    {
+                        "node_ref": "node-a",
+                        "description": "Important pitfall from phase 1",
+                        "severity": "high",
+                    }
+                ],
                 "new_knowledge": [],
                 "nodes_missing": [],
                 "lessons": {"worked": [], "failed": []},
@@ -232,8 +243,7 @@ class TestEndToEndPipeline:
         # Verify pitfall edge in graph
         G = load_graph(tmp_repo / "knowledge" / "graph" / "graph.json")
         pitfall_edges = [
-            (u, v, d) for u, v, d in G.edges(data=True)
-            if d.get("type") == "pitfall"
+            (u, v, d) for u, v, d in G.edges(data=True) if d.get("type") == "pitfall"
         ]
         assert len(pitfall_edges) >= 1
 
@@ -244,14 +254,20 @@ class TestEndToEndPipeline:
     def test_domain_switching_different_loadouts(self, tmp_vault, tmp_repo):
         """Criterion #3: Domain switching produces differentiated loadouts."""
         make_global_node(
-            tmp_vault, id="taichi-node",
-            title="Taichi Sim", tags=["taichi", "gpu"],
-            domain="taichi-gpu-sim", confidence=0.90,
+            tmp_vault,
+            id="taichi-node",
+            title="Taichi Sim",
+            tags=["taichi", "gpu"],
+            domain="taichi-gpu-sim",
+            confidence=0.90,
         )
         make_global_node(
-            tmp_vault, id="mech-node",
-            title="Computational Mechanics", tags=["mechanics", "fem"],
-            domain="computational-mechanics", confidence=0.90,
+            tmp_vault,
+            id="mech-node",
+            title="Computational Mechanics",
+            tags=["mechanics", "fem"],
+            domain="computational-mechanics",
+            confidence=0.90,
         )
         G = build_graph(tmp_repo, global_vault=tmp_vault)
 
@@ -303,11 +319,18 @@ class TestEndToEndPipeline:
         # Simulate some updates
         update_graph(
             {
-                "nodes_used": [{"id": "node-a", "useful": True, "coverage": "missing-detail"}],
+                "nodes_used": [
+                    {"id": "node-a", "useful": True, "coverage": "missing-detail"}
+                ],
                 "pitfalls_discovered": [],
                 "new_knowledge": [
-                    {"suggested_id": "new-node", "title": "New Discovery",
-                     "domain": "test", "tags": ["test"], "content_draft": "content"},
+                    {
+                        "suggested_id": "new-node",
+                        "title": "New Discovery",
+                        "domain": "test",
+                        "tags": ["test"],
+                        "content_draft": "content",
+                    },
                 ],
                 "nodes_missing": [],
                 "lessons": {"worked": [], "failed": []},

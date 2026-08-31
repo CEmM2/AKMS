@@ -117,8 +117,7 @@ def fixture_graph_toy_concept_kit() -> GraphSlice:
             "line_range": [1, 12],
             "extracted": {
                 "Concept map": (
-                    "# Concept map\n"
-                    "Beta composes two alphas via the compose helper."
+                    "# Concept map\nBeta composes two alphas via the compose helper."
                 ),
             },
         },
@@ -162,8 +161,7 @@ def fixture_graph_toy_concept_kit() -> GraphSlice:
 
     metadata: dict[str, Any] = {
         "description": (
-            "Toy concept-kit fixture: generic concept helpers, "
-            "no domain semantics."
+            "Toy concept-kit fixture: generic concept helpers, no domain semantics."
         ),
         "graph_version": "toy-concept-kit-v1",
         "node_count": len(nodes),
@@ -171,9 +169,7 @@ def fixture_graph_toy_concept_kit() -> GraphSlice:
         "family": "toy_concept_kit",
     }
 
-    return GraphSlice(
-        nodes=tuple(nodes), edges=tuple(edges), metadata=metadata
-    )
+    return GraphSlice(nodes=tuple(nodes), edges=tuple(edges), metadata=metadata)
 
 
 # ---------------------------------------------------------------------------
@@ -242,12 +238,10 @@ def fixture_graph_toy_workbench() -> GraphSlice:
             "line_range": [1, 20],
             "extracted": {
                 "Learning goal": (
-                    "# Learning goal\n"
-                    "Walk through the toy widget-pipeline derivation."
+                    "# Learning goal\nWalk through the toy widget-pipeline derivation."
                 ),
                 "Prerequisites": (
-                    "# Prerequisites\n"
-                    "Familiarity with compose and transform."
+                    "# Prerequisites\nFamiliarity with compose and transform."
                 ),
                 "Derivation": (
                     "# Derivation\n"
@@ -289,9 +283,7 @@ def fixture_graph_toy_workbench() -> GraphSlice:
         "example_markdown_body": _WORKBENCH_BODY,
     }
 
-    return GraphSlice(
-        nodes=tuple(nodes), edges=tuple(edges), metadata=metadata
-    )
+    return GraphSlice(nodes=tuple(nodes), edges=tuple(edges), metadata=metadata)
 
 
 # ---------------------------------------------------------------------------
@@ -416,9 +408,7 @@ def fixture_graph_toy_executable_bridge() -> GraphSlice:
         "family": "toy_executable_bridge",
     }
 
-    return GraphSlice(
-        nodes=tuple(nodes), edges=tuple(edges), metadata=metadata
-    )
+    return GraphSlice(nodes=tuple(nodes), edges=tuple(edges), metadata=metadata)
 
 
 # ---------------------------------------------------------------------------
@@ -530,9 +520,7 @@ def fixture_graph_toy_derivation_gap() -> GraphSlice:
         "family": "toy_derivation_gap",
     }
 
-    return GraphSlice(
-        nodes=tuple(nodes), edges=tuple(edges), metadata=metadata
-    )
+    return GraphSlice(nodes=tuple(nodes), edges=tuple(edges), metadata=metadata)
 
 
 # ---------------------------------------------------------------------------
@@ -576,8 +564,7 @@ def fixture_graph_toy_multi_granularity() -> GraphSlice:
             "line_range": [1, 6],
             "extracted": {
                 "Concept map": (
-                    "# Concept map\n"
-                    "Alpha is the coarse-grained overview node."
+                    "# Concept map\nAlpha is the coarse-grained overview node."
                 ),
             },
         },
@@ -593,8 +580,7 @@ def fixture_graph_toy_multi_granularity() -> GraphSlice:
             "line_range": [1, 8],
             "extracted": {
                 "Concept map": (
-                    "# Concept map\n"
-                    "Beta is the standard-granularity node."
+                    "# Concept map\nBeta is the standard-granularity node."
                 ),
             },
         },
@@ -610,8 +596,7 @@ def fixture_graph_toy_multi_granularity() -> GraphSlice:
             "line_range": [1, 10],
             "extracted": {
                 "Concept map": (
-                    "# Concept map\n"
-                    "Gamma is a fine-grained deep-dive detail node."
+                    "# Concept map\nGamma is a fine-grained deep-dive detail node."
                 ),
             },
         },
@@ -627,8 +612,7 @@ def fixture_graph_toy_multi_granularity() -> GraphSlice:
             "line_range": [1, 9],
             "extracted": {
                 "Concept map": (
-                    "# Concept map\n"
-                    "Delta is a fine-grained deep-dive detail node."
+                    "# Concept map\nDelta is a fine-grained deep-dive detail node."
                 ),
             },
         },
@@ -644,8 +628,7 @@ def fixture_graph_toy_multi_granularity() -> GraphSlice:
             "line_range": [1, 4],
             "extracted": {
                 "Concept map": (
-                    "# Concept map\n"
-                    "Epsilon has no granularity tag and no id prefix."
+                    "# Concept map\nEpsilon has no granularity tag and no id prefix."
                 ),
             },
         },
@@ -665,9 +648,7 @@ def fixture_graph_toy_multi_granularity() -> GraphSlice:
         "family": "toy_multi_granularity",
     }
 
-    return GraphSlice(
-        nodes=tuple(nodes), edges=tuple(edges), metadata=metadata
-    )
+    return GraphSlice(nodes=tuple(nodes), edges=tuple(edges), metadata=metadata)
 
 
 # ---------------------------------------------------------------------------

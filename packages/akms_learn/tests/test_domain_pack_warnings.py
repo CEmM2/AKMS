@@ -62,8 +62,7 @@ def test_missing_planned_companion_warning() -> None:
 
     warnings = _emit_planned_warnings(pack)
     assert len(warnings) == 1, (
-        f"Expected exactly one DomainPackWarning, got {len(warnings)}: "
-        f"{warnings!r}"
+        f"Expected exactly one DomainPackWarning, got {len(warnings)}: {warnings!r}"
     )
     w = warnings[0]
     assert isinstance(w, DomainPackWarning)
@@ -84,6 +83,4 @@ def test_fixture_pack_emits_two_planned_warnings() -> None:
         f"Expected 2 planned-companion warnings, got {codes!r}"
     )
     refs = sorted(w.source_ref for w in warnings)
-    assert refs == sorted(
-        ["compmech.constkit", "compmech.symbolic_fem_workbench"]
-    )
+    assert refs == sorted(["compmech.constkit", "compmech.symbolic_fem_workbench"])

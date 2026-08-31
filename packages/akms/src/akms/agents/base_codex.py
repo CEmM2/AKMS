@@ -46,7 +46,11 @@ class AKMSCodexAgent(AKMSAgent):
         """
         user_message = self._build_task_prompt(task_json)
         await _codex_sdk_execute(
-            user_message, loadout, system_prompt, self.model, self.repo_root,
+            user_message,
+            loadout,
+            system_prompt,
+            self.model,
+            self.repo_root,
             allowed_tools=self._resolve_allowed_tools(task_json),
         )
 
@@ -178,7 +182,11 @@ def _resolve_path(repo_root: Path | None, raw_path: str) -> Path:
     candidate = Path(raw_path)
     if repo_root is not None:
         root = repo_root.resolve()
-        resolved = (root / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
+        resolved = (
+            (root / candidate).resolve()
+            if not candidate.is_absolute()
+            else candidate.resolve()
+        )
         try:
             resolved.relative_to(root)
         except ValueError as exc:
@@ -216,7 +224,9 @@ def _tool_edit(repo_root: Path | None, path: str, old_text: str, new_text: str) 
         if count == 0:
             return f"ERROR: Edit failed for '{path}': old_text not found"
         if count > 1:
-            return f"ERROR: Edit failed for '{path}': old_text matched {count} locations"
+            return (
+                f"ERROR: Edit failed for '{path}': old_text matched {count} locations"
+            )
 
         updated = source.replace(old_text, new_text, 1)
         resolved.write_text(updated, encoding="utf-8")
@@ -245,11 +255,15 @@ def _tool_multi_edit(repo_root: Path | None, path: str, edits: list[dict]) -> st
             new_text = edit.get("new_text", "")
 
             if not old_text:
-                return f"ERROR: MultiEdit failed for '{path}': edit {i} has empty old_text"
+                return (
+                    f"ERROR: MultiEdit failed for '{path}': edit {i} has empty old_text"
+                )
 
             count = content.count(old_text)
             if count == 0:
-                return f"ERROR: MultiEdit failed for '{path}': edit {i} old_text not found"
+                return (
+                    f"ERROR: MultiEdit failed for '{path}': edit {i} old_text not found"
+                )
             if count > 1:
                 return (
                     f"ERROR: MultiEdit failed for '{path}': "
@@ -267,7 +281,9 @@ def _tool_multi_edit(repo_root: Path | None, path: str, edits: list[dict]) -> st
 def _tool_glob(repo_root: Path | None, pattern: str) -> str:
     try:
         base = repo_root.resolve() if repo_root is not None else Path.cwd()
-        matches = sorted(str(p.relative_to(base)) for p in base.glob(pattern) if p.exists())
+        matches = sorted(
+            str(p.relative_to(base)) for p in base.glob(pattern) if p.exists()
+        )
         return "\n".join(matches)
     except Exception as exc:
         return f"ERROR: Glob failed for '{pattern}': {exc}"
@@ -303,26 +319,38 @@ def _tool_bash(repo_root: Path | None, command: str) -> str:
 # path the MCP server itself uses.
 
 
-def _tool_search_nodes(repo_root: Path | None, query: str, limit: int = 20) -> list[dict]:
+def _tool_search_nodes(
+    repo_root: Path | None, query: str, limit: int = 20
+) -> list[dict]:
     from akms.orchestrator.qmd_shell import run_qmd
+
     return run_qmd(
-        "search_nodes", query,
+        "search_nodes",
+        query,
         repo_root=repo_root if repo_root is not None else Path.cwd(),
     )[: max(1, int(limit))]
 
 
-def _tool_search_sessions(repo_root: Path | None, query: str, limit: int = 20) -> list[dict]:
+def _tool_search_sessions(
+    repo_root: Path | None, query: str, limit: int = 20
+) -> list[dict]:
     from akms.orchestrator.qmd_shell import run_qmd
+
     return run_qmd(
-        "search_sessions", query,
+        "search_sessions",
+        query,
         repo_root=repo_root if repo_root is not None else Path.cwd(),
     )[: max(1, int(limit))]
 
 
-def _tool_search_mirror(repo_root: Path | None, query: str, limit: int = 20) -> list[dict]:
+def _tool_search_mirror(
+    repo_root: Path | None, query: str, limit: int = 20
+) -> list[dict]:
     from akms.orchestrator.qmd_shell import run_qmd
+
     return run_qmd(
-        "search_mirror", query,
+        "search_mirror",
+        query,
         repo_root=repo_root if repo_root is not None else Path.cwd(),
     )[: max(1, int(limit))]
 
@@ -335,6 +363,7 @@ def _tool_get_pitfalls(repo_root: Path | None, node_ids: list[str]) -> list[dict
     name so Codex and Claude agents return equivalent shapes.
     """
     import yaml as _yaml
+
     root = repo_root.resolve() if repo_root is not None else Path.cwd()
     overlay_path = root / "knowledge" / "graph" / "local_state.yaml"
     if not overlay_path.exists():
@@ -354,12 +383,14 @@ def _tool_get_pitfalls(repo_root: Path | None, node_ids: list[str]) -> list[dict
         src = str(edge.get("from", ""))
         if node_set and src not in node_set:
             continue
-        hits.append({
-            "from": src,
-            "to": str(edge.get("to", "")),
-            "type": "pitfall",
-            "weight": float(edge.get("weight", 0.5) or 0.5),
-            "note": str(edge.get("note", "")),
-            "source_id": str(edge.get("source_id", "")),
-        })
+        hits.append(
+            {
+                "from": src,
+                "to": str(edge.get("to", "")),
+                "type": "pitfall",
+                "weight": float(edge.get("weight", 0.5) or 0.5),
+                "note": str(edge.get("note", "")),
+                "source_id": str(edge.get("source_id", "")),
+            }
+        )
     return hits

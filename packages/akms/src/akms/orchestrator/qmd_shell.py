@@ -87,11 +87,13 @@ def run_qmd(
         if stripped.startswith("{") and stripped.endswith("}"):
             try:
                 entry = json.loads(stripped)
-                hits.append({
-                    "path": str(entry.get("path", "")),
-                    "line": int(entry.get("line", 0) or 0),
-                    "snippet": str(entry.get("snippet", entry.get("content", ""))),
-                })
+                hits.append(
+                    {
+                        "path": str(entry.get("path", "")),
+                        "line": int(entry.get("line", 0) or 0),
+                        "snippet": str(entry.get("snippet", entry.get("content", ""))),
+                    }
+                )
                 continue
             except Exception:
                 pass

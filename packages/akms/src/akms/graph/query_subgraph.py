@@ -150,10 +150,7 @@ def _filter_by_status(
     Step 5 of the algorithm.
     """
     loadable_values = {s.value for s in LOADABLE_STATUSES}
-    return {
-        n for n in candidates
-        if _get_node_status(G, n) in loadable_values
-    }
+    return {n for n in candidates if _get_node_status(G, n) in loadable_values}
 
 
 def _filter_edges_by_type(
@@ -255,7 +252,9 @@ def query_subgraph(
         config = PropagationConfig()
 
     # Normalize agent_role to string
-    role_key = agent_role.value if isinstance(agent_role, AgentRole) else str(agent_role)
+    role_key = (
+        agent_role.value if isinstance(agent_role, AgentRole) else str(agent_role)
+    )
 
     # ── Step 1: Load query profile ───────────────────────────────────
     profile = config.query_roles.get(role_key)
@@ -273,7 +272,10 @@ def query_subgraph(
 
     logger.info(
         "query_subgraph: role=%s, tags=%s, depth=%d, max_nodes=%d",
-        role_key, domain_tags, max_depth, max_nodes,
+        role_key,
+        domain_tags,
+        max_depth,
+        max_nodes,
     )
 
     # ── Step 2: Find seed nodes ──────────────────────────────────────
@@ -315,7 +317,8 @@ def query_subgraph(
         exclude = set(profile.exclude_domains)
         # Never exclude pitfall nodes
         candidates = {
-            n for n in candidates
+            n
+            for n in candidates
             if _get_node_domain(G, n) not in exclude or n in pitfall_nodes
         }
         logger.info("After domain exclusion: %d candidates", len(candidates))
@@ -323,10 +326,15 @@ def query_subgraph(
     # ── Step 9: Exclude nodes below confidence threshold ─────────────
     # Pitfall nodes are exempt from confidence threshold
     candidates = {
-        n for n in candidates
+        n
+        for n in candidates
         if _get_node_confidence(G, n) >= min_confidence or n in pitfall_nodes
     }
-    logger.info("After confidence threshold (%.2f): %d candidates", min_confidence, len(candidates))
+    logger.info(
+        "After confidence threshold (%.2f): %d candidates",
+        min_confidence,
+        len(candidates),
+    )
 
     # ── Step 10: Rank nodes ──────────────────────────────────────────
     ranked = []
@@ -367,7 +375,9 @@ def query_subgraph(
             unique_ids.append(nid)
 
     result = [(nid, dict(G.nodes[nid])) for nid in unique_ids]
-    result = [(nid, data) for nid, data in result if _get_node_domain(G, nid) != "session"]
+    result = [
+        (nid, data) for nid, data in result if _get_node_domain(G, nid) != "session"
+    ]
 
     # ── FR-G10: load_with co-activation hints ────────────────────────
     # Promote nodes that selected nodes are flagged to co-load with.
@@ -402,7 +412,10 @@ def query_subgraph(
 
     logger.info(
         "query_subgraph result: %d nodes (%d pitfall, %d regular, %d co-activated)",
-        len(result), len(pitfall_ranked), len(regular_ranked), len(coactivated_ids),
+        len(result),
+        len(pitfall_ranked),
+        len(regular_ranked),
+        len(coactivated_ids),
     )
 
     return result

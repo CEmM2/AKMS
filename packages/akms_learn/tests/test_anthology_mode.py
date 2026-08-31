@@ -211,9 +211,7 @@ class TestAnthologyMode:
         assert [e.node_id for e in entries] == ["ok", "bad"]
 
         # Exactly one invalid_reading_priority warning, referencing the bad node.
-        invalid_warnings = [
-            w for w in warnings if w.code == "invalid_reading_priority"
-        ]
+        invalid_warnings = [w for w in warnings if w.code == "invalid_reading_priority"]
         assert len(invalid_warnings) == 1
         w = invalid_warnings[0]
         assert w.source_ref == "bad"

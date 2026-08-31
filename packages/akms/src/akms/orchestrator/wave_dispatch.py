@@ -150,15 +150,19 @@ async def run_subagent(
         memory_status = getattr(memory, "status", "complete") or "complete"
         # TaskStatus is a str-mixin enum; normalize to its plain value.
         memory_status = str(getattr(memory_status, "value", memory_status))
-        task_status = memory_status if memory_status in {
-            "complete", "partial", "failed", "deferred"
-        } else "complete"
+        task_status = (
+            memory_status
+            if memory_status in {"complete", "partial", "failed", "deferred"}
+            else "complete"
+        )
         span.set_attribute("akms.success", task_status == "complete")
         return TaskResult(
             task_id=task_id,
             status=task_status,
             memory_path=memory_path,
-            error=None if task_status == "complete" else f"agent memory status: {memory_status}",
+            error=None
+            if task_status == "complete"
+            else f"agent memory status: {memory_status}",
         )
     except Exception as e:
         span.set_attribute("akms.success", False)
@@ -191,7 +195,9 @@ async def _get_phase_diffs(repo_root: Path, task_json: dict) -> str:
         parent = parent_branch(plan_name, base_branch, phase)
 
         proc = await asyncio.create_subprocess_exec(
-            "git", "diff", f"{parent}...{pb}",
+            "git",
+            "diff",
+            f"{parent}...{pb}",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=repo_root,
@@ -233,9 +239,7 @@ def build_waves(tasks: list[dict]) -> list[list[dict]]:
         ]
         if not wave:
             unresolved = [t.get("task_id", "?") for t in remaining]
-            raise ValueError(
-                f"Cannot resolve dependencies for: {unresolved}"
-            )
+            raise ValueError(f"Cannot resolve dependencies for: {unresolved}")
 
         waves.append(wave)
         completed.update(t.get("task_id", "") for t in wave)
@@ -274,8 +278,6 @@ def find_blocked_tasks(
             if deps & failed_ids:
                 blocked.append(task.get("task_id", "?"))
     return blocked
-
-
 
 
 async def dispatch_phase(
@@ -336,8 +338,6 @@ async def dispatch_phase(
         if failed and wave_idx + 1 < len(waves):
             blocked = find_blocked_tasks(waves[wave_idx + 1 :], failed)
             if blocked:
-                logger.warning(
-                    "Failed tasks %s block downstream: %s", failed, blocked
-                )
+                logger.warning("Failed tasks %s block downstream: %s", failed, blocked)
 
     return all_results

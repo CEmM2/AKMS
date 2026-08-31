@@ -85,9 +85,7 @@ def test_bundle_manifest_includes_source_packs_when_supplied(
     )
     assert result.packet_path is not None
 
-    manifest = json.loads(
-        (tmp_path / "manifest.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
     sp = manifest.get("source_packs")
     assert isinstance(sp, list) and sp, (
         f"Expected non-empty source_packs list, got {sp!r}"
@@ -111,9 +109,7 @@ def test_bundle_manifest_domain_packs_empty_when_not_supplied(
     )
     assert result.packet_path is not None
 
-    manifest = json.loads(
-        (tmp_path / "manifest.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
     assert manifest.get("domain_packs") == [], (
         f"Expected empty domain_packs list when no paths supplied, got "
         f"{manifest.get('domain_packs')!r}"

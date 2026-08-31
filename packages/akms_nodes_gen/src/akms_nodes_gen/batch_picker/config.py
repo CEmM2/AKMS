@@ -37,9 +37,7 @@ class Paths:
         # There is no portable location for a Zotero/BetterBibTeX export, so
         # the default is a neutral placeholder: set AKMS_ZOTSUMS_ROOT (or
         # AKMS_BBT_JSON) to wherever yours actually lives.
-        zotsums_root = _expand(
-            os.environ.get("AKMS_ZOTSUMS_ROOT", "~/ZotSums")
-        )
+        zotsums_root = _expand(os.environ.get("AKMS_ZOTSUMS_ROOT", "~/ZotSums"))
         bbt_json = _expand(
             os.environ.get("AKMS_BBT_JSON", zotsums_root / "zsumbib.json")
         )

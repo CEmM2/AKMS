@@ -438,9 +438,7 @@ def implementation_first_mode(
     code_references = _build_code_references(graph_slice, nodes_by_id)
 
     # Emit anchor-missing-source warnings.
-    anchor_missing_warnings = _emit_anchor_missing_source_warnings(
-        anchors, nodes_by_id
-    )
+    anchor_missing_warnings = _emit_anchor_missing_source_warnings(anchors, nodes_by_id)
 
     all_warnings: list[LearningWarning] = []
     all_warnings.extend(concept_warnings)
@@ -452,13 +450,9 @@ def implementation_first_mode(
             all_warnings.append(w)
     all_warnings.extend(anchor_missing_warnings)
 
-    source_node_ids = sorted(
-        nid for nid in ordered_nodes if nid in nodes_by_id
-    )
+    source_node_ids = sorted(nid for nid in ordered_nodes if nid in nodes_by_id)
     edge_ids = sorted(
-        str(e.get("edge_id", ""))
-        for e in graph_slice.edges
-        if e.get("edge_id")
+        str(e.get("edge_id", "")) for e in graph_slice.edges if e.get("edge_id")
     )
 
     result = ImplementationFirstResult(

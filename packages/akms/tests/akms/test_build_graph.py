@@ -151,7 +151,9 @@ class TestBuildGraphMirrorNodes:
         assert G.nodes["mirror-green"]["confidence"] == 1.0
         assert G.nodes["mirror-green"]["auto_update"] is True
 
-    def test_mirror_missing_required_frontmatter_fails_validation(self, tmp_repo, tmp_vault):
+    def test_mirror_missing_required_frontmatter_fails_validation(
+        self, tmp_repo, tmp_vault
+    ):
         from .conftest import write_node_md
 
         write_node_md(
@@ -176,7 +178,9 @@ class TestBuildGraphMirrorNodes:
         with pytest.raises(SchemaValidationError):
             build_graph(tmp_repo, global_vault=tmp_vault)
 
-    def test_mirror_with_extra_frontmatter_field_fails_validation(self, tmp_repo, tmp_vault):
+    def test_mirror_with_extra_frontmatter_field_fails_validation(
+        self, tmp_repo, tmp_vault
+    ):
         from .conftest import write_node_md
 
         write_node_md(

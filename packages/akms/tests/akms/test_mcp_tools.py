@@ -57,9 +57,7 @@ def _list_tools(server) -> list[str]:
 
     import asyncio
 
-    raw = asyncio.run(
-        handler(ListToolsRequest(method="tools/list"))
-    )
+    raw = asyncio.run(handler(ListToolsRequest(method="tools/list")))
     result = raw.root if hasattr(raw, "root") else raw
     return [tool.name for tool in result.tools]
 

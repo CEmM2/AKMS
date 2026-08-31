@@ -22,7 +22,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="akms-batch-picker")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--reload", action="store_true", help="dev: hot-reload on file change")
+    parser.add_argument(
+        "--reload", action="store_true", help="dev: hot-reload on file change"
+    )
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
 

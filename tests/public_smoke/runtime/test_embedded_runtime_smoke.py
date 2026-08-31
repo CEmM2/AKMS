@@ -76,9 +76,12 @@ def test_failing_agent_takes_failure_path(tmp_path):
     env = dict(os.environ, PYTHONPATH=str(tmp_path))
     result = subprocess.run(
         [
-            str(BIN / "akms"), "orchestrate",
-            "--goal", "t",
-            "--agent", "fake_backend.FailingAgent",
+            str(BIN / "akms"),
+            "orchestrate",
+            "--goal",
+            "t",
+            "--agent",
+            "fake_backend.FailingAgent",
         ],
         capture_output=True,
         text=True,

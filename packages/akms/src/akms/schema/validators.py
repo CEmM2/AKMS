@@ -29,9 +29,7 @@ from akms.schema.models import (
 logger = logging.getLogger(__name__)
 
 
-def _check_schema_version(
-    data: dict[str, Any], path: str | None = None
-) -> None:
+def _check_schema_version(data: dict[str, Any], path: str | None = None) -> None:
     """Validate akms_schema field matches expected version."""
     version = data.get("akms_schema")
     if version is None:
@@ -197,8 +195,6 @@ def parse_agent_memory(path: str | Path) -> AgentMemory:
         return AgentMemory(**data)
     except ValidationError as e:
         raise SchemaValidationError(str(e), path_str) from e
-
-
 
 
 def parse_pcd(path: str | Path) -> PCD:

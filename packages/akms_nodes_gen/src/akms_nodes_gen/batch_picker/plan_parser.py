@@ -51,14 +51,14 @@ class BatchNode:
 
 @dataclass
 class Batch:
-    id: str            # e.g. "R3_B2"
+    id: str  # e.g. "R3_B2"
     round: int
     round_title: str
     round_theme: str
     round_subdomain: str
     title: str
-    node_count: int    # declared in header
-    pdf_slug: str      # "R3_B2_element_technology_nonlinear"
+    node_count: int  # declared in header
+    pdf_slug: str  # "R3_B2_element_technology_nonlinear"
     sources_text: str  # free-text source line from the plan
     zotsums_text: str
     missing_text: str
@@ -110,8 +110,16 @@ def _parse_node_table(lines: list[str], start: int) -> tuple[list[BatchNode], in
         if id_col is not None and id_col < len(cells):
             m = _NODE_ID.search(cells[id_col])
             node_id = m.group(1) if m else cells[id_col]
-            title = cells[title_col].strip() if title_col is not None and title_col < len(cells) else ""
-            size = cells[size_col].strip() if size_col is not None and size_col < len(cells) else ""
+            title = (
+                cells[title_col].strip()
+                if title_col is not None and title_col < len(cells)
+                else ""
+            )
+            size = (
+                cells[size_col].strip()
+                if size_col is not None and size_col < len(cells)
+                else ""
+            )
             if node_id and not node_id.startswith("#"):
                 nodes.append(BatchNode(node_id=node_id, title=title, size=size))
         i += 1

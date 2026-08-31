@@ -156,9 +156,11 @@ def init_telemetry(
         raise RuntimeError(_MISSING_EXTRA)
 
     with _lock:
-        resource = Resource.create({
-            ResourceAttributes.SERVICE_NAME: service_name,
-        })
+        resource = Resource.create(
+            {
+                ResourceAttributes.SERVICE_NAME: service_name,
+            }
+        )
         _provider = TracerProvider(resource=resource)
 
         if span_exporter is not None:
@@ -173,6 +175,7 @@ def init_telemetry(
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
                 OTLPSpanExporter,
             )
+
             _provider.add_span_processor(
                 BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint))
             )
@@ -226,6 +229,7 @@ def traced(
     unchanged, so core modules can instrument themselves unconditionally
     without taking on an optional dependency.
     """
+
     def decorator(func: Callable) -> Callable:
         if not TELEMETRY_AVAILABLE:
             return func
@@ -281,6 +285,7 @@ def traced(
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper
+
     return decorator
 
 

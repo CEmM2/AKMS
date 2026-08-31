@@ -81,9 +81,7 @@ class TestBundleExporter:
             output_dir=tmp_path,
         )
 
-        manifest = json.loads(
-            (tmp_path / "manifest.json").read_text(encoding="utf-8")
-        )
+        manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
 
         for key in (
             "manifest_version",
@@ -116,12 +114,8 @@ class TestBundleExporter:
 
         dir_a = tmp_path / "a"
         dir_b = tmp_path / "b"
-        compile_learning_source(
-            request=request, graph_slice=slice_, output_dir=dir_a
-        )
-        compile_learning_source(
-            request=request, graph_slice=slice_, output_dir=dir_b
-        )
+        compile_learning_source(request=request, graph_slice=slice_, output_dir=dir_a)
+        compile_learning_source(request=request, graph_slice=slice_, output_dir=dir_b)
 
         # Files without timestamps — compare bytes directly.
         for name in (
@@ -163,9 +157,7 @@ class TestBundleExporter:
             output_dir=tmp_path,
         )
 
-        persisted = json.loads(
-            (tmp_path / "warnings.json").read_text(encoding="utf-8")
-        )
+        persisted = json.loads((tmp_path / "warnings.json").read_text(encoding="utf-8"))
         assert isinstance(persisted, list)
         assert persisted, "warnings.json must contain at least one entry"
 

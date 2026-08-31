@@ -130,7 +130,9 @@ class TestGlobalVaultReadOnly:
             return real_write_bytes(self, *args, **kwargs)
 
         def _guarded_open(self, mode="r", *args, **kwargs):
-            if any(flag in mode for flag in ("w", "a", "x", "+")) and _is_vault_target(self):
+            if any(flag in mode for flag in ("w", "a", "x", "+")) and _is_vault_target(
+                self
+            ):
                 raise RuntimeError(
                     f"global vault write attempt (open mode={mode!r}) at {self!s}"
                 )

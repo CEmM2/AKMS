@@ -68,7 +68,11 @@ def _run(
     graph_slice: GraphSlice,
     granularity: Any = None,
 ) -> tuple[MultiGranularityResult, list[LearningWarning]]:
-    req = _make_request(granularity=granularity) if granularity is not None else _make_request()
+    req = (
+        _make_request(granularity=granularity)
+        if granularity is not None
+        else _make_request()
+    )
     return multi_granularity_mode(graph_slice, req)
 
 
@@ -485,12 +489,14 @@ class TestUnrecognisedExplicitValue:
 
     def test_unknown_explicit_value_falls_through(self):
         slice_ = fixture_graph_toy_multi_granularity()
+
         # Bypass Pydantic Literal validation by passing the field via dict
         # then patching it onto a stub request-like object — but the simpler
         # path is: a Pydantic-rejected value never reaches the mode. So we
         # construct a plain object that exposes the attribute.
         class _StubReq:
             granularity = "bogus_value"
+
         result, warnings = multi_granularity_mode(slice_, _StubReq())  # type: ignore[arg-type]
         # tag-based detection still fires on the fixture.
         assert result.detection_method == "tag"

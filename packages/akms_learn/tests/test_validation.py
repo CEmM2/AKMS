@@ -151,15 +151,9 @@ class TestWarningAccumulator:
     def test_warning_accumulator_order_preserved(self) -> None:
         """Three distinct (code, source_ref) warnings preserve insertion order."""
         acc = WarningAccumulator()
-        w_a = LearningWarning(
-            severity="warning", code="A", message="a", source_ref="x"
-        )
-        w_b = LearningWarning(
-            severity="warning", code="B", message="b", source_ref="y"
-        )
-        w_c = LearningWarning(
-            severity="info", code="C", message="c", source_ref="z"
-        )
+        w_a = LearningWarning(severity="warning", code="A", message="a", source_ref="x")
+        w_b = LearningWarning(severity="warning", code="B", message="b", source_ref="y")
+        w_c = LearningWarning(severity="info", code="C", message="c", source_ref="z")
         acc.append(w_a)
         acc.append(w_b)
         acc.append(w_c)
@@ -204,9 +198,7 @@ class TestWarningAccumulator:
         assert w.message
         # Either reflects the identifiers in message or source_ref.
         assert "node-42" in w.message or "node-42" in (w.source_ref or "")
-        assert "prerequisites" in w.message or "prerequisites" in (
-            w.source_ref or ""
-        )
+        assert "prerequisites" in w.message or "prerequisites" in (w.source_ref or "")
 
     @pytest.mark.unit
     def test_warning_model_is_frozen(self) -> None:

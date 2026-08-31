@@ -124,9 +124,7 @@ def outline_mode(
     # Matches ordering.py convention: source of `requires` → prerequisite.
     # Intersect with ordered_nodes so only real participants land here.
     prereq_ids: set[str] = {
-        edge["from"]
-        for edge in requires_edges
-        if edge.get("from") in ordered_node_set
+        edge["from"] for edge in requires_edges if edge.get("from") in ordered_node_set
     }
     prerequisites: list[str] = sorted(prereq_ids)
 
@@ -150,11 +148,15 @@ def outline_mode(
     # implementations themselves, not the core node they extend. Intersect
     # with ordered_nodes; exclude prereqs and pitfalls so buckets stay
     # disjoint.
-    branch_ids: set[str] = {
-        edge["to"]
-        for edge in derives_or_implements_edges
-        if edge.get("to") in ordered_node_set
-    } - prereq_ids - pitfall_ids
+    branch_ids: set[str] = (
+        {
+            edge["to"]
+            for edge in derives_or_implements_edges
+            if edge.get("to") in ordered_node_set
+        }
+        - prereq_ids
+        - pitfall_ids
+    )
     branches: list[str] = sorted(branch_ids)
 
     # ---- Step 3: core_path (ordered_nodes MINUS prereqs/branches/pitfalls) --
@@ -184,9 +186,7 @@ def outline_mode(
 
     nodes_used: set[str] = set(reading_order)
     edges_used: set[str] = {
-        edge["edge_id"]
-        for edge in classifying_edges
-        if edge.get("edge_id") is not None
+        edge["edge_id"] for edge in classifying_edges if edge.get("edge_id") is not None
     }
 
     concept_map: dict[str, list[str]] = {

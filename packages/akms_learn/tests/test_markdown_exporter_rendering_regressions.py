@@ -34,8 +34,12 @@ from akms_learn.models import (
 def _node(node_id: str, *, title: str | None = None, **sections) -> LearningNodeView:
     """Build a LearningNodeView with simple section content."""
     included = {
-        heading: {"name": heading, "content": content, "source_path": "x.md",
-                  "line_range": (1, 1)}
+        heading: {
+            "name": heading,
+            "content": content,
+            "source_path": "x.md",
+            "line_range": (1, 1),
+        }
         for heading, content in sections.items()
     }
     return LearningNodeView(
@@ -98,8 +102,7 @@ class TestReadingOrderPreserved:
         ctx = _build_context(packet)
 
         assert ctx["main_path"] == ["Gamma Concept", "Alpha Concept", "Beta Concept"], (
-            "main_path must follow reading_order; got "
-            f"{ctx['main_path']!r}"
+            f"main_path must follow reading_order; got {ctx['main_path']!r}"
         )
 
     @pytest.mark.unit
@@ -158,7 +161,9 @@ class TestImplementationDerivationSeparator:
     """Fix #2 — a blank line must appear between implementation and derivation."""
 
     @pytest.mark.unit
-    def test_blank_line_between_implementation_and_derivation(self, tmp_path: Path) -> None:
+    def test_blank_line_between_implementation_and_derivation(
+        self, tmp_path: Path
+    ) -> None:
         """When both blocks render, they are separated by a blank line."""
         nodes = [_node("n1", Implementation="IMPL_BLOCK", Derivation="DERIV_BLOCK")]
         packet = _packet(nodes=nodes, reading_order=["n1"])
@@ -209,7 +214,9 @@ class TestProvenanceNodeEdgeLinesSeparate:
     """Fix #4 — Node ids and Edge ids must render on distinct lines."""
 
     @pytest.mark.unit
-    def test_node_ids_and_edge_ids_render_on_separate_lines(self, tmp_path: Path) -> None:
+    def test_node_ids_and_edge_ids_render_on_separate_lines(
+        self, tmp_path: Path
+    ) -> None:
         """A blank line (or at minimum a newline) separates the two bullets."""
         nodes = [_node("n1")]
         edges = [

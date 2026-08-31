@@ -14,13 +14,18 @@ from pathlib import Path
 
 def cmd_mirror_status(args: argparse.Namespace) -> int:
     """Print non-secret mirror provider identity from config."""
-    from akms.graph.mirror_provider import public_provider_identity, resolve_mirror_config
+    from akms.graph.mirror_provider import (
+        public_provider_identity,
+        resolve_mirror_config,
+    )
     from akms.schema.models import PropagationConfig
     from akms.schema.validators import parse_propagation_config
 
     repo = Path(args.repo).resolve()
-    config_path = Path(args.config) if args.config else (
-        repo / "knowledge" / "graph" / "propagation_config.yaml"
+    config_path = (
+        Path(args.config)
+        if args.config
+        else (repo / "knowledge" / "graph" / "propagation_config.yaml")
     )
     if config_path.is_file():
         config = parse_propagation_config(config_path)
@@ -46,8 +51,10 @@ def cmd_generate_mirror(args: argparse.Namespace) -> int:
     from akms.schema.validators import parse_propagation_config
 
     repo = Path(args.repo).resolve()
-    config_path = Path(args.config) if args.config else (
-        repo / "knowledge" / "graph" / "propagation_config.yaml"
+    config_path = (
+        Path(args.config)
+        if args.config
+        else (repo / "knowledge" / "graph" / "propagation_config.yaml")
     )
     if config_path.is_file():
         config = parse_propagation_config(config_path)
@@ -98,7 +105,8 @@ def register_provider_commands(subparsers: argparse._SubParsersAction) -> None:
 
     def _add_repo(p: argparse.ArgumentParser) -> None:
         p.add_argument(
-            "--repo", "-r",
+            "--repo",
+            "-r",
             default=".",
             help="Repository root (default: cwd)",
         )
@@ -109,7 +117,8 @@ def register_provider_commands(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_repo(status)
     status.add_argument(
-        "--config", "-c",
+        "--config",
+        "-c",
         default=None,
         help="Path to propagation_config.yaml",
     )
@@ -126,7 +135,8 @@ def register_provider_commands(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_repo(gen)
     gen.add_argument(
-        "--config", "-c",
+        "--config",
+        "-c",
         default=None,
         help="Path to propagation_config.yaml",
     )

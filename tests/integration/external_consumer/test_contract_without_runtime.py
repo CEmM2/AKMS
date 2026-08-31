@@ -27,7 +27,7 @@ import sys
 
 import pytest
 
-CONSUMER_SCRIPT = r'''
+CONSUMER_SCRIPT = r"""
 import json
 import sys
 from pathlib import Path
@@ -113,7 +113,7 @@ runtime_modules = sorted(
     or m.startswith("akms.agents.")
 )
 print(json.dumps({"runtime_modules": runtime_modules, "events": len(summary["confidence_events"])}))
-'''
+"""
 
 
 @pytest.mark.integration

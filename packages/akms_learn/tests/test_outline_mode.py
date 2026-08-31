@@ -74,15 +74,13 @@ class TestOutlineMode:
 
         outline, _ = outline_mode(graph, ordered, request)
 
-        slice_node_ids = {
-            (n.get("node_id") or n.get("id")) for n in graph.nodes
-        }
+        slice_node_ids = {(n.get("node_id") or n.get("id")) for n in graph.nodes}
         for nid in outline["core_path"]:
             assert nid in slice_node_ids, f"core_path node {nid!r} missing from slice"
         for nid in outline["prerequisites"]:
-            assert (
-                nid in slice_node_ids
-            ), f"prerequisite node {nid!r} missing from slice"
+            assert nid in slice_node_ids, (
+                f"prerequisite node {nid!r} missing from slice"
+            )
         for nid in outline["branches"]:
             assert nid in slice_node_ids, f"branch node {nid!r} missing from slice"
 
@@ -92,9 +90,9 @@ class TestOutlineMode:
         }
         assert requires_edge_ids, "fixture must have at least one `requires` edge"
         for eid in requires_edge_ids:
-            assert (
-                eid in outline["concept_map"]["edges"]
-            ), f"requires edge {eid!r} missing from concept_map"
+            assert eid in outline["concept_map"]["edges"], (
+                f"requires edge {eid!r} missing from concept_map"
+            )
 
         #   # Buckets are DISJOINT by construction, so reading_order length equals
         #           # the literal sum of the four bucket lengths — no dedup collapse.
@@ -131,14 +129,14 @@ class TestOutlineMode:
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     root = alias.name.split(".")[0]
-                    assert (
-                        root not in forbidden
-                    ), f"outline.py imports forbidden LLM module {alias.name!r}"
+                    assert root not in forbidden, (
+                        f"outline.py imports forbidden LLM module {alias.name!r}"
+                    )
             elif isinstance(node, ast.ImportFrom):
                 root = (node.module or "").split(".")[0]
-                assert (
-                    root not in forbidden
-                ), f"outline.py imports from forbidden LLM module {node.module!r}"
+                assert root not in forbidden, (
+                    f"outline.py imports from forbidden LLM module {node.module!r}"
+                )
 
     @pytest.mark.integration
     def test_outline_pitfalls_gated_by_request_flag(self) -> None:
@@ -146,10 +144,14 @@ class TestOutlineMode:
         graph = fixture_graph()
         ordered, _ = order_nodes(graph)
 
-        outline_off, _ = outline_mode(graph, ordered, _make_request(include_pitfalls=False))
+        outline_off, _ = outline_mode(
+            graph, ordered, _make_request(include_pitfalls=False)
+        )
         assert outline_off["pitfalls"] == []
 
-        outline_on, _ = outline_mode(graph, ordered, _make_request(include_pitfalls=True))
+        outline_on, _ = outline_mode(
+            graph, ordered, _make_request(include_pitfalls=True)
+        )
         # Fixture has e_core_pitfall: core_j2_return_mapping → pitfall_sign_convention
         assert "pitfall_sign_convention" in outline_on["pitfalls"]
         # All pitfall ids are sorted.

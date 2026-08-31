@@ -60,20 +60,31 @@ class TestHandleExecuteAgentMode:
         state = PipelineState(current_phase=1)
 
         tasks = [
-            {"task_id": "t1", "agent_role": "implementer", "scope": ["a.py"],
-             "akms_tags": [], "akms_schema": "v2"},
+            {
+                "task_id": "t1",
+                "agent_role": "implementer",
+                "scope": ["a.py"],
+                "akms_tags": [],
+                "akms_schema": "v2",
+            },
         ]
 
-        with patch("akms.orchestrator.orchestrator.update_graph") as mock_ug, \
-             patch("akms.orchestrator.orchestrator.generate_mirror") as mock_gm, \
-             patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace:
+        with (
+            patch("akms.orchestrator.orchestrator.update_graph") as mock_ug,
+            patch("akms.orchestrator.orchestrator.generate_mirror") as mock_gm,
+            patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace,
+        ):
             mock_trace.return_value = MagicMock()
             _, _, warnings = asyncio.run(handle_execute(state, ctx, tasks=tasks))
 
         # update_graph must have been called with the agent's memory
-        assert mock_ug.call_count >= 1, "update_graph should be called after agent dispatch"
+        assert mock_ug.call_count >= 1, (
+            "update_graph should be called after agent dispatch"
+        )
         # generate_mirror must have been called
-        assert mock_gm.call_count == 1, "generate_mirror should be called after agent dispatch"
+        assert mock_gm.call_count == 1, (
+            "generate_mirror should be called after agent dispatch"
+        )
 
     @pytest.mark.e2e
     def test_execute_skips_graph_update_in_graph_only_mode(self, tmp_path):
@@ -107,12 +118,16 @@ class TestHandleReviewAgentMode:
             dispatched_tasks.extend(tasks)
             # Import the real function to get TaskResult
             from akms.orchestrator.wave_dispatch import TaskResult
+
             return [
                 TaskResult(task_id=t["task_id"], status="complete", memory_path="")
                 for t in tasks
             ]
 
-        with patch("akms.orchestrator.orchestrator.dispatch_phase", side_effect=capture_dispatch):
+        with patch(
+            "akms.orchestrator.orchestrator.dispatch_phase",
+            side_effect=capture_dispatch,
+        ):
             asyncio.run(handle_review(state, ctx))
 
         assert len(dispatched_tasks) == 2, "Should dispatch 2 reviewer tasks"
@@ -137,9 +152,14 @@ class TestHandleReviewAgentMode:
             {"task_id": "phase-1-physics-review", "nodes_used": ["node-B"]},
         ]
 
-        with patch("akms.orchestrator.orchestrator.update_graph") as mock_ug, \
-             patch("akms.orchestrator.orchestrator._read_memories_from_results", return_value=fake_memories), \
-             patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace:
+        with (
+            patch("akms.orchestrator.orchestrator.update_graph") as mock_ug,
+            patch(
+                "akms.orchestrator.orchestrator._read_memories_from_results",
+                return_value=fake_memories,
+            ),
+            patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace,
+        ):
             mock_trace.return_value = MagicMock()
             asyncio.run(handle_review(state, ctx))
 
@@ -158,17 +178,26 @@ class TestHandleReviewAgentMode:
         state = PipelineState(current_phase=1)
 
         fake_memories = [
-            {"task_id": "phase-1-code-review",
-             "nodes_used": [],
-             "pitfalls_discovered": [{"node_id": "n1", "description": "risk"}]},
-            {"task_id": "phase-1-physics-review",
-             "nodes_used": [],
-             "new_knowledge": [{"title": "finding", "content": "detail"}]},
+            {
+                "task_id": "phase-1-code-review",
+                "nodes_used": [],
+                "pitfalls_discovered": [{"node_id": "n1", "description": "risk"}],
+            },
+            {
+                "task_id": "phase-1-physics-review",
+                "nodes_used": [],
+                "new_knowledge": [{"title": "finding", "content": "detail"}],
+            },
         ]
 
-        with patch("akms.orchestrator.orchestrator.update_graph") as mock_ug, \
-             patch("akms.orchestrator.orchestrator._read_memories_from_results", return_value=fake_memories), \
-             patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace:
+        with (
+            patch("akms.orchestrator.orchestrator.update_graph") as mock_ug,
+            patch(
+                "akms.orchestrator.orchestrator._read_memories_from_results",
+                return_value=fake_memories,
+            ),
+            patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace,
+        ):
             mock_trace.return_value = MagicMock()
             asyncio.run(handle_review(state, ctx))
 
@@ -190,12 +219,16 @@ class TestHandleReviewAgentMode:
         async def capture_dispatch(tasks, **kwargs):
             dispatched_tasks.extend(tasks)
             from akms.orchestrator.wave_dispatch import TaskResult
+
             return [
                 TaskResult(task_id=t["task_id"], status="complete", memory_path="")
                 for t in tasks
             ]
 
-        with patch("akms.orchestrator.orchestrator.dispatch_phase", side_effect=capture_dispatch):
+        with patch(
+            "akms.orchestrator.orchestrator.dispatch_phase",
+            side_effect=capture_dispatch,
+        ):
             asyncio.run(handle_review(state, ctx))
 
         assert len(dispatched_tasks) == 2
@@ -221,8 +254,13 @@ class TestHandleTaskBreakdownAgentMode:
 
         # Patch _extract_tasks_from_memory to return [] regardless of what
         # FakeAgent writes, simulating a decomposer that omits 'tasks'.
-        with patch("akms.orchestrator.orchestrator._extract_tasks_from_memory", return_value=[]), \
-             patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace:
+        with (
+            patch(
+                "akms.orchestrator.orchestrator._extract_tasks_from_memory",
+                return_value=[],
+            ),
+            patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace,
+        ):
             mock_trace.return_value = MagicMock()
             with pytest.raises(RuntimeError, match="no parseable tasks"):
                 asyncio.run(handle_task_breakdown(state, ctx))
@@ -270,15 +308,19 @@ class TestRunPipelineAgentMode:
         repo = _make_repo(tmp_path)
         handler = AutoApproveCheckpointHandler()
 
-        with patch("akms.orchestrator.orchestrator._extract_tasks_from_memory", return_value=[]):
+        with patch(
+            "akms.orchestrator.orchestrator._extract_tasks_from_memory", return_value=[]
+        ):
             with pytest.raises(RuntimeError, match="no parseable tasks"):
-                asyncio.run(run_pipeline(
-                    repo_root=repo,
-                    goal="agent mode test",
-                    plan_name="test",
-                    agent_cls=FakeAgent,
-                    checkpoint_handler=handler,
-                ))
+                asyncio.run(
+                    run_pipeline(
+                        repo_root=repo,
+                        goal="agent mode test",
+                        plan_name="test",
+                        agent_cls=FakeAgent,
+                        checkpoint_handler=handler,
+                    )
+                )
 
         state = PipelineState.load(repo)
         assert state is not None
@@ -295,13 +337,15 @@ class TestRunPipelineAgentMode:
         repo = _make_repo(tmp_path)
         handler = AutoApproveCheckpointHandler()
 
-        asyncio.run(run_pipeline(
-            repo_root=repo,
-            goal="agent mode test",
-            plan_name="test",
-            agent_cls=FakeAgent,
-            checkpoint_handler=handler,
-        ))
+        asyncio.run(
+            run_pipeline(
+                repo_root=repo,
+                goal="agent mode test",
+                plan_name="test",
+                agent_cls=FakeAgent,
+                checkpoint_handler=handler,
+            )
+        )
 
         state = PipelineState.load(repo)
         assert state is not None
@@ -320,13 +364,15 @@ class TestRunPipelineAgentMode:
         repo = _make_repo(tmp_path)
         handler = AutoApproveCheckpointHandler()
 
-        asyncio.run(run_pipeline(
-            repo_root=repo,
-            goal="task persistence test",
-            plan_name="test",
-            agent_cls=FakeAgent,
-            checkpoint_handler=handler,
-        ))
+        asyncio.run(
+            run_pipeline(
+                repo_root=repo,
+                goal="task persistence test",
+                plan_name="test",
+                agent_cls=FakeAgent,
+                checkpoint_handler=handler,
+            )
+        )
 
         state = PipelineState.load(repo)
         assert state is not None
@@ -341,21 +387,21 @@ class TestRunPipelineAgentMode:
         repo = _make_repo(tmp_path)
         handler = AutoApproveCheckpointHandler()
 
-        asyncio.run(run_pipeline(
-            repo_root=repo,
-            goal="graph only test",
-            plan_name="test",
-            agent_cls=None,
-            checkpoint_handler=handler,
-        ))
+        asyncio.run(
+            run_pipeline(
+                repo_root=repo,
+                goal="graph only test",
+                plan_name="test",
+                agent_cls=None,
+                checkpoint_handler=handler,
+            )
+        )
 
         state = PipelineState.load(repo)
         assert state is not None
         assert state.completed is True
         assert state.current_stage == Stage.COMPLETE
         assert "PLAN" in handler.checkpoints_seen
-
-
 
 
 class TestTaskPersistence:
@@ -421,14 +467,28 @@ class TestPhaseFiltering:
         ctx = _make_ctx(repo)
         state = PipelineState(current_phase=2, plan_name="myplan")
 
-        with patch("akms.orchestrator.orchestrator.update_graph"), \
-             patch("akms.orchestrator.orchestrator.generate_mirror") as mock_gm, \
-             patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace:
+        with (
+            patch("akms.orchestrator.orchestrator.update_graph"),
+            patch("akms.orchestrator.orchestrator.generate_mirror") as mock_gm,
+            patch("akms.orchestrator.wave_dispatch.trace_agent_call") as mock_trace,
+        ):
             mock_trace.return_value = MagicMock()
-            asyncio.run(handle_execute(state, ctx, tasks=[
-                {"task_id": "t1", "phase": 2, "akms_tags": [], "akms_schema": "v2",
-                 "agent_role": "implementer", "scope": ["a.py"]},
-            ]))
+            asyncio.run(
+                handle_execute(
+                    state,
+                    ctx,
+                    tasks=[
+                        {
+                            "task_id": "t1",
+                            "phase": 2,
+                            "akms_tags": [],
+                            "akms_schema": "v2",
+                            "agent_role": "implementer",
+                            "scope": ["a.py"],
+                        },
+                    ],
+                )
+            )
 
         assert mock_gm.call_count == 1
         call_args = mock_gm.call_args
@@ -458,7 +518,9 @@ class TestTaskBreakdownRejectRedispatch:
         dispatch_count = 0
 
         # Write a dummy memory file so the extraction path fires
-        dummy_memory = tmp_path / "repo" / "knowledge" / "sessions" / "stage-task-breakdown.md"
+        dummy_memory = (
+            tmp_path / "repo" / "knowledge" / "sessions" / "stage-task-breakdown.md"
+        )
         dummy_memory.parent.mkdir(parents=True, exist_ok=True)
         dummy_memory.write_text("---\ntask_id: stage-task-breakdown\n---\n")
 
@@ -466,20 +528,35 @@ class TestTaskBreakdownRejectRedispatch:
             nonlocal dispatch_count
             dispatch_count += 1
             from akms.orchestrator.wave_dispatch import TaskResult
-            return [TaskResult(
-                task_id=tasks[0]["task_id"], status="complete",
-                memory_path=str(dummy_memory),
-            )]
 
-        with patch("akms.orchestrator.orchestrator.dispatch_phase", side_effect=counting_dispatch), \
-             patch("akms.orchestrator.orchestrator._extract_tasks_from_memory") as mock_extract:
+            return [
+                TaskResult(
+                    task_id=tasks[0]["task_id"],
+                    status="complete",
+                    memory_path=str(dummy_memory),
+                )
+            ]
+
+        with (
+            patch(
+                "akms.orchestrator.orchestrator.dispatch_phase",
+                side_effect=counting_dispatch,
+            ),
+            patch(
+                "akms.orchestrator.orchestrator._extract_tasks_from_memory"
+            ) as mock_extract,
+        ):
             mock_extract.return_value = [
                 {"task_id": "t-new", "phase": 1, "akms_tags": [], "akms_schema": "v2"}
             ]
             asyncio.run(handle_task_breakdown(state, ctx, tasks=None))
 
-        assert dispatch_count == 1, "Decomposer should be re-dispatched on REJECT re-run"
-        assert state.tasks[0]["task_id"] == "t-new", "Should have new tasks, not stale ones"
+        assert dispatch_count == 1, (
+            "Decomposer should be re-dispatched on REJECT re-run"
+        )
+        assert state.tasks[0]["task_id"] == "t-new", (
+            "Should have new tasks, not stale ones"
+        )
 
 
 class TestNonContiguousPhases:
@@ -497,10 +574,20 @@ class TestNonContiguousPhases:
 
         # Provide tasks with non-contiguous phases directly
         tasks = [
-            {"task_id": "t-p1", "phase": 1, "agent_role": "implementer",
-             "akms_tags": [], "akms_schema": "v2"},
-            {"task_id": "t-p3", "phase": 3, "agent_role": "implementer",
-             "akms_tags": [], "akms_schema": "v2"},
+            {
+                "task_id": "t-p1",
+                "phase": 1,
+                "agent_role": "implementer",
+                "akms_tags": [],
+                "akms_schema": "v2",
+            },
+            {
+                "task_id": "t-p3",
+                "phase": 3,
+                "agent_role": "implementer",
+                "akms_tags": [],
+                "akms_schema": "v2",
+            },
         ]
 
         asyncio.run(handle_task_breakdown(state, ctx, tasks=tasks))
@@ -544,9 +631,15 @@ class TestNonContiguousPhases:
     def test_phase_order_backward_compat_empty(self, tmp_path):
         """Old state files without phase_order load with empty list."""
         import json
+
         repo = _make_repo(tmp_path)
         state_path = repo / "knowledge" / "graph" / "pipeline_state.json"
-        old_data = {"current_stage": "init", "current_phase": 1, "total_phases": 1, "goal": "old"}
+        old_data = {
+            "current_stage": "init",
+            "current_phase": 1,
+            "total_phases": 1,
+            "goal": "old",
+        }
         state_path.write_text(json.dumps(old_data))
 
         loaded = PipelineState.load(repo)
@@ -581,13 +674,24 @@ class TestSpecPathPropagation:
         async def capturing_dispatch(tasks, **kwargs):
             dispatched_tasks.extend(tasks)
             from akms.orchestrator.wave_dispatch import TaskResult
-            return [TaskResult(task_id=t["task_id"], status="complete", memory_path="") for t in tasks]
 
-        with patch("akms.orchestrator.orchestrator.dispatch_phase", side_effect=capturing_dispatch):
+            return [
+                TaskResult(task_id=t["task_id"], status="complete", memory_path="")
+                for t in tasks
+            ]
+
+        with patch(
+            "akms.orchestrator.orchestrator.dispatch_phase",
+            side_effect=capturing_dispatch,
+        ):
             asyncio.run(handle_plan(state, ctx))
 
-        planner_tasks = [t for t in dispatched_tasks if t.get("task_id") == "stage-plan"]
-        assert len(planner_tasks) >= 1, f"Planner task not dispatched. Got: {[t['task_id'] for t in dispatched_tasks]}"
+        planner_tasks = [
+            t for t in dispatched_tasks if t.get("task_id") == "stage-plan"
+        ]
+        assert len(planner_tasks) >= 1, (
+            f"Planner task not dispatched. Got: {[t['task_id'] for t in dispatched_tasks]}"
+        )
         planner = planner_tasks[0]
         assert "specs/my_spec.md" in planner.get("task_description", ""), (
             f"spec_path not in task_description: {planner.get('task_description')}"
@@ -621,9 +725,16 @@ class TestReviewerModelOverride:
         async def capturing_dispatch(tasks, **kwargs):
             dispatch_kwargs.update(kwargs)
             from akms.orchestrator.wave_dispatch import TaskResult
-            return [TaskResult(task_id=t["task_id"], status="complete", memory_path="") for t in tasks]
 
-        with patch("akms.orchestrator.orchestrator.dispatch_phase", side_effect=capturing_dispatch):
+            return [
+                TaskResult(task_id=t["task_id"], status="complete", memory_path="")
+                for t in tasks
+            ]
+
+        with patch(
+            "akms.orchestrator.orchestrator.dispatch_phase",
+            side_effect=capturing_dispatch,
+        ):
             asyncio.run(handle_review(state, ctx))
 
         assert dispatch_kwargs.get("model_override") == "override-model-xyz", (
@@ -650,7 +761,9 @@ class TestBranchAncestryNonContiguous:
 
         ops = rmp("plan", 2, "main", phase_order=[1, 3])
         merge_names = [op["name"] for op in ops if op["name"].startswith("merge")]
-        assert "merge-plan_phase-3-into-plan_phase-1" in merge_names, f"Got: {merge_names}"
+        assert "merge-plan_phase-3-into-plan_phase-1" in merge_names, (
+            f"Got: {merge_names}"
+        )
         assert "merge-plan_phase-1-into-main" in merge_names, f"Got: {merge_names}"
         # Should NOT reference plan_phase-2
         all_cmds = str(ops)
@@ -696,13 +809,19 @@ class TestSpecPathResume:
 
         # First run: abort at PLAN with spec_path
         from tests.fakes.checkpoint_handlers import AbortThenApproveHandler
+
         abort_handler = AbortThenApproveHandler()
 
-        asyncio.run(run_pipeline(
-            repo_root=repo, goal="test", plan_name="test",
-            spec_path="specs/original.md",
-            agent_cls=None, checkpoint_handler=abort_handler,
-        ))
+        asyncio.run(
+            run_pipeline(
+                repo_root=repo,
+                goal="test",
+                plan_name="test",
+                spec_path="specs/original.md",
+                agent_cls=None,
+                checkpoint_handler=abort_handler,
+            )
+        )
 
         state = PipelineState.load(repo)
         assert state.aborted is True
@@ -714,22 +833,37 @@ class TestSpecPathResume:
         async def capturing_dispatch(tasks, **kwargs):
             dispatched_tasks.extend(tasks)
             from akms.orchestrator.wave_dispatch import TaskResult
-            return [TaskResult(task_id=t["task_id"], status="complete", memory_path="") for t in tasks]
+
+            return [
+                TaskResult(task_id=t["task_id"], status="complete", memory_path="")
+                for t in tasks
+            ]
 
         # Resume with FakeAgent so handle_plan dispatches
-        with patch("akms.orchestrator.orchestrator.dispatch_phase", side_effect=capturing_dispatch):
+        with patch(
+            "akms.orchestrator.orchestrator.dispatch_phase",
+            side_effect=capturing_dispatch,
+        ):
             try:
-                asyncio.run(run_pipeline(
-                    repo_root=repo, resume=True,
-                    agent_cls=FakeAgent, checkpoint_handler=handler,
-                    # NOTE: no spec_path passed
-                ))
+                asyncio.run(
+                    run_pipeline(
+                        repo_root=repo,
+                        resume=True,
+                        agent_cls=FakeAgent,
+                        checkpoint_handler=handler,
+                        # NOTE: no spec_path passed
+                    )
+                )
             except RuntimeError:
                 pass  # Expected: task_breakdown will fail without real decomposer
 
-        planner_tasks = [t for t in dispatched_tasks if t.get("task_id") == "stage-plan"]
+        planner_tasks = [
+            t for t in dispatched_tasks if t.get("task_id") == "stage-plan"
+        ]
         if planner_tasks:
-            assert "specs/original.md" in planner_tasks[0].get("task_description", ""), (
+            assert "specs/original.md" in planner_tasks[0].get(
+                "task_description", ""
+            ), (
                 f"spec_path not restored on resume: {planner_tasks[0].get('task_description')}"
             )
 
@@ -741,7 +875,9 @@ class TestWrapperBranchAncestry:
         """handle_execute resolves parent branch via phase_order when dispatching."""
         repo = _make_repo(tmp_path)
         state = PipelineState(
-            plan_name="plan", total_phases=2, phase_order=[1, 3],
+            plan_name="plan",
+            total_phases=2,
+            phase_order=[1, 3],
             current_phase=3,
         )
 
@@ -757,24 +893,27 @@ class TestWrapperBranchAncestry:
             mirror_parent_calls.append(parent_branch)
             return {"files_processed": 0, "drift_warnings": []}
 
-        with patch("akms.orchestrator.orchestrator.dispatch_phase", _noop_dispatch), \
-             patch("akms.orchestrator.orchestrator.generate_mirror", _spy_mirror):
+        with (
+            patch("akms.orchestrator.orchestrator.dispatch_phase", _noop_dispatch),
+            patch("akms.orchestrator.orchestrator.generate_mirror", _spy_mirror),
+        ):
             asyncio.run(handle_execute(state, ctx, tasks=[]))
 
         # With empty tasks, dispatch isn't called so mirror isn't reached.
         # Verify parent_branch logic directly instead.
         from akms.orchestrator.branch_workflow import parent_branch as pb
+
         result = pb("plan", "main", 3, phase_order=[1, 3])
-        assert result == "plan_phase-1", (
-            f"Expected plan_phase-1, got {result}"
-        )
+        assert result == "plan_phase-1", f"Expected plan_phase-1, got {result}"
 
     def test_finalize_uses_phase_order(self, tmp_path):
         """handle_finalize must build merge ops using phase_order."""
         repo = _make_repo(tmp_path)
         state = PipelineState(
             current_stage=Stage.FINALIZE,
-            plan_name="plan", total_phases=2, phase_order=[1, 3],
+            plan_name="plan",
+            total_phases=2,
+            phase_order=[1, 3],
         )
         ctx = _make_ctx(repo, agent_cls=None)
 
@@ -782,10 +921,11 @@ class TestWrapperBranchAncestry:
 
         # handler records planned_ops in stage_history
         branch_history = [
-            h for h in state.stage_history
-            if h.get("action") == "branch_ops_finalize"
+            h for h in state.stage_history if h.get("action") == "branch_ops_finalize"
         ]
-        assert len(branch_history) >= 1, "handle_finalize should record branch_ops_finalize in stage_history"
+        assert len(branch_history) >= 1, (
+            "handle_finalize should record branch_ops_finalize in stage_history"
+        )
         all_cmds = str(branch_history[-1].get("planned_ops", []))
         assert "phase-2" not in all_cmds, (
             f"handle_finalize should not reference phase-2: {branch_history[-1]['planned_ops']}"

@@ -28,9 +28,7 @@ VOLATILE_GRAPH_KEYS = ("generated_at", "global_vault", "repo_id")
 
 
 def _run(cmd: list[str], cwd: Path) -> str:
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, cwd=cwd, timeout=120
-    )
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, timeout=120)
     assert result.returncode == 0, f"{cmd} failed:\n{result.stderr}"
     return result.stdout
 

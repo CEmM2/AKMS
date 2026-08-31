@@ -332,7 +332,9 @@ class TestProvenancePerSection:
     @pytest.mark.unit
     def test_source_node_id_in_html(self, tmp_path: Path):
         """The node ID appears in the rendered HTML as a provenance value."""
-        node = _make_node("my_unique_node_42", source_path="src/math.md", line_range=(10, 20))
+        node = _make_node(
+            "my_unique_node_42", source_path="src/math.md", line_range=(10, 20)
+        )
         node_with_sections = _make_node(
             "my_unique_node_42",
             source_path="src/math.md",

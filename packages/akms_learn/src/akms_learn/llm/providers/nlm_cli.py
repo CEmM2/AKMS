@@ -140,7 +140,15 @@ def nlm_grounded(
         f"for the topic {topic!r}, grounded in the nodes "
         f"{', '.join(valid_ids)}. Introduce no claim absent from the sources."
     )
-    args = ["notebook", "query", str(notebook_id), question, "--json", "--timeout", str(timeout)]
+    args = [
+        "notebook",
+        "query",
+        str(notebook_id),
+        question,
+        "--json",
+        "--timeout",
+        str(timeout),
+    ]
     if profile:
         args += ["--profile", str(profile)]
 

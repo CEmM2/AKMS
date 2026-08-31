@@ -316,7 +316,9 @@ def _parse_export_json(raw: str, *, config: MirrorConfig) -> dict[str, Any]:
     # Export-level errors from the tool are hard failures (partial not accepted).
     errors = data.get("errors") or []
     if errors:
-        first = errors[0] if isinstance(errors[0], dict) else {"message": str(errors[0])}
+        first = (
+            errors[0] if isinstance(errors[0], dict) else {"message": str(errors[0])}
+        )
         msg = first.get("message") or first.get("stage") or "export reported errors"
         raise MirrorProviderError(
             f"repo2md export reported errors: {msg}",
@@ -392,7 +394,11 @@ def validate_repo2md_export(
         # Containment: generated_path must be under knowledge/code-mirror
         # and must not escape via .. components.
         _assert_mirror_path_safe(generated_path)
-        _assert_mirror_path_safe(content_ref if content_ref.startswith("knowledge/") else f"knowledge/{content_ref}")
+        _assert_mirror_path_safe(
+            content_ref
+            if content_ref.startswith("knowledge/")
+            else f"knowledge/{content_ref}"
+        )
 
         # content_ref is typically "code-mirror/..." while generated_path is
         # "knowledge/code-mirror/...".

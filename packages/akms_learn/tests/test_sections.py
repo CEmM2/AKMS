@@ -138,7 +138,8 @@ class TestSections:
         pitfall_warnings = [
             w
             for w in warnings
-            if w.code == "missing_section" and w.source_ref is not None
+            if w.code == "missing_section"
+            and w.source_ref is not None
             and w.source_ref.endswith("#Pitfalls")
         ]
         assert len(pitfall_warnings) == 1, (
@@ -195,26 +196,26 @@ class TestSections:
         # Line 19: ## Self-check        ← approved, content on line 20
         # Line 20: last content line
         md = (
-            "# Intro\n"           # L1
-            "\n"                   # L2
+            "# Intro\n"  # L1
+            "\n"  # L2
             "## Learning goal\n"  # L3  heading
-            "content line A\n"    # L4
-            "content line B\n"    # L5
+            "content line A\n"  # L4
+            "content line B\n"  # L5
             "## Prerequisites\n"  # L6  heading
-            "content line C\n"    # L7
-            "\n"                   # L8
-            "line 9\n"            # L9
-            "line 10\n"           # L10
-            "line 11\n"           # L11
-            "line 12\n"           # L12
-            "line 13\n"           # L13
-            "line 14\n"           # L14
-            "line 15\n"           # L15
-            "line 16\n"           # L16
-            "line 17\n"           # L17
-            "line 18\n"           # L18
-            "## Self-check\n"     # L19  heading
-            "last content line"   # L20
+            "content line C\n"  # L7
+            "\n"  # L8
+            "line 9\n"  # L9
+            "line 10\n"  # L10
+            "line 11\n"  # L11
+            "line 12\n"  # L12
+            "line 13\n"  # L13
+            "line 14\n"  # L14
+            "line 15\n"  # L15
+            "line 16\n"  # L16
+            "line 17\n"  # L17
+            "line 18\n"  # L18
+            "## Self-check\n"  # L19  heading
+            "last content line"  # L20
         )
         assert len(md.splitlines()) == 20, "Fixture must be exactly 20 lines"
 
@@ -252,12 +253,15 @@ class TestSections:
 
         # No missing-section warning for Learning goal.
         missing_lg = [
-            w for w in warnings
+            w
+            for w in warnings
             if w.code == "missing_section"
             and w.source_ref is not None
             and w.source_ref.endswith("#Learning goal")
         ]
-        assert missing_lg == [], f"Learning goal should not emit a missing warning: {missing_lg}"
+        assert missing_lg == [], (
+            f"Learning goal should not emit a missing warning: {missing_lg}"
+        )
 
     @pytest.mark.unit
     def test_merge_sections_writes_to_included_sections_field(self):

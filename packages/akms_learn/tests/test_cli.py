@@ -80,7 +80,12 @@ class TestCliCompileValidate:
             p
             for p in json_packets
             if p.name
-            not in ("manifest.json", "provenance.json", "warnings.json", "concept_map.json")
+            not in (
+                "manifest.json",
+                "provenance.json",
+                "warnings.json",
+                "concept_map.json",
+            )
         ]
         packet_for_validate = (
             yaml_packet if yaml_packet.is_file() else non_bundle_json[0]

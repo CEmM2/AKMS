@@ -82,7 +82,9 @@ class TestStageDefinitions:
             if stage in no_checkpoint_stages:
                 continue
             defn = get_stage_definition(stage)
-            assert defn.requires_checkpoint is True, f"{stage.name} should require checkpoint"
+            assert defn.requires_checkpoint is True, (
+                f"{stage.name} should require checkpoint"
+            )
 
     def test_init_transitions_to_plan(self):
         assert is_valid_transition(Stage.INIT, Stage.PLAN)
@@ -171,7 +173,9 @@ class TestPipelineState:
         assert state.stage_history[0]["to_stage"] == "PLAN"
 
     def test_roundtrip(self, tmp_repo):
-        state = PipelineState(goal="test", plan_name="plan", current_phase=3, total_phases=5)
+        state = PipelineState(
+            goal="test", plan_name="plan", current_phase=3, total_phases=5
+        )
         state.advance_to(Stage.PLAN)
         state.save(tmp_repo)
 
@@ -255,8 +259,15 @@ class TestCheckpointIO:
         assert response.reason == "stopping"
 
     def test_list_checkpoints(self, tmp_repo):
-        write_checkpoint(tmp_repo, CheckpointData(stage=Stage.PLAN, timestamp="2026-03-08T10:00:00"))
-        write_checkpoint(tmp_repo, CheckpointData(stage=Stage.EXECUTE, phase=1, timestamp="2026-03-08T11:00:00"))
+        write_checkpoint(
+            tmp_repo, CheckpointData(stage=Stage.PLAN, timestamp="2026-03-08T10:00:00")
+        )
+        write_checkpoint(
+            tmp_repo,
+            CheckpointData(
+                stage=Stage.EXECUTE, phase=1, timestamp="2026-03-08T11:00:00"
+            ),
+        )
 
         cps = list_checkpoints(tmp_repo)
         assert len(cps) == 2
@@ -372,7 +383,9 @@ class TestHandlePlan:
 
         dispatch_calls: list[str] = []
 
-        async def _mock_dispatch(tasks, agent_cls, config, repo_root, model_override=None):
+        async def _mock_dispatch(
+            tasks, agent_cls, config, repo_root, model_override=None
+        ):
             for task in tasks:
                 dispatch_calls.append(task["task_id"])
                 out_dir = repo_root / "knowledge" / "sessions"
@@ -380,13 +393,20 @@ class TestHandlePlan:
                 out_path = out_dir / f"{task['task_id']}.md"
                 out_path.write_text("---\nstatus: complete\n---\n")
             return [
-                TaskResult(task_id=t["task_id"], status="complete",
-                           memory_path=str(repo_root / "knowledge" / "sessions" / f"{t['task_id']}.md"),
-                           error="")
+                TaskResult(
+                    task_id=t["task_id"],
+                    status="complete",
+                    memory_path=str(
+                        repo_root / "knowledge" / "sessions" / f"{t['task_id']}.md"
+                    ),
+                    error="",
+                )
                 for t in tasks
             ]
 
-        monkeypatch.setattr("akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch)
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch
+        )
 
         stage_output, akms_status, warnings = asyncio.run(handle_plan(state, ctx))
         assert "stage-plan" in dispatch_calls
@@ -406,19 +426,23 @@ class TestPipelineCheckpointGating:
         # PLAN, TASK_BREAKDOWN, SCAFFOLD, EXECUTE, REVIEW, FINALIZE = 6 checkpoints
         handler = RecordingCheckpointHandler([CheckpointAction.APPROVE] * 10)
 
-        asyncio.run(run_pipeline(
-            tmp_repo,
-            goal="gate-approve",
-            global_vault=tmp_vault,
-            agent_cls=None,  # graph-only: no real agents
-            checkpoint_handler=handler,
-        ))
+        asyncio.run(
+            run_pipeline(
+                tmp_repo,
+                goal="gate-approve",
+                global_vault=tmp_vault,
+                agent_cls=None,  # graph-only: no real agents
+                checkpoint_handler=handler,
+            )
+        )
 
         stage_names = [p["stage"] for p in handler.presentations]
         assert "PLAN" in stage_names
 
     @pytest.mark.parametrize("action", ["reject", "edit"])
-    def test_pipeline_reject_or_edit_reruns_same_stage(self, tmp_vault, tmp_repo, action):
+    def test_pipeline_reject_or_edit_reruns_same_stage(
+        self, tmp_vault, tmp_repo, action
+    ):
         from akms.orchestrator.stages import CheckpointAction
         from tests.fakes.checkpoint_handlers import RecordingCheckpointHandler
 
@@ -428,13 +452,15 @@ class TestPipelineCheckpointGating:
         # First checkpoint: reject/edit → same stage. Then abort to stop.
         handler = RecordingCheckpointHandler([action_enum, CheckpointAction.ABORT])
 
-        asyncio.run(run_pipeline(
-            tmp_repo,
-            goal=f"gate-{action}",
-            global_vault=tmp_vault,
-            agent_cls=None,
-            checkpoint_handler=handler,
-        ))
+        asyncio.run(
+            run_pipeline(
+                tmp_repo,
+                goal=f"gate-{action}",
+                global_vault=tmp_vault,
+                agent_cls=None,
+                checkpoint_handler=handler,
+            )
+        )
 
         # First presentation at PLAN, then same stage again, then ABORT stops it
         assert len(handler.presentations) >= 2
@@ -450,13 +476,15 @@ class TestPipelineCheckpointGating:
         # Abort on first checkpoint (PLAN)
         handler = RecordingCheckpointHandler([CheckpointAction.ABORT])
 
-        asyncio.run(run_pipeline(
-            tmp_repo,
-            goal="gate-abort",
-            global_vault=tmp_vault,
-            agent_cls=None,
-            checkpoint_handler=handler,
-        ))
+        asyncio.run(
+            run_pipeline(
+                tmp_repo,
+                goal="gate-abort",
+                global_vault=tmp_vault,
+                agent_cls=None,
+                checkpoint_handler=handler,
+            )
+        )
 
         # State should be saved as aborted
         state = PipelineState.load(tmp_repo)
@@ -476,7 +504,12 @@ class TestHandleTaskBreakdown:
         build_graph(tmp_repo, global_vault=tmp_vault)
 
         tasks = [
-            {"task_id": "t1", "title": "alpha implementation", "objective": "", "phase": 1},
+            {
+                "task_id": "t1",
+                "title": "alpha implementation",
+                "objective": "",
+                "phase": 1,
+            },
             {"task_id": "t2", "title": "beta work", "objective": "", "phase": 2},
         ]
 
@@ -499,12 +532,20 @@ class TestHandleTaskBreakdown:
         from akms.orchestrator.wave_dispatch import TaskResult
 
         dispatched_tasks_returned = [
-            {"task_id": "t1", "title": "alpha implementation", "objective": "", "phase": 1},
+            {
+                "task_id": "t1",
+                "title": "alpha implementation",
+                "objective": "",
+                "phase": 1,
+            },
             {"task_id": "t2", "title": "beta work", "objective": "", "phase": 2},
         ]
 
-        async def _mock_dispatch(tasks, agent_cls, config, repo_root, model_override=None):
+        async def _mock_dispatch(
+            tasks, agent_cls, config, repo_root, model_override=None
+        ):
             import frontmatter as fm_mod
+
             results = []
             for task in tasks:
                 task_id = task["task_id"]
@@ -518,15 +559,19 @@ class TestHandleTaskBreakdown:
                 )
                 with open(out_path, "wb") as f:
                     fm_mod.dump(post, f)
-                results.append(TaskResult(
-                    task_id=task_id,
-                    status="complete",
-                    memory_path=str(out_path),
-                    error="",
-                ))
+                results.append(
+                    TaskResult(
+                        task_id=task_id,
+                        status="complete",
+                        memory_path=str(out_path),
+                        error="",
+                    )
+                )
             return results
 
-        monkeypatch.setattr("akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch)
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch
+        )
 
         state = make_state(goal="test")
         # Must pass a non-None agent_cls so the handler dispatches the decomposer
@@ -563,8 +608,13 @@ class TestHandleExecute:
         build_graph(tmp_repo, global_vault=tmp_vault)
 
         tasks = [
-            {"task_id": "t1", "akms_tags": ["test"], "title": "task 1",
-             "available_context": 12345, "phase": 1},
+            {
+                "task_id": "t1",
+                "akms_tags": ["test"],
+                "title": "task 1",
+                "available_context": 12345,
+                "phase": 1,
+            },
         ]
 
         state = make_state(goal="test", current_phase=1)
@@ -599,7 +649,9 @@ class TestHandleExecute:
                 raise AssertionError("orchestrator attempted direct loadout write")
             return builtins.open(path, mode, *args, **kwargs)
 
-        monkeypatch.setattr("akms.orchestrator.orchestrator.generate_loadout", _fake_generate_loadout)
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.generate_loadout", _fake_generate_loadout
+        )
         monkeypatch.setattr(
             "akms.orchestrator.orchestrator.open",
             _fail_direct_open,
@@ -607,8 +659,13 @@ class TestHandleExecute:
         )
 
         tasks = [
-            {"task_id": "t1", "akms_tags": ["test"], "title": "task 1",
-             "available_context": 12345, "phase": 1},
+            {
+                "task_id": "t1",
+                "akms_tags": ["test"],
+                "title": "task 1",
+                "available_context": 12345,
+                "phase": 1,
+            },
         ]
 
         state = make_state(goal="test", current_phase=1)
@@ -619,7 +676,9 @@ class TestHandleExecute:
         assert len(written_paths) == 1
         assert Path(tasks[0]["loadout_path"]).exists()
 
-    def test_execute_prior_phase_pcd_forwarding_is_wrapper_only(self, tmp_vault, tmp_repo, monkeypatch):
+    def test_execute_prior_phase_pcd_forwarding_is_wrapper_only(
+        self, tmp_vault, tmp_repo, monkeypatch
+    ):
         """handle_execute does not forward prior_phase_pcd into task dicts.
 
         Prior PCD forwarding was a wrapper-only feature (execute_phase_pre).
@@ -635,14 +694,21 @@ class TestHandleExecute:
         (sessions_dir / "handoff_phase_1.md").write_text("---\nakms_schema: v2\n---\n")
 
         tasks = [
-            {"task_id": "t2", "akms_tags": ["test"], "title": "task 2",
-             "available_context": 12345, "phase": 2},
+            {
+                "task_id": "t2",
+                "akms_tags": ["test"],
+                "title": "task 2",
+                "available_context": 12345,
+                "phase": 2,
+            },
         ]
 
         state = make_state(goal="test", current_phase=2)
         ctx = make_ctx(tmp_repo, tmp_vault, agent_cls=None)
 
-        stage_output, akms_status, warnings = asyncio.run(handle_execute(state, ctx, tasks=tasks))
+        stage_output, akms_status, warnings = asyncio.run(
+            handle_execute(state, ctx, tasks=tasks)
+        )
 
         # Handler processes the phase; prior_phase_pcd is NOT injected into task dicts
         assert "prior_phase_pcd" not in tasks[0]
@@ -656,7 +722,9 @@ class TestHandleExecute:
         state = make_state(goal="test", current_phase=1)
         ctx = make_ctx(tmp_repo, tmp_vault, agent_cls=None)
 
-        stage_output, akms_status, warnings = asyncio.run(handle_execute(state, ctx, tasks=[]))
+        stage_output, akms_status, warnings = asyncio.run(
+            handle_execute(state, ctx, tasks=[])
+        )
 
         assert "Phase 1" in stage_output
 
@@ -668,10 +736,14 @@ class TestHandleExecute:
         state = make_state(goal="test", current_phase=1)
         ctx = make_ctx(tmp_repo, tmp_vault, agent_cls=None)
 
-        stage_output, akms_status, warnings = asyncio.run(handle_execute(state, ctx, tasks=None))
+        stage_output, akms_status, warnings = asyncio.run(
+            handle_execute(state, ctx, tasks=None)
+        )
         assert "Phase 1" in stage_output
 
-    def test_execute_processes_memories_deterministically(self, tmp_vault, tmp_repo, monkeypatch):
+    def test_execute_processes_memories_deterministically(
+        self, tmp_vault, tmp_repo, monkeypatch
+    ):
         """Memories passed via dispatch results are processed in deterministic order."""
         make_global_node(tmp_vault, id="node-a", tags=["test"])
         build_graph(tmp_repo, global_vault=tmp_vault)
@@ -683,6 +755,7 @@ class TestHandleExecute:
             # call_order now reflects the ordering of `source.tasks` inside
             # the PCD rather than a per-memory call order.
             from akms.schema.models import PCD
+
             if isinstance(source, PCD):
                 for t in source.tasks:
                     call_order.append(t.task_id)
@@ -726,29 +799,55 @@ class TestHandleExecute:
                 "lessons": {"worked": [], "failed": []},
                 "akms_schema": "v2",
             }
-            mp.write_text("---\n" + yaml_mod.dump(memory_data, sort_keys=False) + "---\n")
+            mp.write_text(
+                "---\n" + yaml_mod.dump(memory_data, sort_keys=False) + "---\n"
+            )
 
-        async def _mock_dispatch(tasks, agent_cls, config, repo_root, model_override=None):
+        async def _mock_dispatch(
+            tasks, agent_cls, config, repo_root, model_override=None
+        ):
             return [
-                TaskResult(task_id="task-c", status="complete",
-                           memory_path=str(sessions_dir / "task-c.md"), error=""),
-                TaskResult(task_id="task-a", status="complete",
-                           memory_path=str(sessions_dir / "task-a.md"), error=""),
-                TaskResult(task_id="task-b", status="complete",
-                           memory_path=str(sessions_dir / "task-b.md"), error=""),
+                TaskResult(
+                    task_id="task-c",
+                    status="complete",
+                    memory_path=str(sessions_dir / "task-c.md"),
+                    error="",
+                ),
+                TaskResult(
+                    task_id="task-a",
+                    status="complete",
+                    memory_path=str(sessions_dir / "task-a.md"),
+                    error="",
+                ),
+                TaskResult(
+                    task_id="task-b",
+                    status="complete",
+                    memory_path=str(sessions_dir / "task-b.md"),
+                    error="",
+                ),
             ]
 
-        monkeypatch.setattr("akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch)
-        monkeypatch.setattr("akms.orchestrator.orchestrator.update_graph", _fake_update_graph)
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch
+        )
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.update_graph", _fake_update_graph
+        )
         monkeypatch.setattr(
             "akms.orchestrator.orchestrator.generate_mirror",
             lambda *args, **kwargs: {"files_processed": 0, "drift_warnings": []},
         )
         monkeypatch.setattr(
             "akms.orchestrator.orchestrator.graph_status",
-            lambda *args, **kwargs: {"summary": {}, "degraded_nodes": [], "tentative_nodes": []},
+            lambda *args, **kwargs: {
+                "summary": {},
+                "degraded_nodes": [],
+                "tentative_nodes": [],
+            },
         )
-        monkeypatch.setattr("akms.orchestrator.orchestrator.format_report", lambda _: "ok")
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.format_report", lambda _: "ok"
+        )
 
         tasks = [
             {"task_id": "task-c", "akms_tags": ["test"], "phase": 1},
@@ -757,6 +856,7 @@ class TestHandleExecute:
         ]
 
         from akms.agents.base import AKMSAgent
+
         ctx = make_ctx(tmp_repo, tmp_vault, agent_cls=AKMSAgent)
         state = make_state(goal="test", current_phase=1)
 
@@ -767,7 +867,9 @@ class TestHandleExecute:
         assert state.last_pcd_path
         assert (tmp_repo / state.last_pcd_path).is_file()
 
-    def test_execute_filters_tasks_by_current_phase(self, tmp_vault, tmp_repo, monkeypatch):
+    def test_execute_filters_tasks_by_current_phase(
+        self, tmp_vault, tmp_repo, monkeypatch
+    ):
         """Verifies handle_execute only processes tasks matching the current phase."""
         make_global_node(tmp_vault, id="node-a", tags=["test"])
         build_graph(tmp_repo, global_vault=tmp_vault)
@@ -776,12 +878,17 @@ class TestHandleExecute:
 
         def _fake_update_graph(source, repo_root, config=None, global_vault=None):
             from akms.schema.models import PCD
+
             if isinstance(source, PCD):
                 processed_sources.append(f"phase-{source.phase_id}")
             elif hasattr(source, "task_id"):
-                processed_sources.append(str(getattr(source, "phase_id", "") or source.task_id))
+                processed_sources.append(
+                    str(getattr(source, "phase_id", "") or source.task_id)
+                )
             else:
-                processed_sources.append(str(source.get("phase_id", source.get("task_id", ""))))
+                processed_sources.append(
+                    str(source.get("phase_id", source.get("task_id", "")))
+                )
             return {
                 "confidence_events": [],
                 "propagation_events": [],
@@ -817,25 +924,42 @@ class TestHandleExecute:
             "---\n"
         )
 
-        async def _mock_dispatch(tasks, agent_cls, config, repo_root, model_override=None):
+        async def _mock_dispatch(
+            tasks, agent_cls, config, repo_root, model_override=None
+        ):
             return [
-                TaskResult(task_id="task-phase2", status="complete",
-                           memory_path=str(mp), error=""),
+                TaskResult(
+                    task_id="task-phase2",
+                    status="complete",
+                    memory_path=str(mp),
+                    error="",
+                ),
             ]
 
-        monkeypatch.setattr("akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch)
-        monkeypatch.setattr("akms.orchestrator.orchestrator.update_graph", _fake_update_graph)
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch
+        )
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.update_graph", _fake_update_graph
+        )
         monkeypatch.setattr(
             "akms.orchestrator.orchestrator.generate_mirror",
             lambda *args, **kwargs: {"files_processed": 0, "drift_warnings": []},
         )
         monkeypatch.setattr(
             "akms.orchestrator.orchestrator.graph_status",
-            lambda *args, **kwargs: {"summary": {}, "degraded_nodes": [], "tentative_nodes": []},
+            lambda *args, **kwargs: {
+                "summary": {},
+                "degraded_nodes": [],
+                "tentative_nodes": [],
+            },
         )
-        monkeypatch.setattr("akms.orchestrator.orchestrator.format_report", lambda _: "ok")
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.format_report", lambda _: "ok"
+        )
 
         from akms.agents.base import AKMSAgent
+
         ctx = make_ctx(tmp_repo, tmp_vault, agent_cls=AKMSAgent)
         state = make_state(goal="test", current_phase=2)
 
@@ -846,7 +970,9 @@ class TestHandleExecute:
         #           # "phase-{phase_id}" rather than the raw phase.
         assert processed_sources == ["phase-2"]
 
-    def test_task_breakdown_populates_phase_order_for_execute(self, tmp_vault, tmp_repo):
+    def test_task_breakdown_populates_phase_order_for_execute(
+        self, tmp_vault, tmp_repo
+    ):
         """handle_task_breakdown sets state.phase_order so handle_execute uses correct phase."""
         build_graph(tmp_repo, global_vault=tmp_vault)
 
@@ -896,7 +1022,9 @@ class TestHandleReview:
         from akms.orchestrator.wave_dispatch import TaskResult
         import yaml as yaml_mod
 
-        async def _mock_dispatch(tasks, agent_cls, config, repo_root, model_override=None):
+        async def _mock_dispatch(
+            tasks, agent_cls, config, repo_root, model_override=None
+        ):
             results = []
             for task in tasks:
                 task_id = task["task_id"]
@@ -904,7 +1032,9 @@ class TestHandleReview:
                 out_dir.mkdir(parents=True, exist_ok=True)
                 out_path = out_dir / f"{task_id}.md"
                 memory_data = {
-                    "nodes_used": [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
+                    "nodes_used": [
+                        {"id": "node-a", "useful": True, "coverage": "sufficient"}
+                    ],
                     "pitfalls_discovered": [],
                     "new_knowledge": [],
                     "nodes_missing": [],
@@ -913,12 +1043,14 @@ class TestHandleReview:
                 out_path.write_text(
                     "---\n" + yaml_mod.dump(memory_data, sort_keys=False) + "---\n"
                 )
-                results.append(TaskResult(
-                    task_id=task_id,
-                    status="complete",
-                    memory_path=str(out_path),
-                    error="",
-                ))
+                results.append(
+                    TaskResult(
+                        task_id=task_id,
+                        status="complete",
+                        memory_path=str(out_path),
+                        error="",
+                    )
+                )
             return results
 
         def _fake_update_graph(source, repo_root, config=None, global_vault=None):
@@ -926,10 +1058,15 @@ class TestHandleReview:
             updates.append(role)
             return {}
 
-        monkeypatch.setattr("akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch)
-        monkeypatch.setattr("akms.orchestrator.orchestrator.update_graph", _fake_update_graph)
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch
+        )
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.update_graph", _fake_update_graph
+        )
 
         from akms.agents.base import AKMSAgent
+
         state = make_state(goal="test", current_phase=1)
         ctx = make_ctx(tmp_repo, tmp_vault, agent_cls=AKMSAgent)
 
@@ -937,14 +1074,18 @@ class TestHandleReview:
         # Two reviewers dispatched (code_reviewer and physics_reviewer)
         assert "2/2" in stage_output or "2" in akms_status
 
-    def test_review_parallel_dispatch_is_deterministic_across_runs(self, tmp_vault, tmp_repo, monkeypatch):
+    def test_review_parallel_dispatch_is_deterministic_across_runs(
+        self, tmp_vault, tmp_repo, monkeypatch
+    ):
         make_global_node(tmp_vault, id="node-a", tags=["test"])
         build_graph(tmp_repo, global_vault=tmp_vault)
 
         from akms.orchestrator.wave_dispatch import TaskResult
         import yaml as yaml_mod
 
-        async def _mock_dispatch(tasks, agent_cls, config, repo_root, model_override=None):
+        async def _mock_dispatch(
+            tasks, agent_cls, config, repo_root, model_override=None
+        ):
             results = []
             for task in tasks:
                 task_id = task["task_id"]
@@ -952,7 +1093,9 @@ class TestHandleReview:
                 out_dir.mkdir(parents=True, exist_ok=True)
                 out_path = out_dir / f"{task_id}.md"
                 memory_data = {
-                    "nodes_used": [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
+                    "nodes_used": [
+                        {"id": "node-a", "useful": True, "coverage": "sufficient"}
+                    ],
                     "pitfalls_discovered": [],
                     "new_knowledge": [],
                     "nodes_missing": [],
@@ -961,21 +1104,26 @@ class TestHandleReview:
                 out_path.write_text(
                     "---\n" + yaml_mod.dump(memory_data, sort_keys=False) + "---\n"
                 )
-                results.append(TaskResult(
-                    task_id=task_id,
-                    status="complete",
-                    memory_path=str(out_path),
-                    error="",
-                ))
+                results.append(
+                    TaskResult(
+                        task_id=task_id,
+                        status="complete",
+                        memory_path=str(out_path),
+                        error="",
+                    )
+                )
             return results
 
-        monkeypatch.setattr("akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch)
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch
+        )
         monkeypatch.setattr(
             "akms.orchestrator.orchestrator.update_graph",
             lambda source, repo_root, config=None, global_vault=None: {},
         )
 
         from akms.agents.base import AKMSAgent
+
         ctx = make_ctx(tmp_repo, tmp_vault, agent_cls=AKMSAgent)
 
         state1 = make_state(goal="test", current_phase=1)
@@ -1001,7 +1149,11 @@ class TestHandleFinalize:
         ctx = make_ctx(tmp_repo, tmp_vault)
 
         stage_output, akms_status, warnings = asyncio.run(handle_finalize(state, ctx))
-        assert "complete" in stage_output.lower() or "finalize" in stage_output.lower() or "Pipeline" in stage_output
+        assert (
+            "complete" in stage_output.lower()
+            or "finalize" in stage_output.lower()
+            or "Pipeline" in stage_output
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1084,7 +1236,9 @@ class TestRunSubagent:
                     "new_knowledge": [],
                     "akms_schema": "v2",
                 }
-                post = frontmatter.Post(content="\n## Notes\n\nBridge test.\n", **memory_dict)
+                post = frontmatter.Post(
+                    content="\n## Notes\n\nBridge test.\n", **memory_dict
+                )
                 with open(output_path, "wb") as f:
                     frontmatter.dump(post, f)
 
@@ -1116,6 +1270,7 @@ class TestPersistentZoneHelpers:
     def _make_agent_memory(self, **overrides):
         from datetime import datetime
         from akms.schema.models import AgentMemory, TaskStatus
+
         base = dict(
             task_id="t-1",
             task_description="",
@@ -1132,14 +1287,18 @@ class TestPersistentZoneHelpers:
 
     def test_empty_memory_is_not_persistent(self):
         from akms.orchestrator.orchestrator import _memory_has_persistent_zone
+
         assert _memory_has_persistent_zone(self._make_agent_memory()) is False
 
     def test_nodes_used_triggers_persist(self):
         from akms.orchestrator.orchestrator import _memory_has_persistent_zone
         from akms.schema.models import NodeUsedFeedback
-        m = self._make_agent_memory(nodes_used=[
-            NodeUsedFeedback(id="node-a", useful=True, coverage="sufficient"),
-        ])
+
+        m = self._make_agent_memory(
+            nodes_used=[
+                NodeUsedFeedback(id="node-a", useful=True, coverage="sufficient"),
+            ]
+        )
         assert _memory_has_persistent_zone(m) is True
 
     def test_nodes_missing_triggers_persist(self):
@@ -1147,18 +1306,24 @@ class TestPersistentZoneHelpers:
         handle_review guard)."""
         from akms.orchestrator.orchestrator import _memory_has_persistent_zone
         from akms.schema.models import NodeMissingEntry, Priority
-        m = self._make_agent_memory(nodes_missing=[
-            NodeMissingEntry(
-                description="gap on X", suggested_id="sugg-1",
-                domain="computational_mechanics", priority=Priority.MEDIUM,
-            ),
-        ])
+
+        m = self._make_agent_memory(
+            nodes_missing=[
+                NodeMissingEntry(
+                    description="gap on X",
+                    suggested_id="sugg-1",
+                    domain="computational_mechanics",
+                    priority=Priority.MEDIUM,
+                ),
+            ]
+        )
         assert _memory_has_persistent_zone(m) is True
 
     def test_lessons_worked_triggers_persist(self):
         """C7: lessons.worked must trigger persist."""
         from akms.orchestrator.orchestrator import _memory_has_persistent_zone
         from akms.schema.models import Lessons
+
         m = self._make_agent_memory(lessons=Lessons(worked=["wrote tests first"]))
         assert _memory_has_persistent_zone(m) is True
 
@@ -1166,24 +1331,39 @@ class TestPersistentZoneHelpers:
         """C7: lessons.failed must trigger persist."""
         from akms.orchestrator.orchestrator import _memory_has_persistent_zone
         from akms.schema.models import Lessons, LessonFailed
+
         m = self._make_agent_memory(
-            lessons=Lessons(failed=[
-                LessonFailed(what="skipped TDD", why="fast fix", fix="add tests first"),
-            ]),
+            lessons=Lessons(
+                failed=[
+                    LessonFailed(
+                        what="skipped TDD", why="fast fix", fix="add tests first"
+                    ),
+                ]
+            ),
         )
         assert _memory_has_persistent_zone(m) is True
 
     def test_dict_shape_fallback(self):
         """Legacy dict memories (pre-typing fakes) still work through the helper."""
         from akms.orchestrator.orchestrator import _memory_has_persistent_zone
-        assert _memory_has_persistent_zone({"nodes_used": [{"id": "n", "useful": True}]}) is True
+
+        assert (
+            _memory_has_persistent_zone({"nodes_used": [{"id": "n", "useful": True}]})
+            is True
+        )
         assert _memory_has_persistent_zone({"lessons": {"worked": ["w"]}}) is True
-        assert _memory_has_persistent_zone({"lessons": {"failed": [{"attempt": "a", "reason": "r"}]}}) is True
+        assert (
+            _memory_has_persistent_zone(
+                {"lessons": {"failed": [{"attempt": "a", "reason": "r"}]}}
+            )
+            is True
+        )
         assert _memory_has_persistent_zone({}) is False
         assert _memory_has_persistent_zone({"lessons": {}}) is False
 
     def test_memory_task_id_handles_both_shapes(self):
         from akms.orchestrator.orchestrator import _memory_task_id
+
         m = self._make_agent_memory(task_id="typed-1")
         assert _memory_task_id(m) == "typed-1"
         assert _memory_task_id({"task_id": "dict-1"}) == "dict-1"

@@ -73,13 +73,17 @@ def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-@pytest.mark.parametrize("label,canonical,mirrored", MIRRORS, ids=[m[0] for m in MIRRORS])
+@pytest.mark.parametrize(
+    "label,canonical,mirrored", MIRRORS, ids=[m[0] for m in MIRRORS]
+)
 def test_mirror_trees_exist(label: str, canonical: Path, mirrored: Path) -> None:
     assert canonical.is_dir(), f"canonical {label} tree missing at {canonical}"
     assert mirrored.is_dir(), f"bundled {label} mirror missing at {mirrored}.{_RESYNC}"
 
 
-@pytest.mark.parametrize("label,canonical,mirrored", MIRRORS, ids=[m[0] for m in MIRRORS])
+@pytest.mark.parametrize(
+    "label,canonical,mirrored", MIRRORS, ids=[m[0] for m in MIRRORS]
+)
 def test_mirror_has_same_file_set(label: str, canonical: Path, mirrored: Path) -> None:
     left = set(_relative_files(canonical))
     right = set(_relative_files(mirrored))
@@ -97,8 +101,12 @@ def test_mirror_has_same_file_set(label: str, canonical: Path, mirrored: Path) -
     )
 
 
-@pytest.mark.parametrize("label,canonical,mirrored", MIRRORS, ids=[m[0] for m in MIRRORS])
-def test_mirror_has_identical_content(label: str, canonical: Path, mirrored: Path) -> None:
+@pytest.mark.parametrize(
+    "label,canonical,mirrored", MIRRORS, ids=[m[0] for m in MIRRORS]
+)
+def test_mirror_has_identical_content(
+    label: str, canonical: Path, mirrored: Path
+) -> None:
     left = _relative_files(canonical)
     right = _relative_files(mirrored)
 
@@ -162,8 +170,10 @@ def test_promoted_assets_carry_loadable_frontmatter() -> None:
     import yaml
 
     targets = sorted(
-        [*(_REPO_ROOT / "skills").glob("*/SKILL.md"),
-         *(_REPO_ROOT / "agents").glob("*.md")]
+        [
+            *(_REPO_ROOT / "skills").glob("*/SKILL.md"),
+            *(_REPO_ROOT / "agents").glob("*.md"),
+        ]
     )
     assert targets, "no promoted skills or agents found"
 
@@ -213,7 +223,10 @@ def test_published_assets_do_not_read_from_dot_claude() -> None:
                 if stripped.startswith(">"):
                     continue
                 # install instruction: the internal path is the DESTINATION
-                if any(cmd in line for cmd in ("mkdir ", "cp ", "cp -R", "rsync ", "install ")):
+                if any(
+                    cmd in line
+                    for cmd in ("mkdir ", "cp ", "cp -R", "rsync ", "install ")
+                ):
                     continue
                 offenders.append(f"{path.relative_to(_REPO_ROOT)}:{number}: {stripped}")
 

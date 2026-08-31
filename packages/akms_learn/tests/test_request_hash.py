@@ -86,8 +86,12 @@ class TestRequestHash:
     @pytest.mark.unit
     def test_request_hash_seed_tags_order_invariant(self):
         """Reordering seed_tags or exporters does not change the hash."""
-        a = dict(FIXTURE_REQUEST, seed_tags=["b", "a", "c"], exporters=["markdown", "bundle"])
-        b = dict(FIXTURE_REQUEST, seed_tags=["c", "a", "b"], exporters=["bundle", "markdown"])
+        a = dict(
+            FIXTURE_REQUEST, seed_tags=["b", "a", "c"], exporters=["markdown", "bundle"]
+        )
+        b = dict(
+            FIXTURE_REQUEST, seed_tags=["c", "a", "b"], exporters=["bundle", "markdown"]
+        )
         assert request_hash(normalize_request(a)) == request_hash(normalize_request(b))
 
         # Sanity: the canonical form actually sorted them.
@@ -98,7 +102,11 @@ class TestRequestHash:
     @pytest.mark.unit
     def test_normalize_defaults(self):
         """Missing optional fields receive documented defaults."""
-        minimal = {"topic": "t", "goal": "g", "generation_option": "deterministic_outline"}
+        minimal = {
+            "topic": "t",
+            "goal": "g",
+            "generation_option": "deterministic_outline",
+        }
         canon = normalize_request(minimal)
 
         # Exactly the 11 fields appear.

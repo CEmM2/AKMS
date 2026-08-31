@@ -438,8 +438,7 @@ def multi_granularity_mode(
         selected = explicit
         method = "request"
         rationale = (
-            f"Explicit request.granularity={explicit!r}; convention "
-            f"detection skipped."
+            f"Explicit request.granularity={explicit!r}; convention detection skipped."
         )
     else:
         tag_pick = _detect_from_tags(nodes_tuple)
@@ -492,9 +491,7 @@ def multi_granularity_mode(
                     )
 
     # Apply the granularity-aware filter.
-    kept, dropped = _filter_nodes_by_granularity(
-        default_ordered, nodes_by_id, selected
-    )
+    kept, dropped = _filter_nodes_by_granularity(default_ordered, nodes_by_id, selected)
 
     source_node_ids = sorted(nid for nid in kept if nid in nodes_by_id)
 

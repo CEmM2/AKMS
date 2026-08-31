@@ -40,7 +40,9 @@ class TestReviewBundleClosure:
         traceability_path = _BUNDLE / "traceability.md"
 
         assert lesson_path.exists(), f"generated_lesson.md not found at {lesson_path}"
-        assert traceability_path.exists(), f"traceability.md not found at {traceability_path}"
+        assert traceability_path.exists(), (
+            f"traceability.md not found at {traceability_path}"
+        )
 
         lesson_text = lesson_path.read_text(encoding="utf-8")
         traceability_text = traceability_path.read_text(encoding="utf-8")
@@ -147,13 +149,10 @@ class TestReviewBundleClosure:
             last_pos = 0
             for warning in packet_warnings:
                 msg = warning.get("message", "") if isinstance(warning, dict) else ""
-                assert msg, (
-                    f"packet warning has no 'message' field: {warning!r}"
-                )
+                assert msg, f"packet warning has no 'message' field: {warning!r}"
                 pos = warnings_text.lower().find(msg.lower(), last_pos)
                 assert pos != -1, (
-                    "warnings.md does not contain packet warning message: "
-                    f"{msg!r}"
+                    f"warnings.md does not contain packet warning message: {msg!r}"
                 )
                 last_pos = pos + len(msg)
 

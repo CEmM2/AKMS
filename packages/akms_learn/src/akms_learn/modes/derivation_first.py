@@ -155,7 +155,13 @@ class DerivationFirstResult:
         Includes ``derivation_gap`` and ``cycle_broken`` entries.
     """
 
-    __slots__ = ("ordered_nodes", "role_views", "source_node_ids", "edge_ids", "warnings")
+    __slots__ = (
+        "ordered_nodes",
+        "role_views",
+        "source_node_ids",
+        "edge_ids",
+        "warnings",
+    )
 
     def __init__(
         self,
@@ -283,8 +289,7 @@ def _partition_and_order(
     all_node_ids = list(nodes_by_id.keys())
 
     headings_by_id: dict[str, frozenset[str]] = {
-        nid: _collect_node_headings(nid, nodes_by_id)
-        for nid in all_node_ids
+        nid: _collect_node_headings(nid, nodes_by_id) for nid in all_node_ids
     }
 
     heavy: list[str] = []
@@ -373,9 +378,7 @@ def derivation_first_strategy(
     -------
     (ordered_node_ids, warnings)
     """
-    ordered, warnings, _nodes_by_id, _headings_by_id = _partition_and_order(
-        graph_slice
-    )
+    ordered, warnings, _nodes_by_id, _headings_by_id = _partition_and_order(graph_slice)
     return ordered, warnings
 
 
@@ -414,8 +417,8 @@ def derivation_first_mode(
     # Returns the partitioned + ordered node list along with the indexed
     # maps the mode function needs for role classification + gap lookup.
     # ------------------------------------------------------------------
-    ordered_nodes, all_warnings, nodes_by_id, headings_by_id = (
-        _partition_and_order(graph_slice)
+    ordered_nodes, all_warnings, nodes_by_id, headings_by_id = _partition_and_order(
+        graph_slice
     )
 
     # ------------------------------------------------------------------
@@ -451,13 +454,9 @@ def derivation_first_mode(
     # ------------------------------------------------------------------
     # Provenance lists.
     # ------------------------------------------------------------------
-    source_node_ids = sorted(
-        nid for nid in ordered_nodes if nid in nodes_by_id
-    )
+    source_node_ids = sorted(nid for nid in ordered_nodes if nid in nodes_by_id)
     edge_ids = sorted(
-        str(e.get("edge_id", ""))
-        for e in graph_slice.edges
-        if e.get("edge_id")
+        str(e.get("edge_id", "")) for e in graph_slice.edges if e.get("edge_id")
     )
 
     result = DerivationFirstResult(

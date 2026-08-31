@@ -479,9 +479,7 @@ def validate_publication(
             f"graph node {node_id} has no published generated node file behind it"
         )
     for node_id in sorted(set(published_ids) - set(graph_project_ids)):
-        problems.append(
-            f"published generated node {node_id} is missing from the graph"
-        )
+        problems.append(f"published generated node {node_id} is missing from the graph")
     for node_id in sorted(set(published_ids) & set(graph_project_ids)):
         front = _published_frontmatter(generated / f"{node_id}.md")
         if front is None:
@@ -665,9 +663,7 @@ def validate_fingerprint(
         write_artifacts=False,
     )
     stale = prior.get("fingerprint") != current["fingerprint"] or bool(
-        validate_publication(
-            config_path=config_path, repository_root=repository_root
-        )
+        validate_publication(config_path=config_path, repository_root=repository_root)
     )
     return {
         "status": "stale" if stale else "current",

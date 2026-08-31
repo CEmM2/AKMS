@@ -27,11 +27,7 @@ import pytest
 # Path resolution
 # ---------------------------------------------------------------------------
 
-_SRC_ROOT = (
-    Path(__file__).resolve().parent.parent
-    / "src"
-    / "akms_learn"
-)
+_SRC_ROOT = Path(__file__).resolve().parent.parent / "src" / "akms_learn"
 
 FORBIDDEN_COMPANIONS: frozenset[str] = frozenset(
     {"constkit", "mechdsl", "symbolic_fem_workbench"}
@@ -99,8 +95,8 @@ def test_scan_is_restricted_to_import_nodes() -> None:
         '"""docstring mentioning constkit, mechdsl, symbolic_fem_workbench"""\n'
         'package_names = ("constkit", "mechdsl", "symbolic_fem_workbench")\n'
         'msg = f"import {package_names[0]!r}"\n'
-        'import os\n'
-        'from pathlib import Path\n'
+        "import os\n"
+        "from pathlib import Path\n"
     )
     tree = ast.parse(sample_source)
     hits = _scan_imports(tree)

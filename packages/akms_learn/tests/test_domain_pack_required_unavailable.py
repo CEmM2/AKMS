@@ -58,6 +58,7 @@ def test_cli_required_unavailable_exit_code_3(tmp_path: Path) -> None:
     :class:`LearningCapabilityError`. This validates the CLI's exception
     translation contract (exit code 3) without coupling to a future flag.
     """
+
     def _raise(**_kwargs: object) -> None:
         raise LearningCapabilityError(
             f"Required capability/capabilities unavailable: "

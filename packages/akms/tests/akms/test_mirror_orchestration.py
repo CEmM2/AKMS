@@ -11,7 +11,11 @@ import pytest
 from akms.cli.commands import build_parser, main
 from akms.graph.generate_mirror import generate_mirror
 from akms.graph.graph_status import format_report, graph_status
-from akms.graph.mirror_provider import MirrorProviderError, register_provider, unregister_provider
+from akms.graph.mirror_provider import (
+    MirrorProviderError,
+    register_provider,
+    unregister_provider,
+)
 from akms.schema.models import MirrorConfig, PropagationConfig
 
 
@@ -79,6 +83,7 @@ class TestOrchestratorMirrorWiring:
         Full handle_execute wiring is covered by e2e agent-mode tests that patch
         generate_mirror; here we assert the policy contract the orchestrator relies on.
         """
+
         class Boom:
             name = "orch-boom2"
 

@@ -53,7 +53,9 @@ class TestInitTelemetry:
         """
         _reset_globals()
         exporter = InMemorySpanExporter()
-        init_telemetry(service_name="akms-test", export_console=False, span_exporter=exporter)
+        init_telemetry(
+            service_name="akms-test", export_console=False, span_exporter=exporter
+        )
 
         assert telemetry._provider is not None
         assert telemetry._tracer is not None
@@ -64,9 +66,13 @@ class TestInitTelemetry:
         """Verifies: Multiple calls to init_telemetry() do not error."""
         _reset_globals()
         exporter = InMemorySpanExporter()
-        init_telemetry(service_name="akms-test", export_console=False, span_exporter=exporter)
+        init_telemetry(
+            service_name="akms-test", export_console=False, span_exporter=exporter
+        )
         # Second call should not raise
-        init_telemetry(service_name="akms-test2", export_console=False, span_exporter=exporter)
+        init_telemetry(
+            service_name="akms-test2", export_console=False, span_exporter=exporter
+        )
         exporter.clear()
 
     @pytest.mark.unit

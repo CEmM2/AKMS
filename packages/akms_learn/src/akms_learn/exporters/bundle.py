@@ -238,8 +238,7 @@ def export(
         {
             "nodes": [n.model_dump(mode="json") for n in packet.body.nodes],
             "edges": [
-                e.model_dump(by_alias=True, mode="json")
-                for e in packet.body.edges
+                e.model_dump(by_alias=True, mode="json") for e in packet.body.edges
             ],
         }
     )
@@ -273,9 +272,7 @@ def export(
         }
     )
 
-    warnings_text = _dump_json(
-        [w.model_dump(mode="json") for w in packet.warnings]
-    )
+    warnings_text = _dump_json([w.model_dump(mode="json") for w in packet.warnings])
 
     # Artifact filenames (relative to out_dir), sorted alphabetically.
     artifact_names = sorted(

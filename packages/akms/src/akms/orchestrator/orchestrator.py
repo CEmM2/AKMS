@@ -137,8 +137,6 @@ class PipelineContext:
 HandlerResult = tuple[str, str, list[str]]
 
 
-
-
 def normalize_task_envelope(task: dict[str, Any]) -> dict[str, Any]:
     """Ensure AKMS envelope keys are present with normalized shapes.
 

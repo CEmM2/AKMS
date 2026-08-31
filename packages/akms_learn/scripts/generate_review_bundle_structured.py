@@ -170,7 +170,10 @@ _MODE_SPECS: dict[str, dict[str, Any]] = {
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _build_request(*, mode: str, topic: str, goal: str, exporters: tuple[str, ...]) -> LearningRequest:
+
+def _build_request(
+    *, mode: str, topic: str, goal: str, exporters: tuple[str, ...]
+) -> LearningRequest:
     """Build a deterministic LearningRequest for *mode*.
 
     No timestamps, no random ids — the request is hash-stable across runs.
@@ -184,6 +187,7 @@ def _build_request(*, mode: str, topic: str, goal: str, exporters: tuple[str, ..
         seed_tags=[],
         exporters=list(exporters),
     )
+
 
 def _run_mode(*, mode: str, output_dir: Path) -> LearningSourcePacket:
     """Invoke ``compile_learning_source`` for *mode* into *output_dir*.
@@ -208,6 +212,7 @@ def _run_mode(*, mode: str, output_dir: Path) -> LearningSourcePacket:
     )
     return result.packet
 
+
 def _read_artifact(mode_dir: Path, filename: str) -> bytes:
     """Read an exporter artifact from *mode_dir* as raw bytes."""
     path = mode_dir / filename
@@ -217,9 +222,11 @@ def _read_artifact(mode_dir: Path, filename: str) -> bytes:
         )
     return path.read_bytes()
 
+
 def _packet_to_payload(packet: LearningSourcePacket) -> dict[str, Any]:
     """Return the canonical JSON-mode dump of *packet*."""
     return packet.model_dump(by_alias=True, mode="json")
+
 
 def _compose_source_packet(
     mode_packets: dict[str, LearningSourcePacket],
@@ -237,9 +244,11 @@ def _compose_source_packet(
         payload["modes"][mode] = _packet_to_payload(mode_packets[mode])
     return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
+
 def _md_escape_pipe(text: str) -> str:
     """Escape pipe characters so *text* is safe inside a markdown table cell."""
     return text.replace("|", "\\|")
+
 
 def _node_map(packet: LearningSourcePacket) -> dict[str, tuple[str, str]]:
     """Map node_id -> (source_path, line_range_str) for a packet."""
@@ -251,6 +260,7 @@ def _node_map(packet: LearningSourcePacket) -> dict[str, tuple[str, str]]:
         lr_str = f"{lr[0]}-{lr[1]}" if lr and len(lr) == 2 else ""
         result[nid] = (sp, lr_str)
     return result
+
 
 def _node_section_label(packet: LearningSourcePacket, node_id: str) -> str:
     """Return the generated-section label for *node_id* in *packet*.
@@ -271,6 +281,7 @@ def _node_section_label(packet: LearningSourcePacket, node_id: str) -> str:
             return title
         break
     return node_id
+
 
 def _build_traceability(
     mode_packets: dict[str, LearningSourcePacket],
@@ -304,8 +315,7 @@ def _build_traceability(
         "Generated directly from the per-mode LearningSourcePackets -- never "
         "hand-written.",
         "",
-        "Plan ref: the internal plan; "
-        "task ref: the internal plan.",
+        "Plan ref: the internal plan; task ref: the internal plan.",
         "",
         "| mode | section | source_node_ids | source |",
         "| --- | --- | --- | --- |",
@@ -334,6 +344,7 @@ def _build_traceability(
     lines.extend(rows)
     lines.append("")
     return "\n".join(lines)
+
 
 def _aggregate_warnings(
     mode_packets: dict[str, LearningSourcePacket],
@@ -372,6 +383,7 @@ def _aggregate_warnings(
     aggregated.sort(key=lambda w: (w["code"], w["source_ref"], w["message"]))
     return aggregated
 
+
 def _build_warnings(
     mode_packets: dict[str, LearningSourcePacket],
 ) -> str:
@@ -394,8 +406,7 @@ def _build_warnings(
         "One entry per unique (code, source_ref, message) triple.",
         "Mirrors the ``warnings`` field in ``manifest.json``.",
         "",
-        "Plan ref: the internal plan; "
-        "task ref: the internal plan.",
+        "Plan ref: the internal plan; task ref: the internal plan.",
         "",
     ]
 
@@ -411,6 +422,7 @@ def _build_warnings(
 
     lines.append("")
     return "\n".join(lines)
+
 
 def _build_feedback_form() -> str:
     """Return the verbatim feedback-form seed for feedback_form.md.
@@ -462,6 +474,7 @@ def _build_feedback_form() -> str:
         "- [ ] ...\n"
     )
 
+
 def _build_unavailable_capabilities_md(
     unavailable: list[dict[str, str]],
 ) -> str:
@@ -492,8 +505,7 @@ def _build_unavailable_capabilities_md(
         "Mirrors the ``unavailable_capabilities`` field in ``manifest.json`` "
         "(sorted by capability).",
         "",
-        "Plan ref: the internal plan; "
-        "task ref: the internal plan.",
+        "Plan ref: the internal plan; task ref: the internal plan.",
         "",
     ]
 
@@ -510,6 +522,7 @@ def _build_unavailable_capabilities_md(
 
     lines.append("")
     return "\n".join(lines)
+
 
 def _build_closure_md() -> str:
     """Write CLOSURE.md with the closure rule verbatim + gate conditions.
@@ -553,7 +566,7 @@ def _build_closure_md() -> str:
         "2. **Bundle is ready for external review** -- all eight "
         "artifacts are present in "
         f"`artifacts/review_bundles/{PLAN_ID}/` and `manifest.status` is "
-        "`\"review_bundle_generated\"`.\n"
+        '`"review_bundle_generated"`.\n'
         "3. **Feedback is incorporated** -- reviewer feedback recorded in "
         "`feedback_form.md` has been:\n"
         "   - incorporated into the bundle, OR\n"
@@ -564,7 +577,7 @@ def _build_closure_md() -> str:
         "\n"
         "## Current status\n"
         "\n"
-        "`manifest.status` is locked to `\"review_bundle_generated\"` by the "
+        '`manifest.status` is locked to `"review_bundle_generated"` by the '
         f"generator. No automated path may write the `{closed_status}` status "
         "to the manifest -- an AST canary test guards this. Transitioning to "
         f"`{closed_status}` is a **manual** developer action, gated on the "
@@ -578,6 +591,7 @@ def _build_closure_md() -> str:
         "Plan ref: the internal plan; "
         "task ref: the internal plan.\n"
     )
+
 
 def _build_manifest(
     mode_packets: dict[str, LearningSourcePacket],
@@ -605,6 +619,7 @@ def _build_manifest(
         "unavailable_capabilities": unavailable_capabilities(gate),
     }
 
+
 def _build_regenerate_sh() -> str:
     """Return the text of ``regenerate.sh``.
 
@@ -621,22 +636,22 @@ def _build_regenerate_sh() -> str:
         "# Generator: packages/akms_learn/scripts/generate_review_bundle_structured.py\n"
         "set -euo pipefail\n"
         "\n"
-        "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n"
-        "REPO_ROOT=\"$(cd \"${SCRIPT_DIR}/../../..\" && pwd)\"\n"
-        "cd \"${REPO_ROOT}\"\n"
+        'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+        'REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"\n'
+        'cd "${REPO_ROOT}"\n'
         "\n"
         "export PYTHONHASHSEED=0\n"
         "\n"
         "uv run --package akms-learn python \\\n"
         "    packages/akms_learn/scripts/generate_review_bundle_structured.py \\\n"
-        "    --output \"${REPO_ROOT}/artifacts/review_bundles/"
-        + PLAN_ID
-        + "\"\n"
+        '    --output "${REPO_ROOT}/artifacts/review_bundles/' + PLAN_ID + '"\n'
     )
+
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
 
 def generate_review_bundle_structured(
     output_dir: Path,
@@ -704,9 +719,7 @@ def generate_review_bundle_structured(
         #    so the two surfaces can never drift.
         manifest_payload = _build_manifest(mode_packets)
         manifest_text = (
-            json.dumps(
-                manifest_payload, indent=2, sort_keys=True, ensure_ascii=False
-            )
+            json.dumps(manifest_payload, indent=2, sort_keys=True, ensure_ascii=False)
             + "\n"
         )
         unavailable_caps_text = _build_unavailable_capabilities_md(
@@ -726,9 +739,7 @@ def generate_review_bundle_structured(
             "manifest.json": output_dir / "manifest.json",
             "regenerate.sh": output_dir / "regenerate.sh",
             # Bundle-root siblings — NOT in BUNDLE_ARTIFACTS / manifest.artifacts.
-            "unavailable_capabilities.md": (
-                output_dir / "unavailable_capabilities.md"
-            ),
+            "unavailable_capabilities.md": (output_dir / "unavailable_capabilities.md"),
             "CLOSURE.md": output_dir / "CLOSURE.md",
         }
 
@@ -736,16 +747,12 @@ def generate_review_bundle_structured(
         written["generated_preview.html"].write_bytes(preview_bytes)
         written["assessment.md"].write_bytes(assessment_bytes)
         written["rubric.md"].write_bytes(rubric_bytes)
-        written["source_packet.json"].write_text(
-            source_packet_text, encoding="utf-8"
-        )
+        written["source_packet.json"].write_text(source_packet_text, encoding="utf-8")
         written["traceability.md"].write_text(traceability_text, encoding="utf-8")
         written["warnings.md"].write_text(warnings_text, encoding="utf-8")
         written["feedback_form.md"].write_text(feedback_text, encoding="utf-8")
         written["manifest.json"].write_text(manifest_text, encoding="utf-8")
-        written["regenerate.sh"].write_text(
-            _build_regenerate_sh(), encoding="utf-8"
-        )
+        written["regenerate.sh"].write_text(_build_regenerate_sh(), encoding="utf-8")
         written["regenerate.sh"].chmod(0o755)
         written["unavailable_capabilities.md"].write_text(
             unavailable_caps_text, encoding="utf-8"
@@ -756,6 +763,7 @@ def generate_review_bundle_structured(
     finally:
         if cleanup_work_dir:
             shutil.rmtree(work_dir, ignore_errors=True)
+
 
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point used by ``regenerate.sh``."""
@@ -788,6 +796,7 @@ def main(argv: list[str] | None = None) -> int:
     for name, path in written.items():
         print(f"{name}: {path}")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

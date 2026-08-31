@@ -41,17 +41,28 @@ def repo_a(tmp_path):
     repo = tmp_path / "repo_a"
     repo.mkdir()
     knowledge = repo / "knowledge"
-    for subdir in ["graph", "local-nodes", "sessions", "loadouts", "code-mirror", "qmd"]:
+    for subdir in [
+        "graph",
+        "local-nodes",
+        "sessions",
+        "loadouts",
+        "code-mirror",
+        "qmd",
+    ]:
         (knowledge / subdir).mkdir(parents=True)
     overlay_path = knowledge / "graph" / "local_state.yaml"
-    overlay_path.write_text(yaml.dump({
-        "akms_schema": "v2",
-        "repo_id": "repo-a",
-        "nodes": {},
-        "local_edges": [],
-        "session_nodes": {},
-        "suppressed_edges": [],
-    }))
+    overlay_path.write_text(
+        yaml.dump(
+            {
+                "akms_schema": "v2",
+                "repo_id": "repo-a",
+                "nodes": {},
+                "local_edges": [],
+                "session_nodes": {},
+                "suppressed_edges": [],
+            }
+        )
+    )
     return repo
 
 
@@ -61,17 +72,28 @@ def repo_b(tmp_path):
     repo = tmp_path / "repo_b"
     repo.mkdir()
     knowledge = repo / "knowledge"
-    for subdir in ["graph", "local-nodes", "sessions", "loadouts", "code-mirror", "qmd"]:
+    for subdir in [
+        "graph",
+        "local-nodes",
+        "sessions",
+        "loadouts",
+        "code-mirror",
+        "qmd",
+    ]:
         (knowledge / subdir).mkdir(parents=True)
     overlay_path = knowledge / "graph" / "local_state.yaml"
-    overlay_path.write_text(yaml.dump({
-        "akms_schema": "v2",
-        "repo_id": "repo-b",
-        "nodes": {},
-        "local_edges": [],
-        "session_nodes": {},
-        "suppressed_edges": [],
-    }))
+    overlay_path.write_text(
+        yaml.dump(
+            {
+                "akms_schema": "v2",
+                "repo_id": "repo-b",
+                "nodes": {},
+                "local_edges": [],
+                "session_nodes": {},
+                "suppressed_edges": [],
+            }
+        )
+    )
     return repo
 
 
@@ -95,18 +117,32 @@ class TestMultiRepoIsolation:
 
         # Repo-A: boost (useful)
         update_graph(
-            {"nodes_used": [{"id": "node-x", "useful": True, "coverage": "sufficient"}],
-             "pitfalls_discovered": [], "new_knowledge": [], "nodes_missing": [],
-             "lessons": {"worked": [], "failed": []}},
-            repo_a, global_vault=shared_vault,
+            {
+                "nodes_used": [
+                    {"id": "node-x", "useful": True, "coverage": "sufficient"}
+                ],
+                "pitfalls_discovered": [],
+                "new_knowledge": [],
+                "nodes_missing": [],
+                "lessons": {"worked": [], "failed": []},
+            },
+            repo_a,
+            global_vault=shared_vault,
         )
 
         # Repo-B: decay (outdated)
         update_graph(
-            {"nodes_used": [{"id": "node-x", "useful": True, "coverage": "outdated"}],
-             "pitfalls_discovered": [], "new_knowledge": [], "nodes_missing": [],
-             "lessons": {"worked": [], "failed": []}},
-            repo_b, global_vault=shared_vault,
+            {
+                "nodes_used": [
+                    {"id": "node-x", "useful": True, "coverage": "outdated"}
+                ],
+                "pitfalls_discovered": [],
+                "new_knowledge": [],
+                "nodes_missing": [],
+                "lessons": {"worked": [], "failed": []},
+            },
+            repo_b,
+            global_vault=shared_vault,
         )
 
         # Load both graphs
@@ -125,15 +161,24 @@ class TestMultiRepoIsolation:
         """Global node files remain byte-identical after update_graph."""
         monkeypatch.setenv("AKMS_GLOBAL_VAULT", str(shared_vault))
 
-        node_path = make_global_node(shared_vault, id="node-x", confidence=0.90, tags=["test"])
+        node_path = make_global_node(
+            shared_vault, id="node-x", confidence=0.90, tags=["test"]
+        )
         hash_before = _file_hash(node_path)
 
         build_graph(repo_a, global_vault=shared_vault)
         update_graph(
-            {"nodes_used": [{"id": "node-x", "useful": True, "coverage": "missing-detail"}],
-             "pitfalls_discovered": [], "new_knowledge": [], "nodes_missing": [],
-             "lessons": {"worked": [], "failed": []}},
-            repo_a, global_vault=shared_vault,
+            {
+                "nodes_used": [
+                    {"id": "node-x", "useful": True, "coverage": "missing-detail"}
+                ],
+                "pitfalls_discovered": [],
+                "new_knowledge": [],
+                "nodes_missing": [],
+                "lessons": {"worked": [], "failed": []},
+            },
+            repo_a,
+            global_vault=shared_vault,
         )
 
         hash_after = _file_hash(node_path)
@@ -150,14 +195,21 @@ class TestMultiRepoIsolation:
 
         # Add pitfall in Repo-A
         update_graph(
-            {"nodes_used": [], "new_knowledge": [], "nodes_missing": [],
-             "lessons": {"worked": [], "failed": []},
-             "pitfalls_discovered": [{
-                 "node_ref": "node-x",
-                 "description": "gotcha in repo-a",
-                 "severity": "high",
-             }]},
-            repo_a, global_vault=shared_vault,
+            {
+                "nodes_used": [],
+                "new_knowledge": [],
+                "nodes_missing": [],
+                "lessons": {"worked": [], "failed": []},
+                "pitfalls_discovered": [
+                    {
+                        "node_ref": "node-x",
+                        "description": "gotcha in repo-a",
+                        "severity": "high",
+                    }
+                ],
+            },
+            repo_a,
+            global_vault=shared_vault,
         )
 
         # Rebuild Repo-B graph
@@ -165,20 +217,20 @@ class TestMultiRepoIsolation:
 
         # Check Repo-B has no pitfall edges
         pitfall_edges = [
-            (u, v) for u, v, d in G_b.edges(data=True)
-            if d.get("type") == "pitfall"
+            (u, v) for u, v, d in G_b.edges(data=True) if d.get("type") == "pitfall"
         ]
         assert pitfall_edges == []
 
         # Repo-A should have the pitfall
         G_a = load_graph(repo_a / "knowledge" / "graph" / "graph.json")
         pitfall_edges_a = [
-            (u, v) for u, v, d in G_a.edges(data=True)
-            if d.get("type") == "pitfall"
+            (u, v) for u, v, d in G_a.edges(data=True) if d.get("type") == "pitfall"
         ]
         assert len(pitfall_edges_a) >= 1
 
-    def test_different_loadouts_same_tags(self, shared_vault, repo_a, repo_b, monkeypatch):
+    def test_different_loadouts_same_tags(
+        self, shared_vault, repo_a, repo_b, monkeypatch
+    ):
         """Same tags produce different loadouts when overlay states differ."""
         monkeypatch.setenv("AKMS_GLOBAL_VAULT", str(shared_vault))
 

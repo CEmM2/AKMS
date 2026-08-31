@@ -182,9 +182,7 @@ class TestThreeFilesEmitted:
         assert names == ["assessment.json", "assessment.md", "rubric.md"]
 
     @pytest.mark.unit
-    def test_export_returns_three_paths_in_deterministic_order(
-        self, tmp_path: Path
-    ):
+    def test_export_returns_three_paths_in_deterministic_order(self, tmp_path: Path):
         packet = _make_packet(
             items=[
                 _make_item_dict(
@@ -209,9 +207,7 @@ class TestCanaryHiddenAnswerSeparation:
     """Hidden_answer content never appears in assessment.md / assessment.json."""
 
     @pytest.mark.unit
-    def test_canary_hidden_answer_absent_from_public_files(
-        self, tmp_path: Path
-    ):
+    def test_canary_hidden_answer_absent_from_public_files(self, tmp_path: Path):
         """Generate public files and substring-check for every hidden answer."""
         packet = _make_packet(
             items=[
@@ -272,7 +268,11 @@ class TestCanaryHiddenAnswerSeparation:
         md = (tmp_path / "assessment.md").read_bytes()
         js = (tmp_path / "assessment.json").read_bytes()
         rubric = (tmp_path / "rubric.md").read_bytes()
-        for blob, name in ((md, "assessment.md"), (js, "assessment.json"), (rubric, "rubric.md")):
+        for blob, name in (
+            (md, "assessment.md"),
+            (js, "assessment.json"),
+            (rubric, "rubric.md"),
+        ):
             assert leak_sentinel.encode("utf-8") not in blob, (
                 f"Synthetic secret leaked into {name}"
             )
@@ -314,9 +314,18 @@ class TestRubricSorted:
         # Deliberately unsorted input.
         packet = _make_packet(
             items=[
-                _make_item_dict("zeta::coding", kind="coding", prompt="zp", hidden_answer="Z-ans"),
-                _make_item_dict("alpha::conceptual", prompt="ap", hidden_answer="A-ans"),
-                _make_item_dict("mu::derivation", kind="derivation", prompt="mp", hidden_answer="M-ans"),
+                _make_item_dict(
+                    "zeta::coding", kind="coding", prompt="zp", hidden_answer="Z-ans"
+                ),
+                _make_item_dict(
+                    "alpha::conceptual", prompt="ap", hidden_answer="A-ans"
+                ),
+                _make_item_dict(
+                    "mu::derivation",
+                    kind="derivation",
+                    prompt="mp",
+                    hidden_answer="M-ans",
+                ),
             ]
         )
         _run_export(packet, tmp_path)
@@ -328,13 +337,15 @@ class TestRubricSorted:
         assert idx_alpha < idx_mu < idx_zeta
 
     @pytest.mark.unit
-    def test_rubric_only_includes_items_with_hidden_answer(
-        self, tmp_path: Path
-    ):
+    def test_rubric_only_includes_items_with_hidden_answer(self, tmp_path: Path):
         packet = _make_packet(
             items=[
-                _make_item_dict("alpha::conceptual", hidden_answer=ANSWER_SENTINEL_ALPHA),
-                _make_item_dict("beta::derivation", kind="derivation", hidden_answer=None),
+                _make_item_dict(
+                    "alpha::conceptual", hidden_answer=ANSWER_SENTINEL_ALPHA
+                ),
+                _make_item_dict(
+                    "beta::derivation", kind="derivation", hidden_answer=None
+                ),
                 _make_item_dict("gamma::coding", kind="coding", hidden_answer=""),
             ]
         )
@@ -345,13 +356,13 @@ class TestRubricSorted:
         assert "## gamma::coding" not in rubric
 
     @pytest.mark.unit
-    def test_rubric_with_no_hidden_answers_writes_header_only(
-        self, tmp_path: Path
-    ):
+    def test_rubric_with_no_hidden_answers_writes_header_only(self, tmp_path: Path):
         packet = _make_packet(
             items=[
                 _make_item_dict("alpha::conceptual", hidden_answer=None),
-                _make_item_dict("beta::derivation", kind="derivation", hidden_answer=""),
+                _make_item_dict(
+                    "beta::derivation", kind="derivation", hidden_answer=""
+                ),
             ]
         )
         _run_export(packet, tmp_path)
@@ -410,8 +421,7 @@ class TestDisablement:
         # No assessment-prefixed file on disk.
         produced_names = {p.name for p in result.export_paths}
         assert not any(
-            n.startswith("assessment.") or n == "rubric.md"
-            for n in produced_names
+            n.startswith("assessment.") or n == "rubric.md" for n in produced_names
         )
         # And no orphan files in tmp_path either.
         on_disk = {p.name for p in tmp_path.iterdir()}

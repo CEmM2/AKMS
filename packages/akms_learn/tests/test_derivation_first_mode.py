@@ -332,7 +332,9 @@ class TestDeterminism:
         gs = fixture_graph_toy_derivation_gap()
         o1, _ = _run_strategy(gs)
         o2, _ = _run_strategy(gs)
-        assert o1 == o2, f"Strategy order differs between runs:\nRun 1: {o1}\nRun 2: {o2}"
+        assert o1 == o2, (
+            f"Strategy order differs between runs:\nRun 1: {o1}\nRun 2: {o2}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -399,7 +401,11 @@ class TestRoleInLessonLSPOnly:
         for rv in result.role_views:
             assert isinstance(rv, NodeLessonRoleView)
             assert rv.role_in_lesson in (
-                "assumption", "definition", "derivation_step", "result", "gap"
+                "assumption",
+                "definition",
+                "derivation_step",
+                "result",
+                "gap",
             )
         # Graph nodes carry no role info.
         for node in gs.nodes:
@@ -563,6 +569,7 @@ class TestConstants:
 
     def test_derivation_heavy_headings_are_subset_of_approved(self):
         from akms_learn.section_extraction import APPROVED_HEADINGS
+
         for h in DERIVATION_HEAVY_HEADINGS:
             assert h in APPROVED_HEADINGS, (
                 f"DERIVATION_HEAVY_HEADINGS contains {h!r} which is not "
@@ -571,6 +578,7 @@ class TestConstants:
 
     def test_implementation_headings_are_subset_of_approved(self):
         from akms_learn.section_extraction import APPROVED_HEADINGS
+
         for h in IMPLEMENTATION_HEADINGS:
             assert h in APPROVED_HEADINGS, (
                 f"IMPLEMENTATION_HEADINGS contains {h!r} which is not "

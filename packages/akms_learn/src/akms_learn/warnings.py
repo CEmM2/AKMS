@@ -80,9 +80,7 @@ class WarningAccumulator:
         return iter(self._warnings)
 
 
-def emit_missing_section_warning(
-    node_id: str, section_name: str
-) -> LearningWarning:
+def emit_missing_section_warning(node_id: str, section_name: str) -> LearningWarning:
     """Build a soft warning for a node missing an optional teaching section.
 
     Used by the Phase 3 extractors when a node lacks ``prerequisites`` /

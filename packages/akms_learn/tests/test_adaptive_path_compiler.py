@@ -195,17 +195,21 @@ class TestLearnerProfileModel:
     def test_request_field_excluded_from_normalized_fields(self):
         """learner_profile is not in NORMALIZED_FIELDS (excluded from hash)."""
         from akms_learn.requests import NORMALIZED_FIELDS
+
         assert "learner_profile" not in NORMALIZED_FIELDS
 
     @pytest.mark.unit
     def test_two_requests_same_hash_different_profiles(self):
         """Requests differing only in learner_profile produce the same hash."""
         from akms_learn.requests import normalize_request, request_hash
+
         req1 = _make_request(profile=None)
         req2 = _make_request(
             profile=LearnerProfile(knows=("alpha",), conservative_mode=False)
         )
-        assert request_hash(normalize_request(req1)) == request_hash(normalize_request(req2))
+        assert request_hash(normalize_request(req1)) == request_hash(
+            normalize_request(req2)
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -242,16 +246,19 @@ class TestConservativeModeSkipsNothing:
         assert len(result.active_nodes) == 3
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("knows", [
-        (),
-        ("tag_a",),
-        ("tag_a", "tag_x"),
-        ("tag_a", "tag_x", "tag_b", "tag_y"),
-        ("tag_a", "tag_x", "tag_b", "tag_y", "tag_c"),
-        ("prereq_a",),
-        ("prereq_a", "prereq_b"),
-        ("prereq_a", "prereq_b", "target_c"),
-    ])
+    @pytest.mark.parametrize(
+        "knows",
+        [
+            (),
+            ("tag_a",),
+            ("tag_a", "tag_x"),
+            ("tag_a", "tag_x", "tag_b", "tag_y"),
+            ("tag_a", "tag_x", "tag_b", "tag_y", "tag_c"),
+            ("prereq_a",),
+            ("prereq_a", "prereq_b"),
+            ("prereq_a", "prereq_b", "target_c"),
+        ],
+    )
     def test_conservative_mode_fuzz(self, knows):
         """Fuzz: any knows list with conservative=True produces zero skips."""
         graph, ordered = _simple_graph_with_prereqs()
@@ -438,7 +445,9 @@ class TestUnmatchedClaimWarnings:
         with _gate_open():
             result, warnings = adaptive_path_mode(graph, ordered, req)
 
-        unmatched = [w for w in warnings if w.code == "adaptive_learner_claim_unmatched"]
+        unmatched = [
+            w for w in warnings if w.code == "adaptive_learner_claim_unmatched"
+        ]
         assert unmatched == []
 
     @pytest.mark.unit
@@ -450,7 +459,9 @@ class TestUnmatchedClaimWarnings:
         with _gate_open():
             result, warnings = adaptive_path_mode(graph, ordered, req)
 
-        unmatched = [w for w in warnings if w.code == "adaptive_learner_claim_unmatched"]
+        unmatched = [
+            w for w in warnings if w.code == "adaptive_learner_claim_unmatched"
+        ]
         assert unmatched == []
 
     @pytest.mark.unit
@@ -462,7 +473,9 @@ class TestUnmatchedClaimWarnings:
         with _gate_open():
             result, warnings = adaptive_path_mode(graph, ordered, req)
 
-        unmatched = [w for w in warnings if w.code == "adaptive_learner_claim_unmatched"]
+        unmatched = [
+            w for w in warnings if w.code == "adaptive_learner_claim_unmatched"
+        ]
         assert len(unmatched) == 1
         # source_ref encodes both the claim type and the normalised (lowercased) claim,
         # so downstream consumers can recover both without parsing the message.
@@ -487,7 +500,9 @@ class TestUnmatchedClaimWarnings:
         with _gate_open():
             result, warnings = adaptive_path_mode(graph, ordered, req)
 
-        unmatched = [w for w in warnings if w.code == "adaptive_learner_claim_unmatched"]
+        unmatched = [
+            w for w in warnings if w.code == "adaptive_learner_claim_unmatched"
+        ]
         refs = sorted(w.source_ref for w in unmatched)
         assert refs == ["knows::alien_concept", "weak::alien_concept"]
 
@@ -519,7 +534,9 @@ class TestDeterminism:
             # regression (e.g. dict-iteration order in a node copy) is caught.
             "lesson_body": result.lesson_body,
         }
-        return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
 
     @pytest.mark.unit
     def test_same_profile_same_graph_byte_identical(self):
@@ -724,6 +741,7 @@ class TestRegistryAndPlugin:
     def test_strategy_uses_default_ordering(self):
         """adaptive_path strategy produces the same ordering as order_nodes."""
         from akms_learn.ordering import order_nodes
+
         graph, _ = _simple_graph_with_prereqs()
         strategy = get_strategy("adaptive_path")
         strategy_nodes, strategy_warnings = strategy(graph)
@@ -744,7 +762,14 @@ class TestSourceCanary:
         """adaptive_path.py source does not call exec/eval/subprocess/%run/nbclient."""
         import re
         from pathlib import Path
-        src_path = Path(__file__).parent.parent / "src" / "akms_learn" / "modes" / "adaptive_path.py"
+
+        src_path = (
+            Path(__file__).parent.parent
+            / "src"
+            / "akms_learn"
+            / "modes"
+            / "adaptive_path.py"
+        )
         src = src_path.read_text(encoding="utf-8")
         # Check for actual call/import syntax — not bare word mentions in docstrings.
         # subprocess: check for import or attribute-call syntax (subprocess.run, etc.)
@@ -767,7 +792,14 @@ class TestSourceCanary:
         """Check source for unsorted set-to-list coercions (spot check)."""
         import ast
         from pathlib import Path
-        src_path = Path(__file__).parent.parent / "src" / "akms_learn" / "modes" / "adaptive_path.py"
+
+        src_path = (
+            Path(__file__).parent.parent
+            / "src"
+            / "akms_learn"
+            / "modes"
+            / "adaptive_path.py"
+        )
         src = src_path.read_text(encoding="utf-8")
         # Parse AST to verify frozenset/set literals are not iterated without sorted()
         # Simple heuristic: no bare 'list(<set_var>)' calls

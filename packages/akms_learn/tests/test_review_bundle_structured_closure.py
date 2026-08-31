@@ -25,12 +25,7 @@ from pathlib import Path
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_BUNDLE = (
-    _REPO_ROOT
-    / "artifacts"
-    / "review_bundles"
-    / "akms_learn_structured"
-)
+_BUNDLE = _REPO_ROOT / "artifacts" / "review_bundles" / "akms_learn_structured"
 _GENERATOR = (
     _REPO_ROOT
     / "packages"
@@ -269,9 +264,7 @@ class TestStructuredClosureSurface:
                     continue
                 if nid not in traceability_text:
                     missing.append(f"{mode}:{nid}")
-        assert not missing, (
-            f"traceability.md is missing rows for LSP nodes: {missing}"
-        )
+        assert not missing, f"traceability.md is missing rows for LSP nodes: {missing}"
 
     @pytest.mark.integration
     def test_traceability_matches_builder_output(self, tmp_path: Path) -> None:
@@ -401,9 +394,7 @@ class TestStructuredClosureSurface:
         assert "manual" in text.lower(), (
             "CLOSURE.md must state the transition is a manual action"
         )
-        assert "feedback_form.md" in text, (
-            "CLOSURE.md must reference feedback_form.md"
-        )
+        assert "feedback_form.md" in text, "CLOSURE.md must reference feedback_form.md"
 
     @pytest.mark.integration
     def test_closure_md_not_in_manifest_artifacts(self) -> None:

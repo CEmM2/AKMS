@@ -72,7 +72,9 @@ def save_state(path: Path, state: dict[str, BatchAssignment]) -> None:
         "batches": {bid: asdict(a) for bid, a in sorted(state.items())},
     }
     # atomic write
-    fd, tmp = tempfile.mkstemp(prefix=".batch_assignments.", suffix=".json", dir=str(path.parent))
+    fd, tmp = tempfile.mkstemp(
+        prefix=".batch_assignments.", suffix=".json", dir=str(path.parent)
+    )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2, ensure_ascii=False)

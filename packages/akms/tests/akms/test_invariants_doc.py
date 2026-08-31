@@ -26,7 +26,11 @@ from akms.schema import models
 pytestmark = pytest.mark.unit
 
 DOC = (
-    Path(__file__).resolve().parents[4] / "docs" / "reference" / "akms" / "conformance-invariants.md"
+    Path(__file__).resolve().parents[4]
+    / "docs"
+    / "reference"
+    / "akms"
+    / "conformance-invariants.md"
 )
 
 DOCUMENTED_ENUMS = [

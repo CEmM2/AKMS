@@ -83,7 +83,9 @@ title: "Code Mirror: src/a.py"
         )
         # Keep same id in both frontmatters
         b.write_text(
-            b.read_text(encoding="utf-8").replace('id: "mirror-dup"', 'id: "mirror-dup"'),
+            b.read_text(encoding="utf-8").replace(
+                'id: "mirror-dup"', 'id: "mirror-dup"'
+            ),
             encoding="utf-8",
         )
         export = {

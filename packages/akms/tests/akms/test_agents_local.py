@@ -97,7 +97,9 @@ def test_build_local_model_wires_base_url_and_model(tmp_repo, monkeypatch):
     monkeypatch.setattr(openai_mod, "AsyncOpenAI", fake_async_openai)
     monkeypatch.setattr(agents_mod, "OpenAIChatCompletionsModel", fake_model)
 
-    agent = AKMSLocalAgent(config=PropagationConfig(), repo_root=tmp_repo, model="my-local-model")
+    agent = AKMSLocalAgent(
+        config=PropagationConfig(), repo_root=tmp_repo, model="my-local-model"
+    )
     model = agent._build_local_model()
 
     assert model == "FAKE_MODEL"
@@ -112,14 +114,18 @@ def test_execute_passes_local_model_to_runner(tmp_repo, monkeypatch):
     monkeypatch.setenv("AKMS_LLM_API_BASE", "http://localhost:1234/v1")
     captured: dict = {}
 
-    async def fake_runner(user_message, loadout, system_prompt, model, repo_root, allowed_tools=None):
+    async def fake_runner(
+        user_message, loadout, system_prompt, model, repo_root, allowed_tools=None
+    ):
         captured["model"] = model
         captured["allowed_tools"] = allowed_tools
         _write_valid_agent_memory(Path(repo_root), "task-1")
 
     monkeypatch.setattr(base_codex, "_codex_sdk_execute", fake_runner)
 
-    agent = AKMSLocalAgent(config=PropagationConfig(), repo_root=tmp_repo, model="my-local-model")
+    agent = AKMSLocalAgent(
+        config=PropagationConfig(), repo_root=tmp_repo, model="my-local-model"
+    )
     memory = asyncio.run(agent.run({**_task_json(), "tools": ["file_edit"]}))
 
     assert memory.status == TaskStatus.COMPLETE

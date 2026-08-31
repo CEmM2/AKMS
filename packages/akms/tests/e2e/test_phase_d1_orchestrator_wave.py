@@ -41,18 +41,27 @@ class TestADM009WaveIntegration:
         repo = tmp_path / "repo"
         repo.mkdir()
         knowledge = repo / "knowledge"
-        for subdir in ["graph", "local-nodes", "sessions", "loadouts", "code-mirror", "qmd"]:
+        for subdir in [
+            "graph",
+            "local-nodes",
+            "sessions",
+            "loadouts",
+            "code-mirror",
+            "qmd",
+        ]:
             (knowledge / subdir).mkdir(parents=True)
         overlay_path = knowledge / "graph" / "local_state.yaml"
         overlay_path.write_text(
-            yaml.dump({
-                "akms_schema": "v2",
-                "repo_id": "test-repo",
-                "nodes": {},
-                "local_edges": [],
-                "session_nodes": {},
-                "suppressed_edges": [],
-            })
+            yaml.dump(
+                {
+                    "akms_schema": "v2",
+                    "repo_id": "test-repo",
+                    "nodes": {},
+                    "local_edges": [],
+                    "session_nodes": {},
+                    "suppressed_edges": [],
+                }
+            )
         )
         return repo
 
@@ -61,7 +70,9 @@ class TestADM009WaveIntegration:
         monkeypatch.setenv("AKMS_GLOBAL_VAULT", str(tmp_vault))
 
     @pytest.mark.e2e
-    def test_graph_only_mode_skips_dispatch_phase(self, tmp_vault, tmp_repo, monkeypatch):
+    def test_graph_only_mode_skips_dispatch_phase(
+        self, tmp_vault, tmp_repo, monkeypatch
+    ):
         """
         Verifies: When agent_cls=None, handle_review() does NOT call dispatch_phase().
         Acceptance criterion: Graph-only mode (agent_cls=None) still skips dispatch in review()
@@ -74,18 +85,26 @@ class TestADM009WaveIntegration:
 
         dispatch_called = []
 
-        async def _spy_dispatch(tasks, agent_cls, config, repo_root, model_override=None):
+        async def _spy_dispatch(
+            tasks, agent_cls, config, repo_root, model_override=None
+        ):
             dispatch_called.append(True)
             return []
 
-        monkeypatch.setattr("akms.orchestrator.orchestrator.dispatch_phase", _spy_dispatch)
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.dispatch_phase", _spy_dispatch
+        )
 
         stage_output, akms_status, warnings = asyncio.run(handle_review(state, ctx))
         assert "skipped (graph-only mode)" in stage_output
-        assert dispatch_called == [], "dispatch_phase should NOT be called in graph-only mode"
+        assert dispatch_called == [], (
+            "dispatch_phase should NOT be called in graph-only mode"
+        )
 
     @pytest.mark.e2e
-    def test_orchestrator_review_uses_dispatch_phase(self, tmp_vault, tmp_repo, monkeypatch):
+    def test_orchestrator_review_uses_dispatch_phase(
+        self, tmp_vault, tmp_repo, monkeypatch
+    ):
         """
         Verifies: handle_review() routes through dispatch_phase() when agent_cls is set.
         Acceptance criterion: review() uses dispatch_phase() instead of ThreadPoolExecutor
@@ -99,7 +118,9 @@ class TestADM009WaveIntegration:
         state = make_state(current_phase=1)
         ctx = make_ctx(tmp_repo, tmp_vault, agent_cls=FakeAgent)
 
-        async def _mock_dispatch(tasks, agent_cls, config, repo_root, model_override=None):
+        async def _mock_dispatch(
+            tasks, agent_cls, config, repo_root, model_override=None
+        ):
             results = []
             for task in tasks:
                 task_id = task["task_id"]
@@ -107,7 +128,9 @@ class TestADM009WaveIntegration:
                 out_dir.mkdir(parents=True, exist_ok=True)
                 out_path = out_dir / f"{task_id}.md"
                 memory_data = {
-                    "nodes_used": [{"id": "node-a", "useful": True, "coverage": "sufficient"}],
+                    "nodes_used": [
+                        {"id": "node-a", "useful": True, "coverage": "sufficient"}
+                    ],
                     "pitfalls_discovered": [],
                     "new_knowledge": [],
                     "nodes_missing": [],
@@ -116,15 +139,19 @@ class TestADM009WaveIntegration:
                 out_path.write_text(
                     "---\n" + yaml.dump(memory_data, sort_keys=False) + "---\n"
                 )
-                results.append(TaskResult(
-                    task_id=task_id,
-                    status="complete",
-                    memory_path=str(out_path),
-                    error="",
-                ))
+                results.append(
+                    TaskResult(
+                        task_id=task_id,
+                        status="complete",
+                        memory_path=str(out_path),
+                        error="",
+                    )
+                )
             return results
 
-        monkeypatch.setattr("akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch)
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch
+        )
         monkeypatch.setattr(
             "akms.orchestrator.orchestrator.update_graph",
             lambda source, repo_root, config=None, global_vault=None: {},
@@ -132,4 +159,6 @@ class TestADM009WaveIntegration:
 
         stage_output, akms_status, warnings = asyncio.run(handle_review(state, ctx))
         assert "review" in stage_output
-        assert "2/2" in stage_output, f"Expected '2/2' in stage_output, got: {stage_output!r}"
+        assert "2/2" in stage_output, (
+            f"Expected '2/2' in stage_output, got: {stage_output!r}"
+        )

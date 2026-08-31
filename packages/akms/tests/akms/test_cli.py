@@ -128,39 +128,60 @@ class TestQuery:
         assert payload["graph_path"].endswith("knowledge/graph/graph.json")
 
     def test_query_serialization_normalizes_nullable_fields_and_string_tags(
-        self, monkeypatch, tmp_repo, capsys,
+        self,
+        monkeypatch,
+        tmp_repo,
+        capsys,
     ):
         from akms.cli import commands
 
         monkeypatch.setattr(commands, "_load_cli_config", lambda _repo: object())
-        monkeypatch.setattr(commands, "_load_cli_graph", lambda *_args: (object(), tmp_repo / "graph.json"))
+        monkeypatch.setattr(
+            commands,
+            "_load_cli_graph",
+            lambda *_args: (object(), tmp_repo / "graph.json"),
+        )
         monkeypatch.setattr(
             "akms.graph.query_subgraph.query_subgraph",
-            lambda *_args, **_kwargs: [("node-a", {
-                "confidence": None,
-                "domain": None,
-                "node_origin": None,
-                "tags": "plasticity",
-                "title": None,
-            })],
+            lambda *_args, **_kwargs: [
+                (
+                    "node-a",
+                    {
+                        "confidence": None,
+                        "domain": None,
+                        "node_origin": None,
+                        "tags": "plasticity",
+                        "title": None,
+                    },
+                )
+            ],
         )
 
         exit_code = main(["query", "plasticity", "--repo", str(tmp_repo)])
 
         assert exit_code == 0
-        assert json.loads(capsys.readouterr().out)["nodes"] == [{
-            "confidence": 0.0,
-            "domain": "",
-            "id": "node-a",
-            "node_origin": "",
-            "tags": ["plasticity"],
-            "title": "",
-        }]
+        assert json.loads(capsys.readouterr().out)["nodes"] == [
+            {
+                "confidence": 0.0,
+                "domain": "",
+                "id": "node-a",
+                "node_origin": "",
+                "tags": ["plasticity"],
+                "title": "",
+            }
+        ]
 
     def test_query_missing_explicit_graph_is_error(self, tmp_repo, capsys):
-        exit_code = main([
-            "query", "plasticity", "--repo", str(tmp_repo), "--graph", "missing.json",
-        ])
+        exit_code = main(
+            [
+                "query",
+                "plasticity",
+                "--repo",
+                str(tmp_repo),
+                "--graph",
+                "missing.json",
+            ]
+        )
 
         assert exit_code == 1
         assert "Graph file not found" in capsys.readouterr().err
@@ -175,10 +196,18 @@ class TestLoadout:
             tags=["solver"],
         )
 
-        exit_code = main([
-            "loadout", "task-7", "--phase", "2", "--tags", "solver",
-            "--repo", str(tmp_repo),
-        ])
+        exit_code = main(
+            [
+                "loadout",
+                "task-7",
+                "--phase",
+                "2",
+                "--tags",
+                "solver",
+                "--repo",
+                str(tmp_repo),
+            ]
+        )
 
         assert exit_code == 0
         payload = json.loads(capsys.readouterr().out)
@@ -189,10 +218,18 @@ class TestLoadout:
         assert "graph_version:" in expected.read_text()
 
     def test_loadout_rejects_path_like_task_id(self, tmp_repo, capsys):
-        exit_code = main([
-            "loadout", "../escape", "--phase", "2", "--tags", "solver",
-            "--repo", str(tmp_repo),
-        ])
+        exit_code = main(
+            [
+                "loadout",
+                "../escape",
+                "--phase",
+                "2",
+                "--tags",
+                "solver",
+                "--repo",
+                str(tmp_repo),
+            ]
+        )
 
         assert exit_code == 1
         assert "task_id must be" in capsys.readouterr().err
@@ -219,9 +256,16 @@ class TestParser:
         assert query_args.command == "query"
         assert query_args.tags == ["tag-a", "tag-b"]
 
-        loadout_args = parser.parse_args([
-            "loadout", "task-1", "--phase", "1", "--tags", "tag-a",
-        ])
+        loadout_args = parser.parse_args(
+            [
+                "loadout",
+                "task-1",
+                "--phase",
+                "1",
+                "--tags",
+                "tag-a",
+            ]
+        )
         assert loadout_args.command == "loadout"
         assert loadout_args.task_id == "task-1"
 
@@ -250,7 +294,10 @@ def test_import_agent_class_rejects_non_subclass(monkeypatch):
     class NotAgent:
         pass
 
-    monkeypatch.setattr("akms.cli.commands.importlib.import_module", lambda _: type("M", (), {"NotAgent": NotAgent})())
+    monkeypatch.setattr(
+        "akms.cli.commands.importlib.import_module",
+        lambda _: type("M", (), {"NotAgent": NotAgent})(),
+    )
 
     with pytest.raises(TypeError, match="not a subclass of AKMSAgent"):
         _import_agent_class("fake.module.NotAgent")

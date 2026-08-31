@@ -426,7 +426,9 @@ class AKMSAgent:
                 briefing_lines.append("\n**Known failing tests:**")
                 for ft in failing:
                     if isinstance(ft, dict):
-                        briefing_lines.append(f"- {ft.get('tests', '?')}: {ft.get('reason', '')}")
+                        briefing_lines.append(
+                            f"- {ft.get('tests', '?')}: {ft.get('reason', '')}"
+                        )
             rec = briefing.get("recommended_start")
             if rec:
                 briefing_lines.append(f"\n**Recommended start:** {rec}")
@@ -484,9 +486,7 @@ class AKMSAgent:
 
         return memory
 
-    def _write_failed_memory(
-        self, task_json: dict, reason: str
-    ) -> AgentMemory:
+    def _write_failed_memory(self, task_json: dict, reason: str) -> AgentMemory:
         """Write a minimal status: failed AgentMemory when the agent
         didn't produce one.  Ensures the pipeline always has a memory
         file to process.
@@ -497,7 +497,9 @@ class AKMSAgent:
 
         memory = AgentMemory(
             task_id=task_id,
-            task_description=task_json.get("title", task_json.get("task_description", "")),
+            task_description=task_json.get(
+                "title", task_json.get("task_description", "")
+            ),
             phase_id=int(phase_id),
             timestamp=datetime.now(),
             agent_model=self.model,
@@ -595,8 +597,8 @@ class AKMSAgent:
         except ImportError as exc:
             raise ImportError(
                 "Agent execution requires the optional agent backends, which are "
-                "not installed. Install them with: pip install \"akms[agents]\" "
-                "(or \"akms[orchestration]\" for the complete embedded runtime)."
+                'not installed. Install them with: pip install "akms[agents]" '
+                '(or "akms[orchestration]" for the complete embedded runtime).'
             ) from exc
 
         # F-01b / FR-Q05: register the AKMS MCP server so agents can invoke
@@ -605,6 +607,7 @@ class AKMSAgent:
         # MCP-named tools in `allowed_tools` are unreachable, regressing the
         # reviewer surface previously covered by Grep (FR-C05).
         from akms.orchestrator.mcp_tools import create_mcp_server
+
         akms_server = create_mcp_server(repo_root=self.repo_root)
 
         options = ClaudeAgentOptions(
@@ -629,6 +632,4 @@ class AKMSAgent:
             # The agent writes AgentMemory as part of its work.
             if isinstance(message, ResultMessage):
                 if message.is_error:
-                    raise RuntimeError(
-                        f"Agent run failed: {message.result}"
-                    )
+                    raise RuntimeError(f"Agent run failed: {message.result}")

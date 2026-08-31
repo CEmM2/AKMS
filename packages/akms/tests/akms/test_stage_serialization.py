@@ -61,7 +61,9 @@ class TestPipelineStateRoundtrip:
         state = PipelineState(current_stage=Stage.EXECUTE, goal="test")
         state.save(repo)
 
-        raw = json.loads((repo / "knowledge" / "graph" / "pipeline_state.json").read_text())
+        raw = json.loads(
+            (repo / "knowledge" / "graph" / "pipeline_state.json").read_text()
+        )
         assert raw["current_stage"] == "execute"  # string on disk, not int
 
     def test_load_reads_string_format(self, tmp_path):

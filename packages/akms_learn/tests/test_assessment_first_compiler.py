@@ -130,10 +130,7 @@ def _graph_with_all_four_kinds() -> tuple[GraphSlice, list[str]]:
                 "Starting from the widget identity, apply step-1 reduction, "
                 "then step-2 normalisation, to obtain the final form."
             ),
-            "implementation": (
-                "def alpha_compute(x):\n"
-                "    return x * 2\n"
-            ),
+            "implementation": ("def alpha_compute(x):\n    return x * 2\n"),
             "pitfalls": (
                 "Beware: callers often confuse widget A and widget B; "
                 "the canonical mapping requires sorted input."
@@ -250,6 +247,7 @@ class TestAssessmentItemModel:
     @pytest.mark.unit
     def test_invalid_kind_rejected(self):
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError):
             AssessmentItem(
                 id="bad",
@@ -261,6 +259,7 @@ class TestAssessmentItemModel:
     @pytest.mark.unit
     def test_target_node_ids_must_be_non_empty(self):
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError):
             AssessmentItem(
                 id="empty",
@@ -272,6 +271,7 @@ class TestAssessmentItemModel:
     @pytest.mark.unit
     def test_frozen_model(self):
         from pydantic import ValidationError
+
         item = AssessmentItem(
             id="x",
             kind="conceptual",
@@ -466,7 +466,9 @@ class TestPublicHiddenSeparation:
 
         # At least one item must carry the hidden answer.
         with_answer = [it for it in result.assessment_items if it.hidden_answer]
-        assert len(with_answer) >= 1, "Fixture failed to produce any item with hidden_answer"
+        assert len(with_answer) >= 1, (
+            "Fixture failed to produce any item with hidden_answer"
+        )
 
         sentinel = "ZETA_SENTINEL_42"
         # Every item — answer-bearing or not — must not echo the sentinel in prompt.
@@ -509,7 +511,8 @@ class TestPublicHiddenSeparation:
         with _gate_open():
             result, _ = assessment_first_mode(graph, ordered, req)
         heuristic = [
-            it for it in result.assessment_items
+            it
+            for it in result.assessment_items
             if it.provenance.get("derived_from") == "heuristic"
         ]
         for item in heuristic:
@@ -525,7 +528,8 @@ class TestPublicHiddenSeparation:
         with _gate_open():
             result, _ = assessment_first_mode(graph, ordered, req)
         hinted = [
-            it for it in result.assessment_items
+            it
+            for it in result.assessment_items
             if it.provenance.get("derived_from") == "v21_hint"
         ]
         assert len(hinted) == 1
@@ -759,7 +763,9 @@ class TestDeterminism:
             }
             for it in items
         ]
-        return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
 
     @pytest.mark.unit
     def test_byte_identical_output_two_runs(self):
@@ -862,9 +868,13 @@ class TestSourceCanary:
     def test_no_exec_eval_subprocess_in_source(self):
         import re
         from pathlib import Path
+
         src_path = (
             Path(__file__).parent.parent
-            / "src" / "akms_learn" / "modes" / "assessment_first.py"
+            / "src"
+            / "akms_learn"
+            / "modes"
+            / "assessment_first.py"
         )
         src = src_path.read_text(encoding="utf-8")
         forbidden_patterns = [
@@ -889,9 +899,13 @@ class TestSourceCanary:
         that no such method exists on the model class.
         """
         from pathlib import Path
+
         src_path = (
             Path(__file__).parent.parent
-            / "src" / "akms_learn" / "models" / "assessment.py"
+            / "src"
+            / "akms_learn"
+            / "models"
+            / "assessment.py"
         )
         src = src_path.read_text(encoding="utf-8")
         assert "def to_public" not in src
@@ -901,9 +915,13 @@ class TestSourceCanary:
     def test_compiler_never_assigns_answer_into_prompt(self):
         """Static check: the compiler source never writes hidden_answer onto a prompt field."""
         from pathlib import Path
+
         src_path = (
             Path(__file__).parent.parent
-            / "src" / "akms_learn" / "modes" / "assessment_first.py"
+            / "src"
+            / "akms_learn"
+            / "modes"
+            / "assessment_first.py"
         )
         src = src_path.read_text(encoding="utf-8")
         # Crude but effective: no construction of an AssessmentItem where the
@@ -979,7 +997,9 @@ class TestCompilerWiresAssessmentsAndReferences:
         assert any("Jones 2019" in (c or "") for c in citations)
         # Bullet markers are stripped; provenance points back at the node.
         assert all(not (c or "").startswith("-") for c in citations)
-        assert all(r.source_node_ids == ["refnode"] for r in result.packet.body.references)
+        assert all(
+            r.source_node_ids == ["refnode"] for r in result.packet.body.references
+        )
 
     @pytest.mark.unit
     def test_references_empty_when_no_references_section(self):

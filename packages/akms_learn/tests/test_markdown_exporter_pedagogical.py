@@ -10,6 +10,7 @@ Covers:
   lesson header.
 * Legacy modes produce byte-identical output to the original baseline.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -98,10 +99,14 @@ class TestLegacyByteStability:
         dir_b = tmp_path / "b"
 
         compile_learning_source(
-            request=_make_request(mode), graph_slice=slice_, output_dir=dir_a,
+            request=_make_request(mode),
+            graph_slice=slice_,
+            output_dir=dir_a,
         )
         compile_learning_source(
-            request=_make_request(mode), graph_slice=slice_, output_dir=dir_b,
+            request=_make_request(mode),
+            graph_slice=slice_,
+            output_dir=dir_b,
         )
 
         a = (dir_a / "lesson.md").read_bytes()
@@ -114,7 +119,9 @@ class TestLegacyByteStability:
         text = a.decode("utf-8")
         assert "## Concept map" in text
         assert "**Mode:** `" not in text  # pedagogical header is absent
-        assert "**Granularity:**" not in text  # pedagogical granularity header is absent
+        assert (
+            "**Granularity:**" not in text
+        )  # pedagogical granularity header is absent
 
     @pytest.mark.unit
     def test_pedagogical_mode_key_set_is_exactly_the_four_modes(self) -> None:
@@ -187,7 +194,9 @@ class TestModeSectionOrdering:
         deriv_idx = content.find("## Derivation")
         impl_idx = content.find("## Implementation")
         assert deriv_idx >= 0, "derivation_first lesson.md must include ## Derivation"
-        assert impl_idx >= 0, "derivation_first lesson.md must include ## Implementation"
+        assert impl_idx >= 0, (
+            "derivation_first lesson.md must include ## Implementation"
+        )
         assert deriv_idx < impl_idx, (
             "derivation_first must order ## Derivation before ## Implementation"
         )
@@ -312,12 +321,12 @@ class TestImplementationFirstCodeLinks:
             }
         ]
         slice_ = GraphSlice(
-            nodes=tuple(nodes), edges=tuple(edges), metadata={"family": "unk"},
+            nodes=tuple(nodes),
+            edges=tuple(edges),
+            metadata={"family": "unk"},
         )
 
-        content = _compile_and_read(
-            "implementation_first", slice_, tmp_path
-        )
+        content = _compile_and_read("implementation_first", slice_, tmp_path)
         assert "```reference" in content
         assert "source_path: unknown" in content
         assert "line_range: unknown" in content
@@ -333,7 +342,8 @@ class TestMultiGranularityHeader:
 
     @pytest.mark.integration
     @pytest.mark.parametrize(
-        "granularity", ["overview", "standard", "deep_dive"],
+        "granularity",
+        ["overview", "standard", "deep_dive"],
     )
     def test_multi_granularity_label_appears_in_header(
         self, granularity: str, tmp_path: Path
@@ -341,7 +351,10 @@ class TestMultiGranularityHeader:
         """Each canonical granularity value is surfaced as ``**Granularity:**``."""
         slice_ = fixture_graph_toy_multi_granularity()
         content = _compile_and_read(
-            "multi_granularity", slice_, tmp_path, granularity=granularity,
+            "multi_granularity",
+            slice_,
+            tmp_path,
+            granularity=granularity,
         )
         assert f"**Granularity:** `{granularity}`" in content, (
             f"missing granularity label for {granularity!r}; got:\n{content}"
@@ -357,9 +370,7 @@ class TestMultiGranularityHeader:
         the header MUST NOT render ``**Granularity:** `None``` literally.
         """
         slice_ = fixture_graph_toy_multi_granularity()
-        content = _compile_and_read(
-            "multi_granularity", slice_, tmp_path
-        )
+        content = _compile_and_read("multi_granularity", slice_, tmp_path)
         # mode header still present.
         assert "**Mode:** `multi_granularity`" in content
         # granularity header absent.
@@ -390,13 +401,14 @@ class TestWarningsSidecar:
         assert "## Warnings" in content
 
     @pytest.mark.integration
-    def test_multi_granularity_warning_sidecar_is_present(
-        self, tmp_path: Path
-    ) -> None:
+    def test_multi_granularity_warning_sidecar_is_present(self, tmp_path: Path) -> None:
         """The multi_granularity export always emits a ## Warnings section."""
         slice_ = fixture_graph_toy_multi_granularity()
         content = _compile_and_read(
-            "multi_granularity", slice_, tmp_path, granularity="standard",
+            "multi_granularity",
+            slice_,
+            tmp_path,
+            granularity="standard",
         )
         assert "## Warnings" in content
 

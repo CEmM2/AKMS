@@ -6,6 +6,7 @@ Covers:
   * Pre-existing manifest keys survive (additive-only change).
   * MANIFEST_VERSION unchanged (v1).
 """
+
 from __future__ import annotations
 
 import json

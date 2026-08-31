@@ -37,16 +37,56 @@ from .state import (
 
 _TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9\-]{2,}")
 _STOPWORDS = {
-    "the", "and", "for", "with", "from", "into", "onto", "this", "that", "their",
-    "these", "those", "are", "was", "were", "have", "has", "had", "but", "not",
-    "any", "all", "via", "per", "based", "using", "use", "uses", "about",
-    "between", "across", "method", "methods", "approach", "model", "models",
-    "study", "paper", "research", "analysis", "results", "section", "ch",
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "into",
+    "onto",
+    "this",
+    "that",
+    "their",
+    "these",
+    "those",
+    "are",
+    "was",
+    "were",
+    "have",
+    "has",
+    "had",
+    "but",
+    "not",
+    "any",
+    "all",
+    "via",
+    "per",
+    "based",
+    "using",
+    "use",
+    "uses",
+    "about",
+    "between",
+    "across",
+    "method",
+    "methods",
+    "approach",
+    "model",
+    "models",
+    "study",
+    "paper",
+    "research",
+    "analysis",
+    "results",
+    "section",
+    "ch",
 }
 
 
 def _tokenize(s: str) -> list[str]:
-    return [t.lower() for t in _TOKEN_RE.findall(s or "") if t.lower() not in _STOPWORDS]
+    return [
+        t.lower() for t in _TOKEN_RE.findall(s or "") if t.lower() not in _STOPWORDS
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +122,7 @@ class MoveRequest(BaseModel):
 
 class BulkAddRequest(BaseModel):
     filter: FilterSpec
-    mode: str = "add"   # "add" or "replace"
+    mode: str = "add"  # "add" or "replace"
     limit: int = 1000
 
 
@@ -429,7 +469,9 @@ def create_app(paths: Paths | None = None) -> FastAPI:
             added = [ck for ck in matched if ck not in before]
             removed = []
         else:
-            raise HTTPException(400, f"Unknown mode {body.mode!r}; use 'add' or 'replace'")
+            raise HTTPException(
+                400, f"Unknown mode {body.mode!r}; use 'add' or 'replace'"
+            )
         repo.save_state()
         return {
             "papers": a.papers,
@@ -456,7 +498,12 @@ def create_app(paths: Paths | None = None) -> FastAPI:
         def card(ck: str) -> dict[str, Any]:
             paper = repo.catalog.papers.get(ck)
             if paper is None:
-                return {"citekey": ck, "title": "(unknown citekey)", "has_pdf": False, "year": ""}
+                return {
+                    "citekey": ck,
+                    "title": "(unknown citekey)",
+                    "has_pdf": False,
+                    "year": "",
+                }
             return {
                 "citekey": paper.citekey,
                 "title": paper.title,
@@ -518,8 +565,7 @@ def create_app(paths: Paths | None = None) -> FastAPI:
             "total": len(results),
             "limit": limit,
             "results": [
-                {**_paper_card(p, repo), "score": score}
-                for score, p in results[:limit]
+                {**_paper_card(p, repo), "score": score} for score, p in results[:limit]
             ],
         }
 
@@ -535,7 +581,10 @@ def create_app(paths: Paths | None = None) -> FastAPI:
 
     @app.get("/api/saved_queries")
     def list_saved_queries() -> list[dict[str, Any]]:
-        return [_query_card(q) for q in sorted(repo.queries.values(), key=lambda x: x.name.lower())]
+        return [
+            _query_card(q)
+            for q in sorted(repo.queries.values(), key=lambda x: x.name.lower())
+        ]
 
     @app.put("/api/saved_queries/{name}")
     def upsert_saved_query(name: str, body: SaveQueryRequest) -> dict[str, Any]:
@@ -569,7 +618,9 @@ def create_app(paths: Paths | None = None) -> FastAPI:
         b = repo.get_batch(batch_id)
         a = repo.assignment(batch_id)
         assert repo.catalog is not None
-        result = stage_pdfs(b, a, repo.catalog, paths.sources_dir, use_symlink=body.use_symlink)
+        result = stage_pdfs(
+            b, a, repo.catalog, paths.sources_dir, use_symlink=body.use_symlink
+        )
         return {"ok": result.ok, "message": result.message, **result.data}
 
     @app.post("/api/batches/{batch_id}/create_notebook")
@@ -578,8 +629,12 @@ def create_app(paths: Paths | None = None) -> FastAPI:
         a = repo.assignment(batch_id)
         assert repo.catalog is not None
         result = create_notebook_and_upload(
-            b, a, repo.catalog, paths.sources_dir,
-            upload=body.upload, wait=body.wait,
+            b,
+            a,
+            repo.catalog,
+            paths.sources_dir,
+            upload=body.upload,
+            wait=body.wait,
         )
         if result.ok:
             stamp_synced(a)

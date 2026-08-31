@@ -63,9 +63,7 @@ class TestPitfallMode:
     def test_pitfall_edges_detected(self):
         """AC1 – Each pitfall_of edge in the fixture produces a PitfallView."""
         gs = fixture_graph()
-        pitfall_count = sum(
-            1 for e in gs.edges if e.get("type") in PITFALL_EDGE_TYPES
-        )
+        pitfall_count = sum(1 for e in gs.edges if e.get("type") in PITFALL_EDGE_TYPES)
         assert pitfall_count >= 1, "fixture_graph must have at least 1 pitfall_of edge"
 
         views, _warnings = pitfall_mode(gs, sections_by_node={})
@@ -98,10 +96,7 @@ class TestPitfallMode:
             ],
         )
         pitfalls_content = (
-            "### Symptom\nA\n"
-            "### Cause\nB\n"
-            "### Correction\nC\n"
-            "### Diagnostics\nD"
+            "### Symptom\nA\n### Cause\nB\n### Correction\nC\n### Diagnostics\nD"
         )
         sections_by_node = {
             "pitfall_zero_det": {
@@ -149,7 +144,9 @@ class TestPitfallMode:
 
         assert len(views) == 1
         parsed = _parse_message(views[0].message)
-        corrective_ids = [c for c in parsed.get("corrective_concepts", "").split(",") if c]
+        corrective_ids = [
+            c for c in parsed.get("corrective_concepts", "").split(",") if c
+        ]
         assert "corrective_node" in corrective_ids
 
     @pytest.mark.integration
@@ -210,7 +207,9 @@ class TestPitfallMode:
         views, warnings = pitfall_mode(gs, sections_by_node=sections_by_node)
 
         thin_warnings = [w for w in warnings if w.code == "thin_pitfall_content"]
-        assert len(thin_warnings) == 1, "Exactly one warning per pitfall edge with any missing field"
+        assert len(thin_warnings) == 1, (
+            "Exactly one warning per pitfall edge with any missing field"
+        )
         assert thin_warnings[0].source_ref == "pitfall_partial"
         assert "diagnostics" in thin_warnings[0].message
 

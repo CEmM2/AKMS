@@ -184,7 +184,9 @@ class LocalNodeFrontmatter(GlobalNodeFrontmatter):
     @model_validator(mode="after")
     def enforce_agent_status_tentative(self) -> LocalNodeFrontmatter:
         if self.source == NodeSource.AGENT and self.status != NodeStatus.TENTATIVE:
-            raise ValueError("Local nodes with source 'agent' must have status 'tentative'")
+            raise ValueError(
+                "Local nodes with source 'agent' must have status 'tentative'"
+            )
         return self
 
 
@@ -376,8 +378,6 @@ class AgentMemory(BaseModel):
     akms_schema: str = "v2"
 
 
-
-
 class ReviewBreakdown(BaseModel):
     """Review severity breakdown."""
 
@@ -510,7 +510,9 @@ class PCD(BaseModel):
         return {
             "tasks": [t.model_dump() for t in self.tasks],
             "overall_test_status": (
-                self.overall_test_status.model_dump() if self.overall_test_status else None
+                self.overall_test_status.model_dump()
+                if self.overall_test_status
+                else None
             ),
             "files_created": [f.model_dump() for f in self.files_created],
             "files_modified": [f.model_dump() for f in self.files_modified],
@@ -521,8 +523,6 @@ class PCD(BaseModel):
             "next_phase_warnings": self.next_phase_warnings,
             "recommended_start": self.recommended_start,
         }
-
-
 
 
 class TaskJSONAKMS(BaseModel):

@@ -91,7 +91,12 @@ def resolve_runtime_tools(logical_tools: list[str]) -> list[str]:
 #: Baseline runtime tools when task_json['tools'] is empty (legacy callers).
 #: Grep is explicitly NOT in this list (FR-C05 / F-11 removal).
 BASELINE_ALLOWED_TOOLS: list[str] = [
-    "Read", "Write", "Edit", "MultiEdit", "Glob", "Bash",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Glob",
+    "Bash",
 ]
 
 
@@ -171,8 +176,6 @@ def get_agent_config(role: AgentRole | str) -> AgentConfig:
         raise ValueError(f"No configuration for role: {role}")
 
     return AGENT_CONFIGS[role]
-
-
 
 
 @dataclass
@@ -259,7 +262,6 @@ def get_special_agent_config(name: str) -> SpecialAgentConfig:
     """
     if name not in SPECIAL_AGENTS:
         raise ValueError(
-            f"Unknown special agent: {name}. "
-            f"Available: {list(SPECIAL_AGENTS.keys())}"
+            f"Unknown special agent: {name}. Available: {list(SPECIAL_AGENTS.keys())}"
         )
     return SPECIAL_AGENTS[name]

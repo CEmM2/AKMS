@@ -11,6 +11,7 @@ Covers:
   granularity.
 * All four pedagogical modes invoke LSP validation before export.
 """
+
 from __future__ import annotations
 
 import json
@@ -72,7 +73,9 @@ class TestPedagogicalCapabilities:
     def test_capabilities_lists_four_new_modes(self) -> None:
         caps = set(get_plugin().capabilities())
         for mode in PLAN2_MODE_KEYS:
-            assert mode in caps, f"capabilities() must include {mode!r}; got {sorted(caps)}"
+            assert mode in caps, (
+                f"capabilities() must include {mode!r}; got {sorted(caps)}"
+            )
 
     @pytest.mark.regression
     def test_capabilities_preserves_baseline_strings(self) -> None:
@@ -134,15 +137,14 @@ class TestPedagogicalCrossModeSweep:
         )
         # Every node view carries its source line range from the slice.
         nodes_with_ranges = [
-            n for n in result.packet.body.nodes
+            n
+            for n in result.packet.body.nodes
             if n.line_range and n.line_range != (0, 0)
         ]
         assert nodes_with_ranges, "no node view carried a non-zero line_range"
 
     @pytest.mark.regression
-    def test_derivation_first_orders_heavy_before_light(
-        self, tmp_path: Path
-    ) -> None:
+    def test_derivation_first_orders_heavy_before_light(self, tmp_path: Path) -> None:
         """§11 — derivation_first places ## Derivation before ## Implementation."""
         compile_learning_source(
             request=_make_request("derivation_first"),
@@ -223,8 +225,7 @@ class TestPedagogicalCrossModeSweep:
         )
         codes = {w.code for w in result.warnings}
         assert "code_mirror_missing_source_path" in codes, (
-            "expected code_mirror_missing_source_path warning, "
-            f"got {sorted(codes)}"
+            f"expected code_mirror_missing_source_path warning, got {sorted(codes)}"
         )
 
     @pytest.mark.regression
@@ -266,9 +267,7 @@ class TestPedagogicalCrossModeSweep:
         assert result.packet.request.granularity == "overview"
 
     @pytest.mark.regression
-    def test_dict_request_invalid_granularity_falls_back(
-        self, tmp_path: Path
-    ) -> None:
+    def test_dict_request_invalid_granularity_falls_back(self, tmp_path: Path) -> None:
         """An out-of-range ``granularity`` on a dict request must NOT raise on the
         model's ``Literal`` field — it falls back to ``None`` (matching the old
         permissive ``getattr``-on-dict behaviour) and the mode re-derives it.
@@ -291,9 +290,7 @@ class TestPedagogicalCrossModeSweep:
         assert result.packet.request.granularity is None
 
     @pytest.mark.regression
-    def test_bundle_manifest_carries_mode_and_granularity(
-        self, tmp_path: Path
-    ) -> None:
+    def test_bundle_manifest_carries_mode_and_granularity(self, tmp_path: Path) -> None:
         """Bundle manifest records mode + granularity."""
         compile_learning_source(
             request=_make_request("multi_granularity", granularity="deep_dive"),

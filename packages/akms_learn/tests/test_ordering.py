@@ -31,7 +31,9 @@ class TestOrdering:
         assert order1 == order2, "order_nodes must be deterministic across runs"
         assert warnings1 == warnings2, "warnings must be identical across runs"
         # Fixture graph is acyclic — no warnings expected.
-        assert warnings1 == [], f"Expected no warnings for acyclic graph, got {warnings1}"
+        assert warnings1 == [], (
+            f"Expected no warnings for acyclic graph, got {warnings1}"
+        )
         # All 7 nodes should be present.
         assert len(order1) == 7
         assert set(order1) == {
@@ -69,12 +71,12 @@ class TestOrdering:
 
         # Must emit at least one cycle_broken warning.
         assert len(warnings1) >= 1, "Expected at least one cycle_broken warning"
-        assert all(
-            isinstance(w, LearningWarning) for w in warnings1
-        ), "All warnings must be LearningWarning instances"
-        assert any(
-            w.code == "cycle_broken" for w in warnings1
-        ), f"Expected code='cycle_broken', got {[w.code for w in warnings1]}"
+        assert all(isinstance(w, LearningWarning) for w in warnings1), (
+            "All warnings must be LearningWarning instances"
+        )
+        assert any(w.code == "cycle_broken" for w in warnings1), (
+            f"Expected code='cycle_broken', got {[w.code for w in warnings1]}"
+        )
 
         # Verify alphabetic-max target rule: cycle is (alpha→beta, beta→alpha).
         # The edge with alphabetically-max target is alpha→beta (target="beta" > "alpha").

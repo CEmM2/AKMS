@@ -86,6 +86,7 @@ def _make_task_json(task_id: str = "task-1", phase: int = 1) -> dict:
 def test_run_is_sealed():
     """Subclass overriding run() raises TypeError at class definition time."""
     with pytest.raises(TypeError, match="must not override AKMSAgent.run"):
+
         class BadAgent(AKMSAgent):
             async def run(self, task_json: dict):
                 pass
@@ -93,6 +94,7 @@ def test_run_is_sealed():
 
 def test_execute_is_overridable():
     """Subclass can override execute() without error."""
+
     class GoodAgent(AKMSAgent):
         async def execute(self, task_json, loadout, system_prompt):
             pass  # Valid override
@@ -342,7 +344,9 @@ def test_tool_multi_edit_empty_old_text(tmp_repo: Path):
     target = tmp_repo / "sample.txt"
     target.write_text("original content\n", encoding="utf-8")
 
-    result = _tool_multi_edit(tmp_repo, "sample.txt", [{"old_text": "", "new_text": "x"}])
+    result = _tool_multi_edit(
+        tmp_repo, "sample.txt", [{"old_text": "", "new_text": "x"}]
+    )
 
     assert result.startswith("ERROR:")
     assert target.read_text(encoding="utf-8") == "original content\n"
@@ -353,7 +357,9 @@ def test_tool_multi_edit_not_found(tmp_repo: Path):
     target = tmp_repo / "sample.txt"
     target.write_text("hello world\n", encoding="utf-8")
 
-    result = _tool_multi_edit(tmp_repo, "sample.txt", [{"old_text": "no such text", "new_text": "x"}])
+    result = _tool_multi_edit(
+        tmp_repo, "sample.txt", [{"old_text": "no such text", "new_text": "x"}]
+    )
 
     assert result.startswith("ERROR:")
     assert target.read_text(encoding="utf-8") == "hello world\n"
@@ -364,7 +370,9 @@ def test_tool_multi_edit_multiple_matches(tmp_repo: Path):
     target = tmp_repo / "sample.txt"
     target.write_text("dup\ndup\n", encoding="utf-8")
 
-    result = _tool_multi_edit(tmp_repo, "sample.txt", [{"old_text": "dup", "new_text": "unique"}])
+    result = _tool_multi_edit(
+        tmp_repo, "sample.txt", [{"old_text": "dup", "new_text": "unique"}]
+    )
 
     assert result.startswith("ERROR:")
     assert target.read_text(encoding="utf-8") == "dup\ndup\n"
@@ -388,7 +396,9 @@ class TestCodexMcpSearchParity:
             captured["subcmd"] = subcmd
             captured["query"] = query
             captured["repo_root"] = Path(repo_root)
-            return [{"path": "knowledge/local-nodes/alpha.md", "line": 12, "snippet": "hit"}]
+            return [
+                {"path": "knowledge/local-nodes/alpha.md", "line": 12, "snippet": "hit"}
+            ]
 
         monkeypatch.setattr("akms.orchestrator.qmd_shell.run_qmd", fake_run_qmd)
 
@@ -398,7 +408,9 @@ class TestCodexMcpSearchParity:
             "query": "alpha",
             "repo_root": tmp_repo,
         }
-        assert hits == [{"path": "knowledge/local-nodes/alpha.md", "line": 12, "snippet": "hit"}]
+        assert hits == [
+            {"path": "knowledge/local-nodes/alpha.md", "line": 12, "snippet": "hit"}
+        ]
 
     def test_search_limit_is_applied(self, tmp_repo: Path, monkeypatch):
         from akms.agents.base_codex import _tool_search_sessions
@@ -427,6 +439,7 @@ class TestCodexMcpSearchParity:
                 def deco(fn):
                     captured_tools.append(name_override or fn.__name__)
                     return fn
+
                 return deco
 
             class _Agent:
@@ -436,7 +449,9 @@ class TestCodexMcpSearchParity:
             class _Runner:
                 @staticmethod
                 async def run(*_a, **_kw):
-                    class _R: final_output = None
+                    class _R:
+                        final_output = None
+
                     return _R()
 
             fake.function_tool = function_tool
@@ -465,16 +480,35 @@ class TestCodexMcpSearchParity:
         overlay = {
             "akms_schema": "v2",
             "local_edges": [
-                {"from": "node-a", "to": "session-1", "type": "pitfall",
-                 "weight": 0.7, "note": "first", "source_id": "task-1"},
-                {"from": "node-b", "to": "session-2", "type": "pitfall",
-                 "weight": 0.3, "note": "second", "source_id": "task-2"},
-                {"from": "node-a", "to": "session-3", "type": "requires",
-                 "weight": 1.0, "note": "not-a-pitfall"},
+                {
+                    "from": "node-a",
+                    "to": "session-1",
+                    "type": "pitfall",
+                    "weight": 0.7,
+                    "note": "first",
+                    "source_id": "task-1",
+                },
+                {
+                    "from": "node-b",
+                    "to": "session-2",
+                    "type": "pitfall",
+                    "weight": 0.3,
+                    "note": "second",
+                    "source_id": "task-2",
+                },
+                {
+                    "from": "node-a",
+                    "to": "session-3",
+                    "type": "requires",
+                    "weight": 1.0,
+                    "note": "not-a-pitfall",
+                },
             ],
         }
         (tmp_repo / "knowledge" / "graph").mkdir(parents=True, exist_ok=True)
-        (tmp_repo / "knowledge" / "graph" / "local_state.yaml").write_text(_yaml.dump(overlay))
+        (tmp_repo / "knowledge" / "graph" / "local_state.yaml").write_text(
+            _yaml.dump(overlay)
+        )
 
         hits = _tool_get_pitfalls(tmp_repo, ["node-a"])
         assert len(hits) == 1

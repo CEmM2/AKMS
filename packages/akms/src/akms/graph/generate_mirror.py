@@ -123,28 +123,36 @@ def extract_definitions(source: str) -> list[dict[str, Any]]:
 
     def _process_node(node: ast.AST, prefix: str = "") -> None:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            kind = "async_function" if isinstance(node, ast.AsyncFunctionDef) else "function"
+            kind = (
+                "async_function"
+                if isinstance(node, ast.AsyncFunctionDef)
+                else "function"
+            )
             full_name = f"{prefix}{node.name}" if prefix else node.name
-            definitions.append({
-                "name": full_name,
-                "type": kind,
-                "docstring": _get_docstring(node),
-                "source": _get_source_segment(source_lines, node),
-                "parameters": _get_parameters(node),
-                "return_annotation": _get_return_annotation(node),
-                "decorators": _get_decorators(node),
-            })
+            definitions.append(
+                {
+                    "name": full_name,
+                    "type": kind,
+                    "docstring": _get_docstring(node),
+                    "source": _get_source_segment(source_lines, node),
+                    "parameters": _get_parameters(node),
+                    "return_annotation": _get_return_annotation(node),
+                    "decorators": _get_decorators(node),
+                }
+            )
         elif isinstance(node, ast.ClassDef):
             full_name = f"{prefix}{node.name}" if prefix else node.name
-            definitions.append({
-                "name": full_name,
-                "type": "class",
-                "docstring": _get_docstring(node),
-                "source": _get_source_segment(source_lines, node),
-                "parameters": [],
-                "return_annotation": None,
-                "decorators": _get_decorators(node),
-            })
+            definitions.append(
+                {
+                    "name": full_name,
+                    "type": "class",
+                    "docstring": _get_docstring(node),
+                    "source": _get_source_segment(source_lines, node),
+                    "parameters": [],
+                    "return_annotation": None,
+                    "decorators": _get_decorators(node),
+                }
+            )
             # Process methods within the class
             for child in ast.iter_child_nodes(node):
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -198,7 +206,9 @@ def _generate_mirror_frontmatter(
 ) -> dict:
     """Generate mirror node frontmatter (marker only)."""
     # Convert file path to node id: src/foo/bar.py → mirror-src-foo-bar
-    node_id = "mirror-" + source_file.replace("/", "-").replace("\\", "-").replace(".py", "").replace(".", "-")
+    node_id = "mirror-" + source_file.replace("/", "-").replace("\\", "-").replace(
+        ".py", ""
+    ).replace(".", "-")
     content_ref = f"code-mirror/{source_file.replace('.py', '.md')}"
 
     return {
@@ -251,7 +261,9 @@ def write_mirror_file(
     frontmatter_data = _generate_mirror_frontmatter(source_file, phase, generated_at)
 
     # Write mirror file
-    mirror_path = repo_root / "knowledge" / "code-mirror" / source_file.replace(".py", ".md")
+    mirror_path = (
+        repo_root / "knowledge" / "code-mirror" / source_file.replace(".py", ".md")
+    )
     mirror_path.parent.mkdir(parents=True, exist_ok=True)
 
     post = fm.Post(content)
@@ -377,7 +389,11 @@ def generate_mirror_legacy(
 
         # Write mirror
         mirror_info = write_mirror_file(
-            repo_root, source_file, source_content, phase, generated_at,
+            repo_root,
+            source_file,
+            source_content,
+            phase,
+            generated_at,
         )
         if mirror_info:
             mirrors.append(mirror_info)
@@ -412,7 +428,10 @@ def generate_mirror_legacy(
 
     logger.info(
         "generate_mirror_legacy: %d files → %d mirrors, %d definitions, %d drift warnings",
-        len(source_files), len(mirrors), definitions_total, len(drift_warnings),
+        len(source_files),
+        len(mirrors),
+        definitions_total,
+        len(drift_warnings),
     )
 
     return summary

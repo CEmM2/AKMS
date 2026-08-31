@@ -217,7 +217,9 @@ class TestDeterministicBaseline:
         graph, ordered = _toy_graph()
         # LLM disabled by default — packet must equal pre_expansion_packet.
         result, _ = llm_expanded_mode(graph, ordered, _make_request())
-        assert _canonical_json(result.packet) == _canonical_json(result.pre_expansion_packet)
+        assert _canonical_json(result.packet) == _canonical_json(
+            result.pre_expansion_packet
+        )
 
     @pytest.mark.unit
     def test_disabled_has_no_generated_sections_key(self):
@@ -243,7 +245,9 @@ class TestDeterministicBaseline:
         graph, ordered = _toy_graph()
         r1, _ = llm_expanded_mode(graph, ordered, _make_request())
         r2, _ = llm_expanded_mode(graph, ordered, _make_request())
-        assert _canonical_json(r1.pre_expansion_packet) == _canonical_json(r2.pre_expansion_packet)
+        assert _canonical_json(r1.pre_expansion_packet) == _canonical_json(
+            r2.pre_expansion_packet
+        )
 
     @pytest.mark.unit
     def test_pre_expansion_packet_no_timestamp(self):
@@ -283,7 +287,9 @@ class TestLLMDisabledPath:
             )
             resolve_mock.assert_not_called()
         # Packet is still byte-identical to the deterministic baseline.
-        assert _canonical_json(result.packet) == _canonical_json(result.pre_expansion_packet)
+        assert _canonical_json(result.packet) == _canonical_json(
+            result.pre_expansion_packet
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +302,9 @@ class TestNoProviderStub:
 
     @pytest.mark.unit
     def test_one_section_per_active_node(self):
-        sections = no_provider_stub(topic="t", active_node_ids=["alpha", "beta", "gamma"])
+        sections = no_provider_stub(
+            topic="t", active_node_ids=["alpha", "beta", "gamma"]
+        )
         assert len(sections) == 3
         assert sorted(s.source_node_ids[0] for s in sections) == [
             "alpha",
@@ -306,13 +314,17 @@ class TestNoProviderStub:
 
     @pytest.mark.unit
     def test_sections_sorted_by_source_node_id(self):
-        sections = no_provider_stub(topic="t", active_node_ids=["gamma", "alpha", "beta"])
+        sections = no_provider_stub(
+            topic="t", active_node_ids=["gamma", "alpha", "beta"]
+        )
         ids = [s.source_node_ids[0] for s in sections]
         assert ids == sorted(ids)
 
     @pytest.mark.unit
     def test_dedup_input(self):
-        sections = no_provider_stub(topic="t", active_node_ids=["alpha", "alpha", "beta"])
+        sections = no_provider_stub(
+            topic="t", active_node_ids=["alpha", "alpha", "beta"]
+        )
         assert len(sections) == 2
 
     @pytest.mark.unit
@@ -439,9 +451,13 @@ class TestSourceLocking:
         original_stub = no_provider_stub
 
         def _injecting_stub(topic, active_node_ids, policy=None, *, sources=None):
-            return original_stub(topic=topic, active_node_ids=active_node_ids) + [orphan_section]
+            return original_stub(topic=topic, active_node_ids=active_node_ids) + [
+                orphan_section
+            ]
 
-        with patch("akms_learn.modes.llm_expanded.resolve", return_value=_injecting_stub):
+        with patch(
+            "akms_learn.modes.llm_expanded.resolve", return_value=_injecting_stub
+        ):
             result, warnings = llm_expanded_mode(
                 graph,
                 ordered,
@@ -456,7 +472,9 @@ class TestSourceLocking:
         assert "malicious::orphan" not in packet_ids
 
         # Exactly one warning emitted, naming the rejected section.
-        orphan_warnings = [w for w in warnings if w.code == "llm_citation_outside_packet"]
+        orphan_warnings = [
+            w for w in warnings if w.code == "llm_citation_outside_packet"
+        ]
         assert len(orphan_warnings) == 1
         assert orphan_warnings[0].source_ref == "malicious::orphan"
         assert "ZZZ_NOT_IN_PACKET" in orphan_warnings[0].message
@@ -487,7 +505,9 @@ class TestSourceLocking:
         def _injecting_stub(topic, active_node_ids, policy=None, *, sources=None):
             return [valid_section, orphan_section]
 
-        with patch("akms_learn.modes.llm_expanded.resolve", return_value=_injecting_stub):
+        with patch(
+            "akms_learn.modes.llm_expanded.resolve", return_value=_injecting_stub
+        ):
             result, _ = llm_expanded_mode(
                 graph,
                 ordered,
@@ -520,7 +540,9 @@ class TestSourceLocking:
 
         with patch(
             "akms_learn.modes.llm_expanded.resolve",
-            return_value=lambda topic, active_node_ids, policy=None, *, sources=None: [bad_section],
+            return_value=lambda topic, active_node_ids, policy=None, *, sources=None: [
+                bad_section
+            ],
         ):
             result, _ = llm_expanded_mode(
                 graph,
@@ -549,7 +571,9 @@ class TestExternalProviderAbsent:
                 graph,
                 ordered,
                 _make_request(),
-                expansion_request=LLMExpansionRequest(enable_llm=True, provider="acme_llm"),
+                expansion_request=LLMExpansionRequest(
+                    enable_llm=True, provider="acme_llm"
+                ),
             )
         assert exc_info.value.capability == "llm_expanded"
         assert exc_info.value.extra == "llm"
@@ -563,10 +587,14 @@ class TestExternalProviderAbsent:
                 graph,
                 ordered,
                 _make_request(),
-                expansion_request=LLMExpansionRequest(enable_llm=True, provider="acme_llm"),
+                expansion_request=LLMExpansionRequest(
+                    enable_llm=True, provider="acme_llm"
+                ),
             )
         assert result.generated_sections == []
-        assert _canonical_json(result.packet) == _canonical_json(result.pre_expansion_packet)
+        assert _canonical_json(result.packet) == _canonical_json(
+            result.pre_expansion_packet
+        )
         assert any(w.code == "llm_provider_unavailable" for w in warnings)
 
 
@@ -643,7 +671,9 @@ class TestPolicyResolution:
             graph,
             ["alpha"],
             _make_request(),
-            expansion_request=LLMExpansionRequest(enable_llm=True, policy="no_new_claims"),
+            expansion_request=LLMExpansionRequest(
+                enable_llm=True, policy="no_new_claims"
+            ),
         )
         assert result.policy == "no_new_claims"
 
@@ -701,7 +731,13 @@ class TestSourceCanaries:
         import ast
         from pathlib import Path
 
-        src = Path(__file__).parent.parent / "src" / "akms_learn" / "modes" / "llm_expanded.py"
+        src = (
+            Path(__file__).parent.parent
+            / "src"
+            / "akms_learn"
+            / "modes"
+            / "llm_expanded.py"
+        )
         tree = ast.parse(src.read_text(encoding="utf-8"))
 
         forbidden_modules = {
@@ -763,6 +799,8 @@ def test_registered_provider_dispatched_through_registry():
             graph,
             ordered,
             _make_request(),
-            expansion_request=LLMExpansionRequest(enable_llm=True, provider="testprov_p1_1"),
+            expansion_request=LLMExpansionRequest(
+                enable_llm=True, provider="testprov_p1_1"
+            ),
         )
     assert any(s.id == "alpha::custom" for s in result.generated_sections)

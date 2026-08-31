@@ -30,13 +30,15 @@ class TestRunPipelineDry:
 
         handler = AutoApproveCheckpointHandler()
 
-        asyncio.run(run_pipeline(
-            repo_root=repo,
-            goal="dry run",
-            plan_name="test",
-            agent_cls=None,
-            checkpoint_handler=handler,
-        ))
+        asyncio.run(
+            run_pipeline(
+                repo_root=repo,
+                goal="dry run",
+                plan_name="test",
+                agent_cls=None,
+                checkpoint_handler=handler,
+            )
+        )
 
         state = PipelineState.load(repo)
         assert state.completed is True
@@ -52,19 +54,28 @@ class TestRunPipelineDry:
         from tests.fakes.checkpoint_handlers import AbortThenApproveHandler
 
         handler = AbortThenApproveHandler()
-        asyncio.run(run_pipeline(
-            repo_root=repo, goal="test", plan_name="test",
-            agent_cls=None, checkpoint_handler=handler,
-        ))
+        asyncio.run(
+            run_pipeline(
+                repo_root=repo,
+                goal="test",
+                plan_name="test",
+                agent_cls=None,
+                checkpoint_handler=handler,
+            )
+        )
 
         state = PipelineState.load(repo)
         assert state.aborted is True
 
         handler2 = AutoApproveCheckpointHandler()
-        asyncio.run(run_pipeline(
-            repo_root=repo, resume=True,
-            agent_cls=None, checkpoint_handler=handler2,
-        ))
+        asyncio.run(
+            run_pipeline(
+                repo_root=repo,
+                resume=True,
+                agent_cls=None,
+                checkpoint_handler=handler2,
+            )
+        )
 
         state = PipelineState.load(repo)
         assert state.completed is True

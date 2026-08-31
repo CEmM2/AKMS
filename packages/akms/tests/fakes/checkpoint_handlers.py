@@ -42,12 +42,14 @@ class RecordingCheckpointHandler(CheckpointHandler):
         self.presentations: list[dict] = []
 
     def present(self, state, stage_output, akms_status, warnings, repo_root):
-        self.presentations.append({
-            "stage": state.current_stage.name,
-            "phase": state.current_phase,
-            "output_preview": stage_output[:200],
-            "warnings": warnings,
-        })
+        self.presentations.append(
+            {
+                "stage": state.current_stage.name,
+                "phase": state.current_phase,
+                "output_preview": stage_output[:200],
+                "warnings": warnings,
+            }
+        )
         if self._actions:
             return self._actions.pop(0)
         return CheckpointAction.ABORT

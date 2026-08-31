@@ -132,7 +132,9 @@ def _make_graph_with_safe_code() -> GraphSlice:
 
 def _make_graph_with_unsafe_code() -> GraphSlice:
     """Graph slice with a node whose implementation section uses network IO."""
-    unsafe_snippet = "import requests\ndata = requests.get('http://example.com').json()\n"
+    unsafe_snippet = (
+        "import requests\ndata = requests.get('http://example.com').json()\n"
+    )
     nodes: list[dict[str, Any]] = [
         {
             "node_id": "unsafe_node",
@@ -243,9 +245,7 @@ class TestSixSections:
         gs = fixture_graph_toy_concept_kit()
         result, _ = _run_mode(gs)
         for slot in NOTEBOOK_SECTIONS:
-            assert len(result.sections[slot]) >= 1, (
-                f"Section {slot!r} has no cells"
-            )
+            assert len(result.sections[slot]) >= 1, f"Section {slot!r} has no cells"
 
     @pytest.mark.unit
     def test_deterministic_second_call(self):
@@ -335,7 +335,10 @@ class TestClassifyCodeSafety:
 
     @pytest.mark.unit
     def test_safe_statistics_import(self):
-        assert _classify_code_safety("import statistics\nm = statistics.mean([1,2,3])") == "safe"
+        assert (
+            _classify_code_safety("import statistics\nm = statistics.mean([1,2,3])")
+            == "safe"
+        )
 
     @pytest.mark.unit
     def test_safe_multiple_whitelist_imports(self):
@@ -430,44 +433,35 @@ class TestClassifyCodeSafety:
     @pytest.mark.unit
     def test_unknown_dotted_sklearn_preprocessing(self):
         # sklearn is not in the whitelist → unknown (must NOT leak through as safe)
-        assert _classify_code_safety(
-            "from sklearn.preprocessing import StandardScaler"
-        ) == "unknown"
+        assert (
+            _classify_code_safety("from sklearn.preprocessing import StandardScaler")
+            == "unknown"
+        )
 
     @pytest.mark.unit
     def test_unknown_dotted_numpy_linalg(self):
         # numpy is not in the whitelist → unknown
-        assert _classify_code_safety(
-            "from numpy.linalg import inv"
-        ) == "unknown"
+        assert _classify_code_safety("from numpy.linalg import inv") == "unknown"
 
     @pytest.mark.unit
     def test_unsafe_dotted_urllib(self):
         # urllib is in the unsafe set → unsafe
-        assert _classify_code_safety(
-            "from urllib import request"
-        ) == "unsafe"
+        assert _classify_code_safety("from urllib import request") == "unsafe"
 
     @pytest.mark.unit
     def test_safe_dotted_collections_abc(self):
         # collections is in the whitelist → safe
-        assert _classify_code_safety(
-            "from collections.abc import Mapping"
-        ) == "safe"
+        assert _classify_code_safety("from collections.abc import Mapping") == "safe"
 
     @pytest.mark.unit
     def test_safe_dotted_math(self):
         # math is in the whitelist → safe
-        assert _classify_code_safety(
-            "from math import sqrt"
-        ) == "safe"
+        assert _classify_code_safety("from math import sqrt") == "safe"
 
     @pytest.mark.unit
     def test_unknown_star_import_regex_gated(self):
         # Star-import detected via regex before no-imports early-return
-        assert _classify_code_safety(
-            "from itertools import *"
-        ) == "unknown"
+        assert _classify_code_safety("from itertools import *") == "unknown"
 
     @pytest.mark.unit
     def test_safe_star_import_check_not_fooled_by_docstring(self):
@@ -586,30 +580,35 @@ class TestNoExecution:
         stripped = re.sub(r'""".*?"""', '""""""', raw, flags=re.DOTALL)
         stripped = re.sub(r"'''.*?'''", "''''''", stripped, flags=re.DOTALL)
         # Also drop comment lines.
-        lines = [
-            ln for ln in stripped.splitlines()
-            if not ln.lstrip().startswith("#")
-        ]
+        lines = [ln for ln in stripped.splitlines() if not ln.lstrip().startswith("#")]
         return "\n".join(lines)
 
     @pytest.mark.unit
     def test_no_nbclient_import_in_source(self):
         """Source file does not import nbclient."""
         code = self._non_docstring_source()
-        assert "import nbclient" not in code, "Canary: 'import nbclient' found in notebook_source.py"
-        assert "nbclient." not in code, "Canary: 'nbclient.' call found in notebook_source.py"
+        assert "import nbclient" not in code, (
+            "Canary: 'import nbclient' found in notebook_source.py"
+        )
+        assert "nbclient." not in code, (
+            "Canary: 'nbclient.' call found in notebook_source.py"
+        )
 
     @pytest.mark.unit
     def test_no_jupyter_import_in_source(self):
         """Source file does not import jupyter packages."""
         code = self._non_docstring_source()
-        assert "import jupyter" not in code, "Canary: 'import jupyter' found in notebook_source.py"
+        assert "import jupyter" not in code, (
+            "Canary: 'import jupyter' found in notebook_source.py"
+        )
 
     @pytest.mark.unit
     def test_no_subprocess_import_in_source(self):
         """Source file does not import subprocess."""
         code = self._non_docstring_source()
-        assert "import subprocess" not in code, "Canary: 'import subprocess' found in notebook_source.py"
+        assert "import subprocess" not in code, (
+            "Canary: 'import subprocess' found in notebook_source.py"
+        )
 
     @pytest.mark.unit
     def test_no_exec_call_in_source(self):

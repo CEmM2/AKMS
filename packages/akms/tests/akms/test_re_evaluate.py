@@ -21,7 +21,9 @@ from .conftest import make_global_node, set_overlay
 class TestReEvaluate:
     def test_generates_loadout_file(self, tmp_vault, tmp_repo):
         """re_evaluate produces a loadout file in the expected location."""
-        make_global_node(tmp_vault, id="node-a", confidence=0.90, tags=["test", "alpha"])
+        make_global_node(
+            tmp_vault, id="node-a", confidence=0.90, tags=["test", "alpha"]
+        )
         make_global_node(tmp_vault, id="node-b", confidence=0.85, tags=["test", "beta"])
         # Build initial graph
         build_graph(tmp_repo, global_vault=tmp_vault)

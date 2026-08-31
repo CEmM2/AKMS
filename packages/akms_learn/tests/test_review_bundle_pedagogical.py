@@ -71,9 +71,7 @@ class TestPedagogicalReviewBundle:
     """Pedagogical review-bundle generation."""
 
     @pytest.mark.e2e
-    def test_required_artifacts_present_and_non_empty(
-        self, tmp_path: Path
-    ) -> None:
+    def test_required_artifacts_present_and_non_empty(self, tmp_path: Path) -> None:
         """All 8 artifacts + manifest.json + regenerate.sh exist
         under the generated bundle dir and are non-empty.
         """
@@ -107,9 +105,7 @@ class TestPedagogicalReviewBundle:
             assert key in manifest, f"manifest missing required key: {key!r}"
 
         # Status string MUST be exactly 'review_bundle_generated'.
-        assert (
-            manifest["status"] == MANIFEST_STATUS == "review_bundle_generated"
-        )
+        assert manifest["status"] == MANIFEST_STATUS == "review_bundle_generated"
 
         # Closure-rule guard: never auto-flipped to plan_closed at this stage.
         assert manifest["status"] != "plan_closed"
@@ -133,9 +129,7 @@ class TestPedagogicalReviewBundle:
         assert manifest["unavailable_capabilities"] == []
 
     @pytest.mark.e2e
-    def test_learning_modes_used_lists_four_plan2_modes(
-        self, tmp_path: Path
-    ) -> None:
+    def test_learning_modes_used_lists_four_plan2_modes(self, tmp_path: Path) -> None:
         """manifest.learning_modes_used lists the four pedagogical modes
         verbatim, in §14 order.
         """
@@ -154,9 +148,7 @@ class TestPedagogicalReviewBundle:
         assert list(LEARNING_MODES) == manifest["learning_modes_used"]
 
     @pytest.mark.e2e
-    def test_regenerate_byte_stable_after_timestamp_strip(
-        self, tmp_path: Path
-    ) -> None:
+    def test_regenerate_byte_stable_after_timestamp_strip(self, tmp_path: Path) -> None:
         """Running the generator into two fresh dirs yields
         byte-identical artifacts after stripping the LSP ``created_at``
         timestamp field.
@@ -166,12 +158,8 @@ class TestPedagogicalReviewBundle:
         generate_review_bundle_pedagogical(out_a, work_dir=tmp_path / "work_a")
         generate_review_bundle_pedagogical(out_b, work_dir=tmp_path / "work_b")
 
-        files_a = sorted(
-            p.relative_to(out_a) for p in out_a.rglob("*") if p.is_file()
-        )
-        files_b = sorted(
-            p.relative_to(out_b) for p in out_b.rglob("*") if p.is_file()
-        )
+        files_a = sorted(p.relative_to(out_a) for p in out_a.rglob("*") if p.is_file())
+        files_b = sorted(p.relative_to(out_b) for p in out_b.rglob("*") if p.is_file())
         assert files_a == files_b, (
             f"artifact set drift:\n  A: {files_a!r}\n  B: {files_b!r}"
         )
@@ -236,19 +224,14 @@ class TestPedagogicalReviewBundle:
 
         # No external resource references at all (inline <style> is fine,
         # external <link> stylesheets and <script> tags are forbidden).
-        assert "<link" not in html.lower(), (
-            "HTML preview must not <link> external CSS"
-        )
+        assert "<link" not in html.lower(), "HTML preview must not <link> external CSS"
         assert "<script" not in html.lower(), (
             "HTML preview must not <script> external JS"
         )
 
         # No timestamp-like strings: ISO-8601 dates or HH:MM[:SS] clocks.
-        ts_re = re.compile(
-            r"\b\d{4}-\d{2}-\d{2}\b|\b\d{2}:\d{2}(:\d{2})?\b"
-        )
+        ts_re = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{2}:\d{2}(:\d{2})?\b")
         m = ts_re.search(html)
         assert m is None, (
-            f"HTML preview must contain no timestamp strings; "
-            f"found {m.group(0)!r}"
+            f"HTML preview must contain no timestamp strings; found {m.group(0)!r}"
         )

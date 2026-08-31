@@ -82,7 +82,9 @@ LLM_VALIDATION_STATUSES: Final[tuple[str, str, str]] = (
 )
 
 #: Literal alias for the three allowed validation statuses.
-GeneratedSectionValidationStatus = Literal["valid", "rejected_orphan_citation", "rejected_policy"]
+GeneratedSectionValidationStatus = Literal[
+    "valid", "rejected_orphan_citation", "rejected_policy"
+]
 
 
 # ---------------------------------------------------------------------------

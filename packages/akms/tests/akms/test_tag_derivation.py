@@ -113,7 +113,10 @@ class TestTextBasedDerivation:
         )
         G = build_graph(tmp_repo, global_vault=tmp_vault)
 
-        task = {"title": "Set up fft-galerkin solver", "objective": "spectral method implementation"}
+        task = {
+            "title": "Set up fft-galerkin solver",
+            "objective": "spectral method implementation",
+        }
         config = TagDerivationConfig(min_tag_length=2)
         tags = _derive_tags_from_text(G, task, config)
         assert "fft-galerkin" in tags
@@ -235,7 +238,7 @@ class TestDeriveTags:
         }
         result = derive_tags(G, task)
         assert "alpha" in result  # from scope
-        assert "beta" in result   # from text
+        assert "beta" in result  # from text
 
     def test_result_is_sorted(self, tmp_vault, tmp_repo):
         """Derived tags are sorted."""

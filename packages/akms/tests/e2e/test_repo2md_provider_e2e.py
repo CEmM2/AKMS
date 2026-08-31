@@ -32,11 +32,17 @@ _REPO2MD_ROOT = Path(
     )
 )
 _FIXTURE_SOURCE = _REPO2MD_ROOT / "tests" / "fixtures" / "akms_export" / "source_repo"
-_CMD = os.environ.get("AKMS_REPO2MD_COMMAND") or shutil.which("repo-wiki") or "repo-wiki"
+_CMD = (
+    os.environ.get("AKMS_REPO2MD_COMMAND") or shutil.which("repo-wiki") or "repo-wiki"
+)
 
 
 def _ready() -> bool:
-    return _E2E and _FIXTURE_SOURCE.is_dir() and shutil.which(str(_CMD).split()[0] if False else _CMD)
+    return (
+        _E2E
+        and _FIXTURE_SOURCE.is_dir()
+        and shutil.which(str(_CMD).split()[0] if False else _CMD)
+    )
 
 
 @pytest.mark.skipif(not _E2E, reason="AKMS_REPO2MD_E2E!=1 (opt-in real repo2md E2E)")
@@ -49,7 +55,11 @@ class TestRealRepo2mdE2E:
         # Copy fixture source into an isolated repo root.
         repo = tmp_path / "proj"
         shutil.copytree(_FIXTURE_SOURCE, repo)
-        for sub in ("knowledge/code-mirror", "knowledge/graph", "knowledge/local-nodes"):
+        for sub in (
+            "knowledge/code-mirror",
+            "knowledge/graph",
+            "knowledge/local-nodes",
+        ):
             (repo / sub).mkdir(parents=True, exist_ok=True)
 
         cfg = PropagationConfig(

@@ -115,8 +115,6 @@ def _get_source_phase(source: AgentMemory | PCD | dict) -> int:
     return 0
 
 
-
-
 def _process_nodes_used(
     G: nx.DiGraph,
     overlay: dict,
@@ -178,24 +176,28 @@ def _process_nodes_used(
         if useful:
             # Boost
             new_conf = current_conf + conf_config.activation_boost
-            events.append({
-                "node_id": node_id,
-                "action": "boost",
-                "old": current_conf,
-                "new": new_conf,
-                "reason": f"useful=true from {source_id}",
-            })
+            events.append(
+                {
+                    "node_id": node_id,
+                    "action": "boost",
+                    "old": current_conf,
+                    "new": new_conf,
+                    "reason": f"useful=true from {source_id}",
+                }
+            )
 
         if coverage in ("missing-detail", "outdated"):
             # Decay
             new_conf = new_conf * conf_config.local_decay
-            events.append({
-                "node_id": node_id,
-                "action": "decay",
-                "old": current_conf,
-                "new": new_conf,
-                "reason": f"coverage={coverage} from {source_id}",
-            })
+            events.append(
+                {
+                    "node_id": node_id,
+                    "action": "decay",
+                    "old": current_conf,
+                    "new": new_conf,
+                    "reason": f"coverage={coverage} from {source_id}",
+                }
+            )
 
         # Clamp to [confidence_floor, max_confidence]
         new_conf = max(conf_floor, min(conf_config.max_confidence, new_conf))
@@ -229,8 +231,6 @@ def _process_nodes_used(
         node_overlay["session_refs"] = session_refs
 
     return events
-
-
 
 
 def _propagate_to_neighbors(
@@ -316,21 +316,21 @@ def _propagate_to_neighbors(
 
             pred_overlay["confidence"] = round(new_conf, 6)
 
-            prop_events.append({
-                "node_id": pred_id,
-                "action": "propagated_decay",
-                "from_node": node_id,
-                "edge_type": edge_type,
-                "edge_weight": edge_weight,
-                "multiplier": multiplier,
-                "hit": round(hit, 6),
-                "old": current_conf,
-                "new": new_conf,
-            })
+            prop_events.append(
+                {
+                    "node_id": pred_id,
+                    "action": "propagated_decay",
+                    "from_node": node_id,
+                    "edge_type": edge_type,
+                    "edge_weight": edge_weight,
+                    "multiplier": multiplier,
+                    "hit": round(hit, 6),
+                    "old": current_conf,
+                    "new": new_conf,
+                }
+            )
 
     return prop_events
-
-
 
 
 def _process_pitfalls(
@@ -376,13 +376,15 @@ def _process_pitfalls(
         key = (str(node_ref), str(session_node_id), str(description), str(source_id))
 
         if key in existing_keys:
-            events.append({
-                "action": "pitfall_edge_duplicate_skipped",
-                "from": node_ref,
-                "to": session_node_id,
-                "description": description,
-                "source_id": source_id,
-            })
+            events.append(
+                {
+                    "action": "pitfall_edge_duplicate_skipped",
+                    "from": node_ref,
+                    "to": session_node_id,
+                    "description": description,
+                    "source_id": source_id,
+                }
+            )
             continue
 
         edge = {
@@ -396,13 +398,15 @@ def _process_pitfalls(
 
         local_edges.append(edge)
         existing_keys.add(key)
-        events.append({
-            "action": "pitfall_edge",
-            "from": node_ref,
-            "to": session_node_id,
-            "description": description,
-            "source_id": source_id,
-        })
+        events.append(
+            {
+                "action": "pitfall_edge",
+                "from": node_ref,
+                "to": session_node_id,
+                "description": description,
+                "source_id": source_id,
+            }
+        )
 
     return events
 
@@ -428,7 +432,11 @@ def _create_session_node(
     # Determine title and outcome
     if isinstance(source, AgentMemory):
         title = f"Session: {source.task_id} — {source.task_description}"
-        status = source.status.value if hasattr(source.status, "value") else str(source.status)
+        status = (
+            source.status.value
+            if hasattr(source.status, "value")
+            else str(source.status)
+        )
         outcome = _status_to_outcome(status)
         tags = [f"phase{phase}"]
         content_ref = f"sessions/{source.task_id}.md"
@@ -438,7 +446,10 @@ def _create_session_node(
         content_ref = f"sessions/handoff_phase_{phase}.md"
         # Determine outcome from overall test status
         if source.overall_test_status:
-            if source.overall_test_status.dedicated_passing == source.overall_test_status.dedicated_total:
+            if (
+                source.overall_test_status.dedicated_passing
+                == source.overall_test_status.dedicated_total
+            ):
                 outcome = "success"
             else:
                 outcome = "partial"
@@ -505,6 +516,7 @@ def _process_new_knowledge(
     def _safe_load_markdown_content(path: Path) -> str:
         try:
             import frontmatter as fm
+
             post = fm.load(str(path))
             return str(post.content or "")
         except Exception:
@@ -542,6 +554,7 @@ def _process_new_knowledge(
         for local_path in sorted(local_nodes_dir.glob("**/*.md")):
             try:
                 import frontmatter as fm
+
                 post = fm.load(str(local_path))
                 metadata = dict(post.metadata)
             except Exception:
@@ -551,14 +564,16 @@ def _process_new_knowledge(
             if status != "tentative":
                 continue
 
-            candidates.append({
-                "node_id": str(metadata.get("id", local_path.stem)),
-                "domain": str(metadata.get("domain", "")),
-                "title": str(metadata.get("title", "")),
-                "content": str(post.content or ""),
-                "origin": "local",
-                "path": local_path,
-            })
+            candidates.append(
+                {
+                    "node_id": str(metadata.get("id", local_path.stem)),
+                    "domain": str(metadata.get("domain", "")),
+                    "title": str(metadata.get("title", "")),
+                    "content": str(post.content or ""),
+                    "origin": "local",
+                    "path": local_path,
+                }
+            )
 
         # Global tentative nodes from graph (cannot be appended in place).
         for node_id, node_data in G.nodes(data=True):
@@ -583,13 +598,15 @@ def _process_new_knowledge(
                         candidate_content = _safe_load_markdown_content(p)
                         break
 
-            candidates.append({
-                "node_id": node_id,
-                "domain": str(node_data.get("domain", "")),
-                "title": str(node_data.get("title", "")),
-                "content": candidate_content,
-                "origin": "global",
-            })
+            candidates.append(
+                {
+                    "node_id": node_id,
+                    "domain": str(node_data.get("domain", "")),
+                    "title": str(node_data.get("title", "")),
+                    "content": candidate_content,
+                    "origin": "global",
+                }
+            )
 
         return candidates
 
@@ -608,8 +625,7 @@ def _process_new_knowledge(
         tentative_candidates = _collect_tentative_candidates()
         if domain:
             tentative_candidates = [
-                c for c in tentative_candidates
-                if c.get("domain") == domain
+                c for c in tentative_candidates if c.get("domain") == domain
             ]
 
         best_match: dict[str, Any] | None = None
@@ -633,32 +649,37 @@ def _process_new_knowledge(
                 local_path = Path(best_match["path"])
                 try:
                     import frontmatter as fm
+
                     post = fm.load(str(local_path))
                     post.content += f"\n\n---\n\n{content_draft}"
                     with open(local_path, "wb") as f:
                         fm.dump(post, f)
-                    events.append({
-                        "action": "dedup_append",
-                        "node_id": match_id,
-                        "merged_into": match_id,
-                        "score": round(best_score, 6),
-                        "threshold": dedup_threshold,
-                        "reason": "similarity exceeded dedup_threshold",
-                    })
+                    events.append(
+                        {
+                            "action": "dedup_append",
+                            "node_id": match_id,
+                            "merged_into": match_id,
+                            "score": round(best_score, 6),
+                            "threshold": dedup_threshold,
+                            "reason": "similarity exceeded dedup_threshold",
+                        }
+                    )
                     matched_existing = True
                 except Exception as e:
                     logger.warning("Failed to append to %s: %s", local_path, e)
             else:
                 # Cannot modify global tentative node — create local variant.
                 suggested_id = f"{match_id}-local"
-                events.append({
-                    "action": "dedup_global_skip",
-                    "node_id": suggested_id,
-                    "merged_into": match_id,
-                    "score": round(best_score, 6),
-                    "threshold": dedup_threshold,
-                    "reason": "best dedup match is global tentative node",
-                })
+                events.append(
+                    {
+                        "action": "dedup_global_skip",
+                        "node_id": suggested_id,
+                        "merged_into": match_id,
+                        "score": round(best_score, 6),
+                        "threshold": dedup_threshold,
+                        "reason": "best dedup match is global tentative node",
+                    }
+                )
 
         if not matched_existing:
             # ── Create new tentative node ────────────────────────────
@@ -688,24 +709,25 @@ def _process_new_knowledge(
 
             try:
                 import frontmatter as fm
+
                 post = fm.Post(content_draft)
                 post.metadata = frontmatter_data
                 node_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(node_path, "wb") as f:
                     fm.dump(post, f)
 
-                events.append({
-                    "action": "new_node",
-                    "node_id": suggested_id,
-                    "domain": domain,
-                    "path": str(node_path),
-                })
+                events.append(
+                    {
+                        "action": "new_node",
+                        "node_id": suggested_id,
+                        "domain": domain,
+                        "path": str(node_path),
+                    }
+                )
             except Exception as e:
                 logger.error("Failed to create node %s: %s", suggested_id, e)
 
     return events
-
-
 
 
 def _prune_session_refs(overlay: dict, max_refs: int) -> None:
@@ -844,23 +866,34 @@ def update_graph(
     logger.info("update_graph: processing %s (phase %d)", source_id, phase)
 
     confidence_events = _process_nodes_used(
-        G, overlay, persistent.get("nodes_used", []),
-        config, source_id, today,
+        G,
+        overlay,
+        persistent.get("nodes_used", []),
+        config,
+        source_id,
+        today,
     )
 
     propagation_events = _propagate_to_neighbors(
-        G, overlay, confidence_events, config,
+        G,
+        overlay,
+        confidence_events,
+        config,
     )
 
     session_node_id = _create_session_node(overlay, source_id, source, phase)
 
     pitfall_events = _process_pitfalls(
-        overlay, persistent.get("pitfalls_discovered", []),
-        session_node_id, source_id=source_id,
+        overlay,
+        persistent.get("pitfalls_discovered", []),
+        session_node_id,
+        source_id=source_id,
     )
 
     knowledge_events = _process_new_knowledge(
-        G, repo_root, persistent.get("new_knowledge", []),
+        G,
+        repo_root,
+        persistent.get("new_knowledge", []),
         config,
     )
 
@@ -874,29 +907,33 @@ def update_graph(
             coverage = str(coverage_val)
         if coverage not in (Coverage.MISSING_DETAIL.value, Coverage.OUTDATED.value):
             continue
-        coverage_flags.append({
-            "node_id": str(feedback.get("id", "")),
-            "coverage": coverage,
-            "source_id": source_id,
-            "phase": phase,
-            "date": str(today),
-        })
+        coverage_flags.append(
+            {
+                "node_id": str(feedback.get("id", "")),
+                "coverage": coverage,
+                "source_id": source_id,
+                "phase": phase,
+                "date": str(today),
+            }
+        )
 
     dedup_events = overlay.setdefault("dedup_events", [])
     for event in knowledge_events:
         action = str(event.get("action", ""))
         if action not in ("dedup_append", "dedup_global_skip"):
             continue
-        dedup_events.append({
-            "action": action,
-            "merged_into": str(event.get("merged_into", event.get("node_id", ""))),
-            "node_id": str(event.get("node_id", "")),
-            "score": event.get("score"),
-            "threshold": event.get("threshold"),
-            "source_id": source_id,
-            "phase": phase,
-            "date": str(today),
-        })
+        dedup_events.append(
+            {
+                "action": action,
+                "merged_into": str(event.get("merged_into", event.get("node_id", ""))),
+                "node_id": str(event.get("node_id", "")),
+                "score": event.get("score"),
+                "threshold": event.get("threshold"),
+                "source_id": source_id,
+                "phase": phase,
+                "date": str(today),
+            }
+        )
 
     blocked_tasks = overlay.setdefault("blocked_tasks", [])
     if isinstance(source, dict):
@@ -909,13 +946,15 @@ def update_graph(
         for issue in source.known_issues.failing_tests:
             if issue.impact_on_next_phase != ImpactOnNextPhase.BLOCKING:
                 continue
-            blocked_tasks.append({
-                "task": issue.tests,
-                "reason": issue.reason,
-                "source_id": source_id,
-                "phase": phase,
-                "date": str(today),
-            })
+            blocked_tasks.append(
+                {
+                    "task": issue.tests,
+                    "reason": issue.reason,
+                    "source_id": source_id,
+                    "phase": phase,
+                    "date": str(today),
+                }
+            )
 
     _prune_session_refs(overlay, config.graph.max_session_refs)
 

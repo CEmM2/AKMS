@@ -88,9 +88,7 @@ class SourcePackDescriptor(BaseModel):
     they never trigger any import of the companion code.
     """
 
-    model_config = ConfigDict(
-        extra="forbid", frozen=True, populate_by_name=True
-    )
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
     # Optional spec-level fields (mirroring §4) — kept lower_snake_case.
     source_pack_schema: str | None = Field(
@@ -100,8 +98,7 @@ class SourcePackDescriptor(BaseModel):
     id: str = Field(
         ...,
         alias="source_pack_id",
-        description="Stable source-pack identifier "
-        "(e.g. 'compmech.constkit').",
+        description="Stable source-pack identifier (e.g. 'compmech.constkit').",
     )
     name: str = Field(..., description="Human-readable source pack name.")
     version: str = Field(..., description="Source-pack version string.")
@@ -126,8 +123,7 @@ class SourcePackDescriptor(BaseModel):
     )
     roots: dict[str, str] | None = Field(
         default=None,
-        description="Path roots inside the repo (docs / code / examples / "
-        "tests).",
+        description="Path roots inside the repo (docs / code / examples / tests).",
     )
     capabilities: dict[str, bool] | None = Field(
         default=None,
@@ -170,9 +166,7 @@ class DomainPackDescriptor(BaseModel):
     )
     name: str = Field(..., description="Human-readable pack name.")
     version: str = Field(..., description="Pack version string.")
-    status: Literal[
-        "reference", "experimental", "planned", "deprecated"
-    ] = Field(
+    status: Literal["reference", "experimental", "planned", "deprecated"] = Field(
         default="reference",
         description="Lifecycle status (spec §3).",
     )
@@ -191,8 +185,7 @@ class DomainPackDescriptor(BaseModel):
     )
     roots: dict[str, str] | None = Field(
         default=None,
-        description="Filesystem roots — nodes / code_mirror / examples / "
-        "bundles.",
+        description="Filesystem roots — nodes / code_mirror / examples / bundles.",
     )
     capabilities: dict[str, bool] | None = Field(
         default=None,

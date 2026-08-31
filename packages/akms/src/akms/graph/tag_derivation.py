@@ -72,14 +72,22 @@ def _derive_tags_from_scope(
             # Check source_file match (code-mirror nodes)
             if source_file:
                 sf_norm = source_file.replace("\\", "/")
-                if sf_norm == scope_norm or scope_norm.startswith(sf_norm) or sf_norm.startswith(scope_norm):
+                if (
+                    sf_norm == scope_norm
+                    or scope_norm.startswith(sf_norm)
+                    or sf_norm.startswith(scope_norm)
+                ):
                     tags.update(node_tags)
                     break
 
             # Check content_ref match (global/local nodes)
             if content_ref:
                 cr_norm = content_ref.replace("\\", "/")
-                if cr_norm == scope_norm or scope_norm.endswith(cr_norm) or cr_norm.endswith(scope_norm):
+                if (
+                    cr_norm == scope_norm
+                    or scope_norm.endswith(cr_norm)
+                    or cr_norm.endswith(scope_norm)
+                ):
                     tags.update(node_tags)
                     break
 
@@ -153,7 +161,9 @@ def _derive_tags_from_text(
                 # Match any word from the title (3+ chars) in the corpus
                 title_words = re.findall(r"[a-z0-9][-a-z0-9_]*[a-z0-9]", title_lower)
                 for word in title_words:
-                    if len(word) >= 3 and re.search(r"\b" + re.escape(word) + r"\b", corpus):
+                    if len(word) >= 3 and re.search(
+                        r"\b" + re.escape(word) + r"\b", corpus
+                    ):
                         tags.update(node_tags)
                         break
             else:
@@ -226,7 +236,10 @@ def derive_tags(
     if td_config.log_derived_tags:
         logger.info(
             "derive_tags: scope=%d text=%d total=%d tags=%s",
-            len(scope_tags), len(text_tags), len(result), result,
+            len(scope_tags),
+            len(text_tags),
+            len(result),
+            result,
         )
 
     return result

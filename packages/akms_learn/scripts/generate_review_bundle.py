@@ -81,9 +81,7 @@ MANIFEST_STATUS: str = "review_bundle_generated"
 
 #: Canonical command string captured into manifest.json. The reviewer runs
 #: this from the repo root.
-CANONICAL_COMMAND: str = (
-    "bash artifacts/review_bundles/akms_learn_mvp/regenerate.sh"
-)
+CANONICAL_COMMAND: str = "bash artifacts/review_bundles/akms_learn_mvp/regenerate.sh"
 
 #: Topic + goal used for every mode invocation. The fixture graph is built
 #: around j2 return-mapping (see `fixture_graph` in graph_import.py).
@@ -93,6 +91,7 @@ _GOAL = "Understand the j2 return-mapping algorithm"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _run_cli(mode: str, output_dir: Path) -> None:
     """Invoke ``akms-learn compile`` for *mode* into *output_dir*.
@@ -123,9 +122,8 @@ def _run_cli(mode: str, output_dir: Path) -> None:
     ]
     rc = cli_main(argv)
     if rc != 0:
-        raise RuntimeError(
-            f"akms-learn compile failed for mode={mode!r} (exit={rc})"
-        )
+        raise RuntimeError(f"akms-learn compile failed for mode={mode!r} (exit={rc})")
+
 
 def _read_packet(mode_dir: Path) -> LearningSourcePacket:
     """Locate the LSP JSON in *mode_dir* and load it as a packet."""
@@ -139,13 +137,12 @@ def _read_packet(mode_dir: Path) -> LearningSourcePacket:
         not in {"manifest.json", "concept_map.json", "provenance.json", "warnings.json"}
     ]
     if not packet_candidates:
-        raise FileNotFoundError(
-            f"No packet JSON file found in {mode_dir!r}"
-        )
+        raise FileNotFoundError(f"No packet JSON file found in {mode_dir!r}")
     # Compiler writes a single <request_hash>.json per invocation.
     return LearningSourcePacket.model_validate_json(
         packet_candidates[0].read_text(encoding="utf-8")
     )
+
 
 def _render_html(markdown_text: str) -> str:
     """Render *markdown_text* to a self-contained HTML document.
@@ -162,9 +159,9 @@ def _render_html(markdown_text: str) -> str:
     # Minimal HTML5 wrapper; no external stylesheets, no inline timestamps.
     return (
         "<!DOCTYPE html>\n"
-        "<html lang=\"en\">\n"
+        '<html lang="en">\n'
         "<head>\n"
-        "<meta charset=\"utf-8\">\n"
+        '<meta charset="utf-8">\n'
         f"<title>{PLAN_ID} -- Generated Lesson Preview</title>\n"
         "</head>\n"
         "<body>\n"
@@ -172,6 +169,7 @@ def _render_html(markdown_text: str) -> str:
         "</body>\n"
         "</html>\n"
     )
+
 
 def _compose_lesson(mode_outputs: dict[str, Path]) -> str:
     """Combine per-mode markdown outputs into a single lesson body.
@@ -200,6 +198,7 @@ def _compose_lesson(mode_outputs: dict[str, Path]) -> str:
             parts.append("")
             parts.append(lesson_path.read_text(encoding="utf-8").rstrip())
     return "\n".join(parts) + "\n"
+
 
 # Display label for each learning mode used in the section-level
 # traceability table. The deterministic_outline mode is the canonical body of
@@ -234,9 +233,11 @@ _SLUG_ALIASES: dict[str, str] = {
     "implementation_derivation_explanation": "implementation",
 }
 
+
 def _section_slug(title: str) -> str:
     s = _SLUG_NONWORD_RE.sub("_", title.lower().strip()).strip("_")
     return _SLUG_ALIASES.get(s, s)
+
 
 def _parse_lesson_sections(text: str) -> list[tuple[str, str]]:
     """Return ``[(section_title, body), ...]`` from a per-mode ``lesson.md``.
@@ -264,9 +265,8 @@ def _parse_lesson_sections(text: str) -> list[tuple[str, str]]:
         sections.append((current_title, "\n".join(current_lines)))
     return sections
 
-def _resolve_section_node_refs(
-    body: str, packet: LearningSourcePacket
-) -> list[Any]:
+
+def _resolve_section_node_refs(body: str, packet: LearningSourcePacket) -> list[Any]:
     """Return packet node-views referenced in *body*, in appearance order.
 
     Resolution walks two passes: (1) inline-code spans matching a known
@@ -301,6 +301,7 @@ def _resolve_section_node_refs(
 
     return resolved
 
+
 def _pitfall_edge_refs(packet: LearningSourcePacket) -> list[Any]:
     """Return edges of type ``pitfall_of`` sorted by edge_id."""
     return [
@@ -308,6 +309,7 @@ def _pitfall_edge_refs(packet: LearningSourcePacket) -> list[Any]:
         for e in sorted(packet.body.edges, key=lambda e: e.edge_id)
         if e.type == "pitfall_of"
     ]
+
 
 def _build_section_traceability(
     mode_dirs: dict[str, Path], packet: LearningSourcePacket
@@ -319,9 +321,7 @@ def _build_section_traceability(
         if not lesson_path.exists():
             continue
         display = _MODE_DISPLAY[mode]
-        sections = _parse_lesson_sections(
-            lesson_path.read_text(encoding="utf-8")
-        )
+        sections = _parse_lesson_sections(lesson_path.read_text(encoding="utf-8"))
 
         if display is not None:
             # Appendix mode: emit one synthetic row per pre-declared section.
@@ -331,9 +331,7 @@ def _build_section_traceability(
                 if title not in present_titles:
                     continue
                 slug = _section_slug(title)
-                rows.append(
-                    f"| {section_label} | {mode}:{slug} | unknown | 0-0 |"
-                )
+                rows.append(f"| {section_label} | {mode}:{slug} | unknown | 0-0 |")
             continue
 
         # Canonical mode: emit one row per resolved artifact, synthetic if
@@ -351,20 +349,15 @@ def _build_section_traceability(
             if resolved_nodes or resolved_edges:
                 for n in resolved_nodes:
                     lr = f"{n.line_range[0]}-{n.line_range[1]}"
-                    rows.append(
-                        f"| {title} | {n.node_id} | {n.source_path} | {lr} |"
-                    )
+                    rows.append(f"| {title} | {n.node_id} | {n.source_path} | {lr} |")
                 for e in resolved_edges:
                     lr = f"{e.line_range[0]}-{e.line_range[1]}"
-                    rows.append(
-                        f"| {title} | {e.edge_id} | {e.source_path} | {lr} |"
-                    )
+                    rows.append(f"| {title} | {e.edge_id} | {e.source_path} | {lr} |")
             else:
                 slug = _section_slug(title)
-                rows.append(
-                    f"| {title} | {mode}:{slug} | unknown | 0-0 |"
-                )
+                rows.append(f"| {title} | {mode}:{slug} | unknown | 0-0 |")
     return rows
+
 
 def _build_traceability(
     packet: LearningSourcePacket, mode_dirs: dict[str, Path]
@@ -413,16 +406,13 @@ def _build_traceability(
     for n in nodes:
         title = getattr(n, "title", None) or n.node_id
         lr = f"{n.line_range[0]}-{n.line_range[1]}"
-        lines.append(
-            f"| {title} | {n.node_id} | {n.source_path} | {lr} |"
-        )
+        lines.append(f"| {title} | {n.node_id} | {n.source_path} | {lr} |")
     for e in edges:
         lr = f"{e.line_range[0]}-{e.line_range[1]}"
-        lines.append(
-            f"| edge:{e.type} | {e.edge_id} | {e.source_path} | {lr} |"
-        )
+        lines.append(f"| edge:{e.type} | {e.edge_id} | {e.source_path} | {lr} |")
     lines.append("")
     return "\n".join(lines)
+
 
 def _build_warnings(packet: LearningSourcePacket) -> str:
     """Render `warnings.md`: one line per packet warning, in order.
@@ -446,11 +436,10 @@ def _build_warnings(packet: LearningSourcePacket) -> str:
         source_ref = getattr(w, "source_ref", "") or ""
         message = getattr(w, "message", "") or ""
         severity = getattr(w, "severity", "") or ""
-        lines.append(
-            f"- [{severity}] {code} | {source_ref} | {message}"
-        )
+        lines.append(f"- [{severity}] {code} | {source_ref} | {message}")
     lines.append("")
     return "\n".join(lines)
+
 
 def _build_feedback_form() -> str:
     """Return the feedback-form seed for this bundle id.
@@ -499,6 +488,7 @@ def _build_feedback_form() -> str:
         "- [ ] ...\n"
     )
 
+
 def _build_manifest(packet: LearningSourcePacket) -> dict[str, Any]:
     """Build manifest.json payload with exactly the 9 keys.
 
@@ -531,6 +521,7 @@ def _build_manifest(packet: LearningSourcePacket) -> dict[str, Any]:
         "unavailable_capabilities": [],
     }
 
+
 def _build_regenerate_sh() -> str:
     """Return the text of `regenerate.sh`.
 
@@ -550,22 +541,22 @@ def _build_regenerate_sh() -> str:
         "\n"
         "# Resolve repo root from this script's location so the command is\n"
         "# runnable from any cwd.\n"
-        "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n"
-        "REPO_ROOT=\"$(cd \"${SCRIPT_DIR}/../../..\" && pwd)\"\n"
-        "cd \"${REPO_ROOT}\"\n"
+        'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+        'REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"\n'
+        'cd "${REPO_ROOT}"\n'
         "\n"
         "export PYTHONHASHSEED=0\n"
         "\n"
         "uv run --package akms-learn python \\\n"
         "    packages/akms_learn/scripts/generate_review_bundle.py \\\n"
-        "    --output \"${REPO_ROOT}/artifacts/review_bundles/"
-        + PLAN_ID
-        + "\"\n"
+        '    --output "${REPO_ROOT}/artifacts/review_bundles/' + PLAN_ID + '"\n'
     )
+
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
 
 def generate_review_bundle(
     output_dir: Path,
@@ -620,13 +611,9 @@ def generate_review_bundle(
 
         # 4. Serialise the canonical LSP to source_packet.json (canonical
         #    JSON: sort_keys=True, indent=2, ensure_ascii=False).
-        packet_payload = canonical_packet.model_dump(
-            by_alias=True, mode="json"
-        )
+        packet_payload = canonical_packet.model_dump(by_alias=True, mode="json")
         source_packet_text = (
-            json.dumps(
-                packet_payload, indent=2, sort_keys=True, ensure_ascii=False
-            )
+            json.dumps(packet_payload, indent=2, sort_keys=True, ensure_ascii=False)
             + "\n"
         )
 
@@ -638,9 +625,7 @@ def generate_review_bundle(
         # 6. Build manifest.json with exactly the 9 schema keys.
         manifest_payload = _build_manifest(canonical_packet)
         manifest_text = (
-            json.dumps(
-                manifest_payload, indent=2, sort_keys=True, ensure_ascii=False
-            )
+            json.dumps(manifest_payload, indent=2, sort_keys=True, ensure_ascii=False)
             + "\n"
         )
 
@@ -672,6 +657,7 @@ def generate_review_bundle(
         if cleanup_work_dir:
             shutil.rmtree(work_dir, ignore_errors=True)
 
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point used by `regenerate.sh`."""
     parser = argparse.ArgumentParser(
@@ -697,12 +683,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     work_dir = Path(args.work_dir) if args.work_dir else None
-    written = generate_review_bundle(
-        output_dir=Path(args.output), work_dir=work_dir
-    )
+    written = generate_review_bundle(output_dir=Path(args.output), work_dir=work_dir)
     for name, path in written.items():
         print(f"{name}: {path}")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

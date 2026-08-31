@@ -8,6 +8,7 @@ Acceptance criteria verified here:
         the global vault (canary test).
   * Registry returns unavailable/planned when no real adapter is installed.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -33,10 +34,7 @@ from akms_learn.adapters.fake_adapter import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-_ADAPTERS_PKG = (
-    pathlib.Path(__file__).parent.parent
-    / "src" / "akms_learn" / "adapters"
-)
+_ADAPTERS_PKG = pathlib.Path(__file__).parent.parent / "src" / "akms_learn" / "adapters"
 
 _ADAPTER_SOURCE_FILES = [
     _ADAPTERS_PKG / "__init__.py",
@@ -215,13 +213,13 @@ class TestFakeAdapterIsinstanceChecks:
 # Patterns that indicate an AKMS/vault write operation in source code.
 # We scan raw file bytes so we catch any encoding-trick attempts.
 _FORBIDDEN_PATTERNS: list[re.Pattern] = [
-    re.compile(rb'write_text\s*\('),
+    re.compile(rb"write_text\s*\("),
     re.compile(rb'open\s*\([^)]*["\']w["\']'),
     re.compile(rb'open\s*\([^)]*["\']wb["\']'),
     re.compile(rb'open\s*\([^)]*["\']a["\']'),
-    re.compile(rb'\.mkdir\s*\('),
-    re.compile(rb'~[/\\]\.claude[/\\]akms'),           # hard-coded vault path
-    re.compile(rb'AKMS_GLOBAL_VAULT.*=.*(?!os\.environ)', re.DOTALL),  # writing env var
+    re.compile(rb"\.mkdir\s*\("),
+    re.compile(rb"~[/\\]\.claude[/\\]akms"),  # hard-coded vault path
+    re.compile(rb"AKMS_GLOBAL_VAULT.*=.*(?!os\.environ)", re.DOTALL),  # writing env var
 ]
 
 
@@ -281,7 +279,9 @@ class TestAdapterRegistry:
     def test_registry_none_report_available_by_default(self):
         """No capability reports 'available' in the default (no real adapter) registry."""
         registry = adapter_registry()
-        available_caps = [k for k, v in registry.items() if v == AdapterStatus.available]
+        available_caps = [
+            k for k, v in registry.items() if v == AdapterStatus.available
+        ]
         assert available_caps == [], (
             f"Expected no available adapters by default; got: {available_caps}"
         )
@@ -300,7 +300,8 @@ class TestAdapterRegistry:
         assert registry["concept_kit_adapter"] == AdapterStatus.available
         # Others still planned
         assert registry["pedagogical_workbench_adapter"] in (
-            AdapterStatus.unavailable, AdapterStatus.planned
+            AdapterStatus.unavailable,
+            AdapterStatus.planned,
         )
 
     @pytest.mark.unit
@@ -314,7 +315,9 @@ class TestAdapterRegistry:
         """adapter_registry() returns keys in sorted order."""
         registry = adapter_registry()
         keys = list(registry.keys())
-        assert keys == sorted(keys), "Registry keys must be sorted for deterministic output"
+        assert keys == sorted(keys), (
+            "Registry keys must be sorted for deterministic output"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +332,9 @@ class TestFakesAcceptBoundedExcerpts:
     def test_concept_kit_with_bounded_excerpt(self):
         """FakeConceptKit accepts a bounded excerpt and echoes its keys."""
         adapter = FakeConceptKit()
-        result = adapter.generate_concept_kit(_BOUNDED_EXCERPT, options={"depth": "shallow"})
+        result = adapter.generate_concept_kit(
+            _BOUNDED_EXCERPT, options={"depth": "shallow"}
+        )
         assert result["excerpt_keys"] == sorted(_BOUNDED_EXCERPT.keys())
         assert result["options_received"] is True
 

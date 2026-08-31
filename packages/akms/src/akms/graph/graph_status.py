@@ -60,13 +60,15 @@ def _check_degraded_nodes(
         effective_conf = overlay_conf if overlay_conf is not None else graph_conf
 
         if effective_conf < threshold:
-            degraded.append({
-                "node_id": node_id,
-                "graph_confidence": graph_conf,
-                "overlay_confidence": overlay_conf,
-                "effective_confidence": effective_conf,
-                "origin": data.get("node_origin", "unknown"),
-            })
+            degraded.append(
+                {
+                    "node_id": node_id,
+                    "graph_confidence": graph_conf,
+                    "overlay_confidence": overlay_conf,
+                    "effective_confidence": effective_conf,
+                    "origin": data.get("node_origin", "unknown"),
+                }
+            )
 
     return sorted(degraded, key=lambda x: x["effective_confidence"])
 
@@ -131,15 +133,21 @@ def _check_tentative_nodes(
         if isinstance(status, NodeStatus):
             status = status.value
         if str(status) == "tentative":
-            tentative.append({
-                "node_id": node_id,
-                "origin": data.get("node_origin", "unknown"),
-                "domain": data.get("domain", ""),
-                "confidence": data.get("confidence", 0.0),
-                "content_draft": _load_content_draft(
-                    node_id, data, repo_root, local_nodes_dir, draft_preview_chars,
-                ),
-            })
+            tentative.append(
+                {
+                    "node_id": node_id,
+                    "origin": data.get("node_origin", "unknown"),
+                    "domain": data.get("domain", ""),
+                    "confidence": data.get("confidence", 0.0),
+                    "content_draft": _load_content_draft(
+                        node_id,
+                        data,
+                        repo_root,
+                        local_nodes_dir,
+                        draft_preview_chars,
+                    ),
+                }
+            )
 
     return sorted(tentative, key=lambda x: x["node_id"])
 
@@ -164,11 +172,13 @@ def _check_id_collisions(
     for node_id in sorted(global_paths_by_id.keys() & local_paths_by_id.keys()):
         for global_path in global_paths_by_id[node_id]:
             for local_path in local_paths_by_id[node_id]:
-                collisions.append({
-                    "node_id": node_id,
-                    "global_path": str(global_path),
-                    "local_path": str(local_path),
-                })
+                collisions.append(
+                    {
+                        "node_id": node_id,
+                        "global_path": str(global_path),
+                        "local_path": str(local_path),
+                    }
+                )
 
     return collisions
 
@@ -185,11 +195,13 @@ def _check_orphaned_nodes(G: nx.DiGraph) -> list[dict]:
             domain = data.get("domain", "")
             if domain in ("session", "code-mirror"):
                 continue
-            orphaned.append({
-                "node_id": node_id,
-                "domain": domain,
-                "origin": data.get("node_origin", "unknown"),
-            })
+            orphaned.append(
+                {
+                    "node_id": node_id,
+                    "domain": domain,
+                    "origin": data.get("node_origin", "unknown"),
+                }
+            )
 
     return sorted(orphaned, key=lambda x: x["node_id"])
 
@@ -218,7 +230,9 @@ def _check_stale_nodes(
             continue
 
         overlay_entry = overlay_nodes.get(node_id, {})
-        last_activated = overlay_entry.get("last_activated") or data.get("last_activated")
+        last_activated = overlay_entry.get("last_activated") or data.get(
+            "last_activated"
+        )
 
         if last_activated is None:
             continue
@@ -230,12 +244,14 @@ def _check_stale_nodes(
                 continue
 
         if last_activated < cutoff:
-            stale.append({
-                "node_id": node_id,
-                "last_activated": str(last_activated),
-                "days_inactive": (today - last_activated).days,
-                "domain": data.get("domain", ""),
-            })
+            stale.append(
+                {
+                    "node_id": node_id,
+                    "last_activated": str(last_activated),
+                    "days_inactive": (today - last_activated).days,
+                    "domain": data.get("domain", ""),
+                }
+            )
 
     return sorted(stale, key=lambda x: x["days_inactive"], reverse=True)
 
@@ -250,10 +266,12 @@ def _check_orphaned_overlay_entries(
 
     for node_id in overlay_nodes:
         if node_id not in G:
-            orphaned.append({
-                "node_id": node_id,
-                "overlay_data": overlay_nodes[node_id],
-            })
+            orphaned.append(
+                {
+                    "node_id": node_id,
+                    "overlay_data": overlay_nodes[node_id],
+                }
+            )
 
     return sorted(orphaned, key=lambda x: x["node_id"])
 
@@ -271,13 +289,15 @@ def _check_coverage_flags(overlay: dict) -> list[dict]:
         coverage = str(item.get("coverage", ""))
         if coverage not in ("missing-detail", "outdated"):
             continue
-        normalized.append({
-            "node_id": str(item.get("node_id", "")),
-            "coverage": coverage,
-            "source_id": str(item.get("source_id", "")),
-            "phase": item.get("phase"),
-            "date": str(item.get("date", "")),
-        })
+        normalized.append(
+            {
+                "node_id": str(item.get("node_id", "")),
+                "coverage": coverage,
+                "source_id": str(item.get("source_id", "")),
+                "phase": item.get("phase"),
+                "date": str(item.get("date", "")),
+            }
+        )
 
     return sorted(
         normalized,
@@ -295,20 +315,26 @@ def _check_dedup_events(overlay: dict) -> list[dict]:
     for item in events:
         if not isinstance(item, dict):
             continue
-        normalized.append({
-            "action": str(item.get("action", "")),
-            "merged_into": str(item.get("merged_into", item.get("node_id", ""))),
-            "node_id": str(item.get("node_id", "")),
-            "source_id": str(item.get("source_id", "")),
-            "phase": item.get("phase"),
-            "date": str(item.get("date", "")),
-            "score": item.get("score"),
-            "threshold": item.get("threshold"),
-        })
+        normalized.append(
+            {
+                "action": str(item.get("action", "")),
+                "merged_into": str(item.get("merged_into", item.get("node_id", ""))),
+                "node_id": str(item.get("node_id", "")),
+                "source_id": str(item.get("source_id", "")),
+                "phase": item.get("phase"),
+                "date": str(item.get("date", "")),
+                "score": item.get("score"),
+                "threshold": item.get("threshold"),
+            }
+        )
 
     return sorted(
         normalized,
-        key=lambda x: (x.get("date", ""), x.get("merged_into", ""), x.get("node_id", "")),
+        key=lambda x: (
+            x.get("date", ""),
+            x.get("merged_into", ""),
+            x.get("node_id", ""),
+        ),
     )
 
 
@@ -317,26 +343,32 @@ def _check_blocked_tasks(
     blocked_tasks: list[dict | str] | None = None,
 ) -> list[dict]:
     """Return blocked downstream tasks from explicit input or overlay."""
-    raw: list[dict | str] = blocked_tasks if blocked_tasks is not None else overlay.get("blocked_tasks", [])
+    raw: list[dict | str] = (
+        blocked_tasks if blocked_tasks is not None else overlay.get("blocked_tasks", [])
+    )
     if not isinstance(raw, list):
         return []
 
     normalized: list[dict] = []
     for item in raw:
         if isinstance(item, dict):
-            normalized.append({
-                "task": str(item.get("task", "")),
-                "reason": str(item.get("reason", "")),
-                "source_id": str(item.get("source_id", "")),
-                "phase": item.get("phase"),
-            })
+            normalized.append(
+                {
+                    "task": str(item.get("task", "")),
+                    "reason": str(item.get("reason", "")),
+                    "source_id": str(item.get("source_id", "")),
+                    "phase": item.get("phase"),
+                }
+            )
         elif isinstance(item, str):
-            normalized.append({
-                "task": item,
-                "reason": "",
-                "source_id": "",
-                "phase": None,
-            })
+            normalized.append(
+                {
+                    "task": item,
+                    "reason": "",
+                    "source_id": "",
+                    "phase": None,
+                }
+            )
 
     return sorted(normalized, key=lambda x: (x.get("task", ""), x.get("source_id", "")))
 
@@ -354,15 +386,23 @@ def format_report(report: dict[str, Any]) -> str:
     degraded = report.get("degraded_nodes", [])
     lines.append(f"## Degraded Nodes (confidence < 0.5): {len(degraded)}")
     for d in degraded:
-        overlay_str = f" (overlay: {d['overlay_confidence']:.2f})" if d.get("overlay_confidence") is not None else ""
-        lines.append(f"  - {d['node_id']}: {d['effective_confidence']:.2f}{overlay_str} [{d['origin']}]")
+        overlay_str = (
+            f" (overlay: {d['overlay_confidence']:.2f})"
+            if d.get("overlay_confidence") is not None
+            else ""
+        )
+        lines.append(
+            f"  - {d['node_id']}: {d['effective_confidence']:.2f}{overlay_str} [{d['origin']}]"
+        )
     lines.append("")
 
     # Tentative
     tentative = report.get("tentative_nodes", [])
     lines.append(f"## Tentative Nodes Awaiting Promotion: {len(tentative)}")
     for t in tentative:
-        lines.append(f"  - {t['node_id']} ({t['origin']}, domain={t['domain']}, conf={t['confidence']:.2f})")
+        lines.append(
+            f"  - {t['node_id']} ({t['origin']}, domain={t['domain']}, conf={t['confidence']:.2f})"
+        )
         # FR-R05: show the agent-written content_draft inline for quick review.
         draft = t.get("content_draft", "")
         if draft:
@@ -390,7 +430,9 @@ def format_report(report: dict[str, Any]) -> str:
     stale = report.get("stale_nodes", [])
     lines.append(f"## Stale Nodes: {len(stale)}")
     for s in stale:
-        lines.append(f"  - {s['node_id']}: {s['days_inactive']} days inactive (last: {s['last_activated']})")
+        lines.append(
+            f"  - {s['node_id']}: {s['days_inactive']} days inactive (last: {s['last_activated']})"
+        )
     lines.append("")
 
     # Orphaned overlay
@@ -441,7 +483,9 @@ def format_report(report: dict[str, Any]) -> str:
     mp = report.get("mirror_provider") or {}
     if mp:
         lines.append("## Mirror Provider")
-        lines.append(f"  - provider: {mp.get('resolved_provider') or mp.get('provider', 'legacy')}")
+        lines.append(
+            f"  - provider: {mp.get('resolved_provider') or mp.get('provider', 'legacy')}"
+        )
         if "success" in mp:
             lines.append(f"  - last_refresh_success: {mp.get('success')}")
         if mp.get("fallback_used"):
@@ -464,9 +508,15 @@ def format_report(report: dict[str, Any]) -> str:
 
     # Summary
     total_issues = (
-        len(degraded) + len(tentative) + len(collisions)
-        + len(orphaned) + len(stale) + len(orphaned_overlay)
-        + len(coverage_flags) + len(dedup_events) + len(blocked_tasks)
+        len(degraded)
+        + len(tentative)
+        + len(collisions)
+        + len(orphaned)
+        + len(stale)
+        + len(orphaned_overlay)
+        + len(coverage_flags)
+        + len(dedup_events)
+        + len(blocked_tasks)
         + len(drift)
     )
     lines.append(f"## Summary: {total_issues} total issues")
@@ -555,7 +605,10 @@ def graph_status(
     # Provider identity (non-secret) for status surfaces.
     if mirror_provider is None:
         try:
-            from akms.graph.mirror_provider import public_provider_identity, resolve_mirror_config
+            from akms.graph.mirror_provider import (
+                public_provider_identity,
+                resolve_mirror_config,
+            )
 
             mirror_provider = public_provider_identity(resolve_mirror_config(config))
         except Exception:
@@ -569,7 +622,10 @@ def graph_status(
         "id_collisions": _check_id_collisions(vault_path, local_nodes_dir),
         "orphaned_nodes": _check_orphaned_nodes(G),
         "stale_nodes": _check_stale_nodes(
-            G, overlay, config.graph.stale_node_days, today,
+            G,
+            overlay,
+            config.graph.stale_node_days,
+            today,
         ),
         "orphaned_overlay_entries": _check_orphaned_overlay_entries(G, overlay),
         "coverage_flags": _check_coverage_flags(overlay),
@@ -588,11 +644,16 @@ def graph_status(
         "graph_status: %d nodes, %d edges, %d degraded, %d tentative, "
         "%d collisions, %d orphaned, %d stale, %d orphaned overlay, "
         "%d coverage_flags, %d dedup_events, %d blocked_tasks",
-        report["total_nodes"], report["total_edges"],
-        len(report["degraded_nodes"]), len(report["tentative_nodes"]),
-        len(report["id_collisions"]), len(report["orphaned_nodes"]),
-        len(report["stale_nodes"]), len(report["orphaned_overlay_entries"]),
-        len(report["coverage_flags"]), len(report["dedup_events"]),
+        report["total_nodes"],
+        report["total_edges"],
+        len(report["degraded_nodes"]),
+        len(report["tentative_nodes"]),
+        len(report["id_collisions"]),
+        len(report["orphaned_nodes"]),
+        len(report["stale_nodes"]),
+        len(report["orphaned_overlay_entries"]),
+        len(report["coverage_flags"]),
+        len(report["dedup_events"]),
         len(report["blocked_tasks"]),
     )
 

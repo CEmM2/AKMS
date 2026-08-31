@@ -75,8 +75,7 @@ def test_registry_ordering_deterministic() -> None:
     ids2 = [d.id for d in r2.ordered_descriptors()]
 
     assert ids1 == expected_ids, (
-        f"Registry ordering not alphabetic — got {ids1!r}, "
-        f"expected {expected_ids!r}"
+        f"Registry ordering not alphabetic — got {ids1!r}, expected {expected_ids!r}"
     )
     assert ids1 == ids2, (
         "DomainPackRegistry.ordered_descriptors() is not deterministic — "

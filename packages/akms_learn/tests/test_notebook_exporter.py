@@ -271,7 +271,10 @@ class TestMetadata:
         nb = _load_notebook(paths[0])
         akms = nb.metadata["akms"]
         assert set(akms.keys()) >= {
-            "packet_id", "graph_version", "compiler_version", "schema"
+            "packet_id",
+            "graph_version",
+            "compiler_version",
+            "schema",
         }
 
 
@@ -332,15 +335,15 @@ class TestNoExecuteDefault:
         """Return notebook.py with docstrings and comments stripped."""
         src = (
             Path(__file__).parent.parent
-            / "src" / "akms_learn" / "exporters" / "notebook.py"
+            / "src"
+            / "akms_learn"
+            / "exporters"
+            / "notebook.py"
         )
         raw = src.read_text()
         stripped = re.sub(r'""".*?"""', '""""""', raw, flags=re.DOTALL)
         stripped = re.sub(r"'''.*?'''", "''''''", stripped, flags=re.DOTALL)
-        lines = [
-            ln for ln in stripped.splitlines()
-            if not ln.lstrip().startswith("#")
-        ]
+        lines = [ln for ln in stripped.splitlines() if not ln.lstrip().startswith("#")]
         return "\n".join(lines)
 
     @pytest.mark.unit
@@ -455,7 +458,9 @@ class TestUnsafeSnippetDegradation:
     @pytest.mark.unit
     def test_unsafe_snippet_is_markdown_not_code(self, tmp_path: Path):
         """Node with unsafe implementation → no code cell for that snippet."""
-        unsafe_snippet = "import requests\ndata = requests.get('http://example.com').json()"
+        unsafe_snippet = (
+            "import requests\ndata = requests.get('http://example.com').json()"
+        )
         node = _make_node(
             "unsafe_node",
             source_path="toy://unsafe.md",
@@ -489,12 +494,9 @@ class TestUnsafeSnippetDegradation:
         nb = _load_notebook(paths[0])
 
         found_in_md = any(
-            "subprocess.run" in cell.source
-            for cell in _all_markdown_cells(nb)
+            "subprocess.run" in cell.source for cell in _all_markdown_cells(nb)
         )
-        assert found_in_md, (
-            "Unsafe snippet not found in any Markdown cell"
-        )
+        assert found_in_md, "Unsafe snippet not found in any Markdown cell"
 
     @pytest.mark.unit
     def test_unsafe_snippet_degradation_includes_note(self, tmp_path: Path):
@@ -512,8 +514,7 @@ class TestUnsafeSnippetDegradation:
 
         # Look for any cell containing both the snippet and a note keyword
         degraded_cells = [
-            cell for cell in _all_markdown_cells(nb)
-            if "os.remove" in cell.source
+            cell for cell in _all_markdown_cells(nb) if "os.remove" in cell.source
         ]
         assert degraded_cells, "Degraded cell not found"
         note_found = any(
@@ -623,6 +624,7 @@ class TestRegistry:
     def test_notebook_module_importable(self):
         """The notebook exporter module can be imported without error."""
         import importlib
+
         mod = importlib.import_module("akms_learn.exporters.notebook")
         assert hasattr(mod, "export")
         assert callable(mod.export)

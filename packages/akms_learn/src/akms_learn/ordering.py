@@ -77,23 +77,23 @@ LEARNING_BUCKETS: tuple[str, ...] = (
 
 # Maps edge *type* → bucket the SOURCE node of that edge belongs to.
 EDGE_TYPE_TO_BUCKET: dict[str, str] = {
-    "requires":     "prerequisites",
-    "derives":      "derivations",
-    "implements":   "implementations",
-    "pitfall_of":   "pitfalls",
+    "requires": "prerequisites",
+    "derives": "derivations",
+    "implements": "implementations",
+    "pitfall_of": "pitfalls",
     "exercise_for": "exercises",
-    "next_path":    "next paths",
+    "next_path": "next paths",
 }
 
 # Maps explicit node["kind"] values → bucket name.
 _KIND_TO_BUCKET: dict[str, str] = {
-    "prerequisite":   "prerequisites",
-    "core_concept":   "core concepts",
-    "derivation":     "derivations",
+    "prerequisite": "prerequisites",
+    "core_concept": "core concepts",
+    "derivation": "derivations",
     "implementation": "implementations",
-    "pitfall":        "pitfalls",
-    "exercise":       "exercises",
-    "next_path":      "next paths",
+    "pitfall": "pitfalls",
+    "exercise": "exercises",
+    "next_path": "next paths",
 }
 
 
@@ -205,8 +205,7 @@ def _topo_sort_with_cycle_break(
             for cycle in cycles:
                 # Reconstruct cycle edges: (cycle[i], cycle[i+1 mod len])
                 cycle_edges = [
-                    (cycle[i], cycle[(i + 1) % len(cycle)])
-                    for i in range(len(cycle))
+                    (cycle[i], cycle[(i + 1) % len(cycle)]) for i in range(len(cycle))
                 ]
                 # Pick the edge whose target is alphabetically last.
                 edge_to_cut = max(cycle_edges, key=lambda e: e[1])
@@ -293,10 +292,7 @@ def order_nodes(
     return ordered_ids, all_warnings
 
 
-
-OrderingStrategy = Callable[
-    [GraphSlice], tuple[list[str], list[LearningWarning]]
-]
+OrderingStrategy = Callable[[GraphSlice], tuple[list[str], list[LearningWarning]]]
 """Callable contract for a mode-specific ordering strategy.
 
 A strategy receives the same :class:`GraphSlice` the compiler would pass to
@@ -311,7 +307,9 @@ Override contract:
 """
 
 
-def _default_strategy(graph_slice: GraphSlice) -> tuple[list[str], list[LearningWarning]]:
+def _default_strategy(
+    graph_slice: GraphSlice,
+) -> tuple[list[str], list[LearningWarning]]:
     """Authoritative default ordering — direct delegate to :func:`order_nodes`."""
     return order_nodes(graph_slice)
 
@@ -342,6 +340,7 @@ def _derivation_first_strategy(
     This strategy now diverges from the default ordering by design.
     """
     from akms_learn.modes.derivation_first import derivation_first_strategy
+
     return derivation_first_strategy(graph_slice)
 
 
@@ -360,6 +359,7 @@ def _implementation_first_strategy(
     ``request.policy`` to switch to ``code_first``.
     """
     from akms_learn.modes.implementation_first import implementation_first_strategy
+
     return implementation_first_strategy(graph_slice)
 
 
@@ -391,6 +391,7 @@ def _multi_granularity_strategy(
     filtered overview / standard / deep_dive variant.
     """
     from akms_learn.modes.multi_granularity import multi_granularity_strategy
+
     return multi_granularity_strategy(graph_slice)
 
 
@@ -459,16 +460,16 @@ def _llm_expanded_strategy(
 # callables are defined when the dict is materialised. The key order here is
 # fixed for deterministic iteration via :func:`list_strategies`.
 _STRATEGY_REGISTRY: dict[str, OrderingStrategy] = {
-    "default":               _default_strategy,
-    "pedagogical_template":  _pedagogical_template_strategy,
-    "derivation_first":      _derivation_first_strategy,
-    "implementation_first":  _implementation_first_strategy,
-    "pitfall_driven":        _pitfall_driven_strategy,
-    "multi_granularity":     _multi_granularity_strategy,
-    "notebook_source":       _notebook_source_strategy,
-    "adaptive_path":         _adaptive_path_strategy,
-    "assessment_first":      _assessment_first_strategy,
-    "llm_expanded":          _llm_expanded_strategy,
+    "default": _default_strategy,
+    "pedagogical_template": _pedagogical_template_strategy,
+    "derivation_first": _derivation_first_strategy,
+    "implementation_first": _implementation_first_strategy,
+    "pitfall_driven": _pitfall_driven_strategy,
+    "multi_granularity": _multi_granularity_strategy,
+    "notebook_source": _notebook_source_strategy,
+    "adaptive_path": _adaptive_path_strategy,
+    "assessment_first": _assessment_first_strategy,
+    "llm_expanded": _llm_expanded_strategy,
 }
 
 STRATEGY_KEYS: tuple[str, ...] = tuple(_STRATEGY_REGISTRY.keys())

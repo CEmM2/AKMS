@@ -16,7 +16,9 @@ def test_dedup_similarity_e2e():
         mock_resp.choices[0].message.content = "0.72"
         mock.completion.return_value = mock_resp
 
-        score = check_dedup_similarity("new text", "old title", "old content", config=config)
+        score = check_dedup_similarity(
+            "new text", "old title", "old content", config=config
+        )
 
     assert 0.0 <= score <= 1.0
     mock.completion.assert_called_once()

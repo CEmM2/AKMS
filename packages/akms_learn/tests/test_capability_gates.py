@@ -107,7 +107,9 @@ class TestProbeOptionalExtras:
             monkeypatch.delenv(var, raising=False)
         with (
             patch("akms_learn.capability_gates.shutil.which", return_value=None),
-            patch("importlib.util.find_spec", side_effect=_make_find_spec({"anything"})),
+            patch(
+                "importlib.util.find_spec", side_effect=_make_find_spec({"anything"})
+            ),
         ):
             result = probe_optional_extras()
         assert result["llm"] is False
@@ -150,8 +152,14 @@ class TestBuildCapabilityGate:
         # find_spec-driven assertions model "no provider configured", so pin the
         # provider probe to False for determinism regardless of ambient env.
         with (
-            patch("akms_learn.capability_gates._llm_provider_configured", return_value=False),
-            patch("importlib.util.find_spec", side_effect=_make_find_spec(present_packages)),
+            patch(
+                "akms_learn.capability_gates._llm_provider_configured",
+                return_value=False,
+            ),
+            patch(
+                "importlib.util.find_spec",
+                side_effect=_make_find_spec(present_packages),
+            ),
         ):
             return build_capability_gate()
 
@@ -235,7 +243,9 @@ class TestAvailableCapabilities:
             side_effect=_make_find_spec({"nbformat", "jinja2"}),
         ):
             caps = available_capabilities()
-        assert caps == sorted(caps), "available_capabilities() must return a sorted list"
+        assert caps == sorted(caps), (
+            "available_capabilities() must return a sorted list"
+        )
 
     def test_accepts_pre_built_gate(self):
         """Caller can pass an already-built gate to avoid double probing."""
@@ -346,8 +356,14 @@ class TestPreconditionError:
     def test_llm_capabilities_raise_without_configured_provider(self):
         """llm_expanded and adaptive_path raise when no provider is configured."""
         with (
-            patch("akms_learn.capability_gates._llm_provider_configured", return_value=False),
-            patch("importlib.util.find_spec", side_effect=_make_find_spec({"nbformat", "jinja2"})),
+            patch(
+                "akms_learn.capability_gates._llm_provider_configured",
+                return_value=False,
+            ),
+            patch(
+                "importlib.util.find_spec",
+                side_effect=_make_find_spec({"nbformat", "jinja2"}),
+            ),
         ):
             gate = build_capability_gate()
         with pytest.raises(PreconditionError) as exc_info:
@@ -420,7 +436,9 @@ class TestNoEagerImports:
         """
         source = self._get_source_path().read_text(encoding="utf-8")
         top_level_imports = self._collect_top_level_imports(source)
-        violations = [mod for mod in top_level_imports if mod in self._FORBIDDEN_MODULES]
+        violations = [
+            mod for mod in top_level_imports if mod in self._FORBIDDEN_MODULES
+        ]
         assert violations == [], (
             f"capability_gates.py has eager module-level import(s) of optional "
             f"package(s): {violations!r}.  These must only be imported inside "

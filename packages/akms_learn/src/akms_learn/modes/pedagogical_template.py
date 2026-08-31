@@ -115,18 +115,18 @@ SECTION_PLACEHOLDER: str = "[No content available]"
 # ---------------------------------------------------------------------------
 
 _SECTION_TO_HEADINGS: dict[str, tuple[str, ...]] = {
-    "Learning goal":          ("motivation",),
-    "Prerequisite map":       ("prerequisites",),
-    "Intuition":              ("concept",),
-    "Formal statement":       ("concept", "derivation"),
+    "Learning goal": ("motivation",),
+    "Prerequisite map": ("prerequisites",),
+    "Intuition": ("concept",),
+    "Formal statement": ("concept", "derivation"),
     "Derivation / explanation": ("derivation",),
-    "Implementation notes":   ("implementation",),
-    "Worked example":         ("worked_example",),
-    "Common pitfalls":        ("pitfalls",),
-    "Self-check":             ("assessment",),
-    "Exercises":              ("assessment",),
-    "References":             ("references",),
-    "Provenance":             (),   # always built from graph provenance
+    "Implementation notes": ("implementation",),
+    "Worked example": ("worked_example",),
+    "Common pitfalls": ("pitfalls",),
+    "Self-check": ("assessment",),
+    "Exercises": ("assessment",),
+    "References": ("references",),
+    "Provenance": (),  # always built from graph provenance
 }
 
 # Optional v2.1 metadata field names (consumed if present, ignored otherwise).
@@ -256,9 +256,7 @@ def _build_provenance_text(
     """Build the Provenance section text from node ids and edge ids."""
     node_ids_str = ", ".join(ordered_nodes) if ordered_nodes else "(none)"
     edge_ids = sorted(
-        str(e.get("edge_id", ""))
-        for e in graph_slice.edges
-        if e.get("edge_id")
+        str(e.get("edge_id", "")) for e in graph_slice.edges if e.get("edge_id")
     )
     edge_ids_str = ", ".join(edge_ids) if edge_ids else "(none)"
     return f"Node ids: {node_ids_str}\nEdge ids: {edge_ids_str}"
@@ -327,9 +325,7 @@ def pedagogical_template_mode(
     for slot in PEDAGOGICAL_SECTIONS:
         if slot == "Provenance":
             # Provenance is always built from graph metadata — never missing.
-            section_contents[slot] = _build_provenance_text(
-                ordered_nodes, graph_slice
-            )
+            section_contents[slot] = _build_provenance_text(ordered_nodes, graph_slice)
             continue
 
         # Special case: Learning goal — prefer request.goal / topic fallback
@@ -373,13 +369,9 @@ def pedagogical_template_mode(
     # ------------------------------------------------------------------
     # Provenance lists.
     # ------------------------------------------------------------------
-    source_node_ids = sorted(
-        nid for nid in ordered_nodes if nid in nodes_by_id
-    )
+    source_node_ids = sorted(nid for nid in ordered_nodes if nid in nodes_by_id)
     edge_ids = sorted(
-        str(e.get("edge_id", ""))
-        for e in graph_slice.edges
-        if e.get("edge_id")
+        str(e.get("edge_id", "")) for e in graph_slice.edges if e.get("edge_id")
     )
 
     result = PedagogicalTemplateResult(

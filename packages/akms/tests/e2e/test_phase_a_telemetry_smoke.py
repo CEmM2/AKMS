@@ -14,7 +14,9 @@ def test_telemetry_emits_spans():
     telemetry._tracer = None
 
     exporter = InMemorySpanExporter()
-    init_telemetry(service_name="akms-test", export_console=False, span_exporter=exporter)
+    init_telemetry(
+        service_name="akms-test", export_console=False, span_exporter=exporter
+    )
 
     @traced("test.smoke")
     def dummy():

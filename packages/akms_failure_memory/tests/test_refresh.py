@@ -924,9 +924,7 @@ def test_pinned_real_tool_preflight(tmp_path: Path) -> None:
     )
     config_path.write_text(text, encoding="utf-8")
     old = os.environ.get("AKMS_REPO2MD_ROOT")
-    os.environ["AKMS_REPO2MD_ROOT"] = str(
-        Path("/opt/example/repo2md")
-    )
+    os.environ["AKMS_REPO2MD_ROOT"] = str(Path("/opt/example/repo2md"))
     try:
         result = preflight(
             config=load_project_config(config_path), repository_root=personal_root
@@ -1036,6 +1034,11 @@ def test_home_relative_global_vault_collapses_to_tilde_form(
 
     home = str(Path.home())
     assert _canonical_global_vault(home) == "~"
-    assert _canonical_global_vault(home + "/.claude/akms/nodes") == "~/.claude/akms/nodes"
-    assert _canonical_global_vault("/some/other/machine-specific/path") == "<external-global-vault>"
+    assert (
+        _canonical_global_vault(home + "/.claude/akms/nodes") == "~/.claude/akms/nodes"
+    )
+    assert (
+        _canonical_global_vault("/some/other/machine-specific/path")
+        == "<external-global-vault>"
+    )
     assert _canonical_global_vault(None) == "<external-global-vault>"

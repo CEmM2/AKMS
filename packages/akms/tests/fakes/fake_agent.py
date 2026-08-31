@@ -66,6 +66,7 @@ class FakeAgent:
             ]
 
         import yaml
+
         out_path.write_text(
             "---\n"
             + yaml.dump(frontmatter_data, default_flow_style=False, sort_keys=False)

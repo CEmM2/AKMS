@@ -180,6 +180,10 @@ class TestGraphImport:
 
         #   # Nodes include at least one of each kind the ordering step requires.
         node_kinds = {n.get("kind") for n in g.nodes}
-        assert "prerequisite" in node_kinds, f"No prerequisite node; kinds: {node_kinds}"
-        assert "core_concept" in node_kinds, f"No core_concept node; kinds: {node_kinds}"
+        assert "prerequisite" in node_kinds, (
+            f"No prerequisite node; kinds: {node_kinds}"
+        )
+        assert "core_concept" in node_kinds, (
+            f"No core_concept node; kinds: {node_kinds}"
+        )
         assert "pitfall" in node_kinds, f"No pitfall node; kinds: {node_kinds}"

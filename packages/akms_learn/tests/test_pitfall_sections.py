@@ -98,12 +98,16 @@ class TestSectionPitfallsPopulateBody:
         packet = result.packet
         assert "alpha" in packet.body.reading_order
         _prereq_ids, pitfall_ids = _classify_nodes(packet)
-        assert "alpha" not in pitfall_ids, "section-pitfall source node must stay in the main path"
+        assert "alpha" not in pitfall_ids, (
+            "section-pitfall source node must stay in the main path"
+        )
 
     @pytest.mark.unit
     def test_node_without_pitfalls_section_contributes_none(self):
         graph = GraphSlice(
-            nodes=(_node("alpha", "## Implementation\njust code\n"),), edges=(), metadata={}
+            nodes=(_node("alpha", "## Implementation\njust code\n"),),
+            edges=(),
+            metadata={},
         )
         result = compile_learning_source(request=_request(), graph_slice=graph)
         assert result.packet.body.pitfalls == []

@@ -39,9 +39,7 @@ from akms_learn.plugin import get_plugin
 # ---------------------------------------------------------------------------
 
 
-def _patch_extras(
-    monkeypatch: pytest.MonkeyPatch, available: set[str]
-) -> None:
+def _patch_extras(monkeypatch: pytest.MonkeyPatch, available: set[str]) -> None:
     """Patch ``importlib.util.find_spec`` so the named extras appear installed.
 
     Only ``nbformat`` and ``jinja2`` are extras-probed by the gate.  The
@@ -163,6 +161,7 @@ def test_unavailable_capabilities_lists_missing_extras(
 ) -> None:
     """Extras-gated capabilities whose extra is absent appear with
     the ``missing_extra`` populated, sorted by capability name."""
+
     # Force every extra absent.
     def _none(name: str, *args: Any, **kwargs: Any):
         return None

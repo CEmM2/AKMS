@@ -47,14 +47,16 @@ def _run_full_pipeline(tmp_path: Path) -> tuple[Path, AutoApproveCheckpointHandl
     """Run the full pipeline with FakeAgent and return (repo, handler)."""
     repo = _make_repo(tmp_path)
     handler = AutoApproveCheckpointHandler()
-    asyncio.run(run_pipeline(
-        repo_root=repo,
-        goal="e2e test",
-        plan_name="test",
-        agent_cls=FakeAgent,
-        config=PropagationConfig(),
-        checkpoint_handler=handler,
-    ))
+    asyncio.run(
+        run_pipeline(
+            repo_root=repo,
+            goal="e2e test",
+            plan_name="test",
+            agent_cls=FakeAgent,
+            config=PropagationConfig(),
+            checkpoint_handler=handler,
+        )
+    )
     return repo, handler
 
 

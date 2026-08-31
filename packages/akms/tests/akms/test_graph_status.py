@@ -78,7 +78,9 @@ class TestDegradedNodes:
 class TestTentativeNodes:
     def test_finds_tentative(self, tmp_vault, tmp_repo):
         make_global_node(tmp_vault, id="tent-node", status="tentative", confidence=0.50)
-        make_global_node(tmp_vault, id="est-node", status="established", confidence=0.90)
+        make_global_node(
+            tmp_vault, id="est-node", status="established", confidence=0.90
+        )
         G = build_graph(tmp_repo, global_vault=tmp_vault)
 
         tentative = _check_tentative_nodes(G)
@@ -118,7 +120,9 @@ class TestIdCollisions:
         collisions = _check_id_collisions(tmp_vault, local_dir)
         assert len(collisions) == 0
 
-    def test_detects_collision_in_nested_paths_with_reported_paths(self, tmp_vault, tmp_repo):
+    def test_detects_collision_in_nested_paths_with_reported_paths(
+        self, tmp_vault, tmp_repo
+    ):
         nested_global = tmp_vault / "deep" / "topic"
         nested_global.mkdir(parents=True)
         nested_local = tmp_repo / "knowledge" / "local-nodes" / "wave-1"
@@ -132,7 +136,9 @@ class TestIdCollisions:
         global_path.rename(moved_global)
         local_path.rename(moved_local)
 
-        collisions = _check_id_collisions(tmp_vault, tmp_repo / "knowledge" / "local-nodes")
+        collisions = _check_id_collisions(
+            tmp_vault, tmp_repo / "knowledge" / "local-nodes"
+        )
         assert len(collisions) == 1
         assert collisions[0]["node_id"] == "nested-shared"
         assert collisions[0]["global_path"] == str(moved_global)
@@ -155,7 +161,9 @@ class TestOrphanedNodes:
 
     def test_connected_not_orphaned(self, tmp_vault, tmp_repo):
         make_global_node(
-            tmp_vault, id="parent", confidence=0.90,
+            tmp_vault,
+            id="parent",
+            confidence=0.90,
             edges=[{"to": "child", "type": "requires", "weight": 0.8}],
         )
         make_global_node(tmp_vault, id="child", confidence=0.90)
@@ -238,8 +246,20 @@ class TestExtendedReportCategories:
     def test_coverage_flags_loaded_from_overlay(self):
         overlay = {
             "coverage_flags": [
-                {"node_id": "node-a", "coverage": "missing-detail", "source_id": "task-1", "phase": 1, "date": "2026-03-09"},
-                {"node_id": "node-b", "coverage": "outdated", "source_id": "task-2", "phase": 2, "date": "2026-03-10"},
+                {
+                    "node_id": "node-a",
+                    "coverage": "missing-detail",
+                    "source_id": "task-1",
+                    "phase": 1,
+                    "date": "2026-03-09",
+                },
+                {
+                    "node_id": "node-b",
+                    "coverage": "outdated",
+                    "source_id": "task-2",
+                    "phase": 2,
+                    "date": "2026-03-10",
+                },
             ]
         }
         flags = _check_coverage_flags(overlay)
@@ -249,7 +269,13 @@ class TestExtendedReportCategories:
     def test_dedup_events_loaded_from_overlay(self):
         overlay = {
             "dedup_events": [
-                {"action": "dedup_append", "merged_into": "node-a", "node_id": "node-a", "source_id": "task-1", "phase": 1},
+                {
+                    "action": "dedup_append",
+                    "merged_into": "node-a",
+                    "node_id": "node-a",
+                    "source_id": "task-1",
+                    "phase": 1,
+                },
             ]
         }
         dedup = _check_dedup_events(overlay)
@@ -258,7 +284,9 @@ class TestExtendedReportCategories:
         assert dedup[0]["merged_into"] == "node-a"
 
     def test_blocked_tasks_loaded_from_overlay_or_explicit_arg(self):
-        overlay = {"blocked_tasks": [{"task": "task-014", "reason": "awaiting promotion"}]}
+        overlay = {
+            "blocked_tasks": [{"task": "task-014", "reason": "awaiting promotion"}]
+        }
 
         from_overlay = _check_blocked_tasks(overlay)
         assert len(from_overlay) == 1
@@ -283,8 +311,13 @@ class TestFormatReport:
             "total_nodes": 10,
             "total_edges": 5,
             "degraded_nodes": [
-                {"node_id": "n1", "graph_confidence": 0.3, "overlay_confidence": None,
-                 "effective_confidence": 0.3, "origin": "global"},
+                {
+                    "node_id": "n1",
+                    "graph_confidence": 0.3,
+                    "overlay_confidence": None,
+                    "effective_confidence": 0.3,
+                    "origin": "global",
+                },
             ],
             "tentative_nodes": [],
             "id_collisions": [],
@@ -315,8 +348,12 @@ class TestFormatReport:
             "dedup_events": [],
             "blocked_tasks": [],
             "drift_warnings": [
-                {"function": "compute", "file": "src/mod.py",
-                 "type": "missing_param", "detail": "Param X missing"},
+                {
+                    "function": "compute",
+                    "file": "src/mod.py",
+                    "type": "missing_param",
+                    "detail": "Param X missing",
+                },
             ],
         }
         text = format_report(report)
@@ -331,8 +368,12 @@ class TestFormatReport:
 
 class TestGraphStatusIntegration:
     def test_full_report(self, tmp_vault, tmp_repo):
-        make_global_node(tmp_vault, id="healthy", confidence=0.90,
-                         edges=[{"to": "degraded", "type": "requires", "weight": 0.8}])
+        make_global_node(
+            tmp_vault,
+            id="healthy",
+            confidence=0.90,
+            edges=[{"to": "degraded", "type": "requires", "weight": 0.8}],
+        )
         make_global_node(tmp_vault, id="degraded", confidence=0.30)
         make_global_node(tmp_vault, id="tent", status="tentative", confidence=0.50)
         make_global_node(tmp_vault, id="orphan", confidence=0.90)
@@ -360,12 +401,26 @@ class TestGraphStatusIntegration:
         overlay_path = tmp_repo / "knowledge" / "graph" / "local_state.yaml"
         overlay = yaml.safe_load(overlay_path.read_text())
         overlay["coverage_flags"] = [
-            {"node_id": "node-a", "coverage": "missing-detail", "source_id": "task-1", "phase": 1, "date": "2026-03-09"}
+            {
+                "node_id": "node-a",
+                "coverage": "missing-detail",
+                "source_id": "task-1",
+                "phase": 1,
+                "date": "2026-03-09",
+            }
         ]
         overlay["dedup_events"] = [
-            {"action": "dedup_append", "merged_into": "node-a", "node_id": "node-a", "source_id": "task-1", "phase": 1}
+            {
+                "action": "dedup_append",
+                "merged_into": "node-a",
+                "node_id": "node-a",
+                "source_id": "task-1",
+                "phase": 1,
+            }
         ]
-        overlay["blocked_tasks"] = [{"task": "task-014", "reason": "awaiting tentative promotion"}]
+        overlay["blocked_tasks"] = [
+            {"task": "task-014", "reason": "awaiting tentative promotion"}
+        ]
         overlay_path.write_text(yaml.dump(overlay))
 
         report = graph_status(tmp_repo, global_vault=tmp_vault)
@@ -384,7 +439,9 @@ class TestContentDraftInReview:
 
     def test_tentative_entry_includes_content_draft(self, tmp_vault, tmp_repo):
         make_local_node(
-            tmp_repo, id="local-tent", status="tentative",
+            tmp_repo,
+            id="local-tent",
+            status="tentative",
             content="DRAFT BODY HERE",
         )
         G = build_graph(tmp_repo, global_vault=tmp_vault)
@@ -396,7 +453,9 @@ class TestContentDraftInReview:
 
     def test_draft_rendered_in_formatted_report(self, tmp_vault, tmp_repo):
         make_local_node(
-            tmp_repo, id="local-tent", status="tentative",
+            tmp_repo,
+            id="local-tent",
+            status="tentative",
             content="UNIQUE DRAFT MARKER",
         )
         report = graph_status(tmp_repo, global_vault=tmp_vault)

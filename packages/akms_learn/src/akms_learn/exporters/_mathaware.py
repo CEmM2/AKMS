@@ -74,7 +74,9 @@ def _render_algo(inner: str) -> str:
         if s.startswith("\\State"):
             content = s[6:].strip()
             # some source nodes ship empty State placeholders (`\State $$`); blank them
-            lines.append((indent, "&nbsp;" if content.strip("$ ") == "" else _esc(content)))
+            lines.append(
+                (indent, "&nbsp;" if content.strip("$ ") == "" else _esc(content))
+            )
             continue
         if s.startswith("\\Comment"):
             continue

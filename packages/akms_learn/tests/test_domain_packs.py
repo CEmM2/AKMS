@@ -49,10 +49,7 @@ _MECHDSL_YAML = _SOURCE_PACK_DIR / "mechdsl.yaml"
 
 # Path to the domain_packs source tree — used by the AST-scan test.
 _DOMAIN_PACKS_SRC = (
-    Path(__file__).resolve().parent.parent
-    / "src"
-    / "akms_learn"
-    / "domain_packs"
+    Path(__file__).resolve().parent.parent / "src" / "akms_learn" / "domain_packs"
 )
 
 
@@ -126,12 +123,8 @@ class TestDomainPackFoundation:
     @pytest.mark.unit
     def test_registry_ordering_deterministic(self) -> None:
         """Registry sorts descriptors deterministically (alphabetic by id)."""
-        d_a = DomainPackDescriptor(
-            pack_id="alpha.pack", name="Alpha", version="0.0.1"
-        )
-        d_b = DomainPackDescriptor(
-            pack_id="beta.pack", name="Beta", version="0.0.1"
-        )
+        d_a = DomainPackDescriptor(pack_id="alpha.pack", name="Alpha", version="0.0.1")
+        d_b = DomainPackDescriptor(pack_id="beta.pack", name="Beta", version="0.0.1")
         d_c = DomainPackDescriptor(
             pack_id="charlie.pack", name="Charlie", version="0.0.1"
         )
@@ -186,8 +179,7 @@ class TestDomainPackFoundation:
                         offenders.append((py, node.lineno, node.module))
 
         assert not offenders, (
-            "Forbidden companion imports detected in domain_packs/: "
-            f"{offenders!r}"
+            f"Forbidden companion imports detected in domain_packs/: {offenders!r}"
         )
 
     @pytest.mark.unit
@@ -215,12 +207,8 @@ class TestDomainPackFoundation:
     def test_registry_duplicate_id_raises(self) -> None:
         """Registering two descriptors with the same id must raise ValueError."""
         registry = DomainPackRegistry()
-        d1 = DomainPackDescriptor(
-            pack_id="dup.pack", name="First", version="0.0.1"
-        )
-        d2 = DomainPackDescriptor(
-            pack_id="dup.pack", name="Second", version="0.0.2"
-        )
+        d1 = DomainPackDescriptor(pack_id="dup.pack", name="First", version="0.0.1")
+        d2 = DomainPackDescriptor(pack_id="dup.pack", name="Second", version="0.0.2")
         registry.register(d1)
         with pytest.raises(ValueError, match="dup.pack"):
             registry.register(d2)

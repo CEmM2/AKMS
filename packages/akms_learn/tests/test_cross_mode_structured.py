@@ -130,9 +130,7 @@ class TestStructuredCrossModeSweep:
         self, tmp_path: Path, open_all_extras: None
     ) -> None:
         """``assessment_first`` compile + ``assessment`` exporter → triplet."""
-        request = _make_request(
-            "assessment_first", exporters=("assessment",)
-        )
+        request = _make_request("assessment_first", exporters=("assessment",))
         result = compile_learning_source(
             request=request,
             graph_slice=fixture_graph_toy_executable_bridge(),
@@ -214,6 +212,4 @@ def test_sweep_covers_every_structured_mode() -> None:
 
     src = inspect.getsource(TestStructuredCrossModeSweep)
     for mode in PLAN3_MODE_KEYS:
-        assert mode in src, (
-            f"cross-mode sweep is missing coverage for mode {mode!r}"
-        )
+        assert mode in src, f"cross-mode sweep is missing coverage for mode {mode!r}"

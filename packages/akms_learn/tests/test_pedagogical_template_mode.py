@@ -95,7 +95,10 @@ def _make_v21_graph_slice() -> GraphSlice:
                 "references": "AKMS pedagogical-template layout.",
                 "next_paths": "derivation_first, implementation_first, multi_granularity.",
             },
-            "learning_objectives": ["Understand v2.1 metadata", "Build a pedagogical packet"],
+            "learning_objectives": [
+                "Understand v2.1 metadata",
+                "Build a pedagogical packet",
+            ],
             "difficulty": "intermediate",
             "estimated_minutes": 45,
             "preferred_learning_sections": ["Intuition", "Worked example"],
@@ -225,13 +228,16 @@ class TestMissingSectionWarnings:
         """Each section that resolves to SECTION_PLACEHOLDER emits exactly one warning."""
         result, warnings = _run_mode(fixture_graph_toy_concept_kit())
         missing_slots = [
-            slot for slot, content in result.sections.items()
+            slot
+            for slot, content in result.sections.items()
             if content == SECTION_PLACEHOLDER
         ]
         # Count warnings by their message prefix to avoid double-counting
         # sections that share the same warning.
         warning_slots = [
-            w.message.split("'")[1]  # extract slot name from "Pedagogical section 'X' has..."
+            w.message.split("'")[
+                1
+            ]  # extract slot name from "Pedagogical section 'X' has..."
             for w in warnings
         ]
         assert len(warnings) == len(missing_slots), (
@@ -248,9 +254,7 @@ class TestMissingSectionWarnings:
             assert w.source_ref is not None, (
                 f"Warning for slot has source_ref=None: {w!r}"
             )
-            assert w.source_ref != "", (
-                f"Warning has empty source_ref: {w!r}"
-            )
+            assert w.source_ref != "", f"Warning has empty source_ref: {w!r}"
 
     def test_source_ref_is_valid_node_id_or_unknown(self):
         """source_ref must be either a node id from the slice or '<unknown>'."""
@@ -284,14 +288,10 @@ class TestMissingSectionWarnings:
         ):
             result, warnings = _run_mode(factory())
             assert result.sections["Provenance"] != SECTION_PLACEHOLDER, (
-                f"Provenance section was {SECTION_PLACEHOLDER!r} for "
-                f"{factory.__name__}"
+                f"Provenance section was {SECTION_PLACEHOLDER!r} for {factory.__name__}"
             )
             # Provenance must not generate a missing-section warning.
-            provenance_warnings = [
-                w for w in warnings
-                if "Provenance" in w.message
-            ]
+            provenance_warnings = [w for w in warnings if "Provenance" in w.message]
             assert provenance_warnings == [], (
                 f"Provenance section emitted unexpected warning(s): "
                 f"{provenance_warnings}"
@@ -314,8 +314,7 @@ class TestMarkdownExport:
         from jinja2 import Environment, FileSystemLoader
 
         templates_dir = (
-            Path(__file__).resolve().parent.parent
-            / "src" / "akms_learn" / "templates"
+            Path(__file__).resolve().parent.parent / "src" / "akms_learn" / "templates"
         )
         env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
@@ -380,16 +379,14 @@ class TestMarkdownExport:
             idx = rendered.find(heading_str)
             assert idx >= 0
             # Text after the heading.
-            after = rendered[idx + len(heading_str):].strip()
+            after = rendered[idx + len(heading_str) :].strip()
             # The next heading starts the next section; grab text up to it.
             next_heading_idx = after.find("\n## ")
             if next_heading_idx >= 0:
                 section_text = after[:next_heading_idx].strip()
             else:
                 section_text = after.strip()
-            assert section_text, (
-                f"Section {slot!r} rendered with no content at all."
-            )
+            assert section_text, f"Section {slot!r} rendered with no content at all."
 
     def test_node_ids_in_provenance(self):
         """Provenance section must reference source node ids."""
@@ -421,8 +418,12 @@ class TestV21Metadata:
         assert result.v21_metadata, (
             "Expected v21_metadata to be non-empty for v2.1 fixture."
         )
-        for field in ("learning_objectives", "difficulty", "estimated_minutes",
-                      "preferred_learning_sections"):
+        for field in (
+            "learning_objectives",
+            "difficulty",
+            "estimated_minutes",
+            "preferred_learning_sections",
+        ):
             assert field in result.v21_metadata, (
                 f"Expected v2.1 field {field!r} in result.v21_metadata."
             )
@@ -433,7 +434,8 @@ class TestV21Metadata:
         assert result.v21_metadata["difficulty"] == "intermediate"
         assert result.v21_metadata["estimated_minutes"] == 45
         assert result.v21_metadata["learning_objectives"] == [
-            "Understand v2.1 metadata", "Build a pedagogical packet"
+            "Understand v2.1 metadata",
+            "Build a pedagogical packet",
         ]
 
     def test_v21_absent_produces_empty_dict(self):
@@ -460,8 +462,7 @@ class TestV21Metadata:
         result, _ = _run_mode(gs, request)
 
         templates_dir = (
-            Path(__file__).resolve().parent.parent
-            / "src" / "akms_learn" / "templates"
+            Path(__file__).resolve().parent.parent / "src" / "akms_learn" / "templates"
         )
         env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
@@ -493,8 +494,7 @@ class TestV21Metadata:
         result, _ = _run_mode(gs, request)
 
         templates_dir = (
-            Path(__file__).resolve().parent.parent
-            / "src" / "akms_learn" / "templates"
+            Path(__file__).resolve().parent.parent / "src" / "akms_learn" / "templates"
         )
         env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
@@ -562,9 +562,7 @@ class TestProvenancePreservation:
     def test_all_edge_ids_in_result(self):
         gs = fixture_graph_toy_concept_kit()
         expected_edge_ids = sorted(
-            str(e.get("edge_id", ""))
-            for e in gs.edges
-            if e.get("edge_id")
+            str(e.get("edge_id", "")) for e in gs.edges if e.get("edge_id")
         )
         result, _ = _run_mode(gs)
         assert result.edge_ids == expected_edge_ids

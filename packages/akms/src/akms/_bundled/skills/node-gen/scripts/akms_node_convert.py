@@ -19,6 +19,7 @@ from pathlib import Path
 
 # ── YAML → Markdown conversion ────────────────────────────────────────
 
+
 def convert_node(data: dict) -> tuple[str, list[str]]:
     """Convert a structured YAML node dict to AKMS markdown string.
     Returns (markdown_string, list_of_warnings).
@@ -27,204 +28,205 @@ def convert_node(data: dict) -> tuple[str, list[str]]:
 
     # ── Build frontmatter ──
     fm = {}
-    fm['id'] = data['id']
-    fm['title'] = data['title']
-    fm['domain'] = data.get('domain', 'computational-mechanics')
-    if data.get('subdomain'):
-        fm['subdomain'] = data['subdomain']
-    fm['tags'] = data.get('tags', [])
-    fm['status'] = 'tentative'
-    fm['confidence'] = data.get('confidence', 0.90)
-    fm['source'] = 'hybrid'
-    if data.get('confidence_floor'):
-        fm['confidence_floor'] = data['confidence_floor']
-    fm['edges'] = data.get('edges', [])
-    fm['context_size'] = data.get('context_size', 'medium')
-    fm['reading_priority'] = data.get('reading_priority', 'full')
-    if data.get('load_with'):
-        fm['load_with'] = data['load_with']
-    fm['content_ref'] = None
-    fm['akms_schema'] = 'v2'
+    fm["id"] = data["id"]
+    fm["title"] = data["title"]
+    fm["domain"] = data.get("domain", "computational-mechanics")
+    if data.get("subdomain"):
+        fm["subdomain"] = data["subdomain"]
+    fm["tags"] = data.get("tags", [])
+    fm["status"] = "tentative"
+    fm["confidence"] = data.get("confidence", 0.90)
+    fm["source"] = "hybrid"
+    if data.get("confidence_floor"):
+        fm["confidence_floor"] = data["confidence_floor"]
+    fm["edges"] = data.get("edges", [])
+    fm["context_size"] = data.get("context_size", "medium")
+    fm["reading_priority"] = data.get("reading_priority", "full")
+    if data.get("load_with"):
+        fm["load_with"] = data["load_with"]
+    fm["content_ref"] = None
+    fm["akms_schema"] = "v2"
 
     # ── Build body ──
     lines = []
 
     # Title
     lines.append(f"# {data['title']}")
-    lines.append('')
+    lines.append("")
 
     # Summary
-    lines.append('## Summary')
-    lines.append(data.get('summary', '[MISSING — developer must supplement]'))
-    lines.append('')
+    lines.append("## Summary")
+    lines.append(data.get("summary", "[MISSING — developer must supplement]"))
+    lines.append("")
 
     # 1. Core Concept
-    lines.append('## 1. Core Concept')
-    lines.append(data.get('core_concept', '[MISSING — developer must supplement]'))
-    lines.append('')
+    lines.append("## 1. Core Concept")
+    lines.append(data.get("core_concept", "[MISSING — developer must supplement]"))
+    lines.append("")
 
     # 2. Mathematical Formulation
-    lines.append('## 2. Mathematical Formulation')
-    math = data.get('math_formulation', {})
+    lines.append("## 2. Mathematical Formulation")
+    math = data.get("math_formulation", {})
     if isinstance(math, str):
         # Simple string with inline LaTeX
         lines.append(math)
     elif isinstance(math, dict):
         # Structured: prose + equations list
-        if math.get('prose'):
-            lines.append(math['prose'])
-            lines.append('')
-        for eq in math.get('equations', []):
+        if math.get("prose"):
+            lines.append(math["prose"])
+            lines.append("")
+        for eq in math.get("equations", []):
             if isinstance(eq, dict):
-                if eq.get('label'):
+                if eq.get("label"):
                     lines.append(f"**{eq['label']}:**")
-                    lines.append('')
-                lines.append('$$')
-                lines.append(eq['latex'].strip())
-                lines.append('$$')
-                lines.append('')
-                if eq.get('where'):
+                    lines.append("")
+                lines.append("$$")
+                lines.append(eq["latex"].strip())
+                lines.append("$$")
+                lines.append("")
+                if eq.get("where"):
                     lines.append(f"where {eq['where']}")
-                    lines.append('')
+                    lines.append("")
             else:
                 # Plain LaTeX string
-                lines.append('$$')
+                lines.append("$$")
                 lines.append(str(eq).strip())
-                lines.append('$$')
-                lines.append('')
+                lines.append("$$")
+                lines.append("")
 
         # Notation table
-        if math.get('notation'):
-            lines.append('**Notation:**')
-            lines.append('')
-            for symbol, meaning in math['notation'].items():
-                lines.append(f'- ${symbol}$ — {meaning}')
-            lines.append('')
-    lines.append('')
+        if math.get("notation"):
+            lines.append("**Notation:**")
+            lines.append("")
+            for symbol, meaning in math["notation"].items():
+                lines.append(f"- ${symbol}$ — {meaning}")
+            lines.append("")
+    lines.append("")
 
     # 3. Algorithmic Implementation
-    lines.append('## 3. Algorithmic Implementation')
-    algos = data.get('algorithms', [])
+    lines.append("## 3. Algorithmic Implementation")
+    algos = data.get("algorithms", [])
     if isinstance(algos, str):
         lines.append(algos)
     else:
         for algo in algos:
             if isinstance(algo, dict):
-                label = algo.get('label', 'Algorithm')
-                lines.append(f'**Algorithm: {label}**')
-                lines.append('')
-                lines.append('$$')
-                lines.append(r'\begin{algorithmic}')
+                label = algo.get("label", "Algorithm")
+                lines.append(f"**Algorithm: {label}**")
+                lines.append("")
+                lines.append("$$")
+                lines.append(r"\begin{algorithmic}")
 
-                for step in algo.get('steps', []):
+                for step in algo.get("steps", []):
                     if isinstance(step, dict):
-                        cmd = step.get('cmd', 'State')
-                        math_content = step.get('math', '')
-                        indent = '    ' * step.get('indent', 0)
+                        cmd = step.get("cmd", "State")
+                        math_content = step.get("math", "")
+                        indent = "    " * step.get("indent", 0)
 
-                        if cmd == 'State':
-                            lines.append(f'{indent}\\State ${math_content}$')
-                        elif cmd == 'For':
-                            lines.append(f'{indent}\\For{{${math_content}$}}')
-                        elif cmd == 'EndFor':
-                            lines.append(f'{indent}\\EndFor')
-                        elif cmd == 'While':
-                            lines.append(f'{indent}\\While{{${math_content}$}}')
-                        elif cmd == 'EndWhile':
-                            lines.append(f'{indent}\\EndWhile')
-                        elif cmd == 'If':
-                            lines.append(f'{indent}\\If{{${math_content}$}}')
-                        elif cmd == 'ElsIf':
-                            lines.append(f'{indent}\\ElsIf{{${math_content}$}}')
-                        elif cmd == 'Else':
-                            lines.append(f'{indent}\\Else')
-                        elif cmd == 'EndIf':
-                            lines.append(f'{indent}\\EndIf')
-                        elif cmd == 'Return':
-                            lines.append(f'{indent}\\Return ${math_content}$')
-                        elif cmd == 'Break':
-                            lines.append(f'{indent}\\State \\textbf{{break}}')
+                        if cmd == "State":
+                            lines.append(f"{indent}\\State ${math_content}$")
+                        elif cmd == "For":
+                            lines.append(f"{indent}\\For{{${math_content}$}}")
+                        elif cmd == "EndFor":
+                            lines.append(f"{indent}\\EndFor")
+                        elif cmd == "While":
+                            lines.append(f"{indent}\\While{{${math_content}$}}")
+                        elif cmd == "EndWhile":
+                            lines.append(f"{indent}\\EndWhile")
+                        elif cmd == "If":
+                            lines.append(f"{indent}\\If{{${math_content}$}}")
+                        elif cmd == "ElsIf":
+                            lines.append(f"{indent}\\ElsIf{{${math_content}$}}")
+                        elif cmd == "Else":
+                            lines.append(f"{indent}\\Else")
+                        elif cmd == "EndIf":
+                            lines.append(f"{indent}\\EndIf")
+                        elif cmd == "Return":
+                            lines.append(f"{indent}\\Return ${math_content}$")
+                        elif cmd == "Break":
+                            lines.append(f"{indent}\\State \\textbf{{break}}")
                         else:
-                            warnings.append(f'Unknown command: {cmd}')
-                            lines.append(f'{indent}\\State ${math_content}$')
+                            warnings.append(f"Unknown command: {cmd}")
+                            lines.append(f"{indent}\\State ${math_content}$")
                     else:
                         # Raw string step — pass through
-                        lines.append(f'\\State ${step}$')
+                        lines.append(f"\\State ${step}$")
 
-                lines.append(r'\end{algorithmic}')
-                lines.append('$$')
-                lines.append('')
+                lines.append(r"\end{algorithmic}")
+                lines.append("$$")
+                lines.append("")
 
                 # Taichi mapping
-                if algo.get('taichi_mapping'):
-                    lines.append('**Taichi Mapping:**')
-                    lines.append(algo['taichi_mapping'])
-                    lines.append('')
+                if algo.get("taichi_mapping"):
+                    lines.append("**Taichi Mapping:**")
+                    lines.append(algo["taichi_mapping"])
+                    lines.append("")
             else:
                 lines.append(str(algo))
-    lines.append('')
+    lines.append("")
 
     # 4. Known Pitfalls
-    lines.append('## 4. Known Pitfalls')
-    pitfalls = data.get('pitfalls', [])
+    lines.append("## 4. Known Pitfalls")
+    pitfalls = data.get("pitfalls", [])
     for p in pitfalls:
         if isinstance(p, dict):
             lines.append(f"**{p.get('name', 'Pitfall')}:** {p.get('description', '')}")
-            lines.append('')
+            lines.append("")
         else:
             lines.append(f"**Pitfall:** {p}")
-            lines.append('')
+            lines.append("")
 
     # 5. Verification & Benchmarks (optional)
-    if data.get('verification'):
-        lines.append('## 5. Verification & Benchmarks')
-        lines.append(data['verification'])
-        lines.append('')
+    if data.get("verification"):
+        lines.append("## 5. Verification & Benchmarks")
+        lines.append(data["verification"])
+        lines.append("")
 
     # 6. References (optional)
-    refs = data.get('references', [])
+    refs = data.get("references", [])
     if refs:
-        next_section = 5 if not data.get('verification') else 6
-        lines.append(f'## {next_section}. References')
+        next_section = 5 if not data.get("verification") else 6
+        lines.append(f"## {next_section}. References")
         for ref in refs:
-            lines.append(f'- {ref}')
-        lines.append('')
+            lines.append(f"- {ref}")
+        lines.append("")
 
     # ── Assemble ──
     frontmatter_str = yaml.dump(
-        fm, default_flow_style=False, sort_keys=False,
-        allow_unicode=True, width=120
+        fm, default_flow_style=False, sort_keys=False, allow_unicode=True, width=120
     )
-    body_str = '\n'.join(lines)
+    body_str = "\n".join(lines)
 
-    return f'---\n{frontmatter_str}---\n\n{body_str}\n', warnings
+    return f"---\n{frontmatter_str}---\n\n{body_str}\n", warnings
 
 
 # ── Validation ────────────────────────────────────────────────────────
+
 
 def validate_yaml_node(data: dict) -> list[str]:
     """Validate required fields in the YAML input."""
     errors = []
 
-    for field in ['id', 'title', 'summary', 'core_concept', 'math_formulation']:
+    for field in ["id", "title", "summary", "core_concept", "math_formulation"]:
         if field not in data:
-            errors.append(f'Missing required field: {field}')
+            errors.append(f"Missing required field: {field}")
 
-    if 'algorithms' not in data or not data['algorithms']:
-        errors.append('Missing or empty algorithms field')
+    if "algorithms" not in data or not data["algorithms"]:
+        errors.append("Missing or empty algorithms field")
 
-    if 'pitfalls' not in data or not data['pitfalls']:
-        errors.append('Missing or empty pitfalls field')
+    if "pitfalls" not in data or not data["pitfalls"]:
+        errors.append("Missing or empty pitfalls field")
 
-    if 'edges' not in data or not data['edges']:
-        errors.append('Missing or empty edges field')
+    if "edges" not in data or not data["edges"]:
+        errors.append("Missing or empty edges field")
 
     # Self-containedness check on string fields
-    for field in ['core_concept', 'summary']:
-        val = data.get(field, '')
+    for field in ["core_concept", "summary"]:
+        val = data.get(field, "")
         if isinstance(val, str):
             import re
-            eq_refs = re.findall(r'(?:Eq\.|Equation)\s*[\(\[]?\d+', val)
+
+            eq_refs = re.findall(r"(?:Eq\.|Equation)\s*[\(\[]?\d+", val)
             for ref in eq_refs:
                 errors.append(f'Equation reference in {field}: "{ref}"')
 
@@ -233,8 +235,9 @@ def validate_yaml_node(data: dict) -> list[str]:
 
 # ── CLI ───────────────────────────────────────────────────────────────
 
+
 def process_file(filepath: Path, output: Path | None, verbose: bool) -> bool:
-    text = filepath.read_text(encoding='utf-8')
+    text = filepath.read_text(encoding="utf-8")
 
     try:
         data = yaml.safe_load(text)
@@ -264,8 +267,8 @@ def process_file(filepath: Path, output: Path | None, verbose: bool) -> bool:
             print(f"  ⚠ {w}")
 
     # Write
-    target = output or filepath.with_suffix('.md')
-    target.write_text(md, encoding='utf-8')
+    target = output or filepath.with_suffix(".md")
+    target.write_text(md, encoding="utf-8")
     if verbose:
         print(f"  → {target}")
 
@@ -273,16 +276,14 @@ def process_file(filepath: Path, output: Path | None, verbose: bool) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Convert YAML AKMS nodes to markdown'
-    )
-    parser.add_argument('input', type=Path)
-    parser.add_argument('-o', '--output', type=Path, default=None)
-    parser.add_argument('-v', '--verbose', action='store_true')
+    parser = argparse.ArgumentParser(description="Convert YAML AKMS nodes to markdown")
+    parser.add_argument("input", type=Path)
+    parser.add_argument("-o", "--output", type=Path, default=None)
+    parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
     if args.input.is_dir():
-        files = sorted(args.input.glob('*.yaml')) + sorted(args.input.glob('*.yml'))
+        files = sorted(args.input.glob("*.yaml")) + sorted(args.input.glob("*.yml"))
         if not files:
             print(f"No YAML files in {args.input}")
             sys.exit(1)
@@ -297,5 +298,5 @@ def main():
         sys.exit(0 if ok else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

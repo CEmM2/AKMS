@@ -34,7 +34,9 @@ class AutoApproveHandler(CheckpointHandler):
     """
 
     def present(self, state, stage_output, akms_status, warnings, repo_root):
-        print(f"  [gate] stage={state.current_stage.name} -> APPROVE ({len(warnings)} warnings)")
+        print(
+            f"  [gate] stage={state.current_stage.name} -> APPROVE ({len(warnings)} warnings)"
+        )
         return CheckpointAction.APPROVE
 
 
@@ -63,8 +65,10 @@ def main() -> int:
         )
     )
     completed = getattr(state, "completed", False) and not state.aborted
-    print(f"pipeline {'COMPLETED' if completed else 'DID NOT COMPLETE'} "
-          f"(stage={state.current_stage.name}, aborted={state.aborted})")
+    print(
+        f"pipeline {'COMPLETED' if completed else 'DID NOT COMPLETE'} "
+        f"(stage={state.current_stage.name}, aborted={state.aborted})"
+    )
     sessions = sorted((workspace / "knowledge" / "sessions").glob("*.md"))
     print(f"agent memories written: {[p.name for p in sessions]}")
     return 0 if completed else 1

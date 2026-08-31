@@ -95,7 +95,9 @@ def _retrieve_node_content_qmd(
     seed_qmd = seed_qmd_path(
         "run_qmd.sh",
         repo_root_candidates=(
-            [repo_root / "Packages" / "AKMS", repo_root] if repo_root is not None else None
+            [repo_root / "Packages" / "AKMS", repo_root]
+            if repo_root is not None
+            else None
         ),
     )
 

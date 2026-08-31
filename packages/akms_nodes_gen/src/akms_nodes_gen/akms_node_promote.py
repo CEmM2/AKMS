@@ -30,6 +30,7 @@ The 'domain' frontmatter field determines the subdirectory. Dotted domains
 Source --source path is relative to the repo root (the directory containing
 this script, or the --repo-root override).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -91,6 +92,7 @@ def rewrite_status(text: str, old: str = "tentative", new: str = "established") 
 
 REQUIRED_FM = {"id", "title", "domain", "status", "akms_schema"}
 
+
 def resolve_vault(repo: Path) -> Path:
     """Return the vault path from $AKMS_NODES_VAULT or Packages/Nodes_Vault/ in repo."""
     env = os.environ.get("AKMS_NODES_VAULT")
@@ -116,13 +118,16 @@ def validate_node(path: Path, fm: dict[str, str]) -> list[str]:
     if fm.get("akms_schema") != "v2":
         problems.append(f"akms_schema is '{fm.get('akms_schema')}', expected 'v2'")
     if "[INSUFFICIENT SOURCE]" in path.read_text(encoding="utf-8"):
-        problems.append("contains [INSUFFICIENT SOURCE] marker — review before promoting")
+        problems.append(
+            "contains [INSUFFICIENT SOURCE] marker — review before promoting"
+        )
     return problems
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(
@@ -191,8 +196,10 @@ def main() -> int:
         print(f"No AKMS v2 node .md files found in {source_dir}")
         return 0
 
-    print(f"{'DRY-RUN' if not args.execute else 'EXECUTING'}: "
-          f"found {len(node_files)} node(s) in {source_dir.relative_to(repo)}")
+    print(
+        f"{'DRY-RUN' if not args.execute else 'EXECUTING'}: "
+        f"found {len(node_files)} node(s) in {source_dir.relative_to(repo)}"
+    )
     print(f"Vault:  {vault}\n")
 
     moved = 0
@@ -270,7 +277,9 @@ def main() -> int:
     if not args.execute:
         print(f"\nThis was a dry-run.  Re-run with --execute to move files.")
         if args.promote:
-            print("The --promote flag will also rewrite status: tentative → established.")
+            print(
+                "The --promote flag will also rewrite status: tentative → established."
+            )
 
     return 0
 

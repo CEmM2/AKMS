@@ -49,8 +49,7 @@ def test_lsp_domain_pack_provenance_fields(tmp_path: Path) -> None:
 
     ids_and_versions = {(d.get("id"), d.get("version")) for d in prov}
     assert ("compmech.reference", "0.1.0") in ids_and_versions, (
-        "Descriptor (id, version) not surfaced on the LSP — "
-        f"got {ids_and_versions!r}"
+        f"Descriptor (id, version) not surfaced on the LSP — got {ids_and_versions!r}"
     )
 
     # Pack id is stable across recompiles — re-run and confirm.

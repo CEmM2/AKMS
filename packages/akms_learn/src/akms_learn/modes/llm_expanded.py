@@ -235,7 +235,9 @@ def _build_deterministic_packet(
 
     sorted_node_ids = sorted(nodes_by_id.keys())
     reading_order = [nid for nid in ordered_nodes if nid in nodes_by_id]
-    edge_ids = sorted(str(e.get("edge_id")) for e in graph_slice.edges if e.get("edge_id"))
+    edge_ids = sorted(
+        str(e.get("edge_id")) for e in graph_slice.edges if e.get("edge_id")
+    )
 
     return {
         # Materialise nodes as a key-sorted dict so JSON-canonical dumps
@@ -444,9 +446,13 @@ def llm_expanded_mode(
     # Step 3 — resolve policy + llm_allowed consensus.
     # ------------------------------------------------------------------
     nodes_by_id: dict[str, dict[str, Any]] = {
-        nid: dict(raw) for raw in graph_slice.nodes if (nid := raw.get("node_id")) is not None
+        nid: dict(raw)
+        for raw in graph_slice.nodes
+        if (nid := raw.get("node_id")) is not None
     }
-    effective_policy, llm_allowed = _resolve_policy(cfg.policy, nodes_by_id, ordered_nodes)
+    effective_policy, llm_allowed = _resolve_policy(
+        cfg.policy, nodes_by_id, ordered_nodes
+    )
 
     # If any node forbids LLM expansion, behave as if LLM were disabled:
     # byte-identical deterministic packet.
@@ -527,7 +533,9 @@ def llm_expanded_mode(
         )
         return result, warnings
 
-    raw_sections = provider(topic, active_node_ids, effective_policy, sources=cfg.sources)
+    raw_sections = provider(
+        topic, active_node_ids, effective_policy, sources=cfg.sources
+    )
 
     # ------------------------------------------------------------------
     # Step 5 — citation validation (HARD invariant).
@@ -544,7 +552,9 @@ def llm_expanded_mode(
     # Step 7 — attach generated_sections + provenance to the packet.
     # ------------------------------------------------------------------
     final_packet: dict[str, Any] = copy.deepcopy(pre_expansion_packet)
-    final_packet["generated_sections"] = [s.model_dump(mode="json") for s in valid_sections]
+    final_packet["generated_sections"] = [
+        s.model_dump(mode="json") for s in valid_sections
+    ]
     # Sort the dumped representation by (source_node_ids[0], id) again so
     # the JSON-dump output is byte-stable regardless of pydantic's
     # internal dict-iteration order.

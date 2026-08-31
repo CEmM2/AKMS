@@ -149,6 +149,7 @@ _MODE_SPECS: dict[str, dict[str, Any]] = {
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_request(
     *, mode: str, topic: str, goal: str, granularity: str | None = None
 ) -> LearningRequest:
@@ -168,6 +169,7 @@ def _build_request(
     if granularity is not None:
         kwargs["granularity"] = granularity
     return LearningRequest(**kwargs)
+
 
 def _run_mode(
     *,
@@ -197,6 +199,7 @@ def _run_mode(
     )
     return result.packet
 
+
 def _read_lesson(mode_dir: Path) -> str:
     """Read the markdown exporter's lesson.md from *mode_dir*."""
     path = mode_dir / "lesson.md"
@@ -205,6 +208,7 @@ def _read_lesson(mode_dir: Path) -> str:
             f"lesson.md missing in {mode_dir!r} — markdown exporter did not run"
         )
     return path.read_text(encoding="utf-8")
+
 
 def _render_html(markdown_text: str) -> str:
     """Render *markdown_text* to a self-contained HTML document.
@@ -218,9 +222,9 @@ def _render_html(markdown_text: str) -> str:
     body = md.render(markdown_text)
     return (
         "<!DOCTYPE html>\n"
-        "<html lang=\"en\">\n"
+        '<html lang="en">\n'
         "<head>\n"
-        "<meta charset=\"utf-8\">\n"
+        '<meta charset="utf-8">\n'
         f"<title>{PLAN_ID} -- Generated Lesson Preview</title>\n"
         "<style>body{font-family:system-ui,sans-serif;max-width:48rem;"
         "margin:2rem auto;padding:0 1rem;line-height:1.5;}"
@@ -233,6 +237,7 @@ def _render_html(markdown_text: str) -> str:
         "</body>\n"
         "</html>\n"
     )
+
 
 def _compose_preview_markdown(
     mode_lessons: dict[str, str],
@@ -276,12 +281,12 @@ def _compose_preview_markdown(
         parts.append("")
     return "\n".join(parts) + "\n"
 
+
 def _packet_to_canonical_json(packet: LearningSourcePacket) -> str:
     """Serialise *packet* to canonical JSON (sort_keys, indent=2)."""
     payload = packet.model_dump(by_alias=True, mode="json")
-    return (
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-    )
+    return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+
 
 def _compose_source_packet(
     mode_packets: dict[str, LearningSourcePacket],
@@ -307,13 +312,13 @@ def _compose_source_packet(
             payload["modes"][mode] = mode_packets[mode].model_dump(
                 by_alias=True, mode="json"
             )
-    return (
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-    )
+    return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+
 
 def _slug(heading: str) -> str:
     """Convert a section heading to a URL-safe slug for synthetic ids."""
     return re.sub(r"[^a-z0-9]+", "_", heading.lower()).strip("_")
+
 
 def _extract_sections_from_lesson(lesson_text: str) -> list[str]:
     """Return all ## section headings from *lesson_text* (first occurrence each)."""
@@ -327,6 +332,7 @@ def _extract_sections_from_lesson(lesson_text: str) -> list[str]:
                 seen.add(title)
                 sections.append(title)
     return sections
+
 
 def _build_traceability(
     mode_packets: dict[str, LearningSourcePacket],
@@ -348,6 +354,7 @@ def _build_traceability(
 
     Plan ref: the internal plan; task  AC-2.
     """
+
     # Build a lookup: node_id -> (source_path, line_range) per mode.
     def _node_map(packet: LearningSourcePacket) -> dict[str, tuple[str, str]]:
         result: dict[str, tuple[str, str]] = {}
@@ -426,8 +433,7 @@ def _build_traceability(
         "Sections without a direct packet anchor use a synthetic id of the form "
         "`<mode>:<section-slug>`.",
         "",
-        "Plan ref: the internal plan; "
-        "task ref: the internal plan.",
+        "Plan ref: the internal plan; task ref: the internal plan.",
         "",
         header,
         separator,
@@ -450,7 +456,11 @@ def _build_traceability(
                     nids = ", ".join(f"`{nid}`" for nid in prov_ids)
                 else:
                     source = f"`{mode}:{sl}`"
-                    nids = ", ".join(f"`{nid}`" for nid in prov_ids) if prov_ids else f"`{mode}:{sl}`"
+                    nids = (
+                        ", ".join(f"`{nid}`" for nid in prov_ids)
+                        if prov_ids
+                        else f"`{mode}:{sl}`"
+                    )
             else:
                 source = f"`{mode}:{sl}`"
                 nids = f"`{mode}:{sl}`"
@@ -501,6 +511,7 @@ def _build_traceability(
     lines.append("")
     return "\n".join(lines)
 
+
 def _aggregate_warnings(
     mode_packets: dict[str, LearningSourcePacket],
     multi_gran_packets: dict[str, LearningSourcePacket],
@@ -547,6 +558,7 @@ def _aggregate_warnings(
     aggregated.sort(key=lambda w: (w["code"], w["source_ref"], w["message"]))
     return aggregated
 
+
 def _md_escape_pipe(text: str) -> str:
     """Escape pipe characters so *text* is safe inside a markdown table cell.
 
@@ -556,6 +568,7 @@ def _md_escape_pipe(text: str) -> str:
     traceability table well-formed against any future fixture content.
     """
     return text.replace("|", "\\|")
+
 
 def _build_warnings(
     mode_packets: dict[str, LearningSourcePacket],
@@ -594,6 +607,7 @@ def _build_warnings(
 
     lines.append("")
     return "\n".join(lines)
+
 
 def _build_feedback_form() -> str:
     """Return the verbatim feedback-form seed for feedback_form.md.
@@ -643,6 +657,7 @@ def _build_feedback_form() -> str:
         "- [ ] ...\n"
     )
 
+
 def _build_closure_md() -> str:
     """Write CLOSURE.md with the closure-rule quote and gate conditions.
 
@@ -674,7 +689,7 @@ def _build_closure_md() -> str:
         "2. **Bundle is ready for external review** — "
         "all eight artifacts are present in "
         "`artifacts/review_bundles/akms_learn_pedagogical/` and "
-        "`manifest.status` is `\"review_bundle_generated\"`.\n"
+        '`manifest.status` is `"review_bundle_generated"`.\n'
         "3. **Feedback is incorporated** — reviewer feedback recorded in "
         "`feedback_form.md` has been:\n"
         "   - incorporated into the bundle, OR\n"
@@ -683,8 +698,8 @@ def _build_closure_md() -> str:
         "\n"
         "## Current status\n"
         "\n"
-        "``manifest.status`` is locked to ``\"review_bundle_generated\"`` by the "
-        "generator. No automated path may write ``\"plan_closed\"`` to the manifest. "
+        '``manifest.status`` is locked to ``"review_bundle_generated"`` by the '
+        'generator. No automated path may write ``"plan_closed"`` to the manifest. '
         "Transitioning to ``plan_closed`` is a **manual** developer action, gated "
         "on the three conditions above.\n"
         "\n"
@@ -696,6 +711,7 @@ def _build_closure_md() -> str:
         "Plan ref: the internal plan; "
         "task ref: the internal plan.\n"
     )
+
 
 def _build_manifest(
     mode_packets: dict[str, LearningSourcePacket],
@@ -722,6 +738,7 @@ def _build_manifest(
         "unavailable_capabilities": [],
     }
 
+
 def _build_regenerate_sh() -> str:
     """Return the text of ``regenerate.sh``.
 
@@ -741,22 +758,22 @@ def _build_regenerate_sh() -> str:
         "# Generator: packages/akms_learn/scripts/generate_review_bundle_pedagogical.py\n"
         "set -euo pipefail\n"
         "\n"
-        "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n"
-        "REPO_ROOT=\"$(cd \"${SCRIPT_DIR}/../../..\" && pwd)\"\n"
-        "cd \"${REPO_ROOT}\"\n"
+        'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+        'REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"\n'
+        'cd "${REPO_ROOT}"\n'
         "\n"
         "export PYTHONHASHSEED=0\n"
         "\n"
         "uv run --package akms-learn python \\\n"
         "    packages/akms_learn/scripts/generate_review_bundle_pedagogical.py \\\n"
-        "    --output \"${REPO_ROOT}/artifacts/review_bundles/"
-        + PLAN_ID
-        + "\"\n"
+        '    --output "${REPO_ROOT}/artifacts/review_bundles/' + PLAN_ID + '"\n'
     )
+
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
 
 def generate_review_bundle_pedagogical(
     output_dir: Path,
@@ -796,7 +813,11 @@ def generate_review_bundle_pedagogical(
         # 1. Run the API once per single-variant mode.
         mode_packets: dict[str, LearningSourcePacket] = {}
         mode_lessons: dict[str, str] = {}
-        for mode in ("pedagogical_template", "derivation_first", "implementation_first"):
+        for mode in (
+            "pedagogical_template",
+            "derivation_first",
+            "implementation_first",
+        ):
             mode_dir = work_dir / mode
             mode_packets[mode] = _run_mode(mode=mode, output_dir=mode_dir)
             mode_lessons[mode] = _read_lesson(mode_dir)
@@ -859,9 +880,7 @@ def generate_review_bundle_pedagogical(
         # 7. Manifest.
         manifest_payload = _build_manifest(mode_packets, multi_gran_packets)
         manifest_text = (
-            json.dumps(
-                manifest_payload, indent=2, sort_keys=True, ensure_ascii=False
-            )
+            json.dumps(manifest_payload, indent=2, sort_keys=True, ensure_ascii=False)
             + "\n"
         )
 
@@ -896,16 +915,12 @@ def generate_review_bundle_pedagogical(
             impl_lesson_text, encoding="utf-8"
         )
         written["generated_preview.html"].write_text(html_text, encoding="utf-8")
-        written["source_packet.json"].write_text(
-            source_packet_text, encoding="utf-8"
-        )
+        written["source_packet.json"].write_text(source_packet_text, encoding="utf-8")
         written["traceability.md"].write_text(traceability_text, encoding="utf-8")
         written["warnings.md"].write_text(warnings_text, encoding="utf-8")
         written["feedback_form.md"].write_text(feedback_text, encoding="utf-8")
         written["manifest.json"].write_text(manifest_text, encoding="utf-8")
-        written["regenerate.sh"].write_text(
-            _build_regenerate_sh(), encoding="utf-8"
-        )
+        written["regenerate.sh"].write_text(_build_regenerate_sh(), encoding="utf-8")
         written["regenerate.sh"].chmod(0o755)
         written["CLOSURE.md"].write_text(closure_text, encoding="utf-8")
 
@@ -913,6 +928,7 @@ def generate_review_bundle_pedagogical(
     finally:
         if cleanup_work_dir:
             shutil.rmtree(work_dir, ignore_errors=True)
+
 
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point used by ``regenerate.sh``."""
@@ -946,6 +962,7 @@ def main(argv: list[str] | None = None) -> int:
     for name, path in written.items():
         print(f"{name}: {path}")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

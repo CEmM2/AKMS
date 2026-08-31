@@ -90,14 +90,13 @@ RECOMMENDED_SECTIONS = {
 # ── Tunable thresholds ────────────────────────────────────────────────
 # These control the sensitivity of WARNING/INFO-level content checks.
 # The word-to-token ratio is ~1.2 for English prose, higher for equations.
-SUMMARY_MIN_WORDS = 15           # below this → WARNING on summary length
-MIN_RECOMMENDED_TAGS = 3         # below this → INFO on tag count
-SMALL_MAX_WORDS = 600            # context_size "small" mismatch threshold (~500 tokens)
-MEDIUM_MAX_WORDS = 1800          # context_size "medium" mismatch threshold (~1500 tokens)
+SUMMARY_MIN_WORDS = 15  # below this → WARNING on summary length
+MIN_RECOMMENDED_TAGS = 3  # below this → INFO on tag count
+SMALL_MAX_WORDS = 600  # context_size "small" mismatch threshold (~500 tokens)
+MEDIUM_MAX_WORDS = 1800  # context_size "medium" mismatch threshold (~1500 tokens)
 
 # Regex for the batch file separator
 BATCH_SEPARATOR = re.compile(r"^═{3,}\s*FILE:\s*(.+?)\s*═{3,}$", re.MULTILINE)
-
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -140,7 +139,9 @@ class EdgeModel(BaseModel):
     @classmethod
     def valid_edge_type(cls, v: str) -> str:
         if v not in VALID_EDGE_TYPES:
-            raise ValueError(f"Invalid edge type '{v}'. Must be one of: {', '.join(sorted(VALID_EDGE_TYPES))}")
+            raise ValueError(
+                f"Invalid edge type '{v}'. Must be one of: {', '.join(sorted(VALID_EDGE_TYPES))}"
+            )
         return v
 
     @field_validator("weight")
@@ -156,7 +157,9 @@ class EdgeModel(BaseModel):
         if not v or not v.strip():
             raise ValueError("Edge target 'to' cannot be empty")
         if " " in v:
-            raise ValueError(f"Edge target '{v}' contains spaces — use snake-case or kebab-case")
+            raise ValueError(
+                f"Edge target '{v}' contains spaces — use snake-case or kebab-case"
+            )
         return v
 
 
@@ -205,10 +208,14 @@ class NodeFrontmatter(BaseModel):
         if not v or not v.strip():
             raise ValueError("Node id cannot be empty")
         if " " in v:
-            raise ValueError(f"Node id '{v}' contains spaces — use snake-case or kebab-case")
+            raise ValueError(
+                f"Node id '{v}' contains spaces — use snake-case or kebab-case"
+            )
         # Allow kebab-case (most common) and snake_case
         if not re.match(r"^[a-z0-9][a-z0-9_-]*$", v):
-            raise ValueError(f"Node id '{v}' has invalid characters. Use lowercase alphanumeric + hyphens/underscores")
+            raise ValueError(
+                f"Node id '{v}' has invalid characters. Use lowercase alphanumeric + hyphens/underscores"
+            )
         return v
 
     @field_validator("tags")
@@ -222,7 +229,9 @@ class NodeFrontmatter(BaseModel):
     @classmethod
     def valid_status(cls, v: str) -> str:
         if v not in VALID_STATUSES:
-            raise ValueError(f"Invalid status '{v}'. Must be one of: {', '.join(sorted(VALID_STATUSES))}")
+            raise ValueError(
+                f"Invalid status '{v}'. Must be one of: {', '.join(sorted(VALID_STATUSES))}"
+            )
         return v
 
     @field_validator("confidence")
@@ -243,21 +252,27 @@ class NodeFrontmatter(BaseModel):
     @classmethod
     def valid_source(cls, v: str) -> str:
         if v not in VALID_SOURCES:
-            raise ValueError(f"Invalid source '{v}'. Must be one of: {', '.join(sorted(VALID_SOURCES))}")
+            raise ValueError(
+                f"Invalid source '{v}'. Must be one of: {', '.join(sorted(VALID_SOURCES))}"
+            )
         return v
 
     @field_validator("akms_schema")
     @classmethod
     def valid_schema_version(cls, v: str) -> str:
         if v != AKMS_SCHEMA_VERSION:
-            raise ValueError(f"Schema version mismatch: expected '{AKMS_SCHEMA_VERSION}', got '{v}'")
+            raise ValueError(
+                f"Schema version mismatch: expected '{AKMS_SCHEMA_VERSION}', got '{v}'"
+            )
         return v
 
     @field_validator("context_size")
     @classmethod
     def valid_context_size(cls, v: str | None) -> str | None:
         if v is not None and v not in VALID_CONTEXT_SIZES:
-            raise ValueError(f"Invalid context_size '{v}'. Must be one of: {', '.join(sorted(VALID_CONTEXT_SIZES))}")
+            raise ValueError(
+                f"Invalid context_size '{v}'. Must be one of: {', '.join(sorted(VALID_CONTEXT_SIZES))}"
+            )
         return v
 
     @field_validator("reading_priority")
@@ -271,7 +286,10 @@ class NodeFrontmatter(BaseModel):
 
     @model_validator(mode="after")
     def cross_field_checks(self) -> "NodeFrontmatter":
-        if self.confidence_floor is not None and self.confidence_floor > self.confidence:
+        if (
+            self.confidence_floor is not None
+            and self.confidence_floor > self.confidence
+        ):
             # Not an error per se, but worth flagging
             pass  # handled in soft checks
         return self
@@ -297,7 +315,11 @@ def parse_md_file(path: Path) -> tuple[dict[str, Any] | None, str, list[Issue]]:
         post = fm_lib.load(str(path))
     except Exception as e:
         issues.append(
-            Issue(severity=Severity.ERROR, field="frontmatter", message=f"Failed to parse file: {e}")
+            Issue(
+                severity=Severity.ERROR,
+                field="frontmatter",
+                message=f"Failed to parse file: {e}",
+            )
         )
         return None, "", issues
 
@@ -414,9 +436,15 @@ def validate_frontmatter(
         if hasattr(e, "errors"):
             for err in e.errors():  # type: ignore
                 loc = " → ".join(str(l) for l in err["loc"])
-                issues.append(Issue(severity=Severity.ERROR, field=loc, message=err["msg"]))
+                issues.append(
+                    Issue(severity=Severity.ERROR, field=loc, message=err["msg"])
+                )
         else:
-            issues.append(Issue(severity=Severity.ERROR, message=f"Validation failed: {error_str}"))
+            issues.append(
+                Issue(
+                    severity=Severity.ERROR, message=f"Validation failed: {error_str}"
+                )
+            )
         return None, issues
 
     # ── Soft checks (warnings, not errors) ──
@@ -556,11 +584,19 @@ def validate_body(body: str, model: NodeFrontmatter, issues: list[Issue]) -> Non
     for section in RECOMMENDED_SECTIONS:
         if section not in body:
             issues.append(
-                Issue(severity=Severity.INFO, field="body", message=f"Missing recommended section '{section}'.")
+                Issue(
+                    severity=Severity.INFO,
+                    field="body",
+                    message=f"Missing recommended section '{section}'.",
+                )
             )
 
     # Check for Known Pitfalls section
-    pitfall_variants = ["## 4. Known Pitfalls", "## 5. Known Pitfalls", "## Known Pitfalls"]
+    pitfall_variants = [
+        "## 4. Known Pitfalls",
+        "## 5. Known Pitfalls",
+        "## Known Pitfalls",
+    ]
     if not any(pv in body for pv in pitfall_variants):
         issues.append(
             Issue(
@@ -571,7 +607,9 @@ def validate_body(body: str, model: NodeFrontmatter, issues: list[Issue]) -> Non
         )
 
     # Check for raw code blocks (should be pseudo-code only)
-    code_block_re = re.compile(r"```(python|cpp|c\+\+|c|java|rust|julia)", re.IGNORECASE)
+    code_block_re = re.compile(
+        r"```(python|cpp|c\+\+|c|java|rust|julia)", re.IGNORECASE
+    )
     code_matches = code_block_re.findall(body)
     if code_matches:
         langs = ", ".join(set(code_matches))
@@ -591,7 +629,9 @@ def validate_body(body: str, model: NodeFrontmatter, issues: list[Issue]) -> Non
     if not title_match:
         issues.append(
             Issue(
-                severity=Severity.WARNING, field="body", message="No '# Title' heading found at the start of the body."
+                severity=Severity.WARNING,
+                field="body",
+                message="No '# Title' heading found at the start of the body.",
             )
         )
 
@@ -749,7 +789,9 @@ def print_report(
 
         # File header
         node_id = model.id if model else "???"
-        status_icon = f"{GREEN}✓{RESET}" if not errors else f"{COLORS[Severity.ERROR]}✗{RESET}"
+        status_icon = (
+            f"{GREEN}✓{RESET}" if not errors else f"{COLORS[Severity.ERROR]}✗{RESET}"
+        )
         if use_color:
             print(f"\n{status_icon} {BOLD}{filepath}{RESET}  (id: {node_id})")
         else:
@@ -1000,7 +1042,11 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("paths", nargs="*", help="Paths to .md files or directories containing .md files to validate")
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        help="Paths to .md files or directories containing .md files to validate",
+    )
     parser.add_argument(
         "--inventory",
         "-i",
@@ -1009,36 +1055,58 @@ def main() -> int:
         help="Inventory JSON files or directories of existing .md nodes for cross-reference checking",
     )
     parser.add_argument(
-        "--raw-batch", default=None, help="Path to a raw NotebookLM batch output file to split and validate"
+        "--raw-batch",
+        default=None,
+        help="Path to a raw NotebookLM batch output file to split and validate",
     )
     parser.add_argument(
         "--split-dir",
         default=None,
         help="Directory to write split node files from --raw-batch (default: ./split_nodes/)",
     )
-    parser.add_argument("--strict", action="store_true", help="Treat warnings as errors (exit code 1 on any warning)")
-    parser.add_argument("--quiet", "-q", action="store_true", help="Only show errors, suppress warnings and info")
-    parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     parser.add_argument(
-        "--json", action="store_true", help="Output machine-readable JSON report instead of human-readable text"
+        "--strict",
+        action="store_true",
+        help="Treat warnings as errors (exit code 1 on any warning)",
     )
     parser.add_argument(
-        "-o", "--output", default=None, help="Write JSON report to file (implies --json)"
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Only show errors, suppress warnings and info",
     )
     parser.add_argument(
-        "--fix", action="store_true",
+        "--no-color", action="store_true", help="Disable colored output"
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output machine-readable JSON report instead of human-readable text",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="Write JSON report to file (implies --json)",
+    )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
         help="Auto-correct fixable issues (schema version, experiential fields, source, whitespace, duplicate tags)",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Preview fixes without writing (requires --fix)",
     )
     parser.add_argument(
-        "--revalidate", action="store_true",
+        "--revalidate",
+        action="store_true",
         help="Run a second validation pass after applying fixes (requires --fix)",
     )
     parser.add_argument(
-        "--fix-filenames", action="store_true",
+        "--fix-filenames",
+        action="store_true",
         help="Rename files to match their node id (separate from --fix to avoid path confusion)",
     )
 
@@ -1073,7 +1141,9 @@ def main() -> int:
         parts = split_raw_batch(raw_text)
 
         if use_color:
-            print(f"{BOLD}Splitting batch file into {len(parts)} node(s) → {split_dir}/{RESET}")
+            print(
+                f"{BOLD}Splitting batch file into {len(parts)} node(s) → {split_dir}/{RESET}"
+            )
         else:
             print(f"Splitting batch file into {len(parts)} node(s) → {split_dir}/")
 
@@ -1093,10 +1163,16 @@ def main() -> int:
         elif p.is_dir():
             md_files.extend(sorted(p.glob("**/*.md")))
         else:
-            print(f"Warning: skipping '{p}' (not a .md file or directory)", file=sys.stderr)
+            print(
+                f"Warning: skipping '{p}' (not a .md file or directory)",
+                file=sys.stderr,
+            )
 
     if not md_files:
-        print("No .md files to validate. Provide paths or use --raw-batch.", file=sys.stderr)
+        print(
+            "No .md files to validate. Provide paths or use --raw-batch.",
+            file=sys.stderr,
+        )
         parser.print_help()
         return 1
 

@@ -116,6 +116,7 @@ def build_fastmcp_app(
     # `_vault = None` so every downstream `build_graph` / `graph_status`
     # call falls through to its own default resolution.
     from akms.graph.build_graph import resolve_global_vault
+
     _vault: str | None
     if global_vault is not None or _config.global_vault:
         _vault = str(resolve_global_vault(explicit=global_vault, config=_config))
@@ -168,7 +169,11 @@ def build_fastmcp_app(
         try:
             G, _ = _load_graph_from_repo(_repo, _vault)
             ranked = query_subgraph(
-                G, seed_tags, agent_role, config=_config, max_depth=max_depth,
+                G,
+                seed_tags,
+                agent_role,
+                config=_config,
+                max_depth=max_depth,
             )
             return {
                 "nodes": _serialize_ranked_nodes(ranked),
@@ -245,7 +250,10 @@ def build_fastmcp_app(
         try:
             source = json.loads(source_json)
             result = update_graph(
-                source, str(_repo), config=_config, global_vault=_vault,
+                source,
+                str(_repo),
+                config=_config,
+                global_vault=_vault,
             )
             return result
         except json.JSONDecodeError as e:
@@ -284,7 +292,9 @@ def build_fastmcp_app(
             logger.exception("akms_generate_mirror failed")
             return {
                 "error": str(e),
-                "provider": getattr(getattr(_config, "mirror", None), "provider", "legacy"),
+                "provider": getattr(
+                    getattr(_config, "mirror", None), "provider", "legacy"
+                ),
             }
 
     # ── Tool 6: Graph Status ─────────────────────────────────────
@@ -377,6 +387,7 @@ def build_fastmcp_app(
     # caller uses the same precedence (importlib.resources → repo-root
     # candidates → package-root fallback).
     from akms._resources import seed_qmd_path
+
     _seed_qmd = seed_qmd_path(
         "run_qmd.sh",
         repo_root_candidates=[
@@ -396,6 +407,7 @@ def build_fastmcp_app(
         so the Codex function-tool registry can share the same surface.
         """
         from akms.orchestrator.qmd_shell import run_qmd as _run
+
         return _run(subcmd, query, repo_root=_repo)
 
     @app.tool()
@@ -437,6 +449,7 @@ def build_fastmcp_app(
         replay-ledger changes.
         """
         import yaml as _yaml
+
         overlay_path = _repo / "knowledge" / "graph" / "local_state.yaml"
         if not overlay_path.exists():
             return []
@@ -456,14 +469,16 @@ def build_fastmcp_app(
             src = str(edge.get("from", ""))
             if node_set and src not in node_set:
                 continue
-            hits.append({
-                "from": src,
-                "to": str(edge.get("to", "")),
-                "type": "pitfall",
-                "weight": float(edge.get("weight", 0.5) or 0.5),
-                "note": str(edge.get("note", "") or ""),
-                "source_id": str(edge.get("source_id", "") or ""),
-            })
+            hits.append(
+                {
+                    "from": src,
+                    "to": str(edge.get("to", "")),
+                    "type": "pitfall",
+                    "weight": float(edge.get("weight", 0.5) or 0.5),
+                    "note": str(edge.get("note", "") or ""),
+                    "source_id": str(edge.get("source_id", "") or ""),
+                }
+            )
         hits.sort(key=lambda h: (h["from"], h["to"], h["note"]))
         return hits
 

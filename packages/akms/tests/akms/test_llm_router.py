@@ -18,18 +18,20 @@ from akms.schema.models import PropagationConfig
 @pytest.fixture
 def config() -> PropagationConfig:
     """Config with explicit model routing."""
-    return PropagationConfig.model_validate({
-        "model_routing": {
-            "dedup_similarity": {
-                "provider": "gemini",
-                "model": "gemini-2.0-flash",
-            },
-            "docstring_drift": {
-                "provider": "anthropic",
-                "model": "claude-haiku-4-5-20251001",
-            },
+    return PropagationConfig.model_validate(
+        {
+            "model_routing": {
+                "dedup_similarity": {
+                    "provider": "gemini",
+                    "model": "gemini-2.0-flash",
+                },
+                "docstring_drift": {
+                    "provider": "anthropic",
+                    "model": "claude-haiku-4-5-20251001",
+                },
+            }
         }
-    })
+    )
 
 
 class TestGetModel:
@@ -40,18 +42,26 @@ class TestGetModel:
         assert _get_model("dedup_similarity", config) == "gemini/gemini-2.0-flash"
 
     def test_anthropic_provider(self, config):
-        assert _get_model("docstring_drift", config) == "anthropic/claude-haiku-4-5-20251001"
+        assert (
+            _get_model("docstring_drift", config)
+            == "anthropic/claude-haiku-4-5-20251001"
+        )
 
     def test_openai_provider_no_prefix(self):
-        cfg = PropagationConfig.model_validate({
-            "model_routing": {
-                "dedup_similarity": {"provider": "openai", "model": "gpt-4o-mini"},
+        cfg = PropagationConfig.model_validate(
+            {
+                "model_routing": {
+                    "dedup_similarity": {"provider": "openai", "model": "gpt-4o-mini"},
+                }
             }
-        })
+        )
         assert _get_model("dedup_similarity", cfg) == "gpt-4o-mini"
 
     def test_unknown_call_type_returns_default(self, config):
-        assert _get_model("nonexistent_type", config) == "anthropic/claude-haiku-4-5-20251001"
+        assert (
+            _get_model("nonexistent_type", config)
+            == "anthropic/claude-haiku-4-5-20251001"
+        )
 
 
 class TestCallLlm:
@@ -100,7 +110,9 @@ class TestCheckDocstringDrift:
         mock_response.choices[0].message.content = "YES"
         mock_litellm.completion.return_value = mock_response
 
-        drifted, explanation = check_docstring_drift("Adds two numbers.", ["a", "b"], "int")
+        drifted, explanation = check_docstring_drift(
+            "Adds two numbers.", ["a", "b"], "int"
+        )
         assert drifted is False
         assert explanation == ""
 
@@ -108,9 +120,13 @@ class TestCheckDocstringDrift:
     def test_drift_detected(self, mock_litellm):
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "NO Missing parameter c in docstring."
+        mock_response.choices[
+            0
+        ].message.content = "NO Missing parameter c in docstring."
         mock_litellm.completion.return_value = mock_response
 
-        drifted, explanation = check_docstring_drift("Adds two numbers.", ["a", "b", "c"], "int")
+        drifted, explanation = check_docstring_drift(
+            "Adds two numbers.", ["a", "b", "c"], "int"
+        )
         assert drifted is True
         assert "Missing parameter" in explanation

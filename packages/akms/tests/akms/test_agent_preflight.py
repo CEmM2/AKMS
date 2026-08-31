@@ -19,9 +19,7 @@ class TestBasePreflight:
     def test_reports_missing_sdk(self, tmp_path, monkeypatch):
         import importlib.util
 
-        monkeypatch.setattr(
-            importlib.util, "find_spec", lambda name: None
-        )
+        monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
         reason = _agent(tmp_path=tmp_path).preflight()
         assert reason is not None
         assert "akms[agents]" in reason
@@ -29,9 +27,7 @@ class TestBasePreflight:
     def test_silent_when_sdk_present(self, tmp_path, monkeypatch):
         import importlib.util
 
-        monkeypatch.setattr(
-            importlib.util, "find_spec", lambda name: object()
-        )
+        monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
         assert _agent(tmp_path=tmp_path).preflight() is None
 
 
@@ -43,7 +39,9 @@ class TestCliAgentPreflight:
             ("akms.agents.cli_codex", "AKMSCodexCliAgent", "codex"),
         ],
     )
-    def test_reports_missing_binary(self, tmp_path, monkeypatch, module, cls_name, binary):
+    def test_reports_missing_binary(
+        self, tmp_path, monkeypatch, module, cls_name, binary
+    ):
         import importlib
         import shutil
 

@@ -77,9 +77,7 @@ class TestStructuredReviewBundle:
     """Structured-modes review-bundle generation."""
 
     @pytest.mark.integration
-    def test_required_artifacts_present_and_non_empty(
-        self, tmp_path: Path
-    ) -> None:
+    def test_required_artifacts_present_and_non_empty(self, tmp_path: Path) -> None:
         """All 8 artifacts + manifest.json + regenerate.sh exist
         under the generated bundle dir and are non-empty.
         """
@@ -152,9 +150,7 @@ class TestStructuredReviewBundle:
         )
 
     @pytest.mark.integration
-    def test_manifest_has_nine_keys_deterministic_order(
-        self, tmp_path: Path
-    ) -> None:
+    def test_manifest_has_nine_keys_deterministic_order(self, tmp_path: Path) -> None:
         """manifest.json contains the nine schema keys; the
         on-disk JSON is deterministically ordered (sort_keys); and
         ``learning_modes_used`` lists the four §15 modes verbatim.
@@ -199,9 +195,7 @@ class TestStructuredReviewBundle:
         assert list(LEARNING_MODES) == manifest["learning_modes_used"]
 
     @pytest.mark.integration
-    def test_manifest_status_is_review_bundle_generated(
-        self, tmp_path: Path
-    ) -> None:
+    def test_manifest_status_is_review_bundle_generated(self, tmp_path: Path) -> None:
         """manifest.status == 'review_bundle_generated', never
         'plan_closed'.
         """
@@ -210,9 +204,7 @@ class TestStructuredReviewBundle:
 
         manifest = json.loads((out_dir / "manifest.json").read_text("utf-8"))
 
-        assert (
-            manifest["status"] == MANIFEST_STATUS == "review_bundle_generated"
-        )
+        assert manifest["status"] == MANIFEST_STATUS == "review_bundle_generated"
         assert manifest["status"] != "plan_closed"
 
     @pytest.mark.integration
@@ -248,9 +240,7 @@ class TestStructuredReviewBundle:
             )
 
     @pytest.mark.integration
-    def test_regenerate_byte_stable_after_timestamp_strip(
-        self, tmp_path: Path
-    ) -> None:
+    def test_regenerate_byte_stable_after_timestamp_strip(self, tmp_path: Path) -> None:
         """Determinism: running the generator into two fresh dirs yields
         byte-identical artifacts after stripping the LSP ``created_at``
         timestamp field.
@@ -260,12 +250,8 @@ class TestStructuredReviewBundle:
         generate_review_bundle_structured(out_a, work_dir=tmp_path / "work_a")
         generate_review_bundle_structured(out_b, work_dir=tmp_path / "work_b")
 
-        files_a = sorted(
-            p.relative_to(out_a) for p in out_a.rglob("*") if p.is_file()
-        )
-        files_b = sorted(
-            p.relative_to(out_b) for p in out_b.rglob("*") if p.is_file()
-        )
+        files_a = sorted(p.relative_to(out_a) for p in out_a.rglob("*") if p.is_file())
+        files_b = sorted(p.relative_to(out_b) for p in out_b.rglob("*") if p.is_file())
         assert files_a == files_b, (
             f"artifact set drift:\n  A: {files_a!r}\n  B: {files_b!r}"
         )

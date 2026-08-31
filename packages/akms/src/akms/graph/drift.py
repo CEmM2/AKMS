@@ -53,29 +53,36 @@ def check_docstring_drift_structural(definitions: list[dict]) -> list[dict]:
 
         # Filter out self/cls
         real_params = [
-            p for p in params
-            if p not in ("self", "cls") and not p.startswith("*")
+            p for p in params if p not in ("self", "cls") and not p.startswith("*")
         ]
 
         doc_lower = docstring.lower()
 
         # Check for parameter name mismatches
         for param in real_params:
-            if len(param) > 2 and param not in doc_lower and param.replace("_", " ") not in doc_lower:
-                warnings.append({
-                    "function": defn["name"],
-                    "type": "missing_param_in_docstring",
-                    "detail": f"Parameter '{param}' not mentioned in docstring",
-                })
+            if (
+                len(param) > 2
+                and param not in doc_lower
+                and param.replace("_", " ") not in doc_lower
+            ):
+                warnings.append(
+                    {
+                        "function": defn["name"],
+                        "type": "missing_param_in_docstring",
+                        "detail": f"Parameter '{param}' not mentioned in docstring",
+                    }
+                )
 
         # Check return annotation contradiction
         if return_ann and return_ann != "None":
             if "returns none" in doc_lower or "return none" in doc_lower:
-                warnings.append({
-                    "function": defn["name"],
-                    "type": "return_type_contradiction",
-                    "detail": f"Docstring says 'returns None' but annotation is {return_ann}",
-                })
+                warnings.append(
+                    {
+                        "function": defn["name"],
+                        "type": "return_type_contradiction",
+                        "detail": f"Docstring says 'returns None' but annotation is {return_ann}",
+                    }
+                )
 
     return warnings
 
@@ -122,12 +129,14 @@ def check_docstring_drift_llm(
             response = llm_fn(prompt)
             response_stripped = response.strip().upper()
             if response_stripped.startswith("NO"):
-                warnings.append({
-                    "function": defn["name"],
-                    "type": "llm_drift",
-                    "detail": response.strip(),
-                    "llm_response": response.strip(),
-                })
+                warnings.append(
+                    {
+                        "function": defn["name"],
+                        "type": "llm_drift",
+                        "detail": response.strip(),
+                        "llm_response": response.strip(),
+                    }
+                )
         except Exception as e:
             logger.warning("LLM drift check failed for %s: %s", defn["name"], e)
 

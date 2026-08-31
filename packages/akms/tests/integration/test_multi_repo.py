@@ -34,17 +34,26 @@ def _make_repo(base: Path, name: str) -> Path:
     """Create a minimal repo directory layout for pipeline tests."""
     repo = base / name
     knowledge = repo / "knowledge"
-    for subdir in ["graph", "local-nodes", "sessions", "loadouts", "code-mirror", "qmd"]:
+    for subdir in [
+        "graph",
+        "local-nodes",
+        "sessions",
+        "loadouts",
+        "code-mirror",
+        "qmd",
+    ]:
         (knowledge / subdir).mkdir(parents=True)
     (knowledge / "graph" / "local_state.yaml").write_text(
-        yaml.dump({
-            "akms_schema": "v2",
-            "repo_id": name,
-            "nodes": {},
-            "local_edges": [],
-            "session_nodes": {},
-            "suppressed_edges": [],
-        })
+        yaml.dump(
+            {
+                "akms_schema": "v2",
+                "repo_id": name,
+                "nodes": {},
+                "local_edges": [],
+                "session_nodes": {},
+                "suppressed_edges": [],
+            }
+        )
     )
     return repo
 

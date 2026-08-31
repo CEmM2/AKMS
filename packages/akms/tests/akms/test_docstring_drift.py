@@ -88,7 +88,8 @@ class TestNoLLMPath:
         )
         assert result["success"] is True
         assert any(
-            w.get("type") == "missing_param_in_docstring" for w in result["drift_warnings"]
+            w.get("type") == "missing_param_in_docstring"
+            for w in result["drift_warnings"]
         )
 
     def test_check_python_sources_drift(self, tmp_path: Path):

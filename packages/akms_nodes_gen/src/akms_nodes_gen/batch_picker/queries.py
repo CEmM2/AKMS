@@ -76,7 +76,9 @@ def save_queries(path: Path, queries: dict[str, SavedQuery]) -> None:
             for name, q in sorted(queries.items())
         },
     }
-    fd, tmp = tempfile.mkstemp(prefix=".saved_queries.", suffix=".json", dir=str(path.parent))
+    fd, tmp = tempfile.mkstemp(
+        prefix=".saved_queries.", suffix=".json", dir=str(path.parent)
+    )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2, ensure_ascii=False)
@@ -87,7 +89,9 @@ def save_queries(path: Path, queries: dict[str, SavedQuery]) -> None:
         raise
 
 
-def upsert(queries: dict[str, SavedQuery], name: str, filter_dict: dict[str, Any]) -> SavedQuery:
+def upsert(
+    queries: dict[str, SavedQuery], name: str, filter_dict: dict[str, Any]
+) -> SavedQuery:
     existing = queries.get(name)
     now = _now_iso()
     if existing is None:

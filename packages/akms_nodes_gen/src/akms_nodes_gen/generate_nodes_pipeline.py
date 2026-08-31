@@ -67,12 +67,19 @@ import yaml
 # call time, never an ImportError.
 try:
     import litellm
+
     HAS_LITELLM = True
 except ImportError:
     HAS_LITELLM = False
 
 try:
-    from pydantic import BaseModel as PydanticBase, field_validator, model_validator, Field
+    from pydantic import (
+        BaseModel as PydanticBase,
+        field_validator,
+        model_validator,
+        Field,
+    )
+
     HAS_PYDANTIC = True
 except ImportError:
     HAS_PYDANTIC = False
@@ -120,6 +127,8 @@ def resolve_litellm_model(provider: str, model: str) -> str:
     if "/" in model:
         return model
     return PROVIDERS[provider]["prefix"] + model
+
+
 BATCH_SEPARATOR_RE = re.compile(r"^═{3,}\s*FILE:\s*(.+?)\s*═{3,}$", re.MULTILINE)
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
@@ -238,6 +247,7 @@ CRITICAL. Warnings, numerical stability issues, boundary condition gotchas, conv
 #                          DATA STRUCTURES
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class NodeSpec:
     id: str
@@ -271,6 +281,7 @@ class BatchResult:
 @dataclass
 class PipelineState:
     """Tracks progress for resumption."""
+
     completed_batches: list[int] = field(default_factory=list)
     generated_ids: set[str] = field(default_factory=set)
     failed_batches: list[int] = field(default_factory=list)
@@ -299,7 +310,10 @@ class PipelineState:
 #                     INVENTORY LOADING & BATCHING
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def load_inventory(paths: list[Path], status_filter: set[str] | None = None) -> list[tuple[str, list[NodeSpec]]]:
+
+def load_inventory(
+    paths: list[Path], status_filter: set[str] | None = None
+) -> list[tuple[str, list[NodeSpec]]]:
     """Load inventory JSONs, return list of (category_name, nodes) pairs."""
     categories: list[tuple[str, list[NodeSpec]]] = []
 
@@ -317,16 +331,18 @@ def load_inventory(paths: list[Path], status_filter: set[str] | None = None) -> 
                 status = n.get("status", "new")
                 if status_filter and status not in status_filter:
                     continue
-                nodes.append(NodeSpec(
-                    id=n["id"],
-                    title=n["title"],
-                    key_content=n.get("key_content", ""),
-                    tags=n.get("tags", []),
-                    notes=n.get("notes"),
-                    status=status,
-                    domain=n.get("domain"),
-                    subdomain=n.get("subdomain"),
-                ))
+                nodes.append(
+                    NodeSpec(
+                        id=n["id"],
+                        title=n["title"],
+                        key_content=n.get("key_content", ""),
+                        tags=n.get("tags", []),
+                        notes=n.get("notes"),
+                        status=status,
+                        domain=n.get("domain"),
+                        subdomain=n.get("subdomain"),
+                    )
+                )
             if nodes:
                 categories.append((cat_name, nodes))
 
@@ -355,6 +371,7 @@ def make_batches(
 #                     PROMPT CONSTRUCTION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def build_user_message(
     category: str,
     nodes: list[NodeSpec],
@@ -375,6 +392,7 @@ def build_user_message(
 #                  LLM PROVIDER LAYER (routed through LiteLLM)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class LLMClient:
     """One client over every provider, via LiteLLM. ``api_base`` targets an
     OpenAI-compatible / local endpoint (vLLM, Ollama, LM Studio, …). LiteLLM is
@@ -387,7 +405,7 @@ class LLMClient:
         api_key: str | None = None,
         api_base: str | None = None,
     ):
-        self.model = model            # already a resolved LiteLLM model id
+        self.model = model  # already a resolved LiteLLM model id
         self.max_tokens = max_tokens
         self.api_key = api_key
         self.api_base = api_base
@@ -414,6 +432,7 @@ class LLMClient:
 #         NOTEBOOKLM GROUNDING (via the `nlm` CLI — not MCP, not a Python dep)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def fetch_nlm_context(
     notebook_id: str,
     nodes: "list[NodeSpec]",
@@ -424,7 +443,11 @@ def fetch_nlm_context(
     answer text, to be prepended to the prompt. Shells out exactly like
     ``nlm_batch.py`` — so a missing `nlm` binary surfaces as a runtime error here,
     never an import error. Reuses the canonical CLI query helper."""
-    from akms_nodes_gen.nlm_batch import QueryOptions, extract_answer_text, run_nlm_query
+    from akms_nodes_gen.nlm_batch import (
+        QueryOptions,
+        extract_answer_text,
+        run_nlm_query,
+    )
 
     topics = "; ".join(f"{n.id} ({n.title})" for n in nodes)
     question = (
@@ -445,6 +468,7 @@ def fetch_nlm_context(
 # ═══════════════════════════════════════════════════════════════════════════════
 #                     RESPONSE PARSING
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def split_batch_response(raw: str) -> dict[str, str]:
     """Split a batch response into {filename: content} dict."""
@@ -481,7 +505,7 @@ def quick_validate(content: str) -> list[str]:
         return ["No YAML frontmatter found"]
 
     yaml_text = match.group(1)
-    body = content[match.end():]
+    body = content[match.end() :]
 
     try:
         fm = yaml.safe_load(yaml_text)
@@ -492,7 +516,16 @@ def quick_validate(content: str) -> list[str]:
         return ["Frontmatter is not a dict"]
 
     # Required fields
-    for field_name in ("id", "title", "domain", "tags", "status", "confidence", "source", "akms_schema"):
+    for field_name in (
+        "id",
+        "title",
+        "domain",
+        "tags",
+        "status",
+        "confidence",
+        "source",
+        "akms_schema",
+    ):
         if field_name not in fm:
             errors.append(f"Missing required field: {field_name}")
 
@@ -506,16 +539,22 @@ def quick_validate(content: str) -> list[str]:
 
     # For generation specifically, it MUST be tentative and hybrid
     if fm.get("status") != "tentative":
-        errors.append(f"Generated node status must be 'tentative', got '{fm.get('status')}'")
+        errors.append(
+            f"Generated node status must be 'tentative', got '{fm.get('status')}'"
+        )
 
     if fm.get("source") != "hybrid":
-        errors.append(f"Generated node source must be 'hybrid', got '{fm.get('source')}'")
+        errors.append(
+            f"Generated node source must be 'hybrid', got '{fm.get('source')}'"
+        )
 
     # Content_ref MUST be in the dictionary and its value MUST be None
     if "content_ref" not in fm:
         errors.append(f"Missing required field: content_ref")
     elif fm.get("content_ref") is not None:
-        errors.append(f"Generated node content_ref must be null, got '{fm.get('content_ref')}'")
+        errors.append(
+            f"Generated node content_ref must be null, got '{fm.get('content_ref')}'"
+        )
 
     # Confidence range
     conf = fm.get("confidence")
@@ -543,6 +582,7 @@ def quick_validate(content: str) -> list[str]:
 #                          PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def run_pipeline(args: argparse.Namespace) -> int:
     """Main pipeline execution."""
 
@@ -559,7 +599,9 @@ def run_pipeline(args: argparse.Namespace) -> int:
     print(f"Loaded {total_nodes} nodes across {len(categories)} categories")
 
     # ── Create batches ──
-    batch_size = int(os.environ.get("AKMS_BATCH_SIZE", args.batch_size or DEFAULT_BATCH_SIZE))
+    batch_size = int(
+        os.environ.get("AKMS_BATCH_SIZE", args.batch_size or DEFAULT_BATCH_SIZE)
+    )
     batches = make_batches(categories, batch_size)
     print(f"Created {len(batches)} batches (size {batch_size})")
 
@@ -590,14 +632,20 @@ def run_pipeline(args: argparse.Namespace) -> int:
             print(f"Resuming from batch {resume_from} (last completed: {last_done})")
 
     # ── LLM provider, routed through LiteLLM (anthropic | openai-compatible | google) ──
-    provider = (os.environ.get("AKMS_LLM_PROVIDER") or args.provider or DEFAULT_PROVIDER).lower()
+    provider = (
+        os.environ.get("AKMS_LLM_PROVIDER") or args.provider or DEFAULT_PROVIDER
+    ).lower()
     if provider not in PROVIDERS:
-        print(f"ERROR: unknown provider '{provider}' (choose: {', '.join(PROVIDERS)})",
-              file=sys.stderr)
+        print(
+            f"ERROR: unknown provider '{provider}' (choose: {', '.join(PROVIDERS)})",
+            file=sys.stderr,
+        )
         return 1
     if not HAS_LITELLM:
-        print("ERROR: litellm not installed. Install with: pip install 'akms-nodes-gen[llm]'",
-              file=sys.stderr)
+        print(
+            "ERROR: litellm not installed. Install with: pip install 'akms-nodes-gen[llm]'",
+            file=sys.stderr,
+        )
         return 1
 
     pcfg = PROVIDERS[provider]
@@ -617,10 +665,14 @@ def run_pipeline(args: argparse.Namespace) -> int:
     model = resolve_litellm_model(
         provider, os.environ.get("AKMS_MODEL") or args.model or pcfg["default_model"]
     )
-    max_tokens = int(os.environ.get("AKMS_MAX_TOKENS", args.max_tokens or DEFAULT_MAX_TOKENS))
+    max_tokens = int(
+        os.environ.get("AKMS_MAX_TOKENS", args.max_tokens or DEFAULT_MAX_TOKENS)
+    )
     client = LLMClient(model, max_tokens, api_key=api_key, api_base=api_base)
-    print(f"LLM via LiteLLM: provider={provider} model={model}"
-          + (f" api_base={api_base}" if api_base else ""))
+    print(
+        f"LLM via LiteLLM: provider={provider} model={model}"
+        + (f" api_base={api_base}" if api_base else "")
+    )
 
     # ── NotebookLM grounding (optional; via the `nlm` CLI, not MCP) ──
     nlm_id = args.notebooklm_id
@@ -661,10 +713,14 @@ def run_pipeline(args: argparse.Namespace) -> int:
                     user_msg = (
                         "SOURCE CONTEXT FROM NOTEBOOKLM "
                         "(ground every node in this and cite it):\n"
-                        + ctx + "\n\n" + user_msg
+                        + ctx
+                        + "\n\n"
+                        + user_msg
                     )
             except Exception as e:
-                print(f"  ⚠ NotebookLM grounding unavailable ({e}); generating without it")
+                print(
+                    f"  ⚠ NotebookLM grounding unavailable ({e}); generating without it"
+                )
 
         # Call the selected LLM provider
         t0 = time.time()
@@ -780,65 +836,89 @@ def run_pipeline(args: argparse.Namespace) -> int:
 #                          CLI
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="AKMS Node Generation Pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--input", "-i", nargs="+", required=True,
-        help="Path(s) to inventory JSON files or directories containing them"
+        "--input",
+        "-i",
+        nargs="+",
+        required=True,
+        help="Path(s) to inventory JSON files or directories containing them",
     )
     parser.add_argument(
-        "--output", "-o", default="generated_nodes",
-        help="Output directory for generated .md files (default: generated_nodes/)"
+        "--output",
+        "-o",
+        default="generated_nodes",
+        help="Output directory for generated .md files (default: generated_nodes/)",
     )
     parser.add_argument(
-        "--status", "-s", default=None,
-        help="Comma-separated status filter (e.g., 'new' or 'new,exists-enrich'). Default: all"
+        "--status",
+        "-s",
+        default=None,
+        help="Comma-separated status filter (e.g., 'new' or 'new,exists-enrich'). Default: all",
     )
     parser.add_argument(
-        "--batch-size", "-b", type=int, default=DEFAULT_BATCH_SIZE,
-        help=f"Nodes per batch (default: {DEFAULT_BATCH_SIZE})"
+        "--batch-size",
+        "-b",
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help=f"Nodes per batch (default: {DEFAULT_BATCH_SIZE})",
     )
     parser.add_argument(
-        "--provider", "-p", default=None, choices=sorted(PROVIDERS),
+        "--provider",
+        "-p",
+        default=None,
+        choices=sorted(PROVIDERS),
         help=f"LLM provider routed via LiteLLM (default: {DEFAULT_PROVIDER}, "
-             "or AKMS_LLM_PROVIDER env). 'openai' = any OpenAI-compatible/local endpoint."
+        "or AKMS_LLM_PROVIDER env). 'openai' = any OpenAI-compatible/local endpoint.",
     )
     parser.add_argument(
-        "--model", "-m", default=None,
+        "--model",
+        "-m",
+        default=None,
         help="Model id (default: provider-specific, or AKMS_MODEL env). "
-             "A value containing '/' is passed to LiteLLM verbatim."
+        "A value containing '/' is passed to LiteLLM verbatim.",
     )
     parser.add_argument(
-        "--api-base", default=None,
+        "--api-base",
+        default=None,
         help="Base URL for an OpenAI-compatible / local endpoint "
-             "(or AKMS_LLM_API_BASE / OPENAI_API_BASE env)"
+        "(or AKMS_LLM_API_BASE / OPENAI_API_BASE env)",
     )
     parser.add_argument(
-        "--max-tokens", type=int, default=None,
-        help=f"Max tokens per response (default: {DEFAULT_MAX_TOKENS})"
+        "--max-tokens",
+        type=int,
+        default=None,
+        help=f"Max tokens per response (default: {DEFAULT_MAX_TOKENS})",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Show batch plan without calling API"
+        "--dry-run", action="store_true", help="Show batch plan without calling API"
     )
     parser.add_argument(
-        "--resume-from", type=int, default=None,
-        help="Resume from a specific batch index"
+        "--resume-from",
+        type=int,
+        default=None,
+        help="Resume from a specific batch index",
     )
     parser.add_argument(
-        "--notebooklm-id", default=None,
-        help="NotebookLM notebook id; grounds generation in its sources via the `nlm` CLI"
+        "--notebooklm-id",
+        default=None,
+        help="NotebookLM notebook id; grounds generation in its sources via the `nlm` CLI",
     )
     parser.add_argument(
-        "--nlm-profile", default=None,
-        help="nlm auth profile to use for NotebookLM grounding"
+        "--nlm-profile",
+        default=None,
+        help="nlm auth profile to use for NotebookLM grounding",
     )
     parser.add_argument(
-        "--nlm-timeout", type=float, default=None,
-        help=f"Per-query timeout (s) for `nlm` grounding (default: {DEFAULT_NLM_TIMEOUT:g})"
+        "--nlm-timeout",
+        type=float,
+        default=None,
+        help=f"Per-query timeout (s) for `nlm` grounding (default: {DEFAULT_NLM_TIMEOUT:g})",
     )
 
     args = parser.parse_args()

@@ -120,7 +120,9 @@ class PreconditionError(Exception):
     def __init__(self, capability: str, extra: str) -> None:
         self.capability: str = capability
         self.extra: str = extra
-        super().__init__(f"{capability} requires extra '{extra}' (install akms-learn[{extra}])")
+        super().__init__(
+            f"{capability} requires extra '{extra}' (install akms-learn[{extra}])"
+        )
 
 
 # ---------------------------------------------------------------------------
