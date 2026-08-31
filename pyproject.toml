@@ -40,6 +40,12 @@ docs = [
 ]
 
 [tool.pytest.ini_options]
+# `tests/` and `packages/akms/tests/` are both packages literally named
+# `tests`, so the default prepend import mode cannot tell their conftest
+# modules apart and a whole-workspace run dies collecting the second one.
+# importlib addresses modules by file path instead of by dotted name.
+addopts = "--import-mode=importlib"
+
 # One marker vocabulary for every package. `unit` and `contract` carry no
 # credentials and reach no network; `live_provider` and `slow` are excluded
 # from the default CI suite.

@@ -15,6 +15,7 @@ Plus auxiliary tests: determinism, provenance preservation, placeholder-only
 
 from __future__ import annotations
 
+import pathlib
 from typing import Any
 
 import pytest
@@ -642,15 +643,43 @@ class TestSectionOrdering:
 
 @pytest.mark.unit
 def test_pedagogical_template_no_llm_imports():
-    """The mode module must not import anthropic, openai, or any LLM SDK."""
-    import importlib
-    import sys
+    """AST scan of pedagogical_template.py finds no import of an LLM client.
 
-    # Reload to get a fresh module object with its full import tree.
-    mod = importlib.import_module("akms_learn.modes.pedagogical_template")
-    mod_file = getattr(mod, "__file__", "") or ""
-    # Walk transitive imports is too expensive; check direct __dict__ only.
-    for name in ("anthropic", "openai", "cohere", "langchain"):
-        assert name not in sys.modules or not mod_file, (
-            f"LLM SDK {name!r} is imported — mode must remain LLM-free."
-        )
+    This genuinely mirrors ``test_outline_no_llm_imports``. The previous
+    version asked whether the SDKs were in ``sys.modules``, which is a
+    property of the whole interpreter rather than of this module: any other
+    test importing ``openai`` first made it fail, and its ``or not mod_file``
+    escape hatch was always false, so it could never pass once anything in the
+    session had pulled an SDK in. Reading the source answers the actual
+    question and does not depend on test ordering.
+    """
+    import ast
+
+    from akms_learn.modes import pedagogical_template
+
+    source = pathlib.Path(pedagogical_template.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    forbidden = {
+        "openai",
+        "anthropic",
+        "litellm",
+        "cohere",
+        "langchain",
+        "llama_index",
+    }
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".")[0]
+                assert root not in forbidden, (
+                    f"pedagogical_template.py imports forbidden LLM module "
+                    f"{alias.name!r}"
+                )
+        elif isinstance(node, ast.ImportFrom):
+            root = (node.module or "").split(".")[0]
+            assert root not in forbidden, (
+                f"pedagogical_template.py imports from forbidden LLM module "
+                f"{node.module!r}"
+            )

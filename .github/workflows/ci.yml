@@ -185,8 +185,7 @@ jobs:
       - name: Test embedded runtime with fake or mocked backends
         run: >-
           uv run pytest
-          packages/akms/tests/runtime
-          tests/integration/embedded_runtime
+          tests/public_smoke/runtime
           -m "not live_provider and not slow"
           -q
 
