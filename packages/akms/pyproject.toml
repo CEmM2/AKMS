@@ -57,7 +57,7 @@ telemetry = [
 ]
 orchestration = [
     "akms[agents,mcp,telemetry]",
-    "litellm>=1.82.1,<1.82.6",
+    "litellm>=1.82.1,<1.84.1",
 ]
 
 [project.scripts]
