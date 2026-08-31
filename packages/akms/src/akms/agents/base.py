@@ -33,6 +33,7 @@ import textwrap
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import frontmatter
 from pydantic import ValidationError
@@ -286,7 +287,7 @@ class AKMSAgent:
 
         try:
             post = frontmatter.load(str(loadout_path))
-            meta = dict(post.metadata)
+            meta: dict[str, Any] = dict(post.metadata)
             try:
                 LoadoutHeader(**meta)
             except Exception as exc:
@@ -469,7 +470,7 @@ class AKMSAgent:
         """
         try:
             post = frontmatter.load(str(path))
-            meta = dict(post.metadata)
+            meta: dict[str, Any] = dict(post.metadata)
         except Exception as exc:
             raise SchemaValidationError(
                 f"Failed to parse AgentMemory frontmatter from {path}: {exc}",

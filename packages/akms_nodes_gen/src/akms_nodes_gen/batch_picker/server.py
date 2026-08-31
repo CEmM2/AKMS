@@ -494,9 +494,10 @@ def create_app(paths: Paths | None = None) -> FastAPI:
         a_set = set(a.papers)
         b_set = set(b.papers)
         assert repo.catalog is not None
+        catalog = repo.catalog
 
         def card(ck: str) -> dict[str, Any]:
-            paper = repo.catalog.papers.get(ck)
+            paper = catalog.papers.get(ck)
             if paper is None:
                 return {
                     "citekey": ck,
@@ -624,7 +625,9 @@ def create_app(paths: Paths | None = None) -> FastAPI:
         return {"ok": result.ok, "message": result.message, **result.data}
 
     @app.post("/api/batches/{batch_id}/create_notebook")
-    def create_nb(batch_id: str, body: CreateNotebookRequest) -> dict[str, Any]:
+    def create_nb(
+        batch_id: str, body: CreateNotebookRequest
+    ) -> dict[str, Any] | JSONResponse:
         b = repo.get_batch(batch_id)
         a = repo.assignment(batch_id)
         assert repo.catalog is not None

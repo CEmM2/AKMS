@@ -197,7 +197,7 @@ class LLMExpandedResult:
         self.packet = packet
         self.pre_expansion_packet = pre_expansion_packet
         self.generated_sections = generated_sections
-        self.policy = policy
+        self.policy: LLMExpansionPolicy | None = policy
         self.warnings = warnings
 
 

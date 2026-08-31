@@ -18,7 +18,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import (
     BaseModel,
@@ -548,7 +548,13 @@ def create_resolution_manifest(
         for selection in query_result.selections
     )
     return ResolutionManifest(
-        generated_at=datetime.now(UTC) if generated_at is None else generated_at,
+        # The parameter accepts a str for caller convenience; the model field is
+        # a tz-aware datetime and pydantic coerces on the way in.
+        generated_at=(
+            datetime.now(UTC)
+            if generated_at is None
+            else cast("datetime", generated_at)
+        ),
         fingerprint=fingerprint_resolution_inputs(inputs),
         inputs=inputs,
         resolved_seeds=ResolvedSeedsManifest.from_resolved(resolved_seeds),

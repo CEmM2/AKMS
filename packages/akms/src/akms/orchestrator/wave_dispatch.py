@@ -313,7 +313,7 @@ async def dispatch_phase(
         # Convert bare exceptions to TaskResult(status="failed")
         results: list[TaskResult] = []
         for i, r in enumerate(raw_results):
-            if isinstance(r, Exception):
+            if isinstance(r, BaseException):
                 task_id = wave[i].get("task_id", "unknown")
                 logger.exception(
                     "Unhandled exception in wave dispatch: task_id=%s",

@@ -64,7 +64,7 @@ def akms_completion(
     Returns an empty list when there are no active node ids (nothing to ground).
     """
     # Lazy import — keeps the module dependency-free at load time.
-    from akms.orchestrator import call_llm
+    from akms.orchestrator.llm_router import call_llm
 
     valid_ids = tuple(str(nid) for nid in active_node_ids if nid)
     if not valid_ids:

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from akms.agents.base import AKMSAgent, Loadout
 
@@ -59,7 +60,9 @@ async def _codex_sdk_execute(
     user_message: str,
     loadout: Loadout,
     system_prompt: str,
-    model: str,
+    # A model id, or an openai-agents Model instance (see agents/local.py).
+    # Typed loosely because the SDK is an optional, lazily imported dependency.
+    model: Any,
     repo_root: Path,
     allowed_tools: list[str] | None = None,
 ) -> None:

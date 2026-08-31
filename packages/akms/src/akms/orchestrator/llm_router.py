@@ -10,7 +10,7 @@ of @lru_cache filesystem reads. More testable, consistent with AKMS patterns.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import litellm
 
@@ -79,7 +79,9 @@ def call_llm(
     model = _get_model(call_type, config)
     logger.debug("LLM call: type=%s model=%s", call_type, model)
 
-    response = litellm.completion(
+    # Typed as ModelResponse | CustomStreamWrapper because litellm shares one
+    # signature with its streaming mode. This call never sets stream=True.
+    response: Any = litellm.completion(
         model=model,
         messages=[
             {"role": "system", "content": system},
@@ -88,7 +90,9 @@ def call_llm(
         max_tokens=max_tokens,
         temperature=temperature,
     )
-    return response.choices[0].message.content
+    # ``content`` is optional on the provider schema; this function promises a
+    # str, so an absent completion becomes an empty one.
+    return response.choices[0].message.content or ""
 
 
 # ═══════════════════════════════════════════════════════════════════════

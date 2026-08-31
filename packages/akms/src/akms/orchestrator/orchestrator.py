@@ -443,7 +443,8 @@ def _read_memories_from_results(
             continue
         try:
             post = frontmatter.load(str(mp))
-            memory = AgentMemory(**dict(post.metadata))
+            meta: dict[str, Any] = dict(post.metadata)
+            memory = AgentMemory(**meta)
         except (OSError, ValidationError):
             logger.exception("Failed to parse typed AgentMemory from %s", mp)
             continue

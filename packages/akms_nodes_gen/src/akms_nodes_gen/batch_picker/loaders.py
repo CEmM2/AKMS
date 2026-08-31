@@ -181,7 +181,7 @@ _SECTION_RE = re.compile(r"^##\s+(.+?)\s*$")
 def _parse_zotsum_md(md: Path) -> tuple[dict[str, Any], dict[str, str]]:
     """Return (frontmatter_dict, sections_dict) for a Papers/@<citekey>.md file."""
     try:
-        post = frontmatter.load(md)
+        post = frontmatter.load(str(md))
     except Exception:
         return {}, {}
 

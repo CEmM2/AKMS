@@ -59,14 +59,20 @@ __all__ = [
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def _get_source_segment(source_lines: list[str], node: ast.AST) -> str:
+#: The only node kinds the extraction helpers below are ever handed.
+#: ``ast.AST`` is too wide: it has no ``lineno`` and is not accepted by
+#: ``ast.get_docstring``.
+_DefinitionNode = ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+
+
+def _get_source_segment(source_lines: list[str], node: _DefinitionNode) -> str:
     """Extract source text for an AST node from pre-split source lines."""
     start = node.lineno - 1
     end = getattr(node, "end_lineno", node.lineno)
     return "\n".join(source_lines[start:end])
 
 
-def _get_docstring(node: ast.AST) -> str | None:
+def _get_docstring(node: _DefinitionNode) -> str | None:
     """Extract docstring from a FunctionDef/ClassDef/AsyncFunctionDef."""
     return ast.get_docstring(node)
 

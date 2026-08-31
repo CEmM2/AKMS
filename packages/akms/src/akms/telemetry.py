@@ -51,10 +51,16 @@ try:
 
     TELEMETRY_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised by the minimal-core suite
-    trace = None  # type: ignore[assignment]
-    Resource = TracerProvider = None  # type: ignore[assignment]
-    BatchSpanProcessor = ConsoleSpanExporter = SimpleSpanProcessor = None  # type: ignore[assignment]
-    ResourceAttributes = None  # type: ignore[assignment]
+    # Bound through an ``Any`` alias rather than a bare ``None``. Every use
+    # below is already guarded by ``TELEMETRY_AVAILABLE``, but a type checker
+    # cannot connect that flag to these names and would otherwise report each
+    # call as an operation on ``None``. The runtime value is still ``None``.
+    _unavailable: Any = None
+
+    trace = _unavailable
+    Resource = TracerProvider = _unavailable
+    BatchSpanProcessor = ConsoleSpanExporter = SimpleSpanProcessor = _unavailable
+    ResourceAttributes = _unavailable
 
     TELEMETRY_AVAILABLE = False
 
@@ -110,8 +116,11 @@ class _NoOpTracer:
 #  Setup
 # ═══════════════════════════════════════════════════════════════════════
 
-_provider: Any | None = None
-_tracer: Any | None = None
+# ``Any`` rather than ``Any | None``: the runtime value really is ``None``
+# until ``init_telemetry`` runs, but spelling the optional arm makes every
+# guarded use downstream report as member access on ``None``.
+_provider: Any = None
+_tracer: Any = None
 _lock = threading.RLock()
 
 

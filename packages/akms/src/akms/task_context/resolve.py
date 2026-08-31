@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
@@ -191,10 +191,14 @@ def _looks_like_path(value: str) -> bool:
     )
 
 
+#: Which seed field a path spec was derived from.
+_PathSpecSource = Literal["scope", "deliverable", "changed_file"]
+
+
 def _path_spec(
     raw_value: str,
     *,
-    source: Literal["scope", "deliverable", "changed_file"],
+    source: _PathSpecSource,
 ) -> TaskPathSpec | None:
     value = raw_value.strip()
     if not value or (source == "deliverable" and not _looks_like_path(value)):
@@ -223,11 +227,12 @@ def canonicalize_task_path_specs(seeds: TaskSeeds) -> tuple[TaskPathSpec, ...]:
     if not isinstance(seeds, TaskSeeds):
         raise TypeError("seeds must be TaskSeeds")
     specs: set[TaskPathSpec] = set()
-    for source, values in (
+    sources: tuple[tuple[_PathSpecSource, Iterable[str]], ...] = (
         ("scope", seeds.scope),
         ("deliverable", seeds.deliverables),
         ("changed_file", seeds.changed_files),
-    ):
+    )
+    for source, values in sources:
         for value in values:
             spec = _path_spec(value, source=source)
             if spec is not None:

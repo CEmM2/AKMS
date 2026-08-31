@@ -19,6 +19,7 @@ Public surface:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Union
 
@@ -118,7 +119,7 @@ def load_source_pack_from_yaml(yaml_path: PathLike) -> SourcePackDescriptor:
 
 
 def build_registry_from_paths(
-    domain_pack_paths: list[PathLike],
+    domain_pack_paths: Sequence[PathLike],
 ) -> DomainPackRegistry:
     """Load multiple domain-pack YAMLs into a fresh :class:`DomainPackRegistry`.
 

@@ -70,6 +70,11 @@ try:
 
     HAS_LITELLM = True
 except ImportError:
+    # Bound to an ``Any`` alias rather than left undefined: every use is
+    # guarded by ``HAS_LITELLM``, but leaving the name unbound makes it a
+    # possibly-unbound reference at each call site.
+    litellm: Any = None
+
     HAS_LITELLM = False
 
 

@@ -153,11 +153,12 @@ def add_lesson(
     root = Path(repository_root).resolve(strict=True)
     registry_path = config.resolve(root, "registry")
     lock_path = config.resolve(root, "lock")
-    request = (
-        _interactive_request(input_fn)
-        if interactive
-        else _load_request(Path(request_path))
-    )
+    if interactive:
+        request = _interactive_request(input_fn)
+    else:
+        # Non-None here: the exactly-one check above rejects the other case.
+        assert request_path is not None
+        request = _load_request(Path(request_path))
     _validate_request_shape(request)
     with ProjectLock(
         lock_path, timeout_seconds=float(config.toolchain["timeout_seconds"])

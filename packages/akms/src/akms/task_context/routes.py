@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Collection, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from pydantic import ValidationError
@@ -258,7 +258,9 @@ def _node_membership(graph: Any) -> Collection[str]:
         raise TypeError("graph must be a node collection, not a string")
     if hasattr(graph, "nodes"):
         nodes = graph.nodes
-        return nodes() if callable(nodes) else nodes
+        # Duck-typed accessor: networkx exposes .nodes as a view, other graph
+        # objects as a callable. Neither is statically known here.
+        return cast("Collection[str]", nodes() if callable(nodes) else nodes)
     if isinstance(graph, Mapping):
         return graph.keys()
     if isinstance(graph, Collection):
