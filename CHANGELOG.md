@@ -4,7 +4,7 @@ All notable changes to the public AKMS packages are documented here. The
 public history begins with the first curated release; earlier private
 development is intentionally not replayed.
 
-## [0.3.0] — unreleased (release date set at publication)
+## [0.3.0] — 2026-08-31
 
 ### Added
 - First public research preview: `akms` (deterministic knowledge compiler,
