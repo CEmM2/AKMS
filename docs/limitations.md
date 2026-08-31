@@ -66,3 +66,8 @@ we know about; absence from this list is not a guarantee.
   `status: tentative`. Each node's `source` and `status` fields record this —
   consult them before relying on a node. See `THIRD_PARTY_NOTICES.md`.
 - Python 3.12 only in this release.
+- Linux and macOS only. CI tests both; Windows is not tested and not
+  supported in this release. The agent skills, git hooks and qmd helper
+  scripts AKMS ships are bash, and parts of the CLI write characters the
+  default Windows console encoding cannot represent. The pure-Python core may
+  well work under WSL, but nothing here verifies that.
