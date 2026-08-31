@@ -25,6 +25,21 @@ from tests.akms.conftest import make_global_node, set_overlay
 # ═══════════════════════════════════════════════════════════════════════
 
 
+@pytest.fixture(autouse=True)
+def _default_qmd_available(monkeypatch):
+    """Pin qmd discovery so loadout output does not depend on the host.
+
+    ``generate_loadout`` decides whether to emit the Session History and
+    Suggested Reading Order sections from ``shutil.which("qmd")``. Without this
+    the assertions below pass only on a machine that happens to have the qmd
+    binary installed, and fail on a clean CI runner. Mirrors the fixture of the
+    same name in ``test_generate_loadout.py``.
+    """
+    monkeypatch.setattr(
+        "akms.graph.generate_loadout.shutil.which", lambda _: "/usr/bin/qmd"
+    )
+
+
 @pytest.fixture
 def seed_graph(tmp_vault, tmp_repo):
     """Build a graph resembling the Phase 2 seed nodes.

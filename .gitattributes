@@ -1,0 +1,12 @@
+# Normalise every text file to LF in the working tree, on every platform.
+#
+# This is a correctness requirement, not a style preference. The failure-memory
+# package pins byte-exact SHA-256 digests of checked-in fixtures
+# (`_COMPATIBILITY_DIGESTS` in `akms_failure_memory/ci.py`, and
+# `test_compatibility_fixture_exact_bytes`). A Windows checkout with the default
+# `core.autocrlf=true` rewrites those fixtures to CRLF, changing their bytes and
+# their digests, so the drift detector fires on files nobody edited.
+#
+# The repository tracks no binary files today; add explicit `binary` entries
+# above this rule if that changes.
+* text=auto eol=lf
