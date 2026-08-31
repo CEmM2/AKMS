@@ -29,7 +29,7 @@ dependencies = [
     # widening this bound.
     "python-frontmatter>=1.1.0,<1.2",
     "pyyaml>=6.0.3,<7",
-    "fastapi>=0.115,<0.120",
+    "fastapi>=0.141.1,<1",
     "uvicorn[standard]>=0.32,<0.40",
     "pydantic>=2.7,<3.0",
 ]
@@ -39,7 +39,7 @@ dependencies = [
 # / local endpoint. Optional: nlm_batch.py (the canonical CLI path where NotebookLM
 # itself is the generator) needs none of this. Pin matches the core akms package.
 [project.optional-dependencies]
-llm = ["litellm>=1.82.1,<1.82.6"]
+llm = ["litellm>=1.84.0,<2"]
 
 [project.scripts]
 akms-pick = "akms_nodes_gen.batch_picker.__main__:main"
