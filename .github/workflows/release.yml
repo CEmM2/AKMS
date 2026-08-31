@@ -161,6 +161,19 @@ jobs:
         with:
           packages-dir: upload/
           verbose: true
+          # Makes a re-run idempotent. PyPI caps how many *pending* publishers
+          # one account may hold, which is fewer than the four projects here,
+          # so the first release has to publish in waves: register what fits,
+          # publish (which converts those pending publishers into normal ones
+          # and frees the slots), register the rest, run again. Without this,
+          # the second run fails on the packages the first one already
+          # uploaded. It also makes recovery from a partial upload — a network
+          # failure part-way through the matrix — a re-run rather than a
+          # version bump.
+          #
+          # This cannot overwrite anything: PyPI rejects a duplicate filename
+          # whatever its contents, and the flag only swallows that rejection.
+          skip-existing: true
 
   github-release:
     name: Create GitHub release
