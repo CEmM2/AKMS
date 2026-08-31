@@ -12,7 +12,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import networkx as nx
 
 from akms.graph.build_graph import build_graph, load_graph
 from akms.graph.generate_loadout import generate_loadout, select_loadout_mode
@@ -109,7 +108,7 @@ def re_evaluate(
         output_path = output_dir / f"{phase}-{task_id}-loadout.md"
 
     # Generate loadout content
-    content = generate_loadout(
+    generate_loadout(
         G=G,
         ranked_nodes=ranked_nodes,
         task_id=task_id,

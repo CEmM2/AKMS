@@ -19,12 +19,11 @@ import pytest
 import yaml
 
 from akms.graph.build_graph import build_graph, load_graph
-from akms.graph.generate_loadout import generate_loadout, select_loadout_mode
 from akms.graph.query_subgraph import query_subgraph
 from akms.graph.update_graph import update_graph
 from akms.schema.models import PropagationConfig
 
-from .conftest import make_global_node, set_overlay
+from .conftest import make_global_node
 
 
 @pytest.fixture

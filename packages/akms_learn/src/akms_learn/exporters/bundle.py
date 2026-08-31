@@ -227,8 +227,9 @@ def export(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # --- 1. lesson.md (delegate to markdown exporter) ----------------------
-    lesson_paths = _markdown_exporter.export(packet, out_dir)
-    # markdown.export returns [<out_dir>/lesson.md] — capture for return list.
+    # Writes <out_dir>/lesson.md. It returns that path, but the bundle's own
+    # returned path list is assembled below and does not include it today.
+    _markdown_exporter.export(packet, out_dir)
 
     # --- 2. Build all payloads in memory ----------------------------------
     lsp_payload = packet.model_dump(by_alias=True, mode="json")

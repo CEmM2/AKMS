@@ -16,7 +16,6 @@ Covers:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -292,7 +291,7 @@ class TestBuildGraphOverlay:
         )
 
         with caplog.at_level(logging.WARNING):
-            G = build_graph(tmp_repo, global_vault=tmp_vault)
+            build_graph(tmp_repo, global_vault=tmp_vault)
 
         assert any("Orphaned overlay" in r.message for r in caplog.records)
 
@@ -302,7 +301,7 @@ class TestBuildGraphSerialization:
         make_global_node(tmp_vault, id="node-a")
         output = tmp_repo / "knowledge" / "graph" / "graph.json"
 
-        G = build_graph(tmp_repo, global_vault=tmp_vault)
+        build_graph(tmp_repo, global_vault=tmp_vault)
 
         assert output.exists()
         data = json.loads(output.read_text())
@@ -345,11 +344,11 @@ class TestBuildGraphSerialization:
         )
         make_global_node(tmp_vault, id="beta")
 
-        G1 = build_graph(tmp_repo, global_vault=tmp_vault)
+        build_graph(tmp_repo, global_vault=tmp_vault)
         output = tmp_repo / "knowledge" / "graph" / "graph.json"
         data1 = json.loads(output.read_text())
 
-        G2 = build_graph(tmp_repo, global_vault=tmp_vault)
+        build_graph(tmp_repo, global_vault=tmp_vault)
         data2 = json.loads(output.read_text())
 
         # Nodes and links should be identical

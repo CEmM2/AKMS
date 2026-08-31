@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from akms.graph.build_graph import build_graph
 from akms.graph.re_evaluate import re_evaluate

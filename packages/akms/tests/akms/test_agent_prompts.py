@@ -7,7 +7,6 @@ Includes an integration test through the real prompt-building path.
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest

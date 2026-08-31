@@ -20,7 +20,6 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-import pytest
 
 from akms_learn.graph_import import GraphSlice
 from akms_learn.models import LearningRequestInfo, LearningWarning

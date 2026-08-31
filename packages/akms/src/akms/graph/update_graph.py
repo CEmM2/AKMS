@@ -35,7 +35,6 @@ from akms.schema.models import (
     Coverage,
     EdgeType,
     ImpactOnNextPhase,
-    NodeSource,
     NodeStatus,
     PCD,
     PropagationConfig,

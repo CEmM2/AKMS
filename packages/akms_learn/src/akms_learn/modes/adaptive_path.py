@@ -51,7 +51,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from akms_learn.capability_gates import PreconditionError, require_capability
+from akms_learn.capability_gates import require_capability
 from akms_learn.graph_import import GraphSlice
 from akms_learn.models import LearningWarning
 from akms_learn.models.learner_profile import LearnerProfile

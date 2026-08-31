@@ -141,7 +141,7 @@ class TestMarkdownExporter:
         request = _make_request(seed_tags=["j2_plasticity"])
         slice_ = fixture_graph()
 
-        result = compile_learning_source(
+        compile_learning_source(
             request=request,
             graph_slice=slice_,
             output_dir=tmp_path,

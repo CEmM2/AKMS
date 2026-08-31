@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import logging
 from datetime import date as _date
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -42,11 +41,11 @@ def _aggregate_lessons(memories: list[AgentMemory]) -> Lessons:
     worked: list[str] = []
     failed: list[Any] = []
     for m in memories:
-        l = m.lessons
-        for w in l.worked if l else []:
+        lessons = m.lessons
+        for w in lessons.worked if lessons else []:
             if w not in worked:
                 worked.append(w)
-        for f in l.failed if l else []:
+        for f in lessons.failed if lessons else []:
             if f not in failed:
                 failed.append(f)
     return Lessons(worked=worked, failed=failed)

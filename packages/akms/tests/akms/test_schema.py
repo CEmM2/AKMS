@@ -12,7 +12,6 @@ Covers:
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 import yaml
@@ -23,7 +22,6 @@ from akms.schema.models import (
     GlobalNodeFrontmatter,
     LocalNodeFrontmatter,
     LocalStateOverlay,
-    NodeStatus,
     PCD,
     PropagationConfig,
 )

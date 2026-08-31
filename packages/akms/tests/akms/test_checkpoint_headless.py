@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 
-import pytest
 
 from akms.orchestrator.checkpoint import (
     CheckpointAction,

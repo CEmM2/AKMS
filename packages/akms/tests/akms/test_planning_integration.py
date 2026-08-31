@@ -8,17 +8,15 @@ with real graph structure.
 
 from __future__ import annotations
 
-import shutil
 import yaml
-from pathlib import Path
 
 import pytest
 
-from akms.graph.build_graph import build_graph, load_graph
+from akms.graph.build_graph import build_graph
 from akms.graph.generate_loadout import generate_loadout, select_loadout_mode
 from akms.graph.qmd_cache import compute_graph_version
 from akms.graph.query_subgraph import compute_query_hash, query_subgraph
-from akms.schema.models import AgentRole, LoadoutMode, PropagationConfig
+from akms.schema.models import AgentRole, LoadoutMode
 from tests.akms.conftest import make_global_node, set_overlay
 
 
@@ -271,7 +269,7 @@ class TestPlanningPipeline:
         graph_json = repo / "knowledge" / "graph" / "graph.json"
         graph_version = compute_graph_version(graph_json)
 
-        args = dict(
+        dict(
             task_id="TSK-DET",
             phase=1,
             graph_version=graph_version,

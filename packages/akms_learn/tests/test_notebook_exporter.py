@@ -37,6 +37,8 @@ import pytest
 # These tests exercise the optional ``notebook`` extra. Skip-collect the whole
 # module when nbformat is absent rather than raising a collection error — keeps
 # the full suite runnable in a clean checkout without the extra installed.
+# ruff: noqa: E402 — the imports below must follow the importorskip above,
+# which is the whole point of skip-collecting this module.
 nbformat = pytest.importorskip("nbformat")
 
 from akms_learn.capability_gates import PreconditionError
@@ -48,11 +50,9 @@ from akms_learn.models import (
     LearningNodeView,
     LearningRequestInfo,
     LearningSourcePacket,
-    LearningWarning,
     PacketBody,
     SourceInfo,
 )
-from akms_learn.validation import PacketValidationError
 
 
 # ---------------------------------------------------------------------------

@@ -72,7 +72,7 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from akms_learn.capability_gates import PreconditionError, require_capability
+from akms_learn.capability_gates import require_capability
 from akms_learn.graph_import import GraphSlice
 from akms_learn.models import LearningWarning
 from akms_learn.requests import LearningRequest

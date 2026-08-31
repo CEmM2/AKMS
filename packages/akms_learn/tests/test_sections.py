@@ -16,7 +16,6 @@ from akms_learn.sections import (
     SectionView,
     extract_sections,
     merge_sections_into_node_view,
-    parse_markdown_headings,
 )
 
 

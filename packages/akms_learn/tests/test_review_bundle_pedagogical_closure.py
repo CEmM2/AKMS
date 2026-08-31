@@ -254,10 +254,6 @@ class TestPedagogicalClosureSurface:
         # must not appear on the right-hand side of a status assignment.
         # Strategy: scan for patterns like status = "plan_closed" or
         # "status": "plan_closed".
-        bad_patterns = [
-            r'"plan_closed"',
-            r"'plan_closed'",
-        ]
         # Count how many times plan_closed appears in non-comment context.
         # The generator is allowed to reference it in docstrings that document
         # the rule, but must never ASSIGN it. We check that MANIFEST_STATUS

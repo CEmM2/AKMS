@@ -32,14 +32,12 @@ All graph operations are deterministic Python functions.
 
 from __future__ import annotations
 
-import asyncio
-import copy
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any
 
 from akms.graph.build_graph import build_graph, load_graph
 from akms.graph.generate_loadout import generate_loadout, select_loadout_mode
@@ -52,8 +50,7 @@ from akms.graph.mirror_provider import (
 )
 from akms.graph.qmd_cache import compute_graph_version
 from akms.graph.query_subgraph import query_subgraph
-from akms.graph.re_evaluate import re_evaluate
-from akms.graph.tag_derivation import derive_review_seeds, derive_tags, fill_task_tags
+from akms.graph.tag_derivation import derive_review_seeds, fill_task_tags
 from akms.graph.update_graph import update_graph
 from akms.orchestrator.agent_configs import get_special_agent_config
 from akms.orchestrator.branch_workflow import (
@@ -63,31 +60,22 @@ from akms.orchestrator.branch_workflow import (
     reverse_merge_plan,
 )
 from akms.orchestrator.checkpoint import (
-    CheckpointData,
     CheckpointHandler,
-    CheckpointResponse,
     FileCheckpointHandler,
-    read_checkpoint_response,
-    write_checkpoint,
 )
 from akms.orchestrator.stages import (
-    STAGE_DEFINITIONS,
     STAGE_ORDER,
     CheckpointAction,
     PipelineState,
     Stage,
-    get_stage_definition,
-    is_valid_transition,
 )
 from akms.telemetry import traced
 from akms.agents.base import AgentPreflightError, AKMSAgent
 from akms.orchestrator.wave_dispatch import (
     dispatch_phase,
-    resolve_model_for_tier,
-    validate_scope_disjointness,
 )
 from akms.schema.models import AgentMemory, AgentRole, PropagationConfig
-from akms.schema.validators import parse_pcd, parse_propagation_config
+from akms.schema.validators import parse_propagation_config
 
 logger = logging.getLogger(__name__)
 
@@ -561,7 +549,7 @@ async def handle_plan(state: PipelineState, ctx: PipelineContext) -> HandlerResu
     if ctx.agent_cls is None:
         return "skipped (graph-only mode)", f"nodes={G.number_of_nodes()}", warnings
 
-    planner_cfg = get_special_agent_config("planner")
+    get_special_agent_config("planner")
     task_desc = "Produce plan.md from specification."
     if ctx.spec_path:
         task_desc = f"Generate plan from specification at: {ctx.spec_path}"
@@ -623,7 +611,7 @@ async def handle_task_breakdown(
 
     # Dispatch decomposer if no tasks provided
     if not effective_tasks and ctx.agent_cls is not None:
-        decomposer_cfg = get_special_agent_config("task_decomposer")
+        get_special_agent_config("task_decomposer")
         decomposer_task: dict[str, Any] = {
             "task_id": "stage-task-breakdown",
             "title": "Task decomposition",
@@ -691,7 +679,7 @@ async def handle_scaffold(state: PipelineState, ctx: PipelineContext) -> Handler
     if ctx.agent_cls is None:
         return "skipped (graph-only mode)", "", warnings
 
-    scaffolder_cfg = get_special_agent_config("scaffolder")
+    get_special_agent_config("scaffolder")
     scaffolder_task = {
         "task_id": "stage-scaffold",
         "title": "Scaffold generation",
@@ -1215,7 +1203,7 @@ async def handle_finalize(state: PipelineState, ctx: PipelineContext) -> Handler
         effective_base,
         phase_order=state.phase_order,
     )
-    branch_result = execute_git_ops(finalize_ops, apply=False, repo_root=ctx.repo_root)
+    execute_git_ops(finalize_ops, apply=False, repo_root=ctx.repo_root)
 
     state.stage_history.append(
         {

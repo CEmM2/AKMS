@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from pathlib import Path
 from typing import Any
 
 import networkx as nx
@@ -32,7 +31,6 @@ from akms.schema.models import (
     LOADABLE_STATUSES,
     AgentRole,
     EdgeType,
-    LoadoutConfig,
     NodeStatus,
     PropagationConfig,
     QueryRoleProfile,

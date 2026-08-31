@@ -10,12 +10,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 
 from akms.graph.build_graph import build_graph
 from akms.orchestrator.mcp_tools import create_mcp_server
 
-from .conftest import make_global_node, make_local_node, set_overlay
+from .conftest import make_global_node
 
 
 # ── Helpers ──────────────────────────────────────────────────────────

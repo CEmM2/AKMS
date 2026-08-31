@@ -435,7 +435,7 @@ def validate_frontmatter(
         # Pydantic v2 raises ValidationError with structured messages
         if hasattr(e, "errors"):
             for err in e.errors():  # type: ignore
-                loc = " → ".join(str(l) for l in err["loc"])
+                loc = " → ".join(str(part) for part in err["loc"])
                 issues.append(
                     Issue(severity=Severity.ERROR, field=loc, message=err["msg"])
                 )

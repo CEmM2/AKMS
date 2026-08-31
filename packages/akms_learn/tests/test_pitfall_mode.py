@@ -14,7 +14,7 @@ import pytest
 
 from akms_learn.graph_import import GraphSlice, fixture_graph
 from akms_learn.models import LearningWarning, PitfallView
-from akms_learn.modes.pitfall import PITFALL_EDGE_TYPES, STRUCTURED_FIELDS, pitfall_mode
+from akms_learn.modes.pitfall import PITFALL_EDGE_TYPES, pitfall_mode
 from akms_learn.sections import SectionView
 
 

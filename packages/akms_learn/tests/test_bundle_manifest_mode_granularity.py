@@ -114,7 +114,7 @@ class TestBundleManifestModeGranularity:
         compile_learning_source(request=request, graph_slice=slice_, output_dir=dir_b)
 
         manifest_a = _read_manifest(dir_a)
-        manifest_b = _read_manifest(dir_b)
+        _read_manifest(dir_b)
 
         # Byte-equality across runs (reproducibility).
         assert (dir_a / "manifest.json").read_bytes() == (

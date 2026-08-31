@@ -32,7 +32,6 @@ from akms_learn.capability_gates import PreconditionError
 from akms_learn.graph_import import GraphSlice
 from akms_learn.modes.notebook_source import (
     NOTEBOOK_SECTIONS,
-    SECTION_PLACEHOLDER,
     NotebookSourceResult,
     _classify_code_safety,
     notebook_source_mode,

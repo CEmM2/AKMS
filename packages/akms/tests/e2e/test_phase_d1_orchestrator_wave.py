@@ -19,7 +19,6 @@ from akms.orchestrator.orchestrator import (
     handle_review,
 )
 from akms.orchestrator.wave_dispatch import TaskResult
-from akms.schema.models import AgentRole, PropagationConfig
 
 from tests.akms.conftest import make_global_node, make_ctx, make_state
 

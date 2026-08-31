@@ -28,7 +28,6 @@ from akms_learn.modes.derivation_first import (
     DerivationFirstResult,
     NodeLessonRoleView,
     derivation_first_mode,
-    derivation_first_strategy,
 )
 from akms_learn.ordering import get_strategy
 from akms_learn.toy_fixtures import (

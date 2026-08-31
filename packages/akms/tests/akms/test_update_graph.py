@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
-from pathlib import Path
 
 import pytest
 import yaml
@@ -39,7 +38,7 @@ from akms.schema.models import (
     TaskStatus,
 )
 
-from .conftest import make_global_node, make_local_node, make_mirror_node, set_overlay
+from .conftest import make_global_node, make_local_node, make_mirror_node
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -167,7 +166,7 @@ class TestConfidenceMutations:
 
         overlay = {"nodes": {}}
         config = PropagationConfig()
-        events = _process_nodes_used(
+        _process_nodes_used(
             G,
             overlay,
             [{"id": "node-a", "useful": True, "coverage": "missing-detail"}],
@@ -207,7 +206,7 @@ class TestConfidenceMutations:
 
         overlay = {"nodes": {}}
         config = PropagationConfig()
-        events = _process_nodes_used(
+        _process_nodes_used(
             G,
             overlay,
             [{"id": "node-a", "useful": False, "coverage": "missing-detail"}],
@@ -226,7 +225,7 @@ class TestConfidenceMutations:
 
         overlay = {"nodes": {}}
         config = PropagationConfig()
-        events = _process_nodes_used(
+        _process_nodes_used(
             G,
             overlay,
             [{"id": "node-a", "useful": False, "coverage": "outdated"}],
@@ -245,7 +244,7 @@ class TestConfidenceMutations:
 
         overlay = {"nodes": {}}
         config = PropagationConfig()
-        events = _process_nodes_used(
+        _process_nodes_used(
             G,
             overlay,
             [{"id": "node-a", "useful": True, "coverage": "sufficient"}],

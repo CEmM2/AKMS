@@ -11,9 +11,6 @@ Coverage:
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
 
 from akms.graph.build_graph import build_graph
 from akms.graph.tag_derivation import (
@@ -23,9 +20,9 @@ from akms.graph.tag_derivation import (
     derive_tags,
     fill_task_tags,
 )
-from akms.schema.models import PropagationConfig, TagDerivationConfig
+from akms.schema.models import TagDerivationConfig
 
-from .conftest import make_global_node, make_mirror_node, set_overlay
+from .conftest import make_global_node, make_mirror_node
 
 
 class TestScopeBasedDerivation:

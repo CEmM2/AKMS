@@ -112,7 +112,6 @@ class TestHandleReviewAgentMode:
 
         # Capture the tasks passed to dispatch_phase
         dispatched_tasks = []
-        original_dispatch = None
 
         async def capture_dispatch(tasks, **kwargs):
             dispatched_tasks.extend(tasks)
@@ -602,7 +601,6 @@ class TestNonContiguousPhases:
 
         Tests the run_pipeline review gate logic directly.
         """
-        from akms.orchestrator.stages import CheckpointAction
 
         state = PipelineState(
             current_phase=1,
@@ -802,7 +800,6 @@ class TestSpecPathResume:
     @pytest.mark.e2e
     def test_spec_path_restored_on_resume(self, tmp_path):
         """Resuming without spec_path restores it from persisted state."""
-        from akms.orchestrator.orchestrator import handle_plan
 
         repo = _make_repo(tmp_path)
         handler = AutoApproveCheckpointHandler()

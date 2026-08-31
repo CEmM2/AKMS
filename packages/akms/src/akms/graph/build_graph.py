@@ -24,16 +24,8 @@ import networkx as nx
 
 from akms import AKMS_SCHEMA_VERSION
 from akms.schema.errors import SchemaValidationError, SchemaVersionError
-from akms.schema.models import (
-    EXPERIENTIAL_FIELDS,
-    GlobalNodeFrontmatter,
-    LocalNodeFrontmatter,
-    NodeStatus,
-    SessionOutcome,
-)
 from akms.schema.validators import (
     parse_local_state,
-    parse_node_frontmatter,
     parse_node_frontmatter_from_dict,
 )
 from akms.telemetry import traced
@@ -183,7 +175,7 @@ def build_graph(
             node = parse_node_frontmatter_from_dict(
                 data, is_local=False, path=str(md_path)
             )
-        except (SchemaVersionError, SchemaValidationError) as e:
+        except (SchemaVersionError, SchemaValidationError):
             raise  # Fatal — halt on schema errors per FR-G08
 
         node_id = node.id
@@ -231,7 +223,7 @@ def build_graph(
             node = parse_node_frontmatter_from_dict(
                 data, is_local=True, path=str(md_path)
             )
-        except (SchemaVersionError, SchemaValidationError) as e:
+        except (SchemaVersionError, SchemaValidationError):
             raise
 
         node_id = node.id

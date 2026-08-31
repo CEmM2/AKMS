@@ -1,0 +1,14 @@
+{
+  "directed": true,
+  "graph": {
+    "akms_schema": "v2",
+    "edge_count": 0,
+    "generated_at": "2026-08-31T10:43:51",
+    "global_vault": "~/.claude/akms/nodes",
+    "node_count": 0,
+    "repo_id": "global_nodes"
+  },
+  "links": [],
+  "multigraph": false,
+  "nodes": []
+}

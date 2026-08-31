@@ -31,7 +31,7 @@ from unittest.mock import patch
 import pytest
 
 import akms_learn.capability_gates as _cap_gates
-from akms_learn.capability_gates import CapabilityGate, PreconditionError
+from akms_learn.capability_gates import PreconditionError
 from akms_learn.graph_import import GraphSlice
 from akms_learn.models.learner_profile import LearnerProfile
 from akms_learn.modes.adaptive_path import AdaptivePathResult, adaptive_path_mode

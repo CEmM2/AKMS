@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import builtins
-import json
 from pathlib import Path
 
 import pytest
@@ -21,21 +20,17 @@ import yaml
 
 from akms.graph.build_graph import build_graph
 from akms.orchestrator.agent_configs import (
-    AGENT_CONFIGS,
-    SPECIAL_AGENTS,
     get_agent_config,
     get_special_agent_config,
 )
 from akms.orchestrator.checkpoint import (
     CheckpointData,
-    CheckpointResponse,
     list_checkpoints,
     read_checkpoint_response,
     write_checkpoint,
     write_checkpoint_response,
 )
 from akms.orchestrator.orchestrator import (
-    PipelineContext,
     handle_execute,
     handle_finalize,
     handle_init,
@@ -54,7 +49,7 @@ from akms.orchestrator.stages import (
 )
 from akms.schema.models import AgentRole
 
-from .conftest import make_ctx, make_global_node, make_state, set_overlay
+from .conftest import make_ctx, make_global_node, make_state
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -898,7 +893,6 @@ class TestHandleExecute:
             }
 
         from akms.orchestrator.wave_dispatch import TaskResult
-        import yaml as yaml_mod
 
         sessions_dir = tmp_repo / "knowledge" / "sessions"
         sessions_dir.mkdir(parents=True, exist_ok=True)
@@ -1207,7 +1201,7 @@ class TestRunSubagent:
         """Real run_subagent exercises asyncio bridge end-to-end."""
         from akms.agents.base import AKMSAgent
         from akms.orchestrator.wave_dispatch import run_subagent
-        from akms.schema.models import PropagationConfig, TaskStatus
+        from akms.schema.models import PropagationConfig
         from datetime import datetime
         import frontmatter
 

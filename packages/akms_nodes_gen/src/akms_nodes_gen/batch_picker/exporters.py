@@ -59,12 +59,6 @@ def write_plan_json(
         for ck in assignment.papers
         if ck in catalog.papers
     ]
-    citekey_to_pdf = {
-        ck: catalog.papers[ck].pdf_path
-        for ck in assignment.papers
-        if ck in catalog.papers and catalog.papers[ck].has_pdf
-    }
-
     payload = {
         "plan": f"Round {batch.round} — {batch.round_title}",
         "batch_id": batch.id,

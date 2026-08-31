@@ -13,6 +13,7 @@ Covers all five acceptance criteria:
 
 from __future__ import annotations
 
+import pathlib
 from unittest.mock import patch
 
 import pytest
@@ -403,7 +404,6 @@ class TestNoEagerImports:
 
     def _get_source_path(self) -> pathlib.Path:
         import importlib
-        import pathlib
 
         spec = importlib.util.find_spec("akms_learn.capability_gates")
         assert spec is not None, "akms_learn.capability_gates is not importable"

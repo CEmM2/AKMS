@@ -13,10 +13,8 @@ Coverage:
 
 from __future__ import annotations
 
-from datetime import date, timedelta
-from pathlib import Path
+from datetime import date
 
-import pytest
 import yaml
 
 from akms.graph.build_graph import build_graph
@@ -34,7 +32,7 @@ from akms.graph.graph_status import (
     graph_status,
 )
 
-from .conftest import make_global_node, make_local_node, set_overlay
+from .conftest import make_global_node, make_local_node
 
 
 # ═══════════════════════════════════════════════════════════════════════

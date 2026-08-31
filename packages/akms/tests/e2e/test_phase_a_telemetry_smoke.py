@@ -1,10 +1,9 @@
 """Phase A E2E: telemetry initialization and span capture."""
 
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry import trace as otel_trace
 
 from akms import telemetry
-from akms.telemetry import init_telemetry, traced, get_tracer
+from akms.telemetry import init_telemetry, traced
 
 
 def test_telemetry_emits_spans():

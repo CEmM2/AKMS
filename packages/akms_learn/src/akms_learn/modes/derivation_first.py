@@ -56,7 +56,7 @@ Warning codes
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import networkx as nx
 
@@ -65,7 +65,6 @@ from akms_learn.models import LearningWarning
 from akms_learn.ordering import _topo_sort_with_cycle_break
 from akms_learn.requests import LearningRequest
 from akms_learn.section_extraction import (
-    APPROVED_HEADINGS,
     ExtractedSection,
     extract_sections_from_node,
 )

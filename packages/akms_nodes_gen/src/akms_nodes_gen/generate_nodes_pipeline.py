@@ -72,18 +72,6 @@ try:
 except ImportError:
     HAS_LITELLM = False
 
-try:
-    from pydantic import (
-        BaseModel as PydanticBase,
-        field_validator,
-        model_validator,
-        Field,
-    )
-
-    HAS_PYDANTIC = True
-except ImportError:
-    HAS_PYDANTIC = False
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #                          CONFIGURATION
@@ -550,7 +538,7 @@ def quick_validate(content: str) -> list[str]:
 
     # Content_ref MUST be in the dictionary and its value MUST be None
     if "content_ref" not in fm:
-        errors.append(f"Missing required field: content_ref")
+        errors.append("Missing required field: content_ref")
     elif fm.get("content_ref") is not None:
         errors.append(
             f"Generated node content_ref must be null, got '{fm.get('content_ref')}'"
@@ -752,7 +740,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
         if not files:
             batch_errors.append("No files extracted from response")
-            print(f"  ✗ No files extracted!")
+            print("  ✗ No files extracted!")
         else:
             print(f"  Extracted {len(files)} file(s)")
 
@@ -802,7 +790,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
     # ── Final report ──
     print(f"\n{'═' * 60}")
-    print(f"PIPELINE COMPLETE")
+    print("PIPELINE COMPLETE")
     print(f"{'═' * 60}")
     print(f"Batches run:      {len(results)}")
     print(f"Nodes generated:  {len(state.generated_ids)}")

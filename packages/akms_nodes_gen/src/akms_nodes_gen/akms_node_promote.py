@@ -36,7 +36,6 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import shutil
 import sys
 from pathlib import Path
 
@@ -203,7 +202,6 @@ def main() -> int:
     print(f"Vault:  {vault}\n")
 
     moved = 0
-    skipped = 0
     warnings: list[str] = []
 
     for src in node_files:
@@ -238,7 +236,7 @@ def main() -> int:
             warnings.append(f"{src.name}: {'; '.join(problems)}")
 
         if dest.exists():
-            print(f"    ⚠  destination exists — will overwrite")
+            print("    ⚠  destination exists — will overwrite")
 
         if args.execute:
             # Create destination directory
@@ -253,10 +251,10 @@ def main() -> int:
 
             src.unlink()
 
-            print(f"    ✓  moved")
+            print("    ✓  moved")
             moved += 1
         else:
-            print(f"    (dry-run, no files moved)")
+            print("    (dry-run, no files moved)")
             moved += 1  # count for summary
 
         print()
@@ -275,7 +273,7 @@ def main() -> int:
             print(f"  • {w}")
 
     if not args.execute:
-        print(f"\nThis was a dry-run.  Re-run with --execute to move files.")
+        print("\nThis was a dry-run.  Re-run with --execute to move files.")
         if args.promote:
             print(
                 "The --promote flag will also rewrite status: tentative → established."

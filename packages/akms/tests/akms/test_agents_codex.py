@@ -15,7 +15,7 @@ import builtins
 import sys
 from datetime import datetime
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import ModuleType
 
 import frontmatter
 import pytest
@@ -426,7 +426,6 @@ class TestCodexMcpSearchParity:
         """All four mcp__akms__* names must land in `_registry` so
         `resolve_runtime_tools(['search','search_mirror'])` selections
         aren't dropped in the filter at the top of ``_codex_sdk_execute``."""
-        import akms.agents.base_codex as bc
 
         # Stub openai-agents so importing it inside _codex_sdk_execute works
         # regardless of whether the optional dep is present.

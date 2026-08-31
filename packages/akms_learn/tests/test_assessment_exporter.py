@@ -264,7 +264,7 @@ class TestCanaryHiddenAnswerSeparation:
                 ),
             ]
         )
-        paths = _run_export(packet, tmp_path)
+        _run_export(packet, tmp_path)
         md = (tmp_path / "assessment.md").read_bytes()
         js = (tmp_path / "assessment.json").read_bytes()
         rubric = (tmp_path / "rubric.md").read_bytes()

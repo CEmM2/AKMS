@@ -10,9 +10,7 @@ Tests:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-import pytest
 
 from akms.graph.qmd_cache import (
     compute_graph_version,

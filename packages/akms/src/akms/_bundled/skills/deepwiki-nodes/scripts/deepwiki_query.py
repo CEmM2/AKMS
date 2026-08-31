@@ -252,7 +252,7 @@ def _close_query_body(query: Query | None, end_line: int, lines: list[str]) -> N
         return
     query.body_end = end_line
     body_lines = lines[query.body_start : query.body_end]
-    query.body = "\n".join(l.rstrip() for l in body_lines).strip()
+    query.body = "\n".join(line.rstrip() for line in body_lines).strip()
 
 
 def _skip_response_block(start: int, lines: list[str]) -> int:
@@ -474,7 +474,7 @@ async def discover_endpoint(
 def print_discovery(schema: EndpointSchema, endpoint: str) -> None:
     """Pretty-print discovered endpoint schema."""
     print(f"\n{'=' * 60}")
-    print(f"DeepWiki MCP Endpoint Discovery")
+    print("DeepWiki MCP Endpoint Discovery")
     print(f"{'=' * 60}")
     print(f"Endpoint: {endpoint}")
     print(f"Tools found: {len(schema.tools)}")
@@ -495,12 +495,12 @@ def print_discovery(schema: EndpointSchema, endpoint: str) -> None:
                 if desc:
                     print(f"      {desc}")
         else:
-            print(f"   (no schema or empty properties)")
+            print("   (no schema or empty properties)")
         print()
 
     print(f"{'=' * 60}")
-    print(f"Use these parameter names in your eval questions.")
-    print(f"The eval engine will auto-detect on first run.\n")
+    print("Use these parameter names in your eval questions.")
+    print("The eval engine will auto-detect on first run.\n")
 
 
 def build_arguments(
@@ -727,7 +727,7 @@ def _build_summary(topics: list[Topic], config: EvalConfig) -> list[str]:
 
     # Metadata
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    lines.append(f"\n**Run metadata:**\n")
+    lines.append("\n**Run metadata:**\n")
     lines.append(f"- Timestamp: {ts}\n")
     lines.append(f"- Repo: {config.repo}\n")
     lines.append(f"- MCP endpoint: {config.mcp_endpoint}\n")
@@ -830,7 +830,7 @@ def main() -> None:
     if args.discover:
         print("Discovering MCP endpoint schema...")
         if args.auth:
-            print(f"  Using authenticated mode (Bearer token)")
+            print("  Using authenticated mode (Bearer token)")
         if args.org:
             print(f"  Organization ID: {args.org}")
         try:
@@ -856,15 +856,6 @@ def main() -> None:
 
     # Parse into lines for line-accurate injection
     all_lines = text.splitlines(keepends=True)
-
-    # Find where body starts (after frontmatter)
-    body_start = 0
-    if text.startswith("---"):
-        end_idx = text.find("\n---", 3)
-        if end_idx != -1:
-            # Count lines in frontmatter
-            fm_text = text[: end_idx + 4]
-            body_start = fm_text.count("\n")
 
     topics = parse_questions(all_lines)
 
@@ -903,7 +894,7 @@ def main() -> None:
     # ── Auto-discover endpoint schema before running ──
     print(f"\nDiscovering endpoint schema at {config.mcp_endpoint}...")
     if config.auth_token:
-        print(f"  Using authenticated mode (Bearer token)")
+        print("  Using authenticated mode (Bearer token)")
     if config.org_id:
         print(f"  Organization ID: {config.org_id}")
     schema: EndpointSchema | None = None

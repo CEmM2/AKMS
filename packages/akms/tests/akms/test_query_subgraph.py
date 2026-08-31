@@ -16,17 +16,15 @@ Tests the 12-step subgraph extraction algorithm:
 
 from __future__ import annotations
 
-import pytest
 
 from akms.graph.build_graph import build_graph
 from akms.graph.query_subgraph import (
-    _compute_rank,
     _find_pitfall_nodes,
     _find_seed_nodes,
     compute_query_hash,
     query_subgraph,
 )
-from akms.schema.models import AgentRole, PropagationConfig, QueryRoleProfile
+from akms.schema.models import AgentRole, PropagationConfig
 from tests.akms.conftest import (
     make_global_node,
     make_local_node,

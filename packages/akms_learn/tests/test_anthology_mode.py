@@ -13,7 +13,6 @@ import pytest
 from akms_learn.graph_import import GraphSlice
 from akms_learn.modes.anthology import (
     TEACHING_SECTIONS,
-    AnthologyEntry,
     anthology_mode,
 )
 from akms_learn.sections import SectionView

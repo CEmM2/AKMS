@@ -7,9 +7,6 @@ scattered through ``mcp_tools.py`` and ``generate_loadout.py``.
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
 
 from akms._resources import _package_root, seed_qmd_path
 

@@ -171,7 +171,7 @@ async def _codex_sdk_execute(
         instructions=system_prompt,
         tools=selected,
     )
-    run_result = await Runner.run(agent, input=user_message, max_turns=25)
+    await Runner.run(agent, input=user_message, max_turns=25)
 
     # No return value — the agent writes AgentMemory to disk as part
     # of its work.  run() validates it afterward.

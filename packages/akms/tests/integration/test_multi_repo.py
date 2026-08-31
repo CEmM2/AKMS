@@ -21,7 +21,7 @@ import pytest
 import yaml
 
 from akms.orchestrator.orchestrator import PipelineContext, handle_init
-from akms.orchestrator.stages import PipelineState, Stage
+from akms.orchestrator.stages import PipelineState
 from akms.schema.models import PropagationConfig
 
 
@@ -149,7 +149,7 @@ class TestMultiRepoIsolationPipeline:
         config = PropagationConfig()
 
         # Run handle_init for repo A only — saves state into repo A
-        ctx_a = PipelineContext(
+        PipelineContext(
             repo_root=repo_a,
             global_vault=vault,
             config=config,

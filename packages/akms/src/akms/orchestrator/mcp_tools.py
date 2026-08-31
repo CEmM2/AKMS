@@ -39,7 +39,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from akms.graph.build_graph import build_graph, load_graph
-from akms.graph.generate_loadout import generate_loadout, select_loadout_mode
+from akms.graph.generate_loadout import generate_loadout
 from akms.graph.generate_mirror import generate_mirror
 from akms.graph.graph_status import graph_status
 from akms.graph.qmd_cache import compute_graph_version
@@ -47,7 +47,7 @@ from akms.graph.query_subgraph import query_subgraph
 from akms.graph.re_evaluate import re_evaluate
 from akms.graph.tag_derivation import derive_tags
 from akms.graph.update_graph import update_graph
-from akms.schema.models import AgentRole, PropagationConfig
+from akms.schema.models import PropagationConfig
 from akms.schema.validators import parse_propagation_config
 
 logger = logging.getLogger(__name__)

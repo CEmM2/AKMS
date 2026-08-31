@@ -71,7 +71,6 @@ from akms_learn.graph_import import GraphSlice
 from akms_learn.models import LearningWarning
 from akms_learn.requests import LearningRequest
 from akms_learn.section_extraction import (
-    APPROVED_HEADINGS,
     ExtractedSection,
     extract_sections_from_node,
 )

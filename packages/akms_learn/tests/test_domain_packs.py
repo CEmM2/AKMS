@@ -29,7 +29,6 @@ from akms_learn.domain_packs import (
     RuntimeHint,
     SourcePackDescriptor,
     build_registry_from_paths,
-    load_descriptor_from_yaml,
     load_source_pack_from_yaml,
     warn_planned_companion,
 )

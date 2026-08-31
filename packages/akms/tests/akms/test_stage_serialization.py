@@ -1,7 +1,6 @@
 """Tests for stage wire serialization and backward-compatible loading."""
 
 import json
-from pathlib import Path
 
 import pytest
 
