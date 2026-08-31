@@ -227,8 +227,9 @@ def export(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # --- 1. lesson.md (delegate to markdown exporter) ----------------------
-    # Writes <out_dir>/lesson.md. It returns that path, but the bundle's own
-    # returned path list is assembled below and does not include it today.
+    # Writes <out_dir>/lesson.md and returns that path. The return value is
+    # discarded rather than lost: the same path is rebuilt as `lesson_path`
+    # below and is part of the returned list.
     _markdown_exporter.export(packet, out_dir)
 
     # --- 2. Build all payloads in memory ----------------------------------
