@@ -6,19 +6,16 @@ on:
       - "v*"
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Validate, build, and publish
+  build:
+    name: Validate and build
     runs-on: ubuntu-latest
-    environment:
-      name: release
     steps:
       - name: Check out tagged source
         uses: actions/checkout@v7
@@ -94,12 +91,111 @@ jobs:
             "from akms.orchestrator import run_pipeline; print('embedded runtime import: OK')"
           .venv-release/bin/python -m pytest tests/public_smoke/runtime -q
 
-      - name: Publish to PyPI through trusted publishing
-        if: vars.PUBLISH_TO_PYPI == 'true'
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Hand the verified distributions to the publish jobs
+        uses: actions/upload-artifact@v7.0.1
         with:
-          packages-dir: dist/packages/
+          name: distributions
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+
+  # One publish job per package, each in its own environment.
+  #
+  # PyPI enforces uniqueness on the (owner, repository, workflow, environment)
+  # tuple for *pending* publishers, so four packages released from one repo by
+  # one workflow cannot share a single environment — only the first of them can
+  # be registered. A job may declare exactly one environment, so the publish
+  # step has to fan out rather than upload all four from one job.
+  #
+  # This is the better shape on its own terms anyway: each package's OIDC token
+  # is scoped to an environment that can publish that package and nothing else.
+  publish:
+    name: Publish ${{ matrix.package }} to PyPI
+    if: vars.PUBLISH_TO_PYPI == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: pypi-${{ matrix.package }}
+      url: https://pypi.org/p/${{ matrix.package }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: akms
+            prefix: "akms-"
+          - package: akms-learn
+            prefix: "akms_learn-"
+          - package: akms-nodes-gen
+            prefix: "akms_nodes_gen-"
+          - package: akms-failure-memory
+            prefix: "akms_failure_memory-"
+    steps:
+      - name: Download the verified distributions
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: distributions
+          path: dist
+
+      - name: Isolate this package's distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p upload
+          cp dist/packages/${{ matrix.prefix }}* upload/
+          # Exactly one wheel and one sdist. A prefix that silently matched
+          # nothing would publish an empty directory, and one that over-matched
+          # would push a sibling package into the wrong project. Both are quiet
+          # failures worth making loud.
+          found=$(find upload -type f | wc -l | tr -d ' ')
+          if [ "$found" -ne 2 ]; then
+            echo "expected 2 distributions for ${{ matrix.package }}, found ${found}:" >&2
+            find upload -type f >&2
+            exit 1
+          fi
+          ls -l upload
+
+      - name: Publish through trusted publishing
+        uses: pypa/gh-action-pypi-publish@v1.14.2
+        with:
+          packages-dir: upload/
           verbose: true
+          # Makes a re-run idempotent. PyPI caps how many *pending* publishers
+          # one account may hold, which is fewer than the four projects here,
+          # so the first release has to publish in waves: register what fits,
+          # publish (which converts those pending publishers into normal ones
+          # and frees the slots), register the rest, run again. Without this,
+          # the second run fails on the packages the first one already
+          # uploaded. It also makes recovery from a partial upload — a network
+          # failure part-way through the matrix — a re-run rather than a
+          # version bump.
+          #
+          # This cannot overwrite anything: PyPI rejects a duplicate filename
+          # whatever its contents, and the flag only swallows that rejection.
+          skip-existing: true
+
+  github-release:
+    name: Create GitHub release
+    needs: [build, publish]
+    # `publish` is skipped whenever PUBLISH_TO_PYPI is unset, and a skipped
+    # dependency would otherwise skip this job too. Run whenever the build
+    # succeeded and nothing actually failed, so a validation-only tag still
+    # cuts the release — but never publish a release after a failed upload.
+    if: >-
+      always()
+      && needs.build.result == 'success'
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the verified distributions
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: distributions
+          path: dist
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
