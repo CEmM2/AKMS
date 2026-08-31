@@ -8,6 +8,7 @@ type: software
 authors:
   - family-names: Osovski
     given-names: Shmuel
+    email: shmuliko@technion.ac.il
 version: 0.3.0
 abstract: >-
   A deterministic global-local knowledge compiler: typed knowledge nodes,

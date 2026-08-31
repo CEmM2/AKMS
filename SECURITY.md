@@ -8,7 +8,8 @@ receives security fixes.
 ## Reporting a vulnerability
 
 Please report vulnerabilities **privately** via GitHub's security advisories
-("Report a vulnerability" on the repository's Security tab). Do not open a
+("Report a vulnerability" on the repository's Security tab), or by email to
+<shmuliko@technion.ac.il> if you would rather not use GitHub. Do not open a
 public issue for a suspected vulnerability.
 
 You can expect an acknowledgment within a week. This is a best-effort research
