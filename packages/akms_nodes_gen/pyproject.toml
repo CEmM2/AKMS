@@ -27,7 +27,7 @@ dependencies = [
     # opens its handle in binary mode — raises TypeError.  1.2.0 and 1.3.0
     # both fail 287 tests.  Revisit by porting the dump call sites, not by
     # widening this bound.
-    "python-frontmatter>=1.1.0,<1.2",
+    "python-frontmatter>=1.1.0,<1.4",
     "pyyaml>=6.0.3,<7",
     "fastapi>=0.141.1,<1",
     "uvicorn[standard]>=0.32,<0.53",

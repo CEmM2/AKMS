@@ -25,7 +25,7 @@ dependencies = [
     # rather than bytes, and every `fm.dump(post, f)` call site here opens its
     # handle in binary mode, so 1.2.0 and 1.3.0 raise TypeError. Widen this
     # bound only by porting the call sites.
-    "python-frontmatter>=1.1.0,<1.2",
+    "python-frontmatter>=1.1.0,<1.4",
 ]
 
 # Optional extras. One consistent policy: each extra names the dependency set
