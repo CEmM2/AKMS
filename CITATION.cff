@@ -1,6 +1,4 @@
 # To cite AKMS, use the metadata below.
-# TODO: set `repository-code` and `date-released` at publication time — the
-# public repository URL is not final until the maintainer publishes the tree.
 cff-version: 1.2.0
 message: "If you use AKMS in your research, please cite it as below."
 title: "AKMS: Adaptive Knowledge Management System"
@@ -10,6 +8,8 @@ authors:
     given-names: Shmuel
     email: shmuliko@technion.ac.il
 version: 0.3.0
+date-released: 2026-08-31
+repository-code: "https://github.com/CEmM2/AKMS"
 abstract: >-
   A deterministic global-local knowledge compiler: typed knowledge nodes,
   graph compilation, task-scoped projections, and structured evidence
