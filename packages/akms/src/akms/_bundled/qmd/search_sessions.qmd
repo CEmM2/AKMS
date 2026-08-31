@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# search_sessions.qmd — Search session files (AgentMemory + PCD) by query string.
+#
+# Uses QMD BM25 search when available, falls back to grep.
+#
+# Scopes to: <repo>/knowledge/sessions/
+#
+# Usage: run_qmd.sh search_sessions "query string" [--semantic]
+
+set -euo pipefail
+
+QUERY="${1:?Usage: search_sessions <query> [--semantic]}"
+SEMANTIC="${2:-}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SESSIONS_DIR="$REPO_ROOT/knowledge/sessions"
+REPO_NAME="$(basename "$REPO_ROOT")"
+
+HAS_QMD=false
+if command -v qmd &>/dev/null; then
+    HAS_QMD=true
+fi
+
+echo "=== Sessions ==="
+if [ "$HAS_QMD" = true ]; then
+    if [ "$SEMANTIC" = "--semantic" ]; then
+        qmd search "$QUERY" --semantic --collection "akms-${REPO_NAME}-sessions" 2>/dev/null || {
+            echo "(qmd collection not found — falling back to grep)"
+            if [ -d "$SESSIONS_DIR" ]; then
+                grep -ril --include="*.md" -- "$QUERY" "$SESSIONS_DIR" 2>/dev/null || echo "(no matches)"
+            else
+                echo "(no sessions directory)"
+            fi
+        }
+    else
+        qmd search "$QUERY" --collection "akms-${REPO_NAME}-sessions" 2>/dev/null || {
+            echo "(qmd collection not found — falling back to grep)"
+            if [ -d "$SESSIONS_DIR" ]; then
+                grep -ril --include="*.md" -- "$QUERY" "$SESSIONS_DIR" 2>/dev/null || echo "(no matches)"
+            else
+                echo "(no sessions directory)"
+            fi
+        }
+    fi
+else
+    echo "(qmd not installed — using grep fallback)"
+    if [ -d "$SESSIONS_DIR" ]; then
+        grep -ril --include="*.md" -- "$QUERY" "$SESSIONS_DIR" 2>/dev/null || echo "(no matches)"
+    else
+        echo "(no sessions directory)"
+    fi
+fi

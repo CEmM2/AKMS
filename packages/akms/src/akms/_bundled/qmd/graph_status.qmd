@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# graph_status.qmd — Print a summary of the compiled knowledge graph.
+#
+# Reads: <repo>/knowledge/graph/graph.json
+#
+# Usage: run_qmd.sh graph_status
+#
+# Returns: node count, edge count, schema version, compilation timestamp.
+
+set -euo pipefail
+
+# Resolve repo root (walk up from script location)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+GRAPH_JSON="$REPO_ROOT/knowledge/graph/graph.json"
+
+if [ ! -f "$GRAPH_JSON" ]; then
+    echo "ERROR: graph.json not found at $GRAPH_JSON"
+    echo "Run build_graph.py first."
+    exit 1
+fi
+
+echo "=== Graph Status ==="
+python3 -c "
+import json, sys
+with open('$GRAPH_JSON') as f:
+    data = json.load(f)
+g = data.get('graph', {})
+nodes = data.get('nodes', [])
+links = data.get('links', [])
+
+print(f\"Schema:     {g.get('akms_schema', 'unknown')}\")
+print(f\"Compiled:   {g.get('generated_at', 'unknown')}\")
+print(f\"Nodes:      {g.get('node_count', len(nodes))}\")
+print(f\"Edges:      {g.get('edge_count', len(links))}\")
+
+# Origin breakdown
+origins = {}
+for n in nodes:
+    o = n.get('node_origin', 'unknown')
+    origins[o] = origins.get(o, 0) + 1
+print()
+print('Node origins:')
+for o, c in sorted(origins.items()):
+    print(f'  {o}: {c}')
+
+# Edge origin breakdown
+edge_origins = {}
+for l in links:
+    o = l.get('edge_origin', 'unknown')
+    edge_origins[o] = edge_origins.get(o, 0) + 1
+if edge_origins:
+    print()
+    print('Edge origins:')
+    for o, c in sorted(edge_origins.items()):
+        print(f'  {o}: {c}')
+
+# Status breakdown
+statuses = {}
+for n in nodes:
+    s = n.get('status', 'unknown')
+    statuses[s] = statuses.get(s, 0) + 1
+print()
+print('Node statuses:')
+for s, c in sorted(statuses.items()):
+    print(f'  {s}: {c}')
+"

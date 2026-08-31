@@ -1,0 +1,102 @@
+[project]
+name = "akms"
+version = "0.3.0"
+description = "A deterministic global-local knowledge compiler: typed knowledge nodes, graph compilation, projections, and evidence ingestion"
+requires-python = ">=3.12,<3.13"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+readme = "README.md"
+authors = [{ name = "Shmuel Osovski" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+# Minimal core. Graph compilation, schema, projections, evidence, and the CLI
+# work with these four dependencies alone: no provider SDK, no telemetry
+# exporter, no MCP runtime. The core performs no network calls.
+dependencies = [
+    "networkx>=3.0,<4",
+    "pyyaml>=6.0.3,<7",
+    "pydantic>=2.7,<3.0",
+    # Capped below 1.2: python-frontmatter 1.2.0 changed `dump` to write str
+    # rather than bytes, and every `fm.dump(post, f)` call site here opens its
+    # handle in binary mode, so 1.2.0 and 1.3.0 raise TypeError. Widen this
+    # bound only by porting the call sites.
+    "python-frontmatter>=1.1.0,<1.2",
+]
+
+# Optional extras. One consistent policy: each extra names the dependency set
+# for one consumption mode, and `orchestration` is the union that makes the
+# embedded first-party runtime work.
+#
+#   akms                  core graph/projection/evidence/CLI only
+#   akms[agents]          coding-agent backends
+#   akms[mcp]             MCP tool server
+#   akms[telemetry]       OpenTelemetry export
+#   akms[orchestration]   the complete embedded runtime
+[project.optional-dependencies]
+agents = [
+    "claude-agent-sdk>=0.1.45,<1",
+    "openai-agents>=0.10.5,<1",
+]
+mcp = [
+    # Upper-bounded deliberately: mcp 2.x renamed FastMCP to MCPServer and
+    # removed `mcp.server.fastmcp`, which akms.orchestrator.mcp_tools imports.
+    # Without the bound a plain `pip install akms[mcp]` resolves 2.x and the
+    # MCP surface fails to import, while CI stays green because `uv sync
+    # --locked` pins a 1.x resolution.
+    "mcp>=1.0,<2",
+]
+telemetry = [
+    "opentelemetry-api>=1.40.0,<2.0",
+    "opentelemetry-sdk>=1.40.0,<2.0",
+    "opentelemetry-exporter-otlp>=1.40.0,<2.0",
+]
+orchestration = [
+    "akms[agents,mcp,telemetry]",
+    "litellm>=1.82.1,<1.82.6",
+]
+
+[project.scripts]
+akms = "akms.cli.commands:main"
+
+# The MCP server is only importable with the `mcp` extra installed; the console
+# script is declared unconditionally so `akms-mcp-stdio` exists as a name and
+# can report a clear missing-extra error rather than not existing at all.
+[project.entry-points."akms.optional_scripts"]
+akms-mcp-stdio = "akms.orchestrator.mcp_stdio:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Ship the bundled resources inside the wheel. `_bundled/` holds the seed
+# corpus, qmd runtime wrappers, and agent skills; without this they are absent
+# from a built wheel and the qmd-backed search tools are inert in a
+# wheel-only install.
+[tool.setuptools.package-data]
+akms = [
+    "_bundled/**/*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+# qmd is an external Go binary (tobi/qmd), not pip-installable, pinned for
+# determinism. The runtime wrappers detect it via `command -v qmd` and fall
+# back to grep when it is absent. Install with:
+#
+#     brew install tobi/tobi/qmd
+#     go install github.com/tobi/qmd/cmd/qmd@v1.6.0
+#
+# Bumping the pin requires a changelog entry and re-baselining any loadouts
+# whose shape changed.
+[tool.akms.external-binaries]
+qmd = "1.6.0"

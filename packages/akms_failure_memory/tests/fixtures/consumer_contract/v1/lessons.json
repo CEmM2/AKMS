@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "_field_spec": {
+    "id": "Stable append-only lesson identifier.",
+    "location": "Repository location for the failure.",
+    "found_by": "Discovery mechanism and trigger.",
+    "related": "Related lesson identifiers."
+  },
+  "lessons": [
+    {
+      "id": "L001",
+      "date_found": "2026-08-01",
+      "date_found_precision": "exact",
+      "date_fixed": "2026-08-02",
+      "date_fixed_precision": "exact",
+      "location": {
+        "area": "src",
+        "package": "engine",
+        "module": "engine.interface",
+        "file": "src/engine/interface.py",
+        "symbol": "Interface.commit_state",
+        "line_hint": "exact route conformance"
+      },
+      "found_by": {
+        "type": "test failure",
+        "trigger": "tests/engine/test_interface_commit.py::test_commit_is_idempotent"
+      },
+      "symptom": "Repeated commits advanced state that should have been idempotent.",
+      "root_cause": "Trial state was written directly into the committed record.",
+      "fix": "Separate trial state from committed state and promote only accepted transitions.",
+      "prevention": "tests/engine/test_interface_commit.py asserts that repeated commits do not advance state.",
+      "references": {
+        "commit": "",
+        "issue": "",
+        "pr": "",
+        "plan": "dev/plans/consumer-integration.md"
+      },
+      "related": [],
+      "notes": "Conformance anchor for the exact-required behaviour; prose is normative and must not be summarized."
+    },
+    {
+      "id": "L002",
+      "date_found": "2026-08-02",
+      "date_found_precision": "exact",
+      "date_fixed": "2026-08-03",
+      "date_fixed_precision": "exact",
+      "location": {
+        "area": "src",
+        "package": "engine",
+        "module": "engine.scheduler",
+        "file": "src/engine/scheduler.py",
+        "symbol": "Scheduler.enqueue",
+        "line_hint": "coactivation source"
+      },
+      "found_by": {
+        "type": "review",
+        "trigger": "tests/engine/test_scheduler_order.py::test_stable_order"
+      },
+      "symptom": "Enqueue order varied between runs on the same input.",
+      "root_cause": "The scheduler iterated an unordered mapping.",
+      "fix": "Sort the pending set on a total key before enqueueing.",
+      "prevention": "tests/engine/test_scheduler_order.py asserts a deterministic enqueue order.",
+      "references": {
+        "commit": "",
+        "issue": "",
+        "pr": "",
+        "plan": "dev/plans/consumer-integration.md"
+      },
+      "related": [
+        "L003"
+      ],
+      "notes": "Conformance anchor for load_with coactivation; related must stay ['L003']."
+    },
+    {
+      "id": "L003",
+      "date_found": "2026-08-03",
+      "date_found_precision": "exact",
+      "date_fixed": "2026-08-04",
+      "date_fixed_precision": "exact",
+      "location": {
+        "area": "src",
+        "package": "engine",
+        "module": "engine.queue",
+        "file": "src/engine/queue.py",
+        "symbol": "Queue.drain",
+        "line_hint": "coactivation target"
+      },
+      "found_by": {
+        "type": "test failure",
+        "trigger": "tests/engine/test_queue_drain.py::test_drain_is_total"
+      },
+      "symptom": "Draining the queue left items behind when a consumer raised.",
+      "root_cause": "The drain loop mutated the queue while iterating it.",
+      "fix": "Drain from a snapshot and re-queue only unconsumed items.",
+      "prevention": "tests/engine/test_queue_drain.py asserts that drain consumes every queued item.",
+      "references": {
+        "commit": "",
+        "issue": "",
+        "pr": "",
+        "plan": "dev/plans/consumer-integration.md"
+      },
+      "related": [],
+      "notes": "Reached only through L002.related; never routed directly by the conformance requests."
+    },
+    {
+      "id": "L004",
+      "date_found": "2026-08-04",
+      "date_found_precision": "exact",
+      "date_fixed": "2026-08-05",
+      "date_fixed_precision": "exact",
+      "location": {
+        "area": "tools",
+        "package": "report",
+        "module": "tools.report.render",
+        "file": "tools/report/render.py",
+        "symbol": "render_summary",
+        "line_hint": "advisory only lesson"
+      },
+      "found_by": {
+        "type": "manual audit",
+        "trigger": "tools/report/test_render.py::test_summary_escapes"
+      },
+      "symptom": "Untrusted lesson prose reached the rendered summary unescaped.",
+      "root_cause": "The renderer interpolated raw text into markup.",
+      "fix": "Escape every interpolated field at the render boundary.",
+      "prevention": "tools/report/test_render.py asserts that summary rendering escapes untrusted text.",
+      "references": {
+        "commit": "",
+        "issue": "",
+        "pr": "",
+        "plan": "dev/plans/consumer-integration.md"
+      },
+      "related": [],
+      "notes": "Conformance anchor for advisory selection; reachable only by the akms_tags advisory path."
+    },
+    {
+      "id": "L005",
+      "date_found": "2026-08-05",
+      "date_found_precision": "exact",
+      "date_fixed": "2026-08-06",
+      "date_fixed_precision": "exact",
+      "location": {
+        "area": "src",
+        "package": "storage",
+        "module": "storage.writer",
+        "file": "src/storage/writer.py",
+        "symbol": "Writer.flush",
+        "line_hint": "diff only discovery"
+      },
+      "found_by": {
+        "type": "test failure",
+        "trigger": "tests/storage/test_writer_flush.py::test_flush_is_atomic"
+      },
+      "symptom": "A failed flush left a truncated file on disk.",
+      "root_cause": "The writer opened the destination for truncation before the payload was complete.",
+      "fix": "Write a sibling temporary file and atomically replace the destination.",
+      "prevention": "tests/storage/test_writer_flush.py asserts that a failed flush leaves the prior file intact.",
+      "references": {
+        "commit": "",
+        "issue": "",
+        "pr": "",
+        "plan": "dev/plans/consumer-integration.md"
+      },
+      "related": [],
+      "notes": "Conformance anchor for post-diff-only discovery; never declared in pre-task scope."
+    },
+    {
+      "id": "L006",
+      "date_found": "2026-08-06",
+      "date_found_precision": "exact",
+      "date_fixed": "2026-08-07",
+      "date_fixed_precision": "exact",
+      "location": {
+        "area": "docs",
+        "package": "docs",
+        "module": "docs.architecture",
+        "file": "docs/architecture.md",
+        "symbol": "",
+        "line_hint": "documentation only route"
+      },
+      "found_by": {
+        "type": "review",
+        "trigger": "docs/architecture.md"
+      },
+      "symptom": "The published architecture note kept describing a contract the engine no longer honoured.",
+      "root_cause": "The document was not part of any review checklist tied to the contract it described.",
+      "fix": "Bind the document to the contract's own review step so the two move together.",
+      "prevention": "docs/architecture.md is re-reviewed whenever the engine contract changes.",
+      "references": {
+        "commit": "",
+        "issue": "",
+        "pr": "",
+        "plan": "dev/plans/consumer-integration.md"
+      },
+      "related": [],
+      "notes": "Conformance anchor for documentation-only route suppression. location.file is a docs path, so AKMS drops it from the exact-required lane whenever EVERY declared/changed path in a task is documentation. Do not change this file path."
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "base": null,
+  "baseline": "baseline-001",
+  "changed_paths": [],
+  "declared_paths": [
+    "src/engine/interface.py"
+  ],
+  "head": null,
+  "invocation_id": "exact-path",
+  "mode": "pre-task",
+  "output_dir": "runtime/provider",
+  "refresh_policy": "never",
+  "repository_id": "ConsumerContract",
+  "role": "implementer",
+  "schema_version": "failure-memory-provider-request/v1",
+  "task": {
+    "akms_tags": [
+      "cc-conformance-no-advisory"
+    ],
+    "deliverables": [],
+    "objective": "Assert that a declared path matching a compiled route yields exactly one required record.",
+    "scope": [],
+    "task_id": "exact-path",
+    "title": "Conformance case: one declared path with one exact lesson"
+  }
+}

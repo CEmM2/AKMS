@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AKMS Batch Picker</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <strong>AKMS Batch Picker</strong>
+      <span id="config-summary" class="muted"></span>
+    </div>
+    <div class="header-actions">
+      <button id="btn-reload" title="Reload plan + Zotero data">↻ Reload data</button>
+    </div>
+  </header>
+
+  <main>
+    <aside id="batches-pane">
+      <div class="pane-header">
+        <h2>Batches</h2>
+        <input id="batch-filter" type="search" placeholder="filter…" />
+      </div>
+      <div id="batches-list"></div>
+    </aside>
+
+    <section id="batch-detail">
+      <div id="batch-empty" class="empty-state">Pick a batch on the left.</div>
+
+      <div id="batch-view" hidden>
+        <div class="batch-header">
+          <div>
+            <h2 id="bh-title"></h2>
+            <p id="bh-meta" class="muted"></p>
+          </div>
+          <div class="batch-header-right">
+            <div class="compare-row">
+              <label class="muted small">Compare with:</label>
+              <select id="compare-select"><option value="">— pick —</option></select>
+              <button id="btn-clear-compare" hidden>×</button>
+            </div>
+            <div class="batch-actions">
+              <button id="btn-export-plan" disabled>Write plan JSON</button>
+              <button id="btn-stage-pdfs" disabled>Stage PDFs</button>
+              <button id="btn-create-notebook" disabled>Create NLM notebook…</button>
+            </div>
+          </div>
+        </div>
+
+        <details id="batch-info">
+          <summary>Batch info & nodes</summary>
+          <div class="grid-2">
+            <div>
+              <p><strong>Plan sources hint:</strong> <span id="bh-sources"></span></p>
+              <p><strong>ZotSums hint:</strong> <span id="bh-zotsums"></span></p>
+              <p><strong>Missing sources:</strong> <span id="bh-missing"></span></p>
+            </div>
+            <div>
+              <p><strong>Notebook ID:</strong> <code id="bh-notebook"></code></p>
+              <p><strong>Synced:</strong> <span id="bh-synced"></span></p>
+              <p><strong>Uploaded:</strong> <span id="bh-uploaded"></span></p>
+            </div>
+          </div>
+          <table id="nodes-table">
+            <thead><tr><th>#</th><th>Node ID</th><th>Title</th><th>Size</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </details>
+
+        <h3>Assigned papers (<span id="assigned-count">0</span>)</h3>
+        <div id="assigned-list" class="paper-pills"></div>
+
+        <div id="compare-panel" hidden>
+          <div class="compare-header">
+            <h3>
+              Compare: <span id="cmp-a-id"></span> ↔ <span id="cmp-b-id"></span>
+              <span class="muted small" id="cmp-stats"></span>
+            </h3>
+          </div>
+          <div class="compare-grid">
+            <div class="compare-col">
+              <h4>Only in <span class="cmp-a"></span> (<span id="cmp-only-a-count">0</span>)</h4>
+              <div class="compare-actions">
+                <label class="checkbox-inline"><input type="checkbox" data-cmp-select-all="only_a" /> all</label>
+                <button data-cmp-action="move-a-to-b" title="Move checked papers from current batch to compared batch">Move → B</button>
+                <button data-cmp-action="remove-a" class="danger" title="Remove checked papers from current batch">Remove</button>
+              </div>
+              <div id="cmp-only-a-list" class="compare-list"></div>
+            </div>
+            <div class="compare-col">
+              <h4>In both (<span id="cmp-both-count">0</span>)</h4>
+              <div id="cmp-both-list" class="compare-list muted-list"></div>
+            </div>
+            <div class="compare-col">
+              <h4>Only in <span class="cmp-b"></span> (<span id="cmp-only-b-count">0</span>)</h4>
+              <div class="compare-actions">
+                <label class="checkbox-inline"><input type="checkbox" data-cmp-select-all="only_b" /> all</label>
+                <button data-cmp-action="copy-b-to-a">← Copy</button>
+                <button data-cmp-action="move-b-to-a">← Move</button>
+              </div>
+              <div id="cmp-only-b-list" class="compare-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="picker-toolbar">
+          <input id="paper-search" type="search" placeholder="search title / citekey / keyword…" />
+          <select id="collection-filter" multiple title="Collections (cmd-click to multi-select)"></select>
+          <input id="year-from" type="number" min="1900" max="2100" placeholder="year ≥" />
+          <input id="year-to" type="number" min="1900" max="2100" placeholder="year ≤" />
+          <select id="type-filter">
+            <option value="">any item type</option>
+          </select>
+          <label class="checkbox-inline"><input type="checkbox" id="only-pdf" checked /> only with PDF</label>
+          <label class="checkbox-inline"><input type="checkbox" id="suggest-toggle" /> suggest for this batch</label>
+          <button id="btn-search">Search</button>
+        </div>
+
+        <div class="picker-toolbar saved-row">
+          <label class="muted small">Saved query:</label>
+          <select id="saved-select"><option value="">— none —</option></select>
+          <button id="btn-apply-saved" disabled>Apply</button>
+          <button id="btn-save-query">Save current as…</button>
+          <button id="btn-delete-saved" disabled class="danger">Delete</button>
+          <span class="spacer"></span>
+          <span id="search-stats" class="muted small"></span>
+          <select id="bulk-mode" title="Bulk-add mode for current filter">
+            <option value="add">Add all matching</option>
+            <option value="replace">Replace batch with matching</option>
+          </select>
+          <button id="btn-bulk-add" disabled>→ Apply to batch</button>
+        </div>
+
+        <table id="papers-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Citekey</th>
+              <th>Title</th>
+              <th>Year</th>
+              <th>Authors</th>
+              <th>Collections</th>
+              <th>Keywords</th>
+              <th>PDF</th>
+              <th>Used in</th>
+              <th>Score</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <dialog id="paper-modal">
+    <header>
+      <h3 id="modal-title"></h3>
+      <button data-close>×</button>
+    </header>
+    <div id="modal-body"></div>
+  </dialog>
+
+  <dialog id="confirm-modal">
+    <header><h3 id="confirm-title">Confirm</h3></header>
+    <div id="confirm-body"></div>
+    <footer>
+      <button data-confirm-yes>Yes</button>
+      <button data-confirm-no>Cancel</button>
+    </footer>
+  </dialog>
+
+  <dialog id="prompt-modal">
+    <header>
+      <h3 id="prompt-title">Name</h3>
+      <button data-close>×</button>
+    </header>
+    <div>
+      <p id="prompt-body" class="muted small"></p>
+      <input id="prompt-input" type="text" />
+    </div>
+    <footer>
+      <button data-prompt-ok>OK</button>
+      <button data-prompt-cancel>Cancel</button>
+    </footer>
+  </dialog>
+
+  <dialog id="copy-target-modal">
+    <header>
+      <h3>Copy / move to batch</h3>
+      <button data-close>×</button>
+    </header>
+    <div id="copy-target-body">
+      <p class="muted small">Click a batch to <strong>copy</strong>, shift-click to <strong>move</strong>.</p>
+      <input id="copy-target-filter" type="search" placeholder="filter batches…" />
+      <div id="copy-target-list" class="copy-target-list"></div>
+    </div>
+  </dialog>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

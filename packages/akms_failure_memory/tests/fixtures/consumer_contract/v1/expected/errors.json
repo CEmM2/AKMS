@@ -1,0 +1,121 @@
+{
+  "behaviour": "stale_fingerprint + missing_required_node + readonly_mutation_rejection + absent_package_degradation",
+  "cases": [
+    {
+      "asserts": [
+        "the recorded result was produced for baseline-001; the new request declares baseline-002",
+        "validate_fingerprint reports status 'stale' and stale True",
+        "both digests are pinned RAW and reproduce across scratch roots and vault mounts",
+        "validate_fingerprint never writes provider artifacts",
+        "re-validating with the ORIGINAL request reports status 'current'"
+      ],
+      "case_id": "stale_fingerprint",
+      "expect": {
+        "canonical_generated_at": "2026-08-17T00:00:00+00:00",
+        "current": {
+          "current_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+          "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+          "stale": false,
+          "status": "current"
+        },
+        "kind": "fingerprint_validation",
+        "stale": {
+          "current_fingerprint": "a5a8e4a33ee35d3b5708bcecd512023c9c94028fd235f0f6e735c8876fd9f38e",
+          "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+          "stale": true,
+          "status": "stale"
+        }
+      },
+      "procedure": "Stage the pack canonically (see expected/required.json -> cases[].procedure). Resolve requests/exact-path.json with write_artifacts=True and keep the emitted runtime/provider/exact-path/result.json. Then call akms_failure_memory.provider.validate_fingerprint(config_path=..., repository_root=..., request_source=requests/stale-baseline.json, result_path=<that result.json>).",
+      "request": "requests/stale-baseline.json"
+    },
+    {
+      "asserts": [
+        "resolve_provider raises FailureMemoryError, it does not return a partial result",
+        "the failure is detected at route-index validation, BEFORE any advisory querying",
+        "the error names every route that points at the missing node",
+        "a consumer must fail the invocation closed; it must not silently drop the required lesson"
+      ],
+      "case_id": "missing_required_node",
+      "expect": {
+        "error": {
+          "code": "resolve_error",
+          "message_contains": "Route references nonexistent graph node 'cc-failure-l001'",
+          "type": "akms_failure_memory.errors.FailureMemoryError"
+        },
+        "kind": "error"
+      },
+      "procedure": "Stage the pack, delete generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l001.md, publish the graph canonically, then resolve requests/exact-path.json.",
+      "request": "requests/exact-path.json"
+    },
+    {
+      "asserts": [
+        "(a) add_lesson raises FailureMemoryError code 'record_request' and lessons.json is byte-identical afterwards",
+        "(a) ids are allocated by the package under the project lock; a consumer may never choose one",
+        "(b) run_compiler(mode='check') reports status 'drift' and counts.changed == 1",
+        "(b) check mode does NOT repair the tampered file -- a read-only consumer observes drift without mutating"
+      ],
+      "case_id": "readonly_mutation_rejection",
+      "expect": {
+        "check_mode_is_read_only": {
+          "counts": {
+            "added": 0,
+            "changed": 1,
+            "lessons": 6,
+            "path_routes": 11,
+            "stale": 0,
+            "warnings": 11
+          },
+          "status": "drift",
+          "tampered_file_unchanged": true
+        },
+        "kind": "error_and_invariant",
+        "self_allocated_id": {
+          "error": {
+            "code": "record_request",
+            "message_contains": "Add request has missing or unexpected fields",
+            "type": "akms_failure_memory.errors.FailureMemoryError"
+          },
+          "registry_unchanged": true
+        }
+      },
+      "procedure": "Two independent probes on a staged copy. (a) Call add_lesson with a request object that carries its own \"id\" field. (b) Append a line to a generated node file and run run_compiler(mode='check').",
+      "request": null
+    },
+    {
+      "asserts": [
+        "the consumer's failure-memory surface degrades to 'unavailable', it does not crash the run",
+        "records is empty and required-lesson enforcement is disabled -- a consumer cannot enforce a requirement it was unable to resolve",
+        "the envelope does NOT claim schema_version failure-memory-provider-result/v1",
+        "the envelope is emitted once per invocation, not per record"
+      ],
+      "case_id": "absent_package_degradation",
+      "expect": {
+        "detection": "importlib.util.find_spec('akms_failure_memory') is None",
+        "envelope": {
+          "degraded": true,
+          "enforcement": "disabled",
+          "reason": {
+            "code": "failure_memory_absent",
+            "message": "akms_failure_memory is not installed; failure-memory context is unavailable."
+          },
+          "records": [],
+          "required_node_ids": [],
+          "schema_version": "failure-memory-consumer-degradation/v1",
+          "status": "unavailable"
+        },
+        "kind": "degradation_envelope"
+      },
+      "procedure": "Probe importlib.util.find_spec('akms_failure_memory') in an interpreter whose sys.path does not contain the package. When it is None the consumer must emit the envelope below and continue; it must not raise, retry, or shell out.",
+      "request": null
+    }
+  ],
+  "error_contract": {
+    "json": "FailureMemoryError.to_json() -> {\"status\": \"error\", \"error\": {\"code\": ..., \"message\": ..., \"details\"?: ...}}",
+    "note": "schemas/provider-result.v1.json pins status to the constant \"ok\". There is NO schema-legal failure-memory-provider-result/v1 document for a failed or degraded resolution. A consumer must therefore never stamp a non-ok outcome with that schema_version.",
+    "python": "akms_failure_memory.errors.FailureMemoryError with .code (str) and .details (dict)"
+  },
+  "pack": "consumer_contract/v1",
+  "schema_version": "failure-memory-consumer-contract-expectation/v2",
+  "summary": "The four fail-closed / degrade-safe behaviours of the seam. Every one of these is a contract on the CONSUMER: the package raises a coded akms_failure_memory.errors.FailureMemoryError (or, for the absent-package case, cannot be imported at all) and the consumer must map that to the frozen shape below rather than inventing its own. The refresh/rebuild axis of staleness lives in expected/staleness.json; this file covers the baseline axis only."
+}

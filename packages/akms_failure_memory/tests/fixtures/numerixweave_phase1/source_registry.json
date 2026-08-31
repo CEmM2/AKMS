@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "_field_spec": {
+    "id": "Stable append-only Lnnn identifier.",
+    "location": "Repository location for the failure.",
+    "found_by": "Discovery mechanism and trigger.",
+    "related": "Related Lnnn identifiers."
+  },
+  "lessons": [
+    {
+      "id": "L900",
+      "date_found": "2026-07-01",
+      "date_found_precision": "exact",
+      "date_fixed": "2026-07-02",
+      "date_fixed_precision": "exact",
+      "location": {
+        "area": "app",
+        "package": "tifem",
+        "module": "tifem.Elements.CohesiveInterface",
+        "file": "apps/tifem/src/tifem/Elements/CohesiveInterface.py",
+        "symbol": "CohesiveInterface.commit_history",
+        "line_hint": "transactional cohesive history"
+      },
+      "found_by": {
+        "type": "test failure",
+        "trigger": "apps/tifem/tests/test_cohesive_history_idempotent.py::test_repeated_residual"
+      },
+      "symptom": "Repeated residual evaluations advanced committed damage.",
+      "root_cause": "Trial state was written directly into committed history.",
+      "fix": "Separate committed and trial history and promote only accepted steps.",
+      "prevention": "apps/tifem/tests/test_cohesive_history_idempotent.py asserts residual idempotency.",
+      "references": {
+        "commit": "24c98a86",
+        "issue": "#445",
+        "pr": "#647",
+        "plan": "dev/plans/history-consolidation.md"
+      },
+      "related": ["L901"],
+      "notes": "Fixture prose must be copied verbatim, not summarized."
+    },
+    {
+      "id": "L901",
+      "date_found": "2026-07-03",
+      "date_found_precision": "approximate",
+      "date_fixed": "2026-07-04",
+      "date_fixed_precision": "exact",
+      "location": {
+        "area": "tool",
+        "package": "tools",
+        "module": "tools.knowledge.refresh",
+        "file": "tools/knowledge/refresh.py",
+        "symbol": "refresh",
+        "line_hint": "atomic write failure"
+      },
+      "found_by": {
+        "type": "review",
+        "trigger": "tools/tests/test_knowledge_refresh.py::test_atomic_failure"
+      },
+      "symptom": "A failed refresh left a partial generated tree.",
+      "root_cause": "Expected artifacts were published before the complete rendered set had been validated.",
+      "fix": "Render and validate the complete expected artifact set before publishing same-directory temporary files with per-file replacement and directory fsync.",
+      "prevention": "tools/tests/test_knowledge_refresh.py::test_prepublication_failure_preserves_prior_artifacts verifies the pre-publication boundary; --check detects a crash-mixed generation.",
+      "references": {
+        "commit": "pending",
+        "issue": "",
+        "pr": "",
+        "plan": "dev/plans/failure-memory-integration.md"
+      },
+      "related": []
+    }
+  ]
+}

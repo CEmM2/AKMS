@@ -1,0 +1,53 @@
+[project]
+name = "akms-nodes-gen"
+version = "0.3.0"
+description = "Node generation and validation tooling for AKMS: NotebookLM batch generation, YAML-to-node conversion, and the batch-picker UI"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Shmuel Osovski" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+requires-python = ">=3.12,<3.13"
+# Core deps are import-clean and browser-free. NotebookLM is reached through the
+# external `nlm` CLI (shelled out at call time), NOT a Python package — so a
+# missing `nlm` is a runtime "generation unavailable" state, never an ImportError.
+# This lets Logic-Loom vendor akms-nodes-gen without a Playwright/browser stack:
+# Picker / Nodes / Graph import and work; only an actual NotebookLM dispatch needs
+# the `nlm` CLI present.
+dependencies = [
+    # Capped below 1.2: python-frontmatter 1.2.0 changed `dump` to write str
+    # rather than bytes, so every `fm.dump(post, f)` call site here — which
+    # opens its handle in binary mode — raises TypeError.  1.2.0 and 1.3.0
+    # both fail 287 tests.  Revisit by porting the dump call sites, not by
+    # widening this bound.
+    "python-frontmatter>=1.1.0,<1.2",
+    "pyyaml>=6.0.3,<7",
+    "fastapi>=0.115,<0.120",
+    "uvicorn[standard]>=0.32,<0.40",
+    "pydantic>=2.7,<3.0",
+]
+
+# The LLM-as-generator path (generate_nodes_pipeline.py) routes through LiteLLM —
+# one client for hosted providers (Anthropic, Gemini, …) and any OpenAI-compatible
+# / local endpoint. Optional: nlm_batch.py (the canonical CLI path where NotebookLM
+# itself is the generator) needs none of this. Pin matches the core akms package.
+[project.optional-dependencies]
+llm = ["litellm>=1.82.1,<1.82.6"]
+
+[project.scripts]
+akms-pick = "akms_nodes_gen.batch_picker.__main__:main"
+akms-batch-picker = "akms_nodes_gen.batch_picker.__main__:main"
+
+# The documentation toolchain lives in the workspace-root pyproject's
+# [dependency-groups] docs (one unified MkDocs site for all packages).
+
+[build-system]
+requires = ["uv_build>=0.9.24,<0.10.0"]
+build-backend = "uv_build"

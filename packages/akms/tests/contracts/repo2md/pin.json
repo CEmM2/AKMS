@@ -1,0 +1,8 @@
+{
+  "export_schema_version": 1,
+  "akms_schema_version": "v2",
+  "fixture_pack_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b",
+  "source": "repo2md 0.2.0 integration pin",
+  "validated_tip": "478be35c76325ab1ccea48b69a5ea25b095952a6",
+  "cli": "repo-wiki export-akms"
+}

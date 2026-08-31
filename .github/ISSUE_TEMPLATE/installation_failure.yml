@@ -1,0 +1,25 @@
+name: Installation failure
+description: pip/uv install or first import fails
+labels: [installation]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: Install command
+      placeholder: pip install "akms[orchestration]"
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Full output
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python version, pip/uv version, virtualenv or system Python
+    validations:
+      required: true

@@ -1,0 +1,81 @@
+# Consumer conformance pack v1 — canonical project configuration.
+#
+# Generated with `failure-memory init --repository-id ConsumerContract
+# --node-namespace cc-failure` (AMENDMENT 1 of the Slice 1 adoption contract) and
+# then edited ONLY in [paths] and [generated]. Every other table is byte-identical
+# to the package's own `render_project_config` output, so this file is a
+# schema-valid `failure-memory-project/v1` document, not a transcription of the
+# plan's illustrative sketch.
+#
+# Why [paths] deviates from the init defaults: `akms.graph.build_graph` hardcodes
+# `<akms_repo_root>/knowledge/local-nodes/` as the ONLY local-node source. The init
+# defaults put `local_nodes` outside `akms_repo_root`, so generated failure nodes
+# never enter the graph and every compiled route then references a nonexistent
+# graph node. Here `akms_repo_root = "generated/nodes"` and
+# `local_nodes = "generated/nodes/knowledge/local-nodes"`, so the compiler's output
+# IS the graph's input. See fixture-manifest.json -> findings.
+schema_version = "failure-memory-project/v1"
+repository_id = "ConsumerContract"
+node_namespace = "cc-failure"
+domain = "consumercontract"
+subdomain = "failure-memory"
+
+[paths]
+registry = "lessons.json"
+generated_nodes = "generated/nodes/knowledge/local-nodes/failure-lessons"
+local_nodes = "generated/nodes/knowledge/local-nodes"
+routes = "generated/routes.json"
+akms_repo_root = "generated/nodes"
+graph = "runtime/graph.json"
+provider_outputs = "runtime/provider"
+lock = "runtime/.lock"
+
+[generated]
+lessons = "committed"
+routes = "committed"
+mirror = "disposable"
+graph = "disposable"
+loadouts = "disposable"
+
+[validation]
+registry_schema_version = 1
+missing_path_policy = "warn"
+id_pattern = "^L[0-9]{3}$"
+allowed_roots = ["src", "tests", "docs", "tools", ".github"]
+root_files = ["README.md", "pyproject.toml"]
+location_file_separator = " and "
+
+[taxonomy]
+area_prefix = "area"
+package_prefix = "package"
+module_prefix = "module"
+symbol_prefix = "symbol"
+found_by_prefix = "found-by"
+line_hint_prefix = "line-hint"
+max_tokens = 8
+max_tag_length = 80
+
+[compatibility]
+compiler_version = "failure-memory-compiler/v1"
+route_contract_version = "failure-route-index/v1"
+route_adapter_version = "failure-memory-to-akms-task-route/v1"
+generated_warning = "<!-- GENERATED: edit lessons.json -->"
+source_hash_prefix = "<!-- source_sha256: "
+source_hash_suffix = " -->"
+
+[toolchain]
+akms_version = "0.6.1"
+akms_schema_version = "v2"
+akms_public_api_sha256 = "3a79a11312376a5f203013c87d37b2a695fab895ffa6d47decd2c0ad95f7b828"
+repo2md_command = ["repo-wiki"]
+repo2md_version = "0.2.0"
+repo2md_export_schema_version = 1
+repo2md_fixture_sha256 = "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b"
+repo2md_commit = "478be35c76325ab1ccea48b69a5ea25b095952a6"
+repo2md_dirty_policy = "require-clean"
+mirror_selection = "full"
+timeout_seconds = 120
+
+[promotion]
+mode = "manual-human-approved"
+owner = "AKMS failure-memory maintainers"

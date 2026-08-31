@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akms.local/schemas/failure-memory-provider-result.v1.json",
+  "title": "Failure Memory Provider Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "provider_version", "invocation_id", "repository_id", "baseline", "mode", "role", "fingerprint", "resolution_fingerprint", "input_fingerprints", "records", "diagnostics", "resolution", "artifacts"],
+  "properties": {
+    "schema_version": {"const": "failure-memory-provider-result/v1"},
+    "status": {"const": "ok"},
+    "provider_version": {"const": "failure-memory-provider/v1"},
+    "invocation_id": {"type": "string"},
+    "repository_id": {"type": "string"},
+    "baseline": {"type": "string"},
+    "mode": {"enum": ["pre-task", "post-diff"]},
+    "role": {"type": "string"},
+    "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "resolution_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "input_fingerprints": {"type": "object"},
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["node_id", "selection_class", "reasons", "source_ref", "content_ref"],
+        "properties": {
+          "node_id": {"type": "string"},
+          "selection_class": {"enum": ["required", "coactivated", "advisory"]},
+          "reasons": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "source_ref": {"type": ["string", "null"]},
+          "content_ref": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "diagnostics": {"type": "object"},
+    "resolution": {"type": "object"},
+    "artifacts": {"type": "object"}
+  }
+}

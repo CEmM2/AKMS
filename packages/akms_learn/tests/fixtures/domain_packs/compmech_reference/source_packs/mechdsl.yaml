@@ -1,0 +1,26 @@
+source_pack_schema: akms-learn-source-pack/v1
+source_pack_id: compmech.mechdsl
+name: MechDSL Executable Bridge
+version: "0.1.0"
+companion_role: executable_bridge
+capability_status: unavailable
+repo:
+  kind: github
+  name: CEmM2/MechDSL
+  ref: main
+roots:
+  docs: docs/specification/AKMS_v2_specification.md
+  code: packages/mechdsl-core/src/mechdsl
+  examples: dev/examples
+  tests: packages/mechdsl-core/tests
+capabilities:
+  static_code_mirror: true
+  static_lessons: true
+  notebook_cells: false
+  executable_runner: false
+runtime:
+  required_python: ">=3.12,<3.13"
+  dependencies: []
+adapter:
+  adapter_id: compmech.mechdsl_runner
+  status: planned

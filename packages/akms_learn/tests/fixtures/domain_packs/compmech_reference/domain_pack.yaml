@@ -1,0 +1,42 @@
+domain_pack_schema: akms-learn-domain-pack/v1
+domain_id: compmech
+pack_id: compmech.reference
+name: Computational Mechanics Reference Pack
+version: "0.1.0"
+status: reference
+summary: First shipped reference domain pack for AKMS Learn; no real integrations.
+compatibility:
+  akms_learn_schema_min: learn/v0.1
+  akms_learn_schema_max: learn/v0.1
+roots:
+  nodes: nodes/compmech
+  code_mirror: code-mirror/compmech
+  examples: learning_examples/compmech
+  bundles: lesson_bundles/compmech
+capabilities:
+  static_markdown: true
+  static_notebook: true
+  executable_notebook: false
+  external_runner: false
+  code_mirror: true
+companion_roles:
+  - id: constkit
+    package_name: compmech.constkit
+    runtime_hint: optional
+    capability_status: planned
+  - id: symbolic_fem_workbench
+    package_name: compmech.symbolic_fem_workbench
+    runtime_hint: optional
+    capability_status: planned
+  - id: mechdsl
+    package_name: compmech.mechdsl
+    runtime_hint: required
+    capability_status: unavailable
+source_packs:
+  - source_packs/constkit.yaml
+  - source_packs/symbolic_fem_workbench.yaml
+  - source_packs/mechdsl.yaml
+provenance:
+  source_repos: []
+  generated_vault_ref: null
+  zotero_collection_refs: []

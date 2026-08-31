@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akms.local/schemas/failure-memory-project-v1.json",
+  "title": "Failure-memory project configuration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository_id",
+    "node_namespace",
+    "domain",
+    "subdomain",
+    "paths",
+    "generated",
+    "validation",
+    "taxonomy",
+    "compatibility",
+    "toolchain",
+    "promotion"
+  ],
+  "properties": {
+    "schema_version": {"const": "failure-memory-project/v1"},
+    "repository_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"},
+    "node_namespace": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "domain": {"type": "string", "minLength": 1},
+    "subdomain": {"type": "string", "minLength": 1},
+    "paths": {"$ref": "#/$defs/paths"},
+    "generated": {"$ref": "#/$defs/generated"},
+    "validation": {"$ref": "#/$defs/validation"},
+    "taxonomy": {"$ref": "#/$defs/taxonomy"},
+    "compatibility": {"$ref": "#/$defs/compatibility"},
+    "toolchain": {"$ref": "#/$defs/toolchain"},
+    "promotion": {"$ref": "#/$defs/promotion"}
+  },
+  "$defs": {
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$"
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registry", "generated_nodes", "local_nodes", "routes", "akms_repo_root", "graph", "provider_outputs", "lock"],
+      "properties": {
+        "registry": {"$ref": "#/$defs/relative_path"},
+        "generated_nodes": {"$ref": "#/$defs/relative_path"},
+        "local_nodes": {"$ref": "#/$defs/relative_path"},
+        "routes": {"$ref": "#/$defs/relative_path"},
+        "akms_repo_root": {"$ref": "#/$defs/relative_path"},
+        "graph": {"$ref": "#/$defs/relative_path"},
+        "provider_outputs": {"$ref": "#/$defs/relative_path"},
+        "lock": {"$ref": "#/$defs/relative_path"}
+      }
+    },
+    "artifact_policy": {"enum": ["committed", "disposable"]},
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lessons", "routes", "mirror", "graph", "loadouts"],
+      "properties": {
+        "lessons": {"$ref": "#/$defs/artifact_policy"},
+        "routes": {"$ref": "#/$defs/artifact_policy"},
+        "mirror": {"$ref": "#/$defs/artifact_policy"},
+        "graph": {"$ref": "#/$defs/artifact_policy"},
+        "loadouts": {"$ref": "#/$defs/artifact_policy"}
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registry_schema_version", "missing_path_policy", "id_pattern", "allowed_roots", "root_files", "location_file_separator"],
+      "properties": {
+        "registry_schema_version": {"type": "integer", "const": 1},
+        "missing_path_policy": {"enum": ["warn", "error"]},
+        "id_pattern": {"type": "string", "minLength": 1},
+        "allowed_roots": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "root_files": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "location_file_separator": {"type": "string", "minLength": 1}
+      }
+    },
+    "taxonomy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["area_prefix", "package_prefix", "module_prefix", "symbol_prefix", "found_by_prefix", "line_hint_prefix", "max_tokens", "max_tag_length"],
+      "properties": {
+        "area_prefix": {"type": "string", "minLength": 1},
+        "package_prefix": {"type": "string", "minLength": 1},
+        "module_prefix": {"type": "string", "minLength": 1},
+        "symbol_prefix": {"type": "string", "minLength": 1},
+        "found_by_prefix": {"type": "string", "minLength": 1},
+        "line_hint_prefix": {"type": "string", "minLength": 1},
+        "max_tokens": {"type": "integer", "minimum": 1},
+        "max_tag_length": {"type": "integer", "minimum": 16}
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["compiler_version", "route_contract_version", "route_adapter_version", "generated_warning", "source_hash_prefix", "source_hash_suffix"],
+      "properties": {
+        "compiler_version": {"type": "string", "minLength": 1},
+        "route_contract_version": {"const": "failure-route-index/v1"},
+        "route_adapter_version": {"type": "string", "minLength": 1},
+        "generated_warning": {"type": "string", "minLength": 1},
+        "source_hash_prefix": {"type": "string"},
+        "source_hash_suffix": {"type": "string"}
+      }
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["akms_version", "akms_schema_version", "akms_public_api_sha256", "repo2md_command", "repo2md_version", "repo2md_export_schema_version", "repo2md_fixture_sha256", "repo2md_commit", "repo2md_dirty_policy", "mirror_selection", "timeout_seconds"],
+      "properties": {
+        "akms_version": {"type": "string", "minLength": 1},
+        "akms_schema_version": {"const": "v2"},
+        "akms_public_api_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "repo2md_command": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "repo2md_version": {"type": "string", "minLength": 1},
+        "repo2md_export_schema_version": {"type": "integer", "minimum": 1},
+        "repo2md_fixture_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "repo2md_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "repo2md_root": {"$ref": "#/$defs/relative_path"},
+        "repo2md_dirty_policy": {"enum": ["require-clean", "allow-dirty"]},
+        "mirror_selection": {"enum": ["full", "changed", "paths"]},
+        "timeout_seconds": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "owner"],
+      "properties": {
+        "mode": {"const": "manual-human-approved"},
+        "owner": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

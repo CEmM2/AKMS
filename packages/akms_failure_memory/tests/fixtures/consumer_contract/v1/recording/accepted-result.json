@@ -1,0 +1,76 @@
+{
+  "behaviour": "record_recompile_roundtrip",
+  "expect": {
+    "postconditions": [
+      "the allocated id is L007 -- max(existing)+1, zero-padded to the id_pattern width",
+      "generated/routes.json gains by_path entries for src/engine/recorder.py and tests/engine/test_recorder_append.py",
+      "cc-failure-l007.md carries load_with == ['cc-failure-l001'] from related == ['L001']",
+      "EVERY pre-existing generated node is rewritten, because each node embeds the whole-registry source_sha256 in its body -- one new lesson therefore produces a full-tree diff, not a one-file diff",
+      "run_compiler(mode='check') is 'clean' immediately after add_lesson: the recorder already recompiled"
+    ],
+    "recompile": {
+      "counts": {
+        "added": 0,
+        "changed": 0,
+        "lessons": 7,
+        "path_routes": 13,
+        "stale": 0,
+        "warnings": 13
+      },
+      "status": "clean"
+    },
+    "result": {
+      "affected_outputs": [
+        "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l007.md",
+        "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l001.md",
+        "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l002.md",
+        "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l003.md",
+        "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l004.md",
+        "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l005.md",
+        "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l006.md",
+        "generated/routes.json"
+      ],
+      "promotion": "not-performed",
+      "record": {
+        "date_fixed": "2026-08-07",
+        "date_fixed_precision": "exact",
+        "date_found": "2026-08-06",
+        "date_found_precision": "exact",
+        "fix": "Serialize the whole registry to a sibling temporary file and atomically replace it.",
+        "found_by": {
+          "trigger": "tests/engine/test_recorder_append.py::test_append_is_atomic",
+          "type": "test failure"
+        },
+        "id": "L007",
+        "location": {
+          "area": "src",
+          "file": "src/engine/recorder.py",
+          "line_hint": "record and recompile round trip",
+          "module": "engine.recorder",
+          "package": "engine",
+          "symbol": "Recorder.append"
+        },
+        "notes": "Machine recording proposal for the round-trip conformance case; agents MUST go through `failure-memory add` and MUST NOT allocate the id themselves.",
+        "prevention": "tests/engine/test_recorder_append.py asserts that a failed append leaves the prior registry intact.",
+        "references": {
+          "commit": "",
+          "issue": "",
+          "plan": "dev/plans/consumer-integration.md",
+          "pr": ""
+        },
+        "related": [
+          "L001"
+        ],
+        "root_cause": "The recorder wrote the registry in place instead of replacing it atomically.",
+        "symptom": "A crash during append left the registry half written."
+      },
+      "schema_version": "failure-memory-registry/v1",
+      "source_sha256": "d458fd05a40e9a799d85e990f902e5c8a7e4b44c502766c55ce2b84ab22d97b6",
+      "status": "created"
+    }
+  },
+  "pack": "consumer_contract/v1",
+  "procedure": "Copy the pack to a scratch root R, create an empty global vault V, then call add_lesson(config_path=R/'project.toml', repository_root=R, global_vault=V, request_path=R/'recording/proposal.json'). Compare the return value to expect.result. Then run run_compiler(mode='check') and compare to expect.recompile.",
+  "schema_version": "failure-memory-consumer-contract-recording/v1",
+  "summary": "The ONLY sanctioned machine recording path is akms_failure_memory.record.add_lesson (CLI: `failure-memory add --json`). It allocates the id under the project lock, validates the candidate registry before publishing it, writes atomically, recompiles, and rolls the registry back if the recompile fails. No consumer may open, append to and re-save lessons.json itself."
+}

@@ -1,0 +1,175 @@
+# Topic: {{ topic }}
+{% if granularity_label %}
+**Granularity:** `{{ granularity_label }}`
+{% endif %}
+**Mode:** `{{ mode_key }}`
+
+## Learning goal
+{% if learning_goal %}{{ learning_goal }}{% else %}_no content_{% endif %}
+
+{% if mode_key == "pedagogical_template" %}
+## Prerequisite map
+{% if prerequisites %}
+{% for p in prerequisites %}- {{ p }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## Intuition
+{% if intuition %}{{ intuition }}{% else %}_no content_{% endif %}
+
+## Formal statement
+{% if formal_statement %}{{ formal_statement }}{% else %}_no content_{% endif %}
+
+## Derivation / explanation
+{% if derivation %}{{ derivation }}{% else %}_no content_{% endif %}
+
+## Implementation notes
+{% if implementation %}{{ implementation }}{% else %}_no content_{% endif %}
+
+## Worked example
+{% if worked_example %}{{ worked_example }}{% else %}_no content_{% endif %}
+
+## Common pitfalls
+{% if pitfalls %}
+{% for p in pitfalls %}- {{ p | indent(2) }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## Self-check
+{% if self_check %}{{ self_check }}{% else %}_no content_{% endif %}
+
+## Exercises
+{% if exercises %}{{ exercises }}{% else %}_no content_{% endif %}
+
+## References
+{% if references %}
+{% for r in references %}- {{ r }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+{% elif mode_key == "derivation_first" %}
+## Derivation
+{% if derivation %}{{ derivation }}{% else %}_no content_{% endif %}
+
+## Main path
+{% if main_path %}
+{% for item in main_path %}- {{ item }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## Implementation
+{% if implementation %}{{ implementation }}{% else %}_no content_{% endif %}
+
+## Pitfalls
+{% if pitfalls %}
+{% for p in pitfalls %}- {{ p | indent(2) }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## References
+{% if references %}
+{% for r in references %}- {{ r }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+{% elif mode_key == "implementation_first" %}
+## Implementation anchors
+{% if code_links %}
+{% for link in code_links %}### {{ link.label }}
+
+```reference
+source_path: {{ link.source_path }}
+line_range: {{ link.line_range }}
+```
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## Prerequisites
+{% if prerequisites %}
+{% for p in prerequisites %}- {{ p }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## Implementation
+{% if implementation %}{{ implementation }}{% else %}_no content_{% endif %}
+
+## Main path
+{% if main_path %}
+{% for item in main_path %}- {{ item }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## Pitfalls
+{% if pitfalls %}
+{% for p in pitfalls %}- {{ p | indent(2) }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## References
+{% if references %}
+{% for r in references %}- {{ r }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+{% elif mode_key == "multi_granularity" %}
+## Concept map
+{% if concept_map %}
+{% for nid in concept_map %}- `{{ nid }}`
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## Main path
+{% if main_path %}
+{% for item in main_path %}- {{ item }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## Implementation / derivation / explanation
+{% if implementation or derivation %}
+{% if implementation %}{{ implementation }}{% endif %}
+{% if implementation and derivation %}{{ "\n\n" }}{% endif %}
+{% if derivation %}{{ derivation }}{% endif %}
+{% else %}_no content_
+{% endif %}
+
+## Pitfalls
+{% if pitfalls %}
+{% for p in pitfalls %}- {{ p | indent(2) }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## References
+{% if references %}
+{% for r in references %}- {{ r }}
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+{% endif %}
+## Warnings
+{% if warning_codes %}
+{% for code in warning_codes %}- `{{ code }}`
+{% endfor %}
+{% else %}_no content_
+{% endif %}
+
+## Provenance
+- **Graph hash:** `{{ graph_hash }}`
+- **Request hash:** `{{ request_hash }}`
+- **Node ids:** {% for nid in node_ids %}`{{ nid }}`{% if not loop.last %}, {% endif %}{% endfor %}
+
+- **Edge ids:** {% for eid in edge_ids %}`{{ eid }}`{% if not loop.last %}, {% endif %}{% endfor %}

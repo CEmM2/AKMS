@@ -1,0 +1,237 @@
+site_name: AKMS
+site_description: >-
+  Adaptive Knowledge Management System — deterministic graph, task-context,
+  loadout, learning, and project-memory infrastructure for coding and research agents.
+# site_url / repo_url are finalized at publication time.
+site_url: ""
+# edit_uri is restored with repo_url at publication time.
+
+docs_dir: docs
+site_dir: site
+use_directory_urls: false
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      use_pygments: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.smartsymbols
+  - pymdownx.keys
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.arithmatex:
+      generic: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths:
+            - packages/akms/src
+            - packages/akms_nodes_gen/src
+            - packages/akms_failure_memory/src
+            - packages/akms_learn/src
+          options:
+            docstring_style: google
+            show_source: true
+            show_bases: true
+            show_root_heading: true
+            members_order: source
+            separate_signature: true
+            show_signature_annotations: true
+            merge_init_into_class: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+
+extra_javascript:
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/CEmM2
+
+nav:
+  - Home: index.md
+
+  - Getting Started:
+    - getting-started/index.md
+    - AKMS Core:
+      - Overview: getting-started/akms/overview.md
+      - Installation: getting-started/akms/installation.md
+      - Quick Start: getting-started/akms/quickstart.md
+      - MCP Server: getting-started/akms/mcp.md
+    - Failure Memory: getting-started/failure-memory.md
+    - akms-learn (Preview): getting-started/akms-learn.md
+    - Node Generation:
+      - Install: getting-started/nodes-gen/install.md
+      - Tutorial: getting-started/nodes-gen/tutorial.md
+    - Agent Skills: getting-started/agent-skills.md
+
+  - Concepts:
+    - Core Concepts: concepts/akms-core.md
+    - Choose a Workflow: concepts/workflows.md
+    - akms-learn Concepts: concepts/akms-learn.md
+    - Glossary: concepts/glossary.md
+
+  - Architecture:
+    - System Design: architecture/system-design.md
+    - Data Model: architecture/data-model.md
+    - Module and Package Boundaries: architecture/modules.md
+    - Graph and Task Dataflows: architecture/dataflow.md
+    - Task Context and Routes: architecture/task-context.md
+    - Optional Pipeline Runner: architecture/pipeline.md
+    - Failure Memory: architecture/failure-memory.md
+    - Batch Picker: architecture/batch-picker.md
+
+  - Reference:
+    - AKMS Core:
+      - reference/akms/index.md
+      - User Guide:
+        - Build and Load Graphs: reference/akms/user-guide/building-graphs.md
+        - Query Ranked Knowledge: reference/akms/user-guide/querying-subgraphs.md
+        - Generate Loadouts: reference/akms/user-guide/generating-loadouts.md
+        - Resolve Exact Task Context: reference/akms/user-guide/task-resolution.md
+        - Update Local Knowledge: reference/akms/user-guide/updating-knowledge.md
+        - Code-Mirror Providers: reference/akms/user-guide/mirror_providers.md
+        - CLI Reference: reference/akms/user-guide/cli-commands.md
+        - Optional Pipeline Runner: reference/akms/user-guide/orchestrator.md
+        - Failure-Memory Public API Pin: reference/akms/user-guide/failure_memory_public_api.md
+      - API Reference:
+        - Schema:
+          - Models: reference/akms/api/schema/models.md
+          - Validators: reference/akms/api/schema/validators.md
+          - Errors: reference/akms/api/schema/errors.md
+        - Graph:
+          - build_graph: reference/akms/api/graph/build_graph.md
+          - query_subgraph: reference/akms/api/graph/query_subgraph.md
+          - update_graph: reference/akms/api/graph/update_graph.md
+          - generate_loadout: reference/akms/api/graph/generate_loadout.md
+          - generate_mirror: reference/akms/api/graph/generate_mirror.md
+          - graph_status: reference/akms/api/graph/graph_status.md
+          - tag_derivation: reference/akms/api/graph/tag_derivation.md
+          - re_evaluate: reference/akms/api/graph/re_evaluate.md
+          - qmd_cache: reference/akms/api/graph/qmd_cache.md
+        - Task Context:
+          - Resolve Service: reference/akms/api/task-context/resolve-task-service.md
+          - Models: reference/akms/api/task-context/models.md
+          - Routes: reference/akms/api/task-context/routes.md
+          - Seed Resolution: reference/akms/api/task-context/resolve.md
+          - Query: reference/akms/api/task-context/query.md
+          - Manifest: reference/akms/api/task-context/manifest.md
+          - Review Context: reference/akms/api/task-context/review.md
+        - Optional Runtime:
+          - orchestrator: reference/akms/api/orchestrator/orchestrator.md
+          - stages: reference/akms/api/orchestrator/stages.md
+          - agent_configs: reference/akms/api/orchestrator/agent_configs.md
+          - checkpoint: reference/akms/api/orchestrator/checkpoint.md
+          - mcp_tools: reference/akms/api/orchestrator/mcp_tools.md
+        - CLI:
+          - commands: reference/akms/api/cli/commands.md
+        - Tools:
+          - node_validator: reference/akms/api/tools/node_validator.md
+      - Developer Guide:
+        - Development Setup: reference/akms/dev-guide/setup.md
+        - Running Tests: reference/akms/dev-guide/testing.md
+        - Critical Invariants: reference/akms/dev-guide/invariants.md
+      - Conformance Invariants: reference/akms/conformance-invariants.md
+      - Changelog: reference/akms/changelog.md
+    - Failure Memory:
+      - reference/failure-memory/index.md
+      - CLI Reference: reference/failure-memory/cli-reference.md
+      - API Reference: reference/failure-memory/api-reference.md
+      - Operator Policy: reference/failure-memory/operator-policy.md
+      - Adoption Guide: reference/failure-memory/adoption.md
+      - Internals: reference/failure-memory/internals.md
+    - akms-learn:
+      - reference/akms-learn/index.md
+      - Usage: reference/akms-learn/usage.md
+      - Examples: reference/akms-learn/examples.md
+      - API Reference: reference/akms-learn/api-reference.md
+    - Node Generation:
+      - reference/nodes-gen/index.md
+      - Batch Picker:
+        - reference/nodes-gen/batch-picker/index.md
+        - UI Tour: reference/nodes-gen/batch-picker/ui-tour.md
+        - Configuration: reference/nodes-gen/batch-picker/configuration.md
+        - Data Sources: reference/nodes-gen/batch-picker/data-sources.md
+        - State Files: reference/nodes-gen/batch-picker/state-files.md
+        - HTTP API: reference/nodes-gen/batch-picker/api-reference.md
+        - Pipeline Integration: reference/nodes-gen/batch-picker/pipeline-integration.md
+        - Troubleshooting: reference/nodes-gen/batch-picker/troubleshooting.md
+      - Other Tools:
+        - reference/nodes-gen/tools/index.md
+        - nlm_batch: reference/nodes-gen/tools/nlm-batch.md
+        - generate_nodes_pipeline: reference/nodes-gen/tools/generate-nodes-pipeline.md
+        - validate_nodes: reference/nodes-gen/tools/validate-nodes.md
+        - akms-node-promote: reference/nodes-gen/tools/akms-node-promote.md
+        - extract-framework-nodes: reference/nodes-gen/tools/extract-framework-nodes.md
+      - Development: reference/nodes-gen/development.md
+      - API Reference: reference/nodes-gen/api-reference.md
+      - Changelog: reference/nodes-gen/changelog.md
+
+  - Specification:
+    - AKMS v2 Specification: specification/AKMS_v2_specification.md
+
+  - Decisions:
+    - Projection and Evidence Contract Surface: adr/0001-projection-and-evidence-contract-surface.md
+
+  - Project:
+    - Limitations: limitations.md
+    - Privacy and Providers: privacy-and-providers.md

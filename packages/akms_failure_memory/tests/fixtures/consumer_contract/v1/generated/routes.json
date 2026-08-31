@@ -1,0 +1,255 @@
+{
+  "schema_version": "v1",
+  "source_hash": "sha256:30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+  "by_path": {
+    "docs/architecture.md": [
+      {
+        "node_id": "cc-failure-l006",
+        "reason": "Exact repository path extracted from found_by.trigger; exact repository path declared by location.file; exact repository path extracted from prevention",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "found_by.trigger",
+              "matched_text": "docs/architecture.md"
+            },
+            {
+              "source_field": "location.file",
+              "matched_text": "docs/architecture.md"
+            },
+            {
+              "source_field": "prevention",
+              "matched_text": "docs/architecture.md"
+            }
+          ]
+        }
+      }
+    ],
+    "src/engine/interface.py": [
+      {
+        "node_id": "cc-failure-l001",
+        "reason": "Exact repository path declared by location.file",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "location.file",
+              "matched_text": "src/engine/interface.py"
+            }
+          ]
+        }
+      }
+    ],
+    "src/engine/queue.py": [
+      {
+        "node_id": "cc-failure-l003",
+        "reason": "Exact repository path declared by location.file",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "location.file",
+              "matched_text": "src/engine/queue.py"
+            }
+          ]
+        }
+      }
+    ],
+    "src/engine/scheduler.py": [
+      {
+        "node_id": "cc-failure-l002",
+        "reason": "Exact repository path declared by location.file",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "location.file",
+              "matched_text": "src/engine/scheduler.py"
+            }
+          ]
+        }
+      }
+    ],
+    "src/storage/writer.py": [
+      {
+        "node_id": "cc-failure-l005",
+        "reason": "Exact repository path declared by location.file",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "location.file",
+              "matched_text": "src/storage/writer.py"
+            }
+          ]
+        }
+      }
+    ],
+    "tests/engine/test_interface_commit.py": [
+      {
+        "node_id": "cc-failure-l001",
+        "reason": "Exact repository path extracted from found_by.trigger; exact repository path extracted from prevention",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "found_by.trigger",
+              "matched_text": "tests/engine/test_interface_commit.py::test_commit_is_idempotent"
+            },
+            {
+              "source_field": "prevention",
+              "matched_text": "tests/engine/test_interface_commit.py"
+            }
+          ]
+        }
+      }
+    ],
+    "tests/engine/test_queue_drain.py": [
+      {
+        "node_id": "cc-failure-l003",
+        "reason": "Exact repository path extracted from found_by.trigger; exact repository path extracted from prevention",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "found_by.trigger",
+              "matched_text": "tests/engine/test_queue_drain.py::test_drain_is_total"
+            },
+            {
+              "source_field": "prevention",
+              "matched_text": "tests/engine/test_queue_drain.py"
+            }
+          ]
+        }
+      }
+    ],
+    "tests/engine/test_scheduler_order.py": [
+      {
+        "node_id": "cc-failure-l002",
+        "reason": "Exact repository path extracted from found_by.trigger; exact repository path extracted from prevention",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "found_by.trigger",
+              "matched_text": "tests/engine/test_scheduler_order.py::test_stable_order"
+            },
+            {
+              "source_field": "prevention",
+              "matched_text": "tests/engine/test_scheduler_order.py"
+            }
+          ]
+        }
+      }
+    ],
+    "tests/storage/test_writer_flush.py": [
+      {
+        "node_id": "cc-failure-l005",
+        "reason": "Exact repository path extracted from found_by.trigger; exact repository path extracted from prevention",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "found_by.trigger",
+              "matched_text": "tests/storage/test_writer_flush.py::test_flush_is_atomic"
+            },
+            {
+              "source_field": "prevention",
+              "matched_text": "tests/storage/test_writer_flush.py"
+            }
+          ]
+        }
+      }
+    ],
+    "tools/report/render.py": [
+      {
+        "node_id": "cc-failure-l004",
+        "reason": "Exact repository path declared by location.file",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "location.file",
+              "matched_text": "tools/report/render.py"
+            }
+          ]
+        }
+      }
+    ],
+    "tools/report/test_render.py": [
+      {
+        "node_id": "cc-failure-l004",
+        "reason": "Exact repository path extracted from found_by.trigger; exact repository path extracted from prevention",
+        "provenance": {
+          "adapter_version": "failure-memory-to-akms-task-route/v1",
+          "canonical_contract_version": "failure-route-index/v1",
+          "compiler_version": "failure-memory-compiler/v1",
+          "source_schema_version": 1,
+          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "match_semantics": "exact-repository-relative-path",
+          "reasons": [
+            {
+              "source_field": "found_by.trigger",
+              "matched_text": "tools/report/test_render.py::test_summary_escapes"
+            },
+            {
+              "source_field": "prevention",
+              "matched_text": "tools/report/test_render.py"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "by_symbol": {}
+}

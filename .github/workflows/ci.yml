@@ -1,0 +1,269 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_NO_PROGRESS: "1"
+  FORCE_COLOR: "1"
+
+jobs:
+  repository-audit:
+    name: Public-tree and version audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Reject private-development residue
+        run: python scripts/check_public_tree.py
+
+      - name: Check package and tag version coherence
+        run: python scripts/check_versions.py
+
+  core-minimal:
+    name: Minimal core wheel and no-provider quickstart
+    needs: repository-audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Build only the AKMS core wheel
+        run: uv build --package akms --out-dir dist-core
+
+      - name: Install without runtime extras
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv .venv-core --python 3.12
+          uv pip install --python .venv-core/bin/python dist-core/akms-*.whl pytest
+          .venv-core/bin/python -c "import akms; print('minimal core import: OK')"
+          .venv-core/bin/akms --help
+
+      - name: Run installed minimal-core workflow
+        run: .venv-core/bin/python -m pytest tests/public_smoke/core -q
+
+  quality:
+    name: Formatting, linting, and type checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install full development workspace
+        run: uv sync --locked --all-packages --all-extras --all-groups
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type-check workspace
+        run: uv run pyright packages
+
+      - name: Compile Python files
+        run: uv run python -m compileall -q packages
+
+  tests:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    needs: [repository-audit, core-minimal, quality]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install full test workspace
+        run: uv sync --locked --all-packages --all-extras --all-groups
+
+      - name: Run default test suite
+        run: >-
+          uv run pytest
+          -m "not live_provider and not slow"
+          --cov=akms
+          --cov=akms_learn
+          --cov=akms_nodes_gen
+          --cov=akms_failure_memory
+          --cov-report=term-missing
+          --cov-report=xml
+          -q
+
+      - name: Upload coverage report
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: error
+
+  runtime-contracts:
+    name: Embedded runtime and external-consumer contracts
+    needs: [core-minimal, quality]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install all runtime extras
+        run: uv sync --locked --all-packages --all-extras --all-groups
+
+      - name: Test embedded runtime with fake or mocked backends
+        run: >-
+          uv run pytest
+          packages/akms/tests/runtime
+          tests/integration/embedded_runtime
+          -m "not live_provider and not slow"
+          -q
+
+      - name: Test consumer independence from runtime implementation
+        run: >-
+          uv run pytest
+          tests/integration/external_consumer
+          -m "external_consumer and not live_provider and not slow"
+          -q
+
+  package:
+    name: Build and clean-install packages
+    needs: [tests, runtime-contracts]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install workspace
+        run: uv sync --locked --all-packages --all-extras --all-groups
+
+      - name: Build public distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          uv build --package akms --out-dir dist
+          uv build --package akms-learn --out-dir dist
+          uv build --package akms-nodes-gen --out-dir dist
+          uv build --package akms-failure-memory --out-dir dist
+
+      - name: Validate distribution metadata
+        run: uv run --with twine twine check dist/*
+
+      - name: Clean-install full advertised runtime outside the source environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv .venv-wheel --python 3.12
+          AKMS_URI=$(python - <<'PY'
+          from pathlib import Path
+          print(next(Path('dist').glob('akms-*.whl')).resolve().as_uri())
+          PY
+          )
+          uv pip install --python .venv-wheel/bin/python \
+            "akms[orchestration] @ ${AKMS_URI}" \
+            dist/akms_learn-*.whl \
+            dist/akms_nodes_gen-*.whl \
+            dist/akms_failure_memory-*.whl \
+            pytest
+          .venv-wheel/bin/python -c \
+            "import akms, akms_learn, akms_nodes_gen, akms_failure_memory; from akms.orchestrator import run_pipeline; print('wheel imports: OK')"
+          .venv-wheel/bin/akms --help
+          .venv-wheel/bin/akms-learn --help
+          .venv-wheel/bin/failure-memory --help
+          .venv-wheel/bin/akms-pick --help
+
+      - name: Run installed public smoke suites
+        run: .venv-wheel/bin/python -m pytest tests/public_smoke -q
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error

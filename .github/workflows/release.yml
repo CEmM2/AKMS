@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate, build, and publish
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked workspace and all advertised extras
+        run: uv sync --locked --all-packages --all-extras --all-groups
+
+      - name: Verify public tree
+        run: python scripts/check_public_tree.py
+
+      - name: Verify tag and package versions
+        run: python scripts/check_versions.py --tag "${{ github.ref_name }}"
+
+      - name: Run release test suite
+        run: >-
+          uv run pytest
+          -m "not live_provider and not slow"
+          -q
+
+      - name: Build distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist/packages
+          uv build --package akms --out-dir dist/packages
+          uv build --package akms-learn --out-dir dist/packages
+          uv build --package akms-nodes-gen --out-dir dist/packages
+          uv build --package akms-failure-memory --out-dir dist/packages
+          uv run --with twine twine check dist/packages/*
+          sha256sum dist/packages/* > dist/SHA256SUMS
+
+      - name: Clean-install minimal core wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv .venv-core-release --python 3.12
+          uv pip install --python .venv-core-release/bin/python \
+            dist/packages/akms-*.whl pytest
+          .venv-core-release/bin/python -m pytest tests/public_smoke/core -q
+
+      - name: Clean-install complete embedded runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv .venv-release --python 3.12
+          AKMS_URI=$(python - <<'PY'
+          from pathlib import Path
+          print(next(Path('dist/packages').glob('akms-*.whl')).resolve().as_uri())
+          PY
+          )
+          uv pip install --python .venv-release/bin/python \
+            "akms[orchestration] @ ${AKMS_URI}" \
+            dist/packages/akms_learn-*.whl \
+            dist/packages/akms_nodes_gen-*.whl \
+            dist/packages/akms_failure_memory-*.whl \
+            pytest
+          .venv-release/bin/python -c \
+            "from akms.orchestrator import run_pipeline; print('embedded runtime import: OK')"
+          .venv-release/bin/python -m pytest tests/public_smoke/runtime -q
+
+      - name: Publish to PyPI through trusted publishing
+        if: vars.PUBLISH_TO_PYPI == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/packages/
+          verbose: true
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/packages/*
+            dist/SHA256SUMS

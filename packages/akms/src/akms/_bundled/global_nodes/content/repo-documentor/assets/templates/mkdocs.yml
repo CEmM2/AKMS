@@ -1,0 +1,31 @@
+```yaml
+site_name: "<Repo Name> Docs"
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Repo Map: repo-map.md
+  - Profiles: _profiles.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Module Dependencies: architecture/module-deps.md
+    - Dataflow: architecture/dataflow.md
+    - Dependency Surfaces: architecture/dependency-surfaces.md
+  - Workflows:
+    - Entrypoints: workflows/entrypoints.md
+    - Typical Runs: workflows/typical-runs.md
+  - Glossary:
+    - Data Types & Symbols: glossary/data-types-and-symbols.md
+    - Artifacts: glossary/artifacts.md
+  - Conventions:
+    - Units & Frames: conventions/units-and-frames.md
+  - API:
+    - Public API: api/public-api.md
+    - Stability Policy: api/stability.md
+  - Modules: modules/
+  - Classes: classes/
+  - Functions: functions/
+  - Validation:
+    - Verification Map: validation/verification-map.md
+    - Tests to Modules: validation/tests-to-modules.md
+    - Benchmarks: validation/benchmarks.md

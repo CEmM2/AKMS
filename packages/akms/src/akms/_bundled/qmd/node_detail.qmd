@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# node_detail.qmd — Show detailed information for a specific node.
+#
+# Reads: <repo>/knowledge/graph/graph.json
+#
+# Usage: run_qmd.sh node_detail <node_id>
+#
+# Returns: node attributes, incoming/outgoing edges, overlay state.
+
+set -euo pipefail
+
+NODE_ID="${1:?Usage: node_detail <node_id>}"
+
+# Resolve repo root (walk up from script location)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+GRAPH_JSON="$REPO_ROOT/knowledge/graph/graph.json"
+
+if [ ! -f "$GRAPH_JSON" ]; then
+    echo "ERROR: graph.json not found at $GRAPH_JSON"
+    echo "Run build_graph.py first."
+    exit 1
+fi
+
+python3 -c "
+import json, sys
+
+with open('$GRAPH_JSON') as f:
+    data = json.load(f)
+
+node_id = '$NODE_ID'
+nodes = {n['id']: n for n in data.get('nodes', [])}
+links = data.get('links', [])
+
+if node_id not in nodes:
+    print(f'ERROR: Node \"{node_id}\" not found in graph.')
+    sys.exit(1)
+
+n = nodes[node_id]
+
+print(f'=== {n[\"title\"]} ===')
+print(f'ID:          {n[\"id\"]}')
+print(f'Domain:      {n.get(\"domain\", \"?\")}')
+print(f'Status:      {n.get(\"status\", \"?\")}')
+print(f'Origin:      {n.get(\"node_origin\", \"?\")}')
+print(f'Confidence:  {n.get(\"confidence\", \"?\")} (default: {n.get(\"confidence_default\", \"?\")})')
+print(f'Source:      {n.get(\"source\", \"?\")}')
+print(f'Tags:        {n.get(\"tags\", [])}')
+print(f'Activations: {n.get(\"activations\", 0)}')
+if n.get('content_ref'):
+    print(f'Content ref: {n[\"content_ref\"]}')
+
+outgoing = [l for l in links if l['source'] == node_id]
+incoming = [l for l in links if l['target'] == node_id]
+
+if outgoing:
+    print()
+    print('Outgoing edges:')
+    for e in outgoing:
+        print(f'  → {e[\"target\"]} ({e.get(\"type\", \"?\")} w={e.get(\"weight\", \"?\")} [{e.get(\"edge_origin\", \"?\")}])')
+
+if incoming:
+    print()
+    print('Incoming edges:')
+    for e in incoming:
+        print(f'  ← {e[\"source\"]} ({e.get(\"type\", \"?\")} w={e.get(\"weight\", \"?\")} [{e.get(\"edge_origin\", \"?\")}])')
+"

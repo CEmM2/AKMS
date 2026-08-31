@@ -1,0 +1,31 @@
+═══ AKMS Graph Health Report ═══
+
+## Degraded Nodes (confidence < 0.5): 0
+
+## Tentative Nodes Awaiting Promotion: 1
+  - demo-constitutive (global, domain=demo-mechanics, conf=0.70)
+
+## Id Collisions: 0
+
+## Orphaned Nodes (no edges): 0
+
+## Stale Nodes: 0
+
+## Orphaned Overlay Entries: 0
+
+## Coverage Flags (missing-detail/outdated): 0
+
+## Dedup Events: 0
+
+## Blocked Downstream Tasks: 0
+
+## Docstring Drift Warnings: 0
+
+## Mirror Provider
+  - provider: legacy
+
+## Skipped Files: 0
+
+## Summary: 1 total issues
+  Nodes in graph: 3
+  Edges in graph: 2

@@ -1,0 +1,25 @@
+name: Knowledge-node correction
+description: Report an error in a bundled sample knowledge node
+labels: [content]
+body:
+  - type: input
+    id: node
+    attributes:
+      label: Node id
+      placeholder: cm-anisotropic-yield
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: What is incorrect
+      description: The claim, equation, or reference that is wrong
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Correction with source
+      description: The correct statement and a citable source for it
+    validations:
+      required: true

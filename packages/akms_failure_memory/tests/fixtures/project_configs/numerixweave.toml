@@ -1,0 +1,65 @@
+schema_version = "failure-memory-project/v1"
+repository_id = "NumerixWeave"
+node_namespace = "nw-failure"
+domain = "numerixweave"
+subdomain = "failure-memory"
+
+[paths]
+registry = "dev/lessons_from_failing.json"
+generated_nodes = "dev/knowledge/local-nodes/generated/failure-lessons"
+local_nodes = "dev/knowledge/local-nodes"
+routes = "dev/knowledge/generated/failure_routes.json"
+akms_repo_root = "dev"
+graph = "dev/knowledge/graph/graph.json"
+provider_outputs = "dev/knowledge/provider"
+lock = "dev/knowledge/.failure-memory.lock"
+
+[generated]
+lessons = "committed"
+routes = "committed"
+mirror = "disposable"
+graph = "disposable"
+loadouts = "disposable"
+
+[validation]
+registry_schema_version = 1
+missing_path_policy = "warn"
+id_pattern = "^L[0-9]{3}$"
+allowed_roots = ["apps", "libs", "bundles", "examples", "docs", "gui", "tools", "tests", "templates", "dev", ".github", ".agents", ".codex"]
+root_files = ["AGENTS.md", "CHANGELOG.md", "CLAUDE.md", "MONOREPO_LAYOUT.md", "mkdocs.yml", "pyproject.toml", "uv.lock"]
+location_file_separator = " and "
+
+[taxonomy]
+area_prefix = "area"
+package_prefix = "package"
+module_prefix = "module"
+symbol_prefix = "symbol"
+found_by_prefix = "found-by"
+line_hint_prefix = "line-hint"
+max_tokens = 8
+max_tag_length = 80
+
+[compatibility]
+compiler_version = "failure-lesson-compiler/v1"
+route_contract_version = "failure-route-index/v1"
+route_adapter_version = "failure-route-index-to-akms-task-route/v1"
+generated_warning = "<!-- GENERATED FILE: DO NOT EDIT; edit dev/lessons_from_failing.json and rerun the compiler. -->"
+source_hash_prefix = "<!-- source_sha256: "
+source_hash_suffix = " -->"
+
+[toolchain]
+akms_version = "0.6.1"
+akms_schema_version = "v2"
+akms_public_api_sha256 = "3a79a11312376a5f203013c87d37b2a695fab895ffa6d47decd2c0ad95f7b828"
+repo2md_command = ["repo-wiki"]
+repo2md_version = "0.2.0"
+repo2md_export_schema_version = 1
+repo2md_fixture_sha256 = "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b"
+repo2md_commit = "478be35c76325ab1ccea48b69a5ea25b095952a6"
+repo2md_dirty_policy = "require-clean"
+mirror_selection = "full"
+timeout_seconds = 120
+
+[promotion]
+mode = "manual-human-approved"
+owner = "NumerixWeave maintainers"

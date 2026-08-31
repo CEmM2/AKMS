@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ topic | e }} — AKMS Preview (rich)</title>
+<style>
+/* -----------------------------------------------------------------------
+   AKMS generated_preview.html (rich) — MathJax + rendered algorithms.
+   NOT offline-self-contained: loads MathJax from a CDN (opt-in --rich-html).
+   ----------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px; line-height: 1.6; color: #1a1a1a; background: #fafafa; margin: 0; padding: 0;
+}
+.page-wrap { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+h1 { font-size: 1.75rem; margin: 0 0 0.25rem; color: #0d0d0d; }
+h2 { font-size: 1.2rem; margin: 1.75rem 0 0.5rem; color: #1a1a1a; border-bottom: 1px solid #ddd; padding-bottom: 0.25rem; }
+h3 { font-size: 1rem; margin: 1rem 0 0.3rem; color: #333; }
+p { margin: 0.5rem 0; }
+pre { background: #f3f3f3; border: 1px solid #ddd; border-radius: 4px; padding: 0.75rem 1rem; overflow-x: auto; white-space: pre-wrap; }
+code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.88em; }
+.meta-panel { background: #f0f4ff; border: 1px solid #c5d1f7; border-radius: 6px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+.meta-panel table { border-collapse: collapse; width: 100%; }
+.meta-panel td { padding: 0.2rem 0.6rem 0.2rem 0; vertical-align: top; }
+.meta-panel td:first-child { font-weight: 600; width: 180px; color: #3a3a7a; }
+.warnings-panel { background: #fffbe6; border: 1px solid #f0c040; border-left: 4px solid #e6a700; border-radius: 4px; padding: 0.85rem 1.1rem; margin-bottom: 1.5rem; }
+.warnings-panel .warnings-title { font-weight: 700; font-size: 0.95rem; color: #7a4f00; margin-bottom: 0.5rem; }
+.warnings-panel ul { margin: 0; padding-left: 1.4rem; }
+.warnings-panel li { color: #5a3a00; margin-bottom: 0.2rem; }
+.no-warnings { color: #2e7d32; font-style: italic; font-size: 0.92rem; }
+.section-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1.1rem 1.3rem; margin-bottom: 1.25rem; }
+.section-content { color: #222; margin: 0.5rem 0 0.75rem; overflow-wrap: anywhere; }
+.section-content table { border-collapse: collapse; margin: 0.6rem 0; }
+.section-content th, .section-content td { border: 1px solid #ddd; padding: 4px 8px; }
+/* rendered algorithm blocks */
+.algo { background: #f3f3f3; border: 1px solid #ddd; border-left: 4px solid #3a3a7a; border-radius: 4px; padding: 0.75rem 1rem; overflow-x: auto; margin: 0.85rem 0; font-size: 0.9em; line-height: 1.55; }
+.algo-line { padding: 1px 0; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+.algo .kw { font-weight: 700; color: #b5004f; font-size: 0.82em; text-transform: lowercase; letter-spacing: .5px; margin: 0 2px; }
+mjx-container { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+.provenance { border-top: 1px solid #ececec; margin-top: 0.75rem; padding-top: 0.5rem; font-size: 0.82rem; color: #666; }
+.provenance table { border-collapse: collapse; }
+.provenance td { padding: 0.1rem 0.5rem 0.1rem 0; }
+.provenance td:first-child { font-weight: 600; color: #555; width: 130px; }
+.provenance code { background: #f4f4f4; border-radius: 3px; padding: 0 3px; }
+.empty-marker { color: #999; font-style: italic; }
+.page-footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd; font-size: 0.8rem; color: #888; }
+</style>
+<script>MathJax={tex:{inlineMath:[["$","$"],["\\(","\\)"]],displayMath:[["$$","$$"],["\\[","\\]"]]},options:{skipHtmlTags:["script","noscript","style","textarea","pre","code"]}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="page-wrap">
+
+  <h1>{{ topic | e }}</h1>
+
+  <div class="meta-panel" id="packet-metadata">
+    <table>
+      <tr><td>Packet ID</td><td><code>{{ packet_id | e }}</code></td></tr>
+      <tr><td>Graph hash</td><td><code>{{ graph_hash | e }}</code></td></tr>
+      <tr><td>Graph version</td><td><code>{{ graph_version | e }}</code></td></tr>
+      <tr><td>Compiler</td><td>{{ compiler_name | e }} {{ compiler_version | e }}</td></tr>
+      <tr><td>Request hash</td><td><code>{{ request_hash | e }}</code></td></tr>
+      {% if generation_option %}
+      <tr><td>Generation option</td><td>{{ generation_option | e }}</td></tr>
+      {% endif %}
+      {% if learning_goal %}
+      <tr><td>Learning goal</td><td>{{ learning_goal | e }}</td></tr>
+      {% endif %}
+      <tr><td>Rendering</td><td>rich (MathJax + algorithms)</td></tr>
+      <tr><td>Nodes</td><td>{{ node_count }}</td></tr>
+      <tr><td>Sections</td><td>{{ sections | length }}</td></tr>
+    </table>
+  </div>
+
+  <div class="warnings-panel" id="warnings-panel">
+    <div class="warnings-title">Warnings ({{ warnings | length }})</div>
+    {% if warnings %}
+    <ul>
+      {% for w in warnings %}
+      <li class="warning-item">{{ w | e }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <span class="no-warnings">No warnings.</span>
+    {% endif %}
+  </div>
+
+  <h2>Sections</h2>
+
+  {% for section in sections %}
+  <div class="section-card" id="section-{{ loop.index }}">
+    <h3>{{ section.heading | e }}</h3>
+
+    {% if section.content %}
+    <div class="section-content">{{ section.content_html | safe }}</div>
+    {% else %}
+    <p class="empty-marker">_no content_</p>
+    {% endif %}
+
+    <div class="provenance" aria-label="provenance">
+      <table>
+        <tr><td>source_node_id</td><td><code>{{ section.source_node_id | e }}</code></td></tr>
+        <tr><td>source_path</td><td><code>{{ section.source_path | e }}</code></td></tr>
+        <tr><td>line_range</td><td><code>{{ section.line_range | e }}</code></td></tr>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <p class="empty-marker">_no sections_</p>
+  {% endfor %}
+
+  <div class="page-footer">
+    Generated by AKMS — {{ compiler_name | e }} {{ compiler_version | e }} · rich render (math by MathJax)
+  </div>
+
+</div>
+</body>
+</html>

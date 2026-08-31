@@ -1,0 +1,62 @@
+% ---------- macros.tex ----------
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{tcolorbox}
+\usepackage[ruled,vlined]{algorithm2e}
+
+\newtcolorbox{admonition}[2][]{colback=gray!5!white,colframe=black,title=#2,#1}
+
+% Usage:
+% \begin{admonition}{IMPORTANT}
+% Intentionally-unused parameter ...
+% \end{admonition}
+
+% ---------- main.tex ----------
+\documentclass{article}
+\input{macros.tex}
+
+\title{<Repo Name> Documentation}
+\author{<Author/Team>}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\input{sections/architecture.tex}
+\input{sections/glossary.tex}
+\input{sections/modules.tex}
+\input{sections/classes.tex}
+\input{sections/functions.tex}
+
+\end{document}
+
+% ---------- sections/functions.tex (example kernel template) ----------
+\section{Function/Kernel: \texttt{<name>}}
+
+\subsection{What it computes}
+<text>
+
+\subsection{Inputs/Outputs}
+% Consider a tabular here.
+
+\subsection{Math / physics}
+\begin{align}
+  % equations
+\end{align}
+
+\subsection{Algorithm}
+\begin{algorithm}[H]
+\DontPrintSemicolon
+\KwIn{<inputs>}
+\KwOut{<outputs>}
+\BlankLine
+<steps...>\;
+\caption{<name>}
+\end{algorithm}
+
+\begin{admonition}{IMPORTANT}
+Intentionally-unused parameter \texttt{<param>} is accepted to preserve a standardized signature across implementations.
+\end{admonition}
+
+

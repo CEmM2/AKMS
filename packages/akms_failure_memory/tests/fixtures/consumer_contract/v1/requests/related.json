@@ -1,0 +1,26 @@
+{
+  "base": null,
+  "baseline": "baseline-001",
+  "changed_paths": [],
+  "declared_paths": [
+    "src/engine/scheduler.py"
+  ],
+  "head": null,
+  "invocation_id": "related",
+  "mode": "pre-task",
+  "output_dir": "runtime/provider",
+  "refresh_policy": "never",
+  "repository_id": "ConsumerContract",
+  "role": "implementer",
+  "schema_version": "failure-memory-provider-request/v1",
+  "task": {
+    "akms_tags": [
+      "cc-conformance-no-advisory"
+    ],
+    "deliverables": [],
+    "objective": "Assert that a required record pulls its load_with target in as coactivated.",
+    "scope": [],
+    "task_id": "related",
+    "title": "Conformance case: one declared path whose lesson carries load_with"
+  }
+}

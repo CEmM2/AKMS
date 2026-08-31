@@ -1,0 +1,70 @@
+{
+  "behaviour": "unrelated_near_prefix_negative",
+  "cases": [
+    {
+      "asserts": [
+        "records == []",
+        "status == 'ok' -- an empty result is a success, not an error",
+        "none of src/engine/interface.pyi, src/engine/interfac.py, src/engine/interface.py.bak or src/engine matches the route src/engine/interface.py"
+      ],
+      "case_id": "unrelated_near_prefix_negative",
+      "expect": {
+        "kind": "result",
+        "result": {
+          "artifacts": {
+            "loadout": "runtime/provider/unrelated-near-prefix/loadout.md",
+            "manifest": "runtime/provider/unrelated-near-prefix/resolution-manifest.json",
+            "result": "runtime/provider/unrelated-near-prefix/result.json"
+          },
+          "baseline": "baseline-001",
+          "diagnostics": {},
+          "fingerprint": "ed92a5f18460227edff9ebdec5d279a1d5178ffa65ad05269a6066ab0e5ee246",
+          "input_fingerprints": {
+            "config_sha256": "4c12280a40147a8357c089b3d4b28c70d5e30d33556052d67ea2ddf206f21e82",
+            "graph_sha256": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "repo2md_fixture_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b",
+            "routes_sha256": "05a7b5be8f3b8341fee4e7bf6208cf4c671ac5c0e38e1793cd484bf3479138d8",
+            "toolchain_sha256": "974e97b5874a35bcf1a046dd322af7fb1ed49719832902ca03f49ef4c2dad9a6"
+          },
+          "invocation_id": "unrelated-near-prefix",
+          "mode": "pre-task",
+          "provider_version": "failure-memory-provider/v1",
+          "records": [],
+          "repository_id": "ConsumerContract",
+          "resolution": {
+            "advisory_count": 0,
+            "changed_paths": [],
+            "coactivated_count": 0,
+            "fingerprint": "f9d9058d913708d177b8a4f953f1c141b744fe0482eb82b2388b31b99a3e9b6e",
+            "graph_version": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "mode": "routing",
+            "node_count": 0,
+            "phase": 1,
+            "required_count": 0,
+            "role": "implementer",
+            "route_index_hash": "0f9f2b97025b22f5a9bbfc780930f9ff59c8786464b393e25faba66a8e22f018",
+            "status": "ok",
+            "task_id": "unrelated-near-prefix"
+          },
+          "resolution_fingerprint": "f9d9058d913708d177b8a4f953f1c141b744fe0482eb82b2388b31b99a3e9b6e",
+          "role": "implementer",
+          "schema_version": "failure-memory-provider-result/v1",
+          "status": "ok"
+        }
+      },
+      "procedure": "Copy the whole pack directory to a scratch root R OUTSIDE $HOME. Create an empty directory V and use it as the AKMS global vault (the real global vault is READ-ONLY and must never be touched). Publish the graph canonically: run akms.graph.build_graph(R/'generated/nodes', global_vault=V, output_path=<scratch>, strict=True), pass the parsed payload through akms_failure_memory.refresh._finalize_graph_payload(config=<loaded project.toml>, generated_at='2026-08-17T00:00:00+00:00') and write those bytes to R/'runtime/graph.json'. Then call akms_failure_memory.provider.resolve_provider(config_path=R/'project.toml', repository_root=R, request_source=R/<request>, write_artifacts=True) and compare the result to expect.result after deleting reduced_fields.",
+      "request": "requests/unrelated-near-prefix.json"
+    }
+  ],
+  "fingerprint_policy": "Fingerprints in this pack are portable and are pinned raw. That holds only under the pack's canonical staging (see fixture-manifest.json -> staging): the graph must be published through the project-owned finalizer with the pinned generated_at '2026-08-17T00:00:00+00:00'. A raw akms.graph.build_graph output published as-is embeds the machine-specific vault mount path and a wall-clock generated_at and will NOT reproduce these digests -- see expected/staleness.json.",
+  "pack": "consumer_contract/v1",
+  "reduced_fields": {
+    "result.resolution": [
+      "loadout_path",
+      "manifest_path"
+    ]
+  },
+  "reduced_fields_note": "These two are the ONLY fields still reduced out, and only when the invocation was run with write_artifacts=True (with write_artifacts=False they are absent from resolution entirely). They are absolute filesystem paths of the scratch root the pack was staged into, so they cannot be pinned. They are NOT inputs to any digest: result.fingerprint, result.resolution_fingerprint, resolution.graph_version and every input_fingerprints entry below are pinned as RAW values and were reproduced byte-identically from two different scratch roots with the global vault mounted at two different absolute paths. The relative result.artifacts paths ARE pinned; use those.",
+  "schema_version": "failure-memory-consumer-contract-expectation/v2",
+  "summary": "Route matching is exact-repository-relative-path. Near-prefixes of a routed path -- a different suffix, a truncated basename, an appended extension, and the parent directory -- must all miss, producing a well-formed result with zero records."
+}

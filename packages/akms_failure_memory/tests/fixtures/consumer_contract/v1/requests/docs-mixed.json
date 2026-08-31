@@ -1,0 +1,27 @@
+{
+  "base": null,
+  "baseline": "baseline-001",
+  "changed_paths": [],
+  "declared_paths": [
+    "docs/architecture.md",
+    "src/engine/interface.py"
+  ],
+  "head": null,
+  "invocation_id": "docs-mixed",
+  "mode": "pre-task",
+  "output_dir": "runtime/provider",
+  "refresh_policy": "never",
+  "repository_id": "ConsumerContract",
+  "role": "implementer",
+  "schema_version": "failure-memory-provider-request/v1",
+  "task": {
+    "akms_tags": [
+      "cc-conformance-no-advisory"
+    ],
+    "deliverables": [],
+    "objective": "Assert that the same documentation lesson IS required as soon as any declared path is not documentation.",
+    "scope": [],
+    "task_id": "docs-mixed",
+    "title": "Conformance case: one documentation path declared alongside one code path"
+  }
+}

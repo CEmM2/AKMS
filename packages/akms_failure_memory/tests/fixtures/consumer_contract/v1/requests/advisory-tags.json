@@ -1,0 +1,26 @@
+{
+  "base": null,
+  "baseline": "baseline-001",
+  "changed_paths": [],
+  "declared_paths": [
+    "src/engine/telemetry.py"
+  ],
+  "head": null,
+  "invocation_id": "advisory-tags",
+  "mode": "pre-task",
+  "output_dir": "runtime/provider",
+  "refresh_policy": "never",
+  "repository_id": "ConsumerContract",
+  "role": "implementer",
+  "schema_version": "failure-memory-provider-request/v1",
+  "task": {
+    "akms_tags": [
+      "module-tools-report-render"
+    ],
+    "deliverables": [],
+    "objective": "Assert that an explicit akms_tag yields an advisory record and no required record.",
+    "scope": [],
+    "task_id": "advisory-tags",
+    "title": "Conformance case: explicit advisory tag with no routed path"
+  }
+}

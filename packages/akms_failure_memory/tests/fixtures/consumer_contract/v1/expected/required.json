@@ -1,0 +1,174 @@
+{
+  "behaviour": "exact_required + diff_only_discovery",
+  "cases": [
+    {
+      "asserts": [
+        "exactly one record, selection_class 'required', node_id 'cc-failure-l001'",
+        "no coactivated and no advisory record",
+        "both reasons carry the route provenance including source_sha256",
+        "result.fingerprint is pinned raw and reproduces across scratch roots and vault mounts"
+      ],
+      "case_id": "exact_required",
+      "expect": {
+        "kind": "result",
+        "result": {
+          "artifacts": {
+            "loadout": "runtime/provider/exact-path/loadout.md",
+            "manifest": "runtime/provider/exact-path/resolution-manifest.json",
+            "result": "runtime/provider/exact-path/result.json"
+          },
+          "baseline": "baseline-001",
+          "diagnostics": {},
+          "fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+          "input_fingerprints": {
+            "config_sha256": "4c12280a40147a8357c089b3d4b28c70d5e30d33556052d67ea2ddf206f21e82",
+            "graph_sha256": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "repo2md_fixture_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b",
+            "routes_sha256": "05a7b5be8f3b8341fee4e7bf6208cf4c671ac5c0e38e1793cd484bf3479138d8",
+            "toolchain_sha256": "974e97b5874a35bcf1a046dd322af7fb1ed49719832902ca03f49ef4c2dad9a6"
+          },
+          "invocation_id": "exact-path",
+          "mode": "pre-task",
+          "provider_version": "failure-memory-provider/v1",
+          "records": [
+            {
+              "content_ref": "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l001.md",
+              "node_id": "cc-failure-l001",
+              "reasons": [
+                "required route 'src/engine/interface.py' matched exact deliverable 'src/engine/interface.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/engine/interface.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]",
+                "required route 'src/engine/interface.py' matched exact scope 'src/engine/interface.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/engine/interface.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]"
+              ],
+              "selection_class": "required",
+              "source_ref": "human"
+            }
+          ],
+          "repository_id": "ConsumerContract",
+          "resolution": {
+            "advisory_count": 0,
+            "changed_paths": [],
+            "coactivated_count": 0,
+            "fingerprint": "4ac8a403dea690605f608d59ceaa5aa75991d65a069a9e3c776af385aa0af0d2",
+            "graph_version": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "mode": "routing",
+            "node_count": 1,
+            "phase": 1,
+            "required_count": 1,
+            "role": "implementer",
+            "route_index_hash": "0f9f2b97025b22f5a9bbfc780930f9ff59c8786464b393e25faba66a8e22f018",
+            "status": "ok",
+            "task_id": "exact-path"
+          },
+          "resolution_fingerprint": "4ac8a403dea690605f608d59ceaa5aa75991d65a069a9e3c776af385aa0af0d2",
+          "role": "implementer",
+          "schema_version": "failure-memory-provider-result/v1",
+          "status": "ok"
+        }
+      },
+      "procedure": "Copy the whole pack directory to a scratch root R OUTSIDE $HOME. Create an empty directory V and use it as the AKMS global vault (the real global vault is READ-ONLY and must never be touched). Publish the graph canonically: run akms.graph.build_graph(R/'generated/nodes', global_vault=V, output_path=<scratch>, strict=True), pass the parsed payload through akms_failure_memory.refresh._finalize_graph_payload(config=<loaded project.toml>, generated_at='2026-08-17T00:00:00+00:00') and write those bytes to R/'runtime/graph.json'. Then call akms_failure_memory.provider.resolve_provider(config_path=R/'project.toml', repository_root=R, request_source=R/<request>, write_artifacts=True) and compare the result to expect.result after deleting reduced_fields.",
+      "request": "requests/exact-path.json"
+    },
+    {
+      "asserts": [
+        "cc-failure-l005 is required although it is absent from declared_paths",
+        "diagnostics.post_diff_only_required == ['cc-failure-l005']",
+        "the unrelated changed path docs/release-note.md contributes no record",
+        "diagnostics.empty_diff_fallback is False"
+      ],
+      "case_id": "diff_only_discovery",
+      "expect": {
+        "kind": "result",
+        "result": {
+          "artifacts": {
+            "loadout": "runtime/provider/diff-only/loadout.md",
+            "manifest": "runtime/provider/diff-only/resolution-manifest.json",
+            "result": "runtime/provider/diff-only/result.json"
+          },
+          "baseline": "baseline-001",
+          "diagnostics": {
+            "empty_diff_fallback": false,
+            "post_diff_only_required": [
+              "cc-failure-l005"
+            ]
+          },
+          "fingerprint": "bf3e2f0f0dabf2b1431ac89cad47b36a577c6aba6f73140c47baa7f1762b705a",
+          "input_fingerprints": {
+            "config_sha256": "4c12280a40147a8357c089b3d4b28c70d5e30d33556052d67ea2ddf206f21e82",
+            "graph_sha256": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "repo2md_fixture_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b",
+            "routes_sha256": "05a7b5be8f3b8341fee4e7bf6208cf4c671ac5c0e38e1793cd484bf3479138d8",
+            "toolchain_sha256": "974e97b5874a35bcf1a046dd322af7fb1ed49719832902ca03f49ef4c2dad9a6"
+          },
+          "invocation_id": "diff-only",
+          "mode": "post-diff",
+          "provider_version": "failure-memory-provider/v1",
+          "records": [
+            {
+              "content_ref": "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l001.md",
+              "node_id": "cc-failure-l001",
+              "reasons": [
+                "required route 'src/engine/interface.py' matched exact deliverable 'src/engine/interface.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/engine/interface.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]",
+                "required route 'src/engine/interface.py' matched exact scope 'src/engine/interface.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/engine/interface.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]"
+              ],
+              "selection_class": "required",
+              "source_ref": "human"
+            },
+            {
+              "content_ref": "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l005.md",
+              "node_id": "cc-failure-l005",
+              "reasons": [
+                "required route 'src/storage/writer.py' matched exact changed_file 'src/storage/writer.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/storage/writer.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]"
+              ],
+              "selection_class": "required",
+              "source_ref": "human"
+            }
+          ],
+          "repository_id": "ConsumerContract",
+          "resolution": {
+            "advisory_count": 0,
+            "changed_paths": [
+              "src/storage/writer.py",
+              "docs/release-note.md"
+            ],
+            "coactivated_count": 0,
+            "empty_diff_fallback": false,
+            "fingerprint": "6ed1d75c8cfef19ac60a1add291154dda7a269cd249d07e08ec0e22597eb13e8",
+            "graph_version": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "node_count": 2,
+            "phase": 1,
+            "post_diff_only_required": [
+              "cc-failure-l005"
+            ],
+            "post_diff_required": [
+              "cc-failure-l001",
+              "cc-failure-l005"
+            ],
+            "pre_task_required": [
+              "cc-failure-l001"
+            ],
+            "role": "code_reviewer",
+            "route_index_hash": "0f9f2b97025b22f5a9bbfc780930f9ff59c8786464b393e25faba66a8e22f018",
+            "status": "ok",
+            "task_id": "diff-only"
+          },
+          "resolution_fingerprint": "6ed1d75c8cfef19ac60a1add291154dda7a269cd249d07e08ec0e22597eb13e8",
+          "role": "code_reviewer",
+          "schema_version": "failure-memory-provider-result/v1",
+          "status": "ok"
+        }
+      },
+      "procedure": "Copy the whole pack directory to a scratch root R OUTSIDE $HOME. Create an empty directory V and use it as the AKMS global vault (the real global vault is READ-ONLY and must never be touched). Publish the graph canonically: run akms.graph.build_graph(R/'generated/nodes', global_vault=V, output_path=<scratch>, strict=True), pass the parsed payload through akms_failure_memory.refresh._finalize_graph_payload(config=<loaded project.toml>, generated_at='2026-08-17T00:00:00+00:00') and write those bytes to R/'runtime/graph.json'. Then call akms_failure_memory.provider.resolve_provider(config_path=R/'project.toml', repository_root=R, request_source=R/<request>, write_artifacts=True) and compare the result to expect.result after deleting reduced_fields.",
+      "request": "requests/diff-only.json"
+    }
+  ],
+  "fingerprint_policy": "Fingerprints in this pack are portable and are pinned raw. That holds only under the pack's canonical staging (see fixture-manifest.json -> staging): the graph must be published through the project-owned finalizer with the pinned generated_at '2026-08-17T00:00:00+00:00'. A raw akms.graph.build_graph output published as-is embeds the machine-specific vault mount path and a wall-clock generated_at and will NOT reproduce these digests -- see expected/staleness.json.",
+  "pack": "consumer_contract/v1",
+  "reduced_fields": {
+    "result.resolution": [
+      "loadout_path",
+      "manifest_path"
+    ]
+  },
+  "reduced_fields_note": "These two are the ONLY fields still reduced out, and only when the invocation was run with write_artifacts=True (with write_artifacts=False they are absent from resolution entirely). They are absolute filesystem paths of the scratch root the pack was staged into, so they cannot be pinned. They are NOT inputs to any digest: result.fingerprint, result.resolution_fingerprint, resolution.graph_version and every input_fingerprints entry below are pinned as RAW values and were reproduced byte-identically from two different scratch roots with the global vault mounted at two different absolute paths. The relative result.artifacts paths ARE pinned; use those.",
+  "schema_version": "failure-memory-consumer-contract-expectation/v2",
+  "summary": "A declared path that matches a compiled route yields exactly one required record; a changed path outside declared scope adds its lesson as required and is reported in diagnostics.post_diff_only_required."
+}

@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# search_nodes.qmd — Search knowledge node files (global + local) by query string.
+#
+# Uses QMD BM25 search when available, falls back to grep.
+# Add --semantic flag for vector similarity search (requires qmd + embeddings).
+#
+# Scopes to BOTH:
+#   1. Global vault: akms-global-nodes collection (or $AKMS_GLOBAL_VAULT dir)
+#   2. Local nodes:  akms-<repo>-local-nodes collection (or knowledge/local-nodes/ dir)
+#
+# Usage: run_qmd.sh search_nodes "query string" [--semantic]
+
+set -euo pipefail
+
+QUERY="${1:?Usage: search_nodes <query> [--semantic]}"
+SEMANTIC="${2:-}"
+
+# Resolve paths
+GLOBAL_VAULT="${AKMS_GLOBAL_VAULT:-$HOME/.claude/akms/nodes}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+LOCAL_NODES="$REPO_ROOT/knowledge/local-nodes"
+REPO_NAME="$(basename "$REPO_ROOT")"
+
+# Detect qmd availability
+HAS_QMD=false
+if command -v qmd &>/dev/null; then
+    HAS_QMD=true
+fi
+
+# Build search command based on mode
+_qmd_search() {
+    local collection="$1"
+    local query="$2"
+    if [ "$SEMANTIC" = "--semantic" ]; then
+        qmd search "$query" --semantic --collection "$collection"
+    else
+        qmd search "$query" --collection "$collection"
+    fi
+}
+
+_grep_fallback() {
+    local dir="$1"
+    local query="$2"
+    grep -ril --include="*.md" "$query" "$dir" 2>/dev/null || echo "(no matches)"
+}
+
+# ── Global Nodes ──────────────────────────────────────────────────────
+echo "=== Global Nodes ==="
+if [ "$HAS_QMD" = true ]; then
+    _qmd_search "akms-global-nodes" "$QUERY" 2>/dev/null || {
+        echo "(qmd collection 'akms-global-nodes' not found — falling back to grep)"
+        if [ -d "$GLOBAL_VAULT" ]; then
+            _grep_fallback "$GLOBAL_VAULT" "$QUERY"
+        else
+            echo "(vault not found at $GLOBAL_VAULT)"
+        fi
+    }
+else
+    echo "(qmd not installed — using grep fallback)"
+    if [ -d "$GLOBAL_VAULT" ]; then
+        _grep_fallback "$GLOBAL_VAULT" "$QUERY"
+    else
+        echo "(vault not found at $GLOBAL_VAULT)"
+    fi
+fi
+
+echo ""
+
+# ── Local Nodes ───────────────────────────────────────────────────────
+echo "=== Local Nodes ==="
+if [ "$HAS_QMD" = true ]; then
+    _qmd_search "akms-${REPO_NAME}-local-nodes" "$QUERY" 2>/dev/null || {
+        echo "(qmd collection 'akms-${REPO_NAME}-local-nodes' not found — falling back to grep)"
+        if [ -d "$LOCAL_NODES" ]; then
+            _grep_fallback "$LOCAL_NODES" "$QUERY"
+        else
+            echo "(no local nodes directory)"
+        fi
+    }
+else
+    if [ -d "$LOCAL_NODES" ]; then
+        _grep_fallback "$LOCAL_NODES" "$QUERY"
+    else
+        echo "(no local nodes directory)"
+    fi
+fi

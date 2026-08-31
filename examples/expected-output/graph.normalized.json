@@ -1,0 +1,98 @@
+{
+  "directed": true,
+  "graph": {
+    "akms_schema": "v2",
+    "edge_count": 2,
+    "node_count": 3
+  },
+  "links": [
+    {
+      "edge_origin": "global",
+      "note": "Stress responds to strain, so kinematics comes first",
+      "source": "demo-constitutive",
+      "target": "demo-kinematics",
+      "type": "requires",
+      "weight": 0.9
+    },
+    {
+      "edge_origin": "global",
+      "note": "Deformation measures are tensor-valued",
+      "source": "demo-kinematics",
+      "target": "demo-tensors",
+      "type": "requires",
+      "weight": 0.8
+    }
+  ],
+  "multigraph": false,
+  "nodes": [
+    {
+      "activations": 0,
+      "akms_schema": "v2",
+      "confidence": 0.7,
+      "confidence_default": 0.7,
+      "confidence_floor": null,
+      "content_ref": null,
+      "context_size": null,
+      "domain": "demo-mechanics",
+      "id": "demo-constitutive",
+      "last_activated": null,
+      "load_with": [],
+      "node_origin": "global",
+      "reading_priority": null,
+      "source": "hybrid",
+      "status": "tentative",
+      "subdomain": null,
+      "tags": [
+        "demo",
+        "constitutive"
+      ],
+      "title": "Demo Constitutive Model"
+    },
+    {
+      "activations": 0,
+      "akms_schema": "v2",
+      "confidence": 0.85,
+      "confidence_default": 0.85,
+      "confidence_floor": null,
+      "content_ref": null,
+      "context_size": null,
+      "domain": "demo-mechanics",
+      "id": "demo-kinematics",
+      "last_activated": null,
+      "load_with": [],
+      "node_origin": "global",
+      "reading_priority": null,
+      "source": "human",
+      "status": "established",
+      "subdomain": null,
+      "tags": [
+        "demo",
+        "kinematics"
+      ],
+      "title": "Demo Kinematics"
+    },
+    {
+      "activations": 0,
+      "akms_schema": "v2",
+      "confidence": 0.9,
+      "confidence_default": 0.9,
+      "confidence_floor": null,
+      "content_ref": null,
+      "context_size": null,
+      "domain": "demo-mechanics",
+      "id": "demo-tensors",
+      "last_activated": null,
+      "load_with": [],
+      "node_origin": "global",
+      "reading_priority": null,
+      "source": "human",
+      "status": "established",
+      "subdomain": null,
+      "tags": [
+        "demo",
+        "tensors"
+      ],
+      "title": "Tensor Basics for Demos"
+    }
+  ]
+}

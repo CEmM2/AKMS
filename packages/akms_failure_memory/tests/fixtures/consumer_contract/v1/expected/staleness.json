@@ -1,0 +1,86 @@
+{
+  "behaviour": "fingerprint_portability + staleness_decidability",
+  "canonical_generated_at": "2026-08-17T00:00:00+00:00",
+  "cases": [
+    {
+      "asserts": [
+        "status == 'current' and stale is False",
+        "recorded_fingerprint == current_fingerprint, both equal the pinned raw digest",
+        "a rebuild on its own is NEVER stale -- this is the property the whole gate rests on"
+      ],
+      "case_id": "rebuilt_is_current",
+      "expect": {
+        "current_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+        "kind": "fingerprint_validation",
+        "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+        "stale": false,
+        "status": "current"
+      },
+      "procedure": "Stage the pack canonically (see expected/required.json -> cases[].procedure) and resolve requests/exact-path.json with write_artifacts=True. Keep the emitted runtime/provider/exact-path/result.json as the RECORDED result. Then build each variant below in its own fresh scratch root, copy the recorded result into it, and call akms_failure_memory.provider.validate_fingerprint(config_path=..., repository_root=..., request_source=requests/exact-path.json, result_path=<recorded>).",
+      "variant": "Fresh scratch root, global vault created at a DIFFERENT and more deeply nested absolute path, canonical publication with the same pinned generated_at, no content change of any kind."
+    },
+    {
+      "asserts": [
+        "status == 'stale' and stale is True",
+        "current_fingerprint is pinned raw and is reproducible -- a genuine content change produces a specific, stable new digest, not a random one",
+        "this is the ONLY one of the four variants a consumer should treat as 'the knowledge moved'"
+      ],
+      "case_id": "content_change_is_stale",
+      "expect": {
+        "current_fingerprint": "2230a0c66073e55452716db2844ccdddbd4d39bbaf650bbab348beab18b13990",
+        "kind": "fingerprint_validation",
+        "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+        "stale": true,
+        "status": "stale"
+      },
+      "procedure": "Stage the pack canonically (see expected/required.json -> cases[].procedure) and resolve requests/exact-path.json with write_artifacts=True. Keep the emitted runtime/provider/exact-path/result.json as the RECORDED result. Then build each variant below in its own fresh scratch root, copy the recorded result into it, and call akms_failure_memory.provider.validate_fingerprint(config_path=..., repository_root=..., request_source=requests/exact-path.json, result_path=<recorded>).",
+      "variant": "Fresh scratch root. Record recording/proposal.json through add_lesson (which recompiles), then republish the graph canonically with the same pinned generated_at."
+    },
+    {
+      "asserts": [
+        "status == 'stale' and stale is True, with no content change whatsoever",
+        "current_fingerprint is NOT pinned and NOT reproducible: raw build_graph output embeds the absolute vault mount path and a wall-clock generated_at, so two runs seconds apart on the same machine yield two different digests",
+        "this is why the canonical publication in the staging procedure is NORMATIVE, not a convenience -- a consumer that skips the finalizer gets permanent false staleness"
+      ],
+      "case_id": "noncanonical_publication_is_stale",
+      "expect": {
+        "current_fingerprint_is_pinned": false,
+        "current_fingerprint_note": "Unpinnable by construction. Assert only that it DIFFERS from recorded_fingerprint, and that two independent runs of this variant differ from EACH OTHER.",
+        "kind": "fingerprint_validation",
+        "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+        "stale": true,
+        "status": "stale"
+      },
+      "procedure": "Stage the pack canonically (see expected/required.json -> cases[].procedure) and resolve requests/exact-path.json with write_artifacts=True. Keep the emitted runtime/provider/exact-path/result.json as the RECORDED result. Then build each variant below in its own fresh scratch root, copy the recorded result into it, and call akms_failure_memory.provider.validate_fingerprint(config_path=..., repository_root=..., request_source=requests/exact-path.json, result_path=<recorded>).",
+      "variant": "Fresh scratch root, identical content, but graph.json is the RAW akms.graph.build_graph output published as-is, without passing through the project-owned finalizer."
+    },
+    {
+      "asserts": [
+        "status == 'stale' and stale is True, with no content change whatsoever",
+        "current_fingerprint is pinned raw: generated_at is a deterministic INPUT, so a different value gives a different but perfectly reproducible digest",
+        "generated_at is the one portability axis the package canonicalization does NOT close, because it is caller-supplied by design (akms_failure_memory.refresh._timestamp rejects a missing value outright)",
+        "a consumer that passes wall-clock generated_at on each refresh re-creates the false-staleness failure mode the vault-path fix removed"
+      ],
+      "case_id": "changed_generated_at_is_stale",
+      "expect": {
+        "alternate_generated_at": "2026-08-18T00:00:00+00:00",
+        "current_fingerprint": "abc4a841a31dd26926e9aafaa4ab5f2e2d027a9a04e5ba49b7660ec9d47c7c00",
+        "kind": "fingerprint_validation",
+        "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+        "stale": true,
+        "status": "stale"
+      },
+      "procedure": "Stage the pack canonically (see expected/required.json -> cases[].procedure) and resolve requests/exact-path.json with write_artifacts=True. Keep the emitted runtime/provider/exact-path/result.json as the RECORDED result. Then build each variant below in its own fresh scratch root, copy the recorded result into it, and call akms_failure_memory.provider.validate_fingerprint(config_path=..., repository_root=..., request_source=requests/exact-path.json, result_path=<recorded>).",
+      "variant": "Fresh scratch root, identical content, canonical publication, but with generated_at='2026-08-18T00:00:00+00:00' instead of the pinned '2026-08-17T00:00:00+00:00'."
+    }
+  ],
+  "operator_rule": "A consumer may treat 'stale' as a blocking condition ONLY if it controls the two caller-owned axes below (canonical publication and a stable generated_at). If it does not, its stale check will fire on every refresh and it must not claim the check is meaningful. Deriving generated_at from repository content -- the commit timestamp of the registry, or the registry's own source_sha256 mapped to a fixed instant -- is the supported way to hold that axis stable; wall-clock is not.",
+  "pack": "consumer_contract/v1",
+  "recorded_baseline": {
+    "fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+    "note": "Identical to expected/required.json -> exact_required -> expect.result.fingerprint.",
+    "request": "requests/exact-path.json"
+  },
+  "schema_version": "failure-memory-consumer-contract-expectation/v2",
+  "summary": "WWW's Slice 5 must block closure on a stale provider fingerprint. That is only safe if 'stale' means 'the resolved knowledge actually changed' and never merely 'this ran somewhere else'. These four cases make the distinction mechanically decidable. The recorded baseline fingerprint below is pinned RAW: it reproduces byte-identically from a different scratch root with the global vault mounted at a different absolute path, which is precisely the property that was NOT true when this pack was first frozen and is true now."
+}

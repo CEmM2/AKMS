@@ -1,0 +1,67 @@
+[project]
+name = "akms-learn"
+version = "0.3.0"
+description = "Learning Source Packet compiler and exporters for AKMS (experimental preview)"
+requires-python = ">=3.12,<3.13"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+readme = "README.md"
+authors = [{ name = "Shmuel Osovski" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "akms",
+    # nbformat + jinja2 are now BASE deps (previously the [notebook]/[html]
+    # extras) so notebook/html features — assessment_first, quiz_export,
+    # html_export, notebook_source, notebook_export — work out of the box
+    # without an extras install. The [notebook]/[html] keys below are kept as
+    # empty sentinels for backward compatibility.
+    "nbformat>=5,<6",
+    "jinja2>=3,<4",
+    "pydantic>=2.7,<3.0",
+    "pyyaml>=6.0.3,<7",
+    "networkx>=3.0,<4",
+    "markdown-it-py>=3,<5",
+]
+
+[project.optional-dependencies]
+# nbformat/jinja2 moved to base dependencies above; these stay as empty
+# sentinels so `akms-learn[notebook]` / `akms-learn[html]` keep resolving.
+notebook = []
+html = []
+llm = []
+# Grounded NotebookLM provider. The `nlm` CLI is an external
+# binary, not a pip package, so this extra is an empty sentinel: availability is
+# probed at runtime via shutil.which("nlm"). Listed so the capability gate and
+# downstream consumers can declare intent.
+nlm = []
+dev = [
+    "pytest>=9.0.2",
+]
+
+[project.scripts]
+akms-learn = "akms_learn.cli:main"
+
+[project.entry-points."akms.plugins"]
+learn = "akms_learn.plugin:get_plugin"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "unit: fast unit-level tests",
+    "integration: cross-module/integration tests",
+    "regression: regression and backfill-evidence tests",
+    "e2e: end-to-end tests exercising the full pipeline",
+]

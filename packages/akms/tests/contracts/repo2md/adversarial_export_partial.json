@@ -1,0 +1,20 @@
+{
+  "export_schema_version": 1,
+  "phase": 1,
+  "generated_at": "2026-07-26T00:00:00+00:00",
+  "selection": {"mode": "full"},
+  "selected": [],
+  "written": [
+    {
+      "content_ref": "code-mirror/src/missing.md",
+      "generated_path": "knowledge/code-mirror/src/missing.md",
+      "language": "python",
+      "node_id": "mirror-src-missing",
+      "source_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_path": "src/missing.py"
+    }
+  ],
+  "removed": [],
+  "skipped": [],
+  "errors": []
+}

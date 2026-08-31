@@ -1,0 +1,43 @@
+# {{ topic }}
+
+## Learning goal
+{{ sections["Learning goal"] }}
+
+## Prerequisite map
+{{ sections["Prerequisite map"] }}
+
+## Intuition
+{{ sections["Intuition"] }}
+
+## Formal statement
+{{ sections["Formal statement"] }}
+
+## Derivation / explanation
+{{ sections["Derivation / explanation"] }}
+
+## Implementation notes
+{{ sections["Implementation notes"] }}
+
+## Worked example
+{{ sections["Worked example"] }}
+
+## Common pitfalls
+{{ sections["Common pitfalls"] }}
+
+## Self-check
+{{ sections["Self-check"] }}
+
+## Exercises
+{{ sections["Exercises"] }}
+
+## References
+{{ sections["References"] }}
+
+## Provenance
+{{ sections["Provenance"] }}
+{% if v21_metadata %}
+
+### v2.1 Metadata
+{% for key, value in v21_metadata.items() %}- **{{ key }}**: {{ value }}
+{% endfor %}
+{% endif %}

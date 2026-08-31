@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# search_mirror.qmd — Search code mirror files by query string.
+#
+# Uses QMD BM25 search when available, falls back to grep.
+# Add --semantic flag for vector similarity search (requires qmd + embeddings).
+#
+# Scopes to: <repo>/knowledge/code-mirror/ (or akms-<repo>-code-mirror collection)
+#
+# Usage: run_qmd.sh search_mirror "query string" [--semantic]
+
+set -euo pipefail
+
+QUERY="${1:?Usage: search_mirror <query> [--semantic]}"
+SEMANTIC="${2:-}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+MIRROR_DIR="$REPO_ROOT/knowledge/code-mirror"
+REPO_NAME="$(basename "$REPO_ROOT")"
+
+HAS_QMD=false
+if command -v qmd &>/dev/null; then
+    HAS_QMD=true
+fi
+
+echo "=== Code Mirror ==="
+if [ "$HAS_QMD" = true ]; then
+    if [ "$SEMANTIC" = "--semantic" ]; then
+        qmd search "$QUERY" --semantic --collection "akms-${REPO_NAME}-code-mirror" 2>/dev/null || {
+            echo "(qmd collection not found — falling back to grep)"
+            if [ -d "$MIRROR_DIR" ]; then
+                grep -ril --include="*.md" "$QUERY" "$MIRROR_DIR" 2>/dev/null || echo "(no matches)"
+            else
+                echo "(no code-mirror directory)"
+            fi
+        }
+    else
+        qmd search "$QUERY" --collection "akms-${REPO_NAME}-code-mirror" 2>/dev/null || {
+            echo "(qmd collection not found — falling back to grep)"
+            if [ -d "$MIRROR_DIR" ]; then
+                grep -ril --include="*.md" "$QUERY" "$MIRROR_DIR" 2>/dev/null || echo "(no matches)"
+            else
+                echo "(no code-mirror directory)"
+            fi
+        }
+    fi
+else
+    echo "(qmd not installed — using grep fallback)"
+    if [ -d "$MIRROR_DIR" ]; then
+        grep -ril --include="*.md" "$QUERY" "$MIRROR_DIR" 2>/dev/null || echo "(no matches)"
+    else
+        echo "(no code-mirror directory)"
+    fi
+fi

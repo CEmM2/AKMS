@@ -1,0 +1,56 @@
+# AKMS public workspace root.
+#
+# Not installable. This file defines the uv workspace, the contributor and CI
+# dependency groups, and the shared pytest configuration for cross-package runs.
+
+[project]
+name = "akms-workspace"
+version = "0.0.0"
+description = "AKMS public workspace root (not installable)"
+requires-python = ">=3.12,<3.13"
+
+[tool.uv.workspace]
+members = [
+    "packages/akms",
+    "packages/akms_learn",
+    "packages/akms_nodes_gen",
+    "packages/akms_failure_memory",
+]
+
+[tool.uv.sources]
+akms = { workspace = true }
+akms-learn = { workspace = true }
+akms-nodes-gen = { workspace = true }
+akms-failure-memory = { workspace = true }
+
+# Contributor and CI toolchains. Version floors follow the release guide.
+[dependency-groups]
+dev = [
+    "pytest>=9",
+    "pytest-cov>=7",
+    "pytest-asyncio>=0.23",
+    "pyright>=1.1",
+    "ruff>=0.15",
+    "twine>=6",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.7",
+    "mkdocstrings[python]>=0.27",
+]
+
+[tool.pytest.ini_options]
+# One marker vocabulary for every package. `unit` and `contract` carry no
+# credentials and reach no network; `live_provider` and `slow` are excluded
+# from the default CI suite.
+markers = [
+    "unit: fast, isolated tests",
+    "contract: public schema, API, CLI, runtime, and plugin contracts",
+    "integration: cross-component tests with mocked external services",
+    "runtime: embedded first-party runtime tests",
+    "external_consumer: tests using core contracts without the embedded runtime",
+    "regression: tests for previously observed defects",
+    "e2e: installed-package user workflows",
+    "slow: intentionally expensive tests excluded from default CI",
+    "live_provider: tests requiring credentials or network providers",
+]

@@ -1,0 +1,39 @@
+{
+  "count": 3,
+  "graph_path": "<repo>/knowledge/graph/graph.json",
+  "nodes": [
+    {
+      "confidence": 0.9,
+      "domain": "demo-mechanics",
+      "id": "demo-tensors",
+      "node_origin": "global",
+      "tags": [
+        "demo",
+        "tensors"
+      ],
+      "title": "Tensor Basics for Demos"
+    },
+    {
+      "confidence": 0.85,
+      "domain": "demo-mechanics",
+      "id": "demo-kinematics",
+      "node_origin": "global",
+      "tags": [
+        "demo",
+        "kinematics"
+      ],
+      "title": "Demo Kinematics"
+    },
+    {
+      "confidence": 0.7,
+      "domain": "demo-mechanics",
+      "id": "demo-constitutive",
+      "node_origin": "global",
+      "tags": [
+        "constitutive",
+        "demo"
+      ],
+      "title": "Demo Constitutive Model"
+    }
+  ]
+}

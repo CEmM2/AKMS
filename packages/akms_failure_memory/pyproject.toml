@@ -1,0 +1,48 @@
+[project]
+name = "akms-failure-memory"
+version = "0.3.0"
+description = "Deterministic, project-owned failure memory for AKMS"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Shmuel Osovski" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "akms>=0.3.0,<0.4.0",
+    "pyyaml>=6.0.3,<7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9.0.2"]
+
+[project.scripts]
+failure-memory = "akms_failure_memory.cli:main"
+
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.data-files]
+"share/akms-failure-memory/schemas" = ["schemas/*.json"]
+"share/akms-failure-memory/fixtures" = [
+    "tests/fixtures/project_configs/numerixweave.toml",
+    "tests/fixtures/numerixweave_phase1/source_registry.json",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "../akms/src"]
+markers = [
+    "unit: fast unit-level tests",
+    "integration: cross-module/integration tests",
+    "e2e: end-to-end tests",
+]

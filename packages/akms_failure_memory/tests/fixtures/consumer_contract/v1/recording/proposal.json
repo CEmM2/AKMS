@@ -1,0 +1,32 @@
+{
+  "date_fixed": "2026-08-07",
+  "date_fixed_precision": "exact",
+  "date_found": "2026-08-06",
+  "date_found_precision": "exact",
+  "fix": "Serialize the whole registry to a sibling temporary file and atomically replace it.",
+  "found_by": {
+    "trigger": "tests/engine/test_recorder_append.py::test_append_is_atomic",
+    "type": "test failure"
+  },
+  "location": {
+    "area": "src",
+    "file": "src/engine/recorder.py",
+    "line_hint": "record and recompile round trip",
+    "module": "engine.recorder",
+    "package": "engine",
+    "symbol": "Recorder.append"
+  },
+  "notes": "Machine recording proposal for the round-trip conformance case; agents MUST go through `failure-memory add` and MUST NOT allocate the id themselves.",
+  "prevention": "tests/engine/test_recorder_append.py asserts that a failed append leaves the prior registry intact.",
+  "references": {
+    "commit": "",
+    "issue": "",
+    "plan": "dev/plans/consumer-integration.md",
+    "pr": ""
+  },
+  "related": [
+    "L001"
+  ],
+  "root_cause": "The recorder wrote the registry in place instead of replacing it atomically.",
+  "symptom": "A crash during append left the registry half written."
+}

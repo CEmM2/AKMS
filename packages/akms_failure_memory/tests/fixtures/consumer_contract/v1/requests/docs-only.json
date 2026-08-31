@@ -1,0 +1,26 @@
+{
+  "base": null,
+  "baseline": "baseline-001",
+  "changed_paths": [],
+  "declared_paths": [
+    "docs/architecture.md"
+  ],
+  "head": null,
+  "invocation_id": "docs-only",
+  "mode": "pre-task",
+  "output_dir": "runtime/provider",
+  "refresh_policy": "never",
+  "repository_id": "ConsumerContract",
+  "role": "implementer",
+  "schema_version": "failure-memory-provider-request/v1",
+  "task": {
+    "akms_tags": [
+      "module-docs-architecture"
+    ],
+    "deliverables": [],
+    "objective": "Assert that an exact route on a documentation path is suppressed out of the required lane and can only arrive as advisory.",
+    "scope": [],
+    "task_id": "docs-only",
+    "title": "Conformance case: every declared path is documentation, with an advisory tag"
+  }
+}

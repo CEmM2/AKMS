@@ -1,0 +1,237 @@
+{
+  "amendment_1": {
+    "changes": [
+      "Added lesson L006 on a documentation path (docs/architecture.md) plus three requests (docs-only, docs-only-untagged, docs-mixed) and expected/docs-routing.json.",
+      "Replaced direct build_graph staging with CANONICAL publication through the project-owned finalizer at a pinned generated_at, which makes every fingerprint portable.",
+      "Stopped reducing fingerprints out of expected/: result.fingerprint, result.resolution_fingerprint, resolution.graph_version and input_fingerprints.graph_sha256 are now pinned RAW.",
+      "Added expected/staleness.json with four refresh/rebuild-axis cases so a consumer can mechanically distinguish genuinely-stale from merely-rebuilt.",
+      "The ten original behaviours are unchanged and still pass; this amendment is additive."
+    ],
+    "finding": "The pack omitted documentation-only route suppression and still stripped/asserted nonportable raw fingerprints under a direct-build staging path, leaving Slice 4/5 enforcement semantics unfrozen.",
+    "raised_by": "Sol program checkpoint over Slices 0-2, which BLOCKED at 2/10 on this pack",
+    "supersedes_pack_sha256": "4d3e5e2a3c0aca8861f5420959b91c7d14be7ac5bbeb134b28620e97b2a8127c"
+  },
+  "behaviours": {
+    "absent_package_degradation": {
+      "expected": "expected/errors.json#absent_package_degradation",
+      "request": null,
+      "test": "test_absent_package_degradation"
+    },
+    "advisory": {
+      "expected": "expected/advisory.json#advisory",
+      "request": "requests/advisory-tags.json",
+      "test": "test_advisory_result"
+    },
+    "coactivated_load_with": {
+      "expected": "expected/coactivated.json#coactivated_load_with",
+      "request": "requests/related.json",
+      "test": "test_coactivated_load_with_lesson"
+    },
+    "diff_only_discovery": {
+      "expected": "expected/required.json#diff_only_discovery",
+      "request": "requests/diff-only.json",
+      "test": "test_diff_only_discovery"
+    },
+    "documentation_only_route_suppression": {
+      "companions": [
+        "requests/docs-only-untagged.json -> expected/docs-routing.json#docs_only_untagged_is_delivered_nowhere -> test_docs_only_without_an_advisory_tag_delivers_nothing",
+        "requests/docs-mixed.json -> expected/docs-routing.json#docs_mixed_scope_restores_required -> test_docs_lesson_is_required_once_any_declared_path_is_code"
+      ],
+      "expected": "expected/docs-routing.json",
+      "request": "requests/docs-only.json",
+      "test": "test_docs_only_scope_suppresses_the_required_lane"
+    },
+    "exact_required": {
+      "expected": "expected/required.json#exact_required",
+      "request": "requests/exact-path.json",
+      "test": "test_exact_required_lesson"
+    },
+    "fingerprint_portability": {
+      "companions": [
+        "test_pack_staging_matches_canonical_refresh_publication"
+      ],
+      "expected": "expected/required.json#exact_required (raw fingerprint) + expected/staleness.json#recorded_baseline",
+      "request": "requests/exact-path.json",
+      "test": "test_fingerprint_portability"
+    },
+    "missing_required_node": {
+      "expected": "expected/errors.json#missing_required_node",
+      "request": "requests/exact-path.json",
+      "test": "test_missing_required_node_fails_closed"
+    },
+    "readonly_mutation_rejection": {
+      "expected": "expected/errors.json#readonly_mutation_rejection",
+      "request": null,
+      "test": "test_readonly_mutation_is_rejected"
+    },
+    "record_recompile_roundtrip": {
+      "expected": "recording/accepted-result.json",
+      "request": "recording/proposal.json",
+      "test": "test_record_and_recompile_round_trip"
+    },
+    "stale_fingerprint": {
+      "expected": "expected/errors.json#stale_fingerprint",
+      "request": "requests/stale-baseline.json",
+      "test": "test_stale_fingerprint"
+    },
+    "staleness_decidability": {
+      "companions": [
+        "test_staleness_content_change_is_stale",
+        "test_staleness_noncanonical_publication_is_falsely_stale",
+        "test_staleness_changed_generated_at_is_stale"
+      ],
+      "expected": "expected/staleness.json",
+      "request": "requests/exact-path.json",
+      "test": "test_staleness_rebuild_alone_is_current"
+    },
+    "unrelated_near_prefix_negative": {
+      "expected": "expected/empty.json#unrelated_near_prefix_negative",
+      "request": "requests/unrelated-near-prefix.json",
+      "test": "test_unrelated_near_prefix_is_empty"
+    }
+  },
+  "checksum": {
+    "algorithm": "sha256 over the allowlisted files sorted by POSIX relative path, feeding for each file: relpath.encode('utf-8') + b'\\x00' + file_bytes + b'\\x00'. Identical in shape to akms_failure_memory.ci.release_source_digest and to the integration lock's source_tree_sha256_definition.",
+    "allowlist": "closed -- exactly the paths in checksum.files; verify_pack.py FAILS if any other file exists in the pack",
+    "excluded": [
+      "fixture-manifest.json (this file -- it carries the digest, so including it is circular)",
+      "runtime/** and __pycache__/** (scratch produced by staging; never commit them)"
+    ],
+    "file_count": 28,
+    "files": {
+      "expected/advisory.json": "2be68b0725171bbd0404a2c1985da1b347db696cab8b64ecc223f5afa9f76e0b",
+      "expected/coactivated.json": "6dba031d70d56e47aed6d192719043cdbd3049d90591b9c3c1b725cc96f3224b",
+      "expected/docs-routing.json": "d4de39441292220a71ad70480bc0f1883f62b132123bf48ba21e3269f92f2a70",
+      "expected/empty.json": "a6cb8889fa1ad3b51addef0a0c5b0acdfef3bcfd7a52bc05d5e5603f177df523",
+      "expected/errors.json": "733a0c8083e53e38cfcbbc80e767dafcb96d692d3b2c7ce639a301c06001cab1",
+      "expected/required.json": "1c4ad86091c61ebd9a94b709dbfbd5f4331d6a8bcd494d3f7da063ff57167166",
+      "expected/staleness.json": "c55bdc66c3527ce7499f3eb8707f3459d78c1d7a75d1f124bb580c25079dd866",
+      "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l001.md": "e63ccdef16d3915aeca6ce7fa6a4cfd39b13a372a4ec162827f45ae735e400da",
+      "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l002.md": "75427b55e7f13f02d91644f8176d3ee78d43c234f779406edb8875becb27a780",
+      "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l003.md": "280d285a9e131df59fb7c076b1f208288d902f58b3922012102ff78de865f3d1",
+      "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l004.md": "146cc430e92c3b58cebfa9cf4bb7f005059bbb25f2b356a783669a83d448d476",
+      "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l005.md": "215114ae2df5c7a0eeae98b853710b2476799b28468f54e4cc1942abd98b91a7",
+      "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l006.md": "59d17d0539f7e8d074b3ade852402ce2c345e2860f120e76d266c0a29c1de7eb",
+      "generated/routes.json": "05a7b5be8f3b8341fee4e7bf6208cf4c671ac5c0e38e1793cd484bf3479138d8",
+      "lessons.json": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+      "project.toml": "ac51f9b01099afb8ddeb026627054c4e0e4852d7dee683be0f80e4de9dbebfaf",
+      "recording/accepted-result.json": "62bf337ba860ac28a0258d38cbb73375e1249cfb589f9730c45c42b9c89467e4",
+      "recording/proposal.json": "71a1e4d4d356542b556b0e256afecfe505c93e11f9155178ecce7d91e7106f51",
+      "requests/advisory-tags.json": "fee6462bed031ea395172e45306f4f7b181c813dc2de02332114c019830c6df5",
+      "requests/diff-only.json": "a92e0ab3ea8f6a6bbfa019735c4b1fa4ea58cbed17db2a397b175cdfe199f8de",
+      "requests/docs-mixed.json": "70b95f57744aa4c1df0829f0c01688be40b59ddfad87ef1b3bca0e5548d8481e",
+      "requests/docs-only-untagged.json": "ac764899b824b0dedbba3ab2b16ae3b61cde73cfedabfa48ad2000544692a555",
+      "requests/docs-only.json": "5db1bd9c070e11def2a58cc521dd7e57bc99d2101bcd02d44dac2b664ea4bf46",
+      "requests/exact-path.json": "0face3bb3c5008a9e8d686ca385a3b8c70cca83959aa7a4cb224172e0829594f",
+      "requests/related.json": "ecc82e668237653583f2318f914064cc2a077ea67f66492ddda1d8b8bf1e3d50",
+      "requests/stale-baseline.json": "b44f4ce120d1b8b493b6ef8051b6a1788bc3eea177389b5ef1368302edda21c6",
+      "requests/unrelated-near-prefix.json": "87d0902caf98bc66e735e3d122bc250b90f0060dc6ed1ccc32b871a8e0bebd8e",
+      "verify_pack.py": "9cdc449448d5088fbea8ad8cf40755fffe8faad2632418b3d25f0c6365dea7e2"
+    },
+    "manifest_integrity_note": "This file is NOT covered by pack_sha256. Pin its own sha256 out-of-band -- it is reported in the Slice 2 completion package and belongs in contracts/failure-memory-integration/v1/integration-lock.json, which is owned by the Slice 0 owner.",
+    "pack_sha256": "90ad2801481723e224e7215fffb3a7b1cd661e615bcbaa9c5a62565a40c94eb7"
+  },
+  "deviations_from_the_plan_sketch": [
+    {
+      "item": "requests/advisory-tags.json",
+      "kind": "addition",
+      "why": "The plan's sketch lists 5 requests and 5 expected files but the two sets are not 1:1 (there is no request that would produce expected/advisory.json). Rather than overload another request, the advisory behaviour gets its own request so every expected case pins exactly one invocation. The plan says the tree should test 'at least' the ten behaviours, so a superset is in contract."
+    },
+    {
+      "item": "requests/docs-only.json, requests/docs-only-untagged.json, requests/docs-mixed.json, expected/docs-routing.json, expected/staleness.json",
+      "kind": "addition (amendment 1)",
+      "why": "Required by the Slices 0-2 checkpoint; see amendment_1 above."
+    },
+    {
+      "item": "verify_pack.py",
+      "kind": "addition",
+      "why": "Slice 2 requires the checksum assertion to be mechanically enforceable in one command. The sketch ships no verifier. This file is stdlib-only and is itself covered by pack_sha256. It is NOT part of failure_memory.source_tree_sha256 (that allowlist covers tests/fixtures/**/*.json and *.toml only)."
+    },
+    {
+      "item": "generated/nodes/ contains knowledge/local-nodes/failure-lessons/*.md rather than *.md directly",
+      "kind": "forced-by-package",
+      "why": "See generated.layout_rationale."
+    }
+  ],
+  "findings": {
+    "akms_layout_defect_fixed": "Previously BLOCKING and now fixed upstream: `failure-memory init` used to emit local_nodes outside akms_repo_root, so build_graph saw zero local nodes and every compiled route pointed at a node missing from the graph. render_project_config's default [paths] now nests local_nodes inside akms_repo_root. Kept as a regression test (test_init_default_layout_feeds_the_graph_and_resolves) that records a real lesson, builds the real graph and resolves it, because the defect is invisible with an empty registry -- which is exactly how it survived Slice 1 in both consumers.",
+    "documentation_only_suppression_is_a_gate_hazard": "HIGH, and the reason for amendment 1. AKMS drops EVERY exact path spec when all of a task's path inputs are documentation, so 'recorded as required' does NOT imply 'delivered as required'. Three consequences a fail-closed gate must handle, all frozen in expected/docs-routing.json: (a) with a matching advisory tag the lesson is DOWNGRADED to advisory; (b) with no matching advisory tag it is delivered NOWHERE AT ALL -- advisory is not a fallback lane; (c) the SAME lesson becomes required again as soon as any declared path is not documentation, so enforcement of a documentation lesson is contingent on unrelated paths in the same task. Note also that _is_documentation_path treats ANY .md/.mdx/.rst/.adoc/.asciidoc file as documentation wherever it lives, plus anything under doc/, docs/, documentation/ and any basename starting with 'readme'. A consumer that reports 'fail-closed required-lesson enforcement' without special-casing this is reporting something untrue.",
+    "fingerprints_are_portable_under_canonical_publication_only": "Fixed upstream since this pack was first frozen (graph.global_vault is now canonicalized by the project-owned finalizer). Raw fingerprints are consequently pinned in expected/. The portability is a property of the CANONICAL PUBLICATION path, not of akms.graph.build_graph: build_graph still writes the machine-specific vault path and a wall-clock generated_at, and a consumer that publishes those bytes directly gets non-reproducible digests. See staging.why_canonical_publication_is_normative.",
+    "generated_at_remains_a_caller_owned_staleness_axis": "The finalizer closes the vault-path axis but generated_at is caller-supplied and mandatory. Same content plus a different generated_at reads as STALE. WWW's Slice 5 must derive generated_at from content, not wall clock, or its stale check will fire on every refresh. See staging.generated_at_is_caller_owned.",
+    "no_result_schema_for_failure": "schemas/provider-result.v1.json pins status to the constant 'ok'. There is no schema-legal representation of a failed or degraded resolution, which is why expected/errors.json defines a separate consumer-side degradation envelope.",
+    "one_lesson_rewrites_every_node": "Each generated node embeds the whole-registry source_sha256 in its body, so adding one lesson rewrites every previously generated node file. Consumers that review or diff generated output must expect a full-tree diff per recording, not a one-file diff.",
+    "source_ref_is_not_a_path": "provider records carry source_ref = node_data['source_file'] or node_data['source'] or node_data['path']. Compiled failure nodes have no source_file, but AKMS v2 frontmatter has a 'source' provenance field, whose value is the literal string 'human'. So every record in this pack reports source_ref == 'human'. Consumers MUST read content_ref for the node body and MUST NOT treat source_ref as a file path.",
+    "unreachable_id_guard_in_record_py": "akms_failure_memory.record._validate_request_shape checks `if \"id\" in request` AFTER the closed-key-set check has already rejected 'id' as an unexpected field, so the specific message 'Record IDs are allocated under the project lock' is unreachable. The rejection still happens (code 'record_request'), so this is cosmetic -- but the pack pins the message that is actually emitted, not the intended one."
+  },
+  "generated": {
+    "counts": {
+      "added": 0,
+      "changed": 0,
+      "lessons": 6,
+      "path_routes": 11,
+      "stale": 0,
+      "warnings": 11
+    },
+    "layout_rationale": "paths.akms_repo_root = 'generated/nodes' and paths.local_nodes = 'generated/nodes/knowledge/local-nodes' because akms.graph.build_graph hardcodes <akms_repo_root>/knowledge/local-nodes as the only local-node source. The plan's sketch of a flat generated/nodes/*.md tree cannot simultaneously be compiler output and graph input; the top-level shape (generated/nodes/ + generated/routes.json) is preserved and the knowledge/local-nodes/failure-lessons nesting inside it is forced by AKMS. The same constraint was the BLOCKING init-layout defect, since fixed upstream -- see findings.akms_layout_defect_fixed.",
+    "policy": "generated.lessons = committed, generated.routes = committed (Slice 1 adoption contract §4)",
+    "provenance": "generated/ is REAL compiler output, not hand-authored. It was produced by akms_failure_memory.compiler.run_compiler(config_path=<pack>/project.toml, repository_root=<pack>, global_vault=<empty temp dir>, mode='write') and is verified byte-for-byte by re-running the same compiler in mode='check', which must report status 'clean'.",
+    "recompile_check_status": "clean",
+    "warnings_expected": "The compiler emits 11 'missing-historical-path' warnings because the pack is pure data: it ships no src/, tests/ or docs/ source files. missing_path_policy = 'warn' so this is a clean, expected outcome. A consequence: generated/routes.json has an EMPTY by_symbol map, because symbol routes are only emitted when the referenced file exists in the checkout. Consumers MUST NOT assume by_symbol is populated."
+  },
+  "identity": {
+    "akms_failure_memory_version": "0.1.0",
+    "akms_public_api_sha256": "3a79a11312376a5f203013c87d37b2a695fab895ffa6d47decd2c0ad95f7b828",
+    "akms_schema_version": "v2",
+    "akms_version": "0.6.1",
+    "integration_lock": "contracts/failure-memory-integration/v1/integration-lock.json",
+    "note": "These values are copied from the approved lock and are asserted equal to project.toml [toolchain] by the conformance test. Amending this pack CHANGES the lock's failure_memory.source_tree_sha256, because that digest's closed allowlist includes tests/fixtures/**/*.json and tests/fixtures/**/*.toml. Re-pinning the lock is the Slice 0 owner's job, not this pack's.",
+    "repo2md_fixture_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b"
+  },
+  "owner": "akms-failure-memory (AKMS repository). Logic-Loom and WhichWhereWhatter CONSUME this pack; neither may fork, extend, or locally amend it.",
+  "pack_id": "consumer-contract",
+  "pack_revision": "amendment-1",
+  "pack_root": "Packages/FailureMemory/tests/fixtures/consumer_contract/v1",
+  "pack_version": "v1",
+  "project": {
+    "config": "project.toml",
+    "config_fingerprint": "4c12280a40147a8357c089b3d4b28c70d5e30d33556052d67ea2ddf206f21e82",
+    "lesson_ids": [
+      "L001",
+      "L002",
+      "L003",
+      "L004",
+      "L005",
+      "L006"
+    ],
+    "node_ids": [
+      "cc-failure-l001",
+      "cc-failure-l002",
+      "cc-failure-l003",
+      "cc-failure-l004",
+      "cc-failure-l005",
+      "cc-failure-l006"
+    ],
+    "node_namespace": "cc-failure",
+    "registry": "lessons.json",
+    "registry_source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+    "repository_id": "ConsumerContract"
+  },
+  "purpose": "This pack freezes the behavioural seam between akms-failure-memory, Logic-Loom (Slices 3+6) and WhichWhereWhatter (Slices 4+5) so that two independently reviewed streams cannot pass their own reviews while disagreeing with each other.",
+  "schema_version": "failure-memory-consumer-contract-manifest/v1",
+  "staging": {
+    "canonical_generated_at": "2026-08-17T00:00:00+00:00",
+    "generated_at_is_caller_owned": "The finalizer canonicalizes the vault path but generated_at stays caller-supplied by design (refresh._timestamp rejects a missing value outright). A consumer that passes wall-clock generated_at on every refresh re-creates the false-staleness failure mode the vault-path fix removed. Derive it from repository content -- the registry's commit timestamp, or its source_sha256 mapped to a fixed instant -- and hold it stable. Frozen as expected/staleness.json#changed_generated_at_is_stale.",
+    "normative": true,
+    "procedure": "1. Copy the pack directory to a scratch root R OUTSIDE $HOME. Never run the compiler or provider inside the pack directory itself. 2. Create an empty directory V and pass it explicitly as the AKMS global vault; the real vault ~/.claude/akms/nodes is READ-ONLY and must never be touched. 3. Publish the graph CANONICALLY: akms.graph.build_graph(R/'generated/nodes', global_vault=V, output_path=<scratch file>, strict=True), then pass the parsed payload through akms_failure_memory.refresh._finalize_graph_payload(config=<loaded project.toml>, generated_at='2026-08-17T00:00:00+00:00') and write THOSE bytes to R/'runtime/graph.json'. 4. Only then call resolve_provider / validate_fingerprint.",
+    "production_entry_point": "akms_failure_memory.refresh.refresh_project(action='graph', generated_at=<pinned>) is the production path and performs exactly this publication. It additionally runs preflight, a pure identity check over the installed AKMS and a pinned editable repo2md checkout, which contributes nothing to the published bytes and which a fixture consumer will not have. test_pack_staging_matches_canonical_refresh_publication proves the pack's staging and refresh_project produce byte-identical graph.json.",
+    "stage_outside_home": "_canonical_global_vault collapses a vault under $HOME to a '~/...' form and every other vault to the fixed marker '<external-global-vault>'. The pinned digests in expected/ were captured with the marker, i.e. with the scratch root outside $HOME. Staging under $HOME produces a different (still portable, but different) graph and will not reproduce the pinned fingerprints. The conformance test asserts the marker so this fails loudly rather than silently.",
+    "why_canonical_publication_is_normative": "Raw build_graph output embeds the fully-resolved absolute path of the vault it was pointed at and a wall-clock generated_at. The project-owned finalizer replaces both with canonical values (and stamps the configured repo_id), which is exactly what makes graph_sha256 -- and therefore result.fingerprint, result.resolution_fingerprint and resolution.graph_version -- portable. A consumer that publishes raw build_graph output gets permanent false staleness; that is frozen as expected/staleness.json#noncanonical_publication_is_stale, where two runs of the same variant do not even agree with each other."
+  },
+  "verification": {
+    "consumer_command": "python3 Packages/FailureMemory/tests/fixtures/consumer_contract/v1/verify_pack.py",
+    "consumer_command_note": "One command, standard library only, no AKMS import and no install required. Pass the pack directory as the first argument when the pack has been vendored elsewhere. Exit code 0 = identical pack; non-zero = DO NOT USE.",
+    "consumer_obligation": "No copied or vendored fixture may be accepted without a checksum assertion. Every consumer test suite MUST assert the pack_sha256 below before consuming any file in the pack, and MUST fail its own build when the assertion fails.",
+    "executable_conformance_command": "uv run -m pytest Packages/FailureMemory/tests/test_consumer_contract.py -v",
+    "maintainer_refreeze_command": "python3 .../verify_pack.py --update"
+  }
+}

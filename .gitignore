@@ -1,0 +1,26 @@
+# ── private development state: never commit ───────────────────────────
+.orchestra/
+
+# ── release-migration working area: PRIVATE, never commit ─────────────
+# Holds the allowlist ledger, decision records, and audit reports, which
+# reference private projects. Delete or relocate before the first push;
+# this ignore line is the backstop.
+.migration/
+
+# ── local artifacts ───────────────────────────────────────────────────
+demo-workspace/
+site/
+.venv/
+__pycache__/
+*.egg-info/
+dist/
+.pytest_cache/
+
+# ── OS and editor noise ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── comment-sweep review working area: PRIVATE, never commit ──────────
+# Holds extracted source comments and review decisions. Regenerate with
+# `comment-sweep extract`; this ignore line is the backstop.
+.comment-review/

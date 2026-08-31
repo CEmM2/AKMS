@@ -1,0 +1,65 @@
+schema_version = "failure-memory-project/v1"
+repository_id = "portable-demo"
+node_namespace = "demo-memory"
+domain = "portable-demo"
+subdomain = "lessons"
+
+[paths]
+registry = ".failure-memory/lessons.json"
+generated_nodes = ".failure-memory/generated/local-nodes/failure-lessons"
+local_nodes = ".failure-memory/generated/local-nodes"
+routes = ".failure-memory/generated/routes.json"
+akms_repo_root = ".failure-memory/runtime"
+graph = ".failure-memory/runtime/knowledge/graph/graph.json"
+provider_outputs = ".failure-memory/runtime/provider"
+lock = ".failure-memory/.lock"
+
+[generated]
+lessons = "disposable"
+routes = "disposable"
+mirror = "disposable"
+graph = "disposable"
+loadouts = "disposable"
+
+[validation]
+registry_schema_version = 1
+missing_path_policy = "error"
+id_pattern = "^L[0-9]{4}$"
+allowed_roots = ["src", "tests", "docs", ".github"]
+root_files = ["README.md", "pyproject.toml"]
+location_file_separator = " and "
+
+[taxonomy]
+area_prefix = "layer"
+package_prefix = "component"
+module_prefix = "module"
+symbol_prefix = "symbol"
+found_by_prefix = "detected-by"
+line_hint_prefix = "topic"
+max_tokens = 6
+max_tag_length = 72
+
+[compatibility]
+compiler_version = "failure-memory-compiler/v1"
+route_contract_version = "failure-route-index/v1"
+route_adapter_version = "failure-memory-to-akms-task-route/v1"
+generated_warning = "<!-- GENERATED: edit .failure-memory/lessons.json -->"
+source_hash_prefix = "<!-- source_sha256: "
+source_hash_suffix = " -->"
+
+[toolchain]
+akms_version = "0.6.1"
+akms_schema_version = "v2"
+akms_public_api_sha256 = "3a79a11312376a5f203013c87d37b2a695fab895ffa6d47decd2c0ad95f7b828"
+repo2md_command = ["repo-wiki"]
+repo2md_version = "0.2.0"
+repo2md_export_schema_version = 1
+repo2md_fixture_sha256 = "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b"
+repo2md_commit = "478be35c76325ab1ccea48b69a5ea25b095952a6"
+repo2md_dirty_policy = "allow-dirty"
+mirror_selection = "changed"
+timeout_seconds = 30
+
+[promotion]
+mode = "manual-human-approved"
+owner = "portable-demo maintainers"

@@ -1,0 +1,210 @@
+{
+  "behaviour": "documentation_only_route_suppression",
+  "cases": [
+    {
+      "asserts": [
+        "generated/routes.json by_path DOES contain an exact route docs/architecture.md -> cc-failure-l006, so the miss is suppression, not a missing route",
+        "cc-failure-l006 IS present, with selection_class 'advisory'",
+        "cc-failure-l006 is ABSENT from the required lane -- assert both halves",
+        "the advisory arrival is owed entirely to the explicit akms_tag 'module-docs-architecture', not to the declared path"
+      ],
+      "case_id": "docs_only_suppressed_to_advisory",
+      "expect": {
+        "kind": "result",
+        "result": {
+          "artifacts": {
+            "loadout": "runtime/provider/docs-only/loadout.md",
+            "manifest": "runtime/provider/docs-only/resolution-manifest.json",
+            "result": "runtime/provider/docs-only/result.json"
+          },
+          "baseline": "baseline-001",
+          "diagnostics": {},
+          "fingerprint": "49ebb47ffae987c7d7d584bc3445694df115e5e0a1f3261969a5061e0347da08",
+          "input_fingerprints": {
+            "config_sha256": "4c12280a40147a8357c089b3d4b28c70d5e30d33556052d67ea2ddf206f21e82",
+            "graph_sha256": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "repo2md_fixture_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b",
+            "routes_sha256": "05a7b5be8f3b8341fee4e7bf6208cf4c671ac5c0e38e1793cd484bf3479138d8",
+            "toolchain_sha256": "974e97b5874a35bcf1a046dd322af7fb1ed49719832902ca03f49ef4c2dad9a6"
+          },
+          "invocation_id": "docs-only",
+          "mode": "pre-task",
+          "provider_version": "failure-memory-provider/v1",
+          "records": [
+            {
+              "content_ref": "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l006.md",
+              "node_id": "cc-failure-l006",
+              "reasons": [
+                "advisory tag query: module-docs-architecture"
+              ],
+              "selection_class": "advisory",
+              "source_ref": "human"
+            }
+          ],
+          "repository_id": "ConsumerContract",
+          "resolution": {
+            "advisory_count": 1,
+            "changed_paths": [],
+            "coactivated_count": 0,
+            "fingerprint": "bd9c9b75c5bfed128741ef9cd79d9bb2149e5f13ebbd4e099259a21061585746",
+            "graph_version": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "mode": "routing",
+            "node_count": 1,
+            "phase": 1,
+            "required_count": 0,
+            "role": "implementer",
+            "route_index_hash": "0f9f2b97025b22f5a9bbfc780930f9ff59c8786464b393e25faba66a8e22f018",
+            "status": "ok",
+            "task_id": "docs-only"
+          },
+          "resolution_fingerprint": "bd9c9b75c5bfed128741ef9cd79d9bb2149e5f13ebbd4e099259a21061585746",
+          "role": "implementer",
+          "schema_version": "failure-memory-provider-result/v1",
+          "status": "ok"
+        }
+      },
+      "procedure": "Copy the whole pack directory to a scratch root R OUTSIDE $HOME. Create an empty directory V and use it as the AKMS global vault (the real global vault is READ-ONLY and must never be touched). Publish the graph canonically: run akms.graph.build_graph(R/'generated/nodes', global_vault=V, output_path=<scratch>, strict=True), pass the parsed payload through akms_failure_memory.refresh._finalize_graph_payload(config=<loaded project.toml>, generated_at='2026-08-17T00:00:00+00:00') and write those bytes to R/'runtime/graph.json'. Then call akms_failure_memory.provider.resolve_provider(config_path=R/'project.toml', repository_root=R, request_source=R/<request>, write_artifacts=True) and compare the result to expect.result after deleting reduced_fields.",
+      "request": "requests/docs-only.json"
+    },
+    {
+      "asserts": [
+        "records == [] -- the advisory lane is NOT a guaranteed fallback",
+        "an identical documentation-only task without a matching advisory tag delivers the lesson nowhere at all, not merely at a lower class",
+        "a consumer that reports 'fail-closed enforcement' while resolving a documentation-only task is reporting something untrue"
+      ],
+      "case_id": "docs_only_untagged_is_delivered_nowhere",
+      "expect": {
+        "kind": "result",
+        "result": {
+          "artifacts": {
+            "loadout": "runtime/provider/docs-only-untagged/loadout.md",
+            "manifest": "runtime/provider/docs-only-untagged/resolution-manifest.json",
+            "result": "runtime/provider/docs-only-untagged/result.json"
+          },
+          "baseline": "baseline-001",
+          "diagnostics": {},
+          "fingerprint": "9fd0a396c92ffdbb3574773ba1b58f880bb078a8e491d1d94e4eddbb0da062df",
+          "input_fingerprints": {
+            "config_sha256": "4c12280a40147a8357c089b3d4b28c70d5e30d33556052d67ea2ddf206f21e82",
+            "graph_sha256": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "repo2md_fixture_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b",
+            "routes_sha256": "05a7b5be8f3b8341fee4e7bf6208cf4c671ac5c0e38e1793cd484bf3479138d8",
+            "toolchain_sha256": "974e97b5874a35bcf1a046dd322af7fb1ed49719832902ca03f49ef4c2dad9a6"
+          },
+          "invocation_id": "docs-only-untagged",
+          "mode": "pre-task",
+          "provider_version": "failure-memory-provider/v1",
+          "records": [],
+          "repository_id": "ConsumerContract",
+          "resolution": {
+            "advisory_count": 0,
+            "changed_paths": [],
+            "coactivated_count": 0,
+            "fingerprint": "931478550a3d5f542a9e7e9fab2d5c9c9019e0598400e161db6ddd940385fca5",
+            "graph_version": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "mode": "routing",
+            "node_count": 0,
+            "phase": 1,
+            "required_count": 0,
+            "role": "implementer",
+            "route_index_hash": "0f9f2b97025b22f5a9bbfc780930f9ff59c8786464b393e25faba66a8e22f018",
+            "status": "ok",
+            "task_id": "docs-only-untagged"
+          },
+          "resolution_fingerprint": "931478550a3d5f542a9e7e9fab2d5c9c9019e0598400e161db6ddd940385fca5",
+          "role": "implementer",
+          "schema_version": "failure-memory-provider-result/v1",
+          "status": "ok"
+        }
+      },
+      "procedure": "Copy the whole pack directory to a scratch root R OUTSIDE $HOME. Create an empty directory V and use it as the AKMS global vault (the real global vault is READ-ONLY and must never be touched). Publish the graph canonically: run akms.graph.build_graph(R/'generated/nodes', global_vault=V, output_path=<scratch>, strict=True), pass the parsed payload through akms_failure_memory.refresh._finalize_graph_payload(config=<loaded project.toml>, generated_at='2026-08-17T00:00:00+00:00') and write those bytes to R/'runtime/graph.json'. Then call akms_failure_memory.provider.resolve_provider(config_path=R/'project.toml', repository_root=R, request_source=R/<request>, write_artifacts=True) and compare the result to expect.result after deleting reduced_fields.",
+      "request": "requests/docs-only-untagged.json"
+    },
+    {
+      "asserts": [
+        "the SAME lesson cc-failure-l006 IS required here, with the same route",
+        "cc-failure-l001 is required too, from the code path",
+        "the only difference from docs_only_untagged is that one declared path is not documentation -- enforcement of a documentation lesson is therefore contingent on unrelated paths in the same task"
+      ],
+      "case_id": "docs_mixed_scope_restores_required",
+      "expect": {
+        "kind": "result",
+        "result": {
+          "artifacts": {
+            "loadout": "runtime/provider/docs-mixed/loadout.md",
+            "manifest": "runtime/provider/docs-mixed/resolution-manifest.json",
+            "result": "runtime/provider/docs-mixed/result.json"
+          },
+          "baseline": "baseline-001",
+          "diagnostics": {},
+          "fingerprint": "61ecd461045efa005dcfbd38b3c1f635b02bcd334559cd59377650e669f7d0dd",
+          "input_fingerprints": {
+            "config_sha256": "4c12280a40147a8357c089b3d4b28c70d5e30d33556052d67ea2ddf206f21e82",
+            "graph_sha256": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "repo2md_fixture_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b",
+            "routes_sha256": "05a7b5be8f3b8341fee4e7bf6208cf4c671ac5c0e38e1793cd484bf3479138d8",
+            "toolchain_sha256": "974e97b5874a35bcf1a046dd322af7fb1ed49719832902ca03f49ef4c2dad9a6"
+          },
+          "invocation_id": "docs-mixed",
+          "mode": "pre-task",
+          "provider_version": "failure-memory-provider/v1",
+          "records": [
+            {
+              "content_ref": "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l001.md",
+              "node_id": "cc-failure-l001",
+              "reasons": [
+                "required route 'src/engine/interface.py' matched exact deliverable 'src/engine/interface.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/engine/interface.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]",
+                "required route 'src/engine/interface.py' matched exact scope 'src/engine/interface.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/engine/interface.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]"
+              ],
+              "selection_class": "required",
+              "source_ref": "human"
+            },
+            {
+              "content_ref": "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l006.md",
+              "node_id": "cc-failure-l006",
+              "reasons": [
+                "required route 'docs/architecture.md' matched exact deliverable 'docs/architecture.md': Exact repository path extracted from found_by.trigger; exact repository path declared by location.file; exact repository path extracted from prevention [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"found_by.trigger\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"location.file\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"prevention\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]",
+                "required route 'docs/architecture.md' matched exact scope 'docs/architecture.md': Exact repository path extracted from found_by.trigger; exact repository path declared by location.file; exact repository path extracted from prevention [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"found_by.trigger\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"location.file\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"prevention\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]"
+              ],
+              "selection_class": "required",
+              "source_ref": "human"
+            }
+          ],
+          "repository_id": "ConsumerContract",
+          "resolution": {
+            "advisory_count": 0,
+            "changed_paths": [],
+            "coactivated_count": 0,
+            "fingerprint": "c54c8377584f0c6442869d800fc87bc8f922664346a91b000f6f44c3b3bdb1b7",
+            "graph_version": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "mode": "routing",
+            "node_count": 2,
+            "phase": 1,
+            "required_count": 2,
+            "role": "implementer",
+            "route_index_hash": "0f9f2b97025b22f5a9bbfc780930f9ff59c8786464b393e25faba66a8e22f018",
+            "status": "ok",
+            "task_id": "docs-mixed"
+          },
+          "resolution_fingerprint": "c54c8377584f0c6442869d800fc87bc8f922664346a91b000f6f44c3b3bdb1b7",
+          "role": "implementer",
+          "schema_version": "failure-memory-provider-result/v1",
+          "status": "ok"
+        }
+      },
+      "procedure": "Copy the whole pack directory to a scratch root R OUTSIDE $HOME. Create an empty directory V and use it as the AKMS global vault (the real global vault is READ-ONLY and must never be touched). Publish the graph canonically: run akms.graph.build_graph(R/'generated/nodes', global_vault=V, output_path=<scratch>, strict=True), pass the parsed payload through akms_failure_memory.refresh._finalize_graph_payload(config=<loaded project.toml>, generated_at='2026-08-17T00:00:00+00:00') and write those bytes to R/'runtime/graph.json'. Then call akms_failure_memory.provider.resolve_provider(config_path=R/'project.toml', repository_root=R, request_source=R/<request>, write_artifacts=True) and compare the result to expect.result after deleting reduced_fields.",
+      "request": "requests/docs-mixed.json"
+    }
+  ],
+  "fingerprint_policy": "Fingerprints in this pack are portable and are pinned raw. That holds only under the pack's canonical staging (see fixture-manifest.json -> staging): the graph must be published through the project-owned finalizer with the pinned generated_at '2026-08-17T00:00:00+00:00'. A raw akms.graph.build_graph output published as-is embeds the machine-specific vault mount path and a wall-clock generated_at and will NOT reproduce these digests -- see expected/staleness.json.",
+  "pack": "consumer_contract/v1",
+  "reduced_fields": {
+    "result.resolution": [
+      "loadout_path",
+      "manifest_path"
+    ]
+  },
+  "reduced_fields_note": "These two are the ONLY fields still reduced out, and only when the invocation was run with write_artifacts=True (with write_artifacts=False they are absent from resolution entirely). They are absolute filesystem paths of the scratch root the pack was staged into, so they cannot be pinned. They are NOT inputs to any digest: result.fingerprint, result.resolution_fingerprint, resolution.graph_version and every input_fingerprints entry below are pinned as RAW values and were reproduced byte-identically from two different scratch roots with the global vault mounted at two different absolute paths. The relative result.artifacts paths ARE pinned; use those.",
+  "schema_version": "failure-memory-consumer-contract-expectation/v2",
+  "summary": "AKMS drops EVERY exact path spec when all of a task's path inputs are documentation (akms.task_context.resolve._is_documentation_only: any path under doc/, docs/ or documentation/, any basename starting with 'readme', and any .md/.mdx/.rst/.adoc/.asciidoc file anywhere). A lesson recorded against a documentation path therefore NEVER reaches the required lane from a documentation-only task, even though the compiler DID emit an exact route for it. This is accepted policy, frozen here so that no consumer can build a fail-closed required-lesson gate on the false premise that 'recorded as required' implies 'delivered as required'."
+}
