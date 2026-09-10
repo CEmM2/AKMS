@@ -84,6 +84,42 @@ def test_install_from_directory(tmp_path: Path) -> None:
     dest = tmp_path / "vault" / "nodes"
     assert _run(["vault", "install", str(src), "--dest", str(dest)]) == 0
     assert _count_nodes(dest) == (4, 4)
+    # content_ref payloads travel with the nodes that address them.
+    assert (dest / "content" / "skill" / "REFERENCE.md").is_file()
+
+
+def test_install_leaves_repository_furniture_behind(tmp_path: Path) -> None:
+    """A vault distributed as a git repo carries files that are not nodes.
+
+    This is not tidiness. The graph compiler treats any markdown in the vault
+    without ``akms_schema`` as a schema error and re-raises it regardless of
+    strictness, so a README copied into the vault makes every later build fail.
+    Every GitHub repository has one.
+    """
+    src = _make_vault(tmp_path / "src", count=3)
+    (src / "README.md").write_text(
+        "# Vault\n\nProse, no frontmatter.\n", encoding="utf-8"
+    )
+    (src / "LICENSE").write_text("Apache-2.0\n", encoding="utf-8")
+    (src / ".github" / "workflows").mkdir(parents=True)
+    (src / ".github" / "workflows" / "ci.yml").write_text(
+        "name: ci\n", encoding="utf-8"
+    )
+
+    dest = tmp_path / "vault" / "nodes"
+    assert _run(["vault", "install", str(src), "--dest", str(dest)]) == 0
+    assert _count_nodes(dest) == (3, 3)
+    assert not (dest / "README.md").exists()
+    assert not (dest / "LICENSE").exists()
+    assert not (dest / ".github").exists()
+
+
+def test_install_reports_what_it_left_behind(tmp_path: Path, capsys) -> None:
+    src = _make_vault(tmp_path / "src", count=2)
+    (src / "README.md").write_text("# Vault\n", encoding="utf-8")
+    dest = tmp_path / "vault" / "nodes"
+    assert _run(["vault", "install", str(src), "--dest", str(dest), "--json"]) == 0
+    assert '"README.md"' in capsys.readouterr().out
 
 
 def test_install_refuses_to_replace_a_populated_vault(tmp_path: Path) -> None:
