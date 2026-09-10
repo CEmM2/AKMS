@@ -24,11 +24,25 @@ from akms.graph.build_graph import build_graph, load_graph
 from akms.schema.validators import parse_node_frontmatter
 
 # ── Path to seed data ────────────────────────────────────────────────
-# The public repo ships no separate ``seed/`` tree: ``src/akms/_bundled``
-# IS the canonical bundled corpus. These tests run against it directly.
-SEED_DIR = Path(__file__).resolve().parents[2] / "src" / "akms" / "_bundled"
-SEED_NODES_DIR = SEED_DIR / "global_nodes"
-SEED_QMD_DIR = SEED_DIR / "qmd"
+# The node corpus no longer ships inside the wheel — it is distributed as its
+# own vault, because nothing in the runtime ever resolved to the bundled copy
+# (``resolve_global_vault`` has four precedence levels and none of them is the
+# package directory), and it accounted for roughly two thirds of the wheel.
+#
+# What remains here is a pinned fixture: the six ``skill-*`` nodes these tests
+# assert over, plus the closure of every node their edges target and every
+# ``content_ref`` payload involved — 52 nodes, self-consistent, no dangling
+# edges. It lives under ``tests/`` so it is not packaged, and it keeps the
+# compiler, overlay and determinism tests running against realistic node data
+# rather than synthetic stubs.
+#
+# Corpus-wide QA — every node in the published vault validating, ids unique
+# across the whole set — belongs with the vault, not here.
+_PKG_ROOT = Path(__file__).resolve().parents[2]
+SEED_NODES_DIR = _PKG_ROOT / "tests" / "fixtures" / "vault"
+
+# QMD scripts do still ship in the wheel.
+SEED_QMD_DIR = _PKG_ROOT / "src" / "akms" / "_bundled" / "qmd"
 
 
 # ══════════════════════════════════════════════════════════════════════
