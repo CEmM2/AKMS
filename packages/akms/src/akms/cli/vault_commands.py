@@ -58,6 +58,56 @@ def _count_nodes(directory: Path) -> tuple[int, int]:
     return md, schema
 
 
+def _is_node(path: Path) -> bool:
+    """Does this file look like a v2 node rather than repository furniture?"""
+    if path.suffix != ".md" or path.name.startswith("."):
+        return False
+    try:
+        return (
+            "akms_schema" in path.read_text(encoding="utf-8", errors="replace")[:2048]
+        )
+    except OSError:
+        return False
+
+
+def _install_tree(src: Path, dest: Path) -> tuple[int, list[str]]:
+    """Copy vault content from ``src`` to ``dest``, leaving furniture behind.
+
+    A vault distributed as a git repository carries a README, a licence, CI
+    configuration — and the graph compiler treats *any* markdown in the vault
+    that lacks ``akms_schema`` as a schema error and re-raises it regardless of
+    strictness. So installing a repository wholesale makes every subsequent
+    build fail on its own README. Rather than push that onto vault authors as a
+    layout rule to remember, the installer copies only what a vault is: nodes
+    that declare ``akms_schema``, and the ``content/`` payload tree they
+    address through ``content_ref``.
+
+    Returns the node count and the top-level names that were left behind, so
+    the caller can say what it skipped instead of silently discarding things.
+    """
+    nodes = 0
+    skipped: set[str] = set()
+    for path in sorted(src.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(src)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        if "content" in rel.parts[:-1]:
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+            continue
+        if _is_node(path):
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+            nodes += 1
+        else:
+            skipped.add(rel.parts[0])
+    return nodes, sorted(skipped)
+
+
 def _safe_extract(archive: Path, dest: Path) -> None:
     """Extract a tar archive, refusing members that escape ``dest``.
 
@@ -198,20 +248,22 @@ def cmd_vault_install(args: argparse.Namespace) -> int:
             )
             return 1
 
+    md = 0
+    skipped: list[str] = []
     try:
         with tempfile.TemporaryDirectory() as td:
             workdir = Path(td)
             content = _fetch(source, workdir)
 
-            md, schema = _count_nodes(content)
-            if md == 0:
+            _total, schema = _count_nodes(content)
+            if _total == 0:
                 raise VaultInstallError(
                     f"{source!r} contains no node markdown files; refusing to "
                     "install it as a vault"
                 )
             if schema == 0:
                 raise VaultInstallError(
-                    f"{source!r} has {md} markdown file(s) but none declare "
+                    f"{source!r} has {_total} markdown file(s) but none declare "
                     "`akms_schema`; this does not look like an AKMS vault"
                 )
 
@@ -221,16 +273,13 @@ def cmd_vault_install(args: argparse.Namespace) -> int:
             incoming = dest.parent / f".{dest.name}.incoming"
             if incoming.exists():
                 shutil.rmtree(incoming)
-            # macOS `tar` writes AppleDouble `._name` companions beside every
-            # file, and they extract as real files ending in `.md`. Left in,
-            # they land in the vault and the graph compiler tries to parse
-            # binary resource-fork data as v2 nodes. Same reasoning for
-            # `.DS_Store`, which had already reached the published wheel once.
-            shutil.copytree(
-                content,
-                incoming,
-                ignore=shutil.ignore_patterns("._*", ".DS_Store", "__pycache__"),
-            )
+            incoming.mkdir(parents=True)
+            # Copies nodes and content/ payloads only. Dotfiles are excluded by
+            # the same pass, which also drops the AppleDouble `._name`
+            # companions macOS `tar` writes beside every file — they extract as
+            # real files ending in `.md`, and the compiler would try to parse
+            # resource-fork binary as a v2 node.
+            md, skipped = _install_tree(content, incoming)
 
             previous = dest.parent / f".{dest.name}.previous"
             if dest.exists():
@@ -244,12 +293,19 @@ def cmd_vault_install(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    result = {"vault": str(dest), "source": source, "nodes": md}
+    result = {
+        "vault": str(dest),
+        "source": source,
+        "nodes": md,
+        "skipped": skipped,
+    }
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
         print(f"Installed {md} node file(s) into {dest}")
         print(f"  source: {source}")
+        if skipped:
+            print(f"  not vault content, left behind: {', '.join(skipped)}")
         print()
         print("Verify with:  akms vault status")
     return 0
