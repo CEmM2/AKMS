@@ -81,8 +81,19 @@ where = ["src"]
 # from a built wheel and the qmd-backed search tools are inert in a
 # wheel-only install.
 [tool.setuptools.package-data]
+# Enumerated rather than `_bundled/**/*`, so a node corpus dropped back into
+# _bundled cannot silently re-enter the wheel. The previous blanket glob is how
+# 302 nodes and 2.65 MB — roughly two thirds of the package — came to ship to
+# every user despite `resolve_global_vault` never resolving to the package
+# directory, so nothing could read them. Vaults are distributed separately;
+# see `akms vault install`.
 akms = [
-    "_bundled/**/*",
+    "_bundled/agents/**/*",
+    "_bundled/commands/**/*",
+    "_bundled/hooks/**/*",
+    "_bundled/qmd/**/*",
+    "_bundled/skills/**/*",
+    "_bundled/claude_md_kernel.md",
 ]
 
 [tool.pytest.ini_options]

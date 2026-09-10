@@ -857,6 +857,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     register_provider_commands(subparsers)
 
+    #   # Global vault status / install (separate module).
+    from akms.cli.vault_commands import register_vault_commands
+
+    register_vault_commands(subparsers)
+
     return parser
 
 
