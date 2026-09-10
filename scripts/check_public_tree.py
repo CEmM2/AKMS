@@ -87,7 +87,11 @@ TEXT_FILES_AT_ROOT = (
 )
 
 HISTORY_PATTERNS = {
-    "private repository reference": re.compile(r"\bSOSOVSKI/AKMS\b", re.I),
+    # Any repository under the private account, not just SOSOVSKI/AKMS. The
+    # narrower pattern would have waved through `SOSOVSKI/MechDSL`,
+    # `SOSOVSKI/ConstKit` and `SOSOVSKI/SymbolicFemWorkbench`, which are named
+    # in compmech-reference-pack's shipped source packs and are not public.
+    "private repository reference": re.compile(r"\bSOSOVSKI/[\w.-]+", re.I),
     "plan or task identifier": re.compile(
         r"\b(?:ADM|AO|CAR)-\d+\b|"
         r"\bTask\s+P\d+(?:[-_]\d+)+\b|"
