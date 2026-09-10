@@ -23,7 +23,7 @@ From the AKMS repo root:
 
 ```bash
 # 1. Resolve and install dependencies for the AKMS_nodes_gen workspace member
-uv sync --project Packages/AKMS_nodes_gen
+uv sync --project packages/akms_nodes_gen
 ```
 
 `uv sync` builds the editable install and pulls in `fastapi`, `uvicorn`,
@@ -34,7 +34,7 @@ uv sync --project Packages/AKMS_nodes_gen
 If you want the `akms-pick` command available from anywhere on your `PATH`:
 
 ```bash
-uv tool install --editable Packages/AKMS_nodes_gen
+uv tool install --editable packages/akms_nodes_gen
 ```
 
 That installs two equivalent executables — `akms-pick` (short) and
@@ -45,7 +45,7 @@ That installs two equivalent executables — `akms-pick` (short) and
 === "After uv sync (per-project)"
 
     ```bash
-    uv --project Packages/AKMS_nodes_gen run akms-pick
+    uv --project packages/akms_nodes_gen run akms-pick
     ```
 
 === "After uv tool install (global)"
@@ -57,7 +57,7 @@ That installs two equivalent executables — `akms-pick` (short) and
 === "Module-style fallback"
 
     ```bash
-    uv --project Packages/AKMS_nodes_gen run \
+    uv --project packages/akms_nodes_gen run \
         python -m akms_nodes_gen.batch_picker
     ```
 

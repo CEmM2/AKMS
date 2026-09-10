@@ -13,8 +13,8 @@
 ```bash
 git clone <repository-url>
 cd AKMS
-uv sync --project Packages/AKMS --all-extras --all-groups
-uv run --project Packages/AKMS pytest Packages/AKMS/tests/akms -q
+uv sync --project packages/akms --all-extras --all-groups
+uv run --project packages/akms pytest packages/akms/tests/akms -q
 ```
 
 ## Whole workspace

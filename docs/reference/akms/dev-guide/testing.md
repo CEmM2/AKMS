@@ -7,9 +7,9 @@ useful test, which is an oddly self-defeating quality metric.
 ## Core
 
 ```bash
-uv run --project Packages/AKMS pytest Packages/AKMS/tests/akms -q
-uv run --project Packages/AKMS pytest Packages/AKMS/tests/e2e -q
-uv run --project Packages/AKMS pytest Packages/AKMS/tests/plan_tests -q
+uv run --project packages/akms pytest packages/akms/tests/akms -q
+uv run --project packages/akms pytest packages/akms/tests/e2e -q
+uv run --project packages/akms pytest packages/akms/tests/plan_tests -q
 ```
 
 Markers declared by the core package include `unit`, `integration`,
@@ -31,8 +31,8 @@ uv run --project packages/akms_learn pytest \
 ## Node generation
 
 ```bash
-uv run --project Packages/AKMS_nodes_gen pytest \
-  Packages/AKMS_nodes_gen/tests -q
+uv run --project packages/akms_nodes_gen pytest \
+  packages/akms_nodes_gen/tests -q
 ```
 
 ## compmech reference pack

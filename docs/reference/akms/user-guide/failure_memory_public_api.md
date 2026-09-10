@@ -4,7 +4,7 @@ The optional `akms-failure-memory` package may depend only on documented public
 AKMS contracts. The machine-readable pin lives at:
 
 ```text
-Packages/AKMS/release/failure_memory_public_api_pin.json
+packages/akms/release/failure_memory_public_api_pin.json
 ```
 
 ## Permitted surface
@@ -36,5 +36,5 @@ test stops complaining.
 ## Stability test
 
 ```bash
-uv run pytest Packages/AKMS/tests/akms/test_failure_memory_public_api_pin.py -q
+uv run pytest packages/akms/tests/akms/test_failure_memory_public_api_pin.py -q
 ```

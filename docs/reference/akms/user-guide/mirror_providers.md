@@ -4,6 +4,12 @@ AKMS projects repository source into `knowledge/code-mirror/` for exact path
 resolution, search, and review context. Projection is pluggable; graph and
 loadout semantics remain in AKMS core.
 
+A code mirror is **generated from your own repository**, not shipped with AKMS.
+Nothing arrives pre-populated and there is nothing to download: you produce one
+with `akms generate-mirror` and refresh it as the source changes. A mirror is
+build output, and like build output it belongs to the tree it was projected
+from.
+
 ## Defaults
 
 | Setting | Default | Meaning |
@@ -35,6 +41,9 @@ The command is an argv prefix, not a shell string.
 
 ## `legacy`
 
+The default, and the only provider that works out of the box — it is
+in-process and needs nothing installed beyond `akms` itself.
+
 - Python-only AST projection
 - In-process implementation
 - Changed-file selection by default
@@ -42,11 +51,18 @@ The command is an argv prefix, not a shell string.
 
 ## `repo2md`
 
+Requires the external `repo-wiki` executable, which **AKMS does not install**.
+It is registered lazily and invoked only when you configure
+`mirror.provider: repo2md`, so its absence costs nothing until then. Because
+`mirror.fallback_on_error` defaults to `false`, configuring this provider
+without the binary present fails loudly rather than silently reverting to
+`legacy` — set that flag to `true` if you would rather it fell back.
+
 - Invokes `repo-wiki export-akms` with `shell=False`
 - Does not import repo2md as a Python package
 - Validates export schema, AKMS v2 frontmatter, output containment,
   content/source consistency, duplicate IDs, and completeness
-- Uses a pinned consumer contract under `Packages/AKMS/release/`
+- Uses a pinned consumer contract under `packages/akms/release/`
 
 ## CLI
 

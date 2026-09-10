@@ -6,22 +6,22 @@ validation query and recording the per-node JSON report.
 
 ## Location
 
-`Packages/AKMS_nodes_gen/validate_nodes.py`
+`packages/akms_nodes_gen/validate_nodes.py`
 
 ## Run it
 
 ```bash
 # Validate every node
-python Packages/AKMS_nodes_gen/validate_nodes.py
+python packages/akms_nodes_gen/validate_nodes.py
 
 # Limit to one batch
-python Packages/AKMS_nodes_gen/validate_nodes.py --batch R7_B2
+python packages/akms_nodes_gen/validate_nodes.py --batch R7_B2
 
 # Preview without submitting
-python Packages/AKMS_nodes_gen/validate_nodes.py --dry-run
+python packages/akms_nodes_gen/validate_nodes.py --dry-run
 
 # Concurrency knob
-python Packages/AKMS_nodes_gen/validate_nodes.py --concurrency 4
+python packages/akms_nodes_gen/validate_nodes.py --concurrency 4
 ```
 
 ## What it does

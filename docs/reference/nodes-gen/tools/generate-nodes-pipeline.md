@@ -7,7 +7,7 @@ v2 schema, and writes clean Markdown files.
 
 ## Location
 
-`Packages/AKMS_nodes_gen/src/akms_nodes_gen/generate_nodes_pipeline.py`
+`packages/akms_nodes_gen/src/akms_nodes_gen/generate_nodes_pipeline.py`
 
 ## Run it
 
@@ -49,7 +49,7 @@ python -m akms_nodes_gen.generate_nodes_pipeline \
 This is the **automated** alternative to running `node-gen-invoker` from
 the AKMS skill. The Batch Picker writes its plan JSONs in a different
 shape (consumed by the skill); `generate_nodes_pipeline.py` consumes
-inventory JSONs from `Packages/AKMS_nodes_gen/Inventory_files/` directly.
+inventory JSONs from `packages/akms_nodes_gen/Inventory_files/` directly.
 
 ## See also
 
