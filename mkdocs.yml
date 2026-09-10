@@ -2,9 +2,10 @@ site_name: AKMS
 site_description: >-
   Adaptive Knowledge Management System — deterministic graph, task-context,
   loadout, learning, and project-memory infrastructure for coding and research agents.
-# site_url / repo_url are finalized at publication time.
-site_url: ""
-# edit_uri is restored with repo_url at publication time.
+site_url: "https://cemm2.github.io/AKMS/"
+repo_url: "https://github.com/CEmM2/AKMS"
+repo_name: CEmM2/AKMS
+edit_uri: edit/main/docs/
 
 docs_dir: docs
 site_dir: site
@@ -14,17 +15,19 @@ theme:
   name: material
   language: en
   palette:
+    # `custom` hands primary/accent to docs/stylesheets/akms.css, which defines
+    # them per scheme. A named Material colour here would win instead.
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
@@ -81,6 +84,9 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.arithmatex:
       generic: true
+
+extra_css:
+  - stylesheets/akms.css
 
 plugins:
   - search
