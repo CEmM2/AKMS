@@ -1,6 +1,6 @@
 [project]
 name = "akms-learn"
-version = "0.3.0"
+version = "0.3.1"
 description = "Learning Source Packet compiler and exporters for AKMS (experimental preview)"
 requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"

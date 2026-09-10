@@ -1,6 +1,6 @@
 [project]
 name = "akms"
-version = "0.3.0"
+version = "0.3.1"
 description = "A deterministic global-local knowledge compiler: typed knowledge nodes, graph compilation, projections, and evidence ingestion"
 requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"

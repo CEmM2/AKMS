@@ -1,6 +1,6 @@
 [project]
 name = "akms-nodes-gen"
-version = "0.3.0"
+version = "0.3.1"
 description = "Node generation and validation tooling for AKMS: NotebookLM batch generation, YAML-to-node conversion, and the batch-picker UI"
 readme = "README.md"
 license = "Apache-2.0"

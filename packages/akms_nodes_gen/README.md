@@ -28,7 +28,7 @@ uv sync --project packages/akms_nodes_gen --group docs
 ## Batch picker
 
 ```bash
-uv --project Packages/AKMS_nodes_gen run akms-pick
+uv --project packages/akms_nodes_gen run akms-pick
 ```
 
 The picker runs a local FastAPI UI for selecting papers, staging PDFs, creating
@@ -76,8 +76,8 @@ The generator writes:
 Build the docs locally:
 
 ```bash
-uv --project Packages/AKMS_nodes_gen run --group docs \
-  mkdocs build -f Packages/AKMS_nodes_gen/mkdocs.yml
+uv --project packages/akms_nodes_gen run --group docs \
+  mkdocs build -f packages/akms_nodes_gen/mkdocs.yml
 ```
 
-Main docs live in `Packages/AKMS_nodes_gen/docs/`.
+Main docs live in `packages/akms_nodes_gen/docs/`.
