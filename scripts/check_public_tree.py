@@ -5,10 +5,47 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def publishable_paths() -> set[Path] | None:
+    """Every path git would publish: tracked, plus untracked-but-not-ignored.
+
+    The audit is about what reaches the public repository, so asking git is
+    both more accurate and quieter than walking the filesystem. A gitignored
+    file cannot be published — flagging one is a false positive, and a gate
+    that cries wolf locally is one people learn to skip. Untracked files that
+    are *not* ignored stay in scope: they are one `git add .` from shipping.
+
+    Returns None when git cannot answer — no repository, no git on PATH, an
+    extracted tarball — so the caller falls back to walking the tree, which is
+    the conservative direction.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(ROOT),
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "-z",
+            ],
+            capture_output=True,
+            check=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    names = result.stdout.decode("utf-8", "replace").split("\0")
+    return {ROOT / name for name in names if name}
+
 
 FORBIDDEN_TOP_LEVEL = {
     ".agents",
@@ -107,7 +144,7 @@ BINARY_SUFFIXES = {
 }
 
 
-def iter_public_text_files() -> list[Path]:
+def iter_public_text_files(publishable: set[Path] | None) -> list[Path]:
     paths: list[Path] = []
     for rel in TEXT_FILES_AT_ROOT:
         path = ROOT / rel
@@ -120,6 +157,8 @@ def iter_public_text_files() -> list[Path]:
             continue
         for path in base.rglob("*"):
             if not path.is_file():
+                continue
+            if publishable is not None and path not in publishable:
                 continue
             if any(part in SKIP_DIRS for part in path.parts):
                 continue
@@ -152,13 +191,24 @@ def main() -> int:
     args = parser.parse_args()
 
     findings: list[str] = []
+    publishable = publishable_paths()
 
     if not args.security_only:
         for name in sorted(FORBIDDEN_TOP_LEVEL):
-            if (ROOT / name).exists():
-                findings.append(f"{name}: forbidden top-level public path")
+            candidate = ROOT / name
+            if not candidate.exists():
+                continue
+            # A gitignored working directory (`.claude/`, `.orchestra/`) is not
+            # part of the public tree, so its presence on disk is not a finding.
+            if publishable is not None and not any(
+                path == candidate or candidate in path.parents for path in publishable
+            ):
+                continue
+            findings.append(f"{name}: forbidden top-level public path")
 
         for path in ROOT.rglob("*"):
+            if publishable is not None and path not in publishable:
+                continue
             if any(part in SKIP_DIRS for part in path.parts):
                 continue
             if any(
@@ -180,7 +230,7 @@ def main() -> int:
     if not args.security_only:
         patterns.update(HISTORY_PATTERNS)
 
-    for path in iter_public_text_files():
+    for path in iter_public_text_files(publishable):
         findings.extend(scan_text(path, patterns))
 
     if findings:
