@@ -34,12 +34,38 @@ class VaultInstallError(RuntimeError):
     """Raised when a vault cannot be fetched, validated, or installed."""
 
 
+def _declares_schema(path: Path) -> bool:
+    """Does this file open with frontmatter declaring ``akms_schema``?
+
+    Deliberately structural rather than a substring search. A vault's own
+    README documents the node format, so it contains the text ``akms_schema``
+    in a fenced example — and a plain ``"akms_schema" in text`` test classifies
+    that README as a node, installs it into the vault, and the graph compiler
+    then aborts every build on it. Found exactly that way.
+
+    So: the file must *start* with a frontmatter fence, and the key must appear
+    at the top level of that block, before it closes.
+    """
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    if not text.startswith("---"):
+        return False
+    lines = text.splitlines()
+    for line in lines[1:]:
+        if line.rstrip() in {"---", "..."}:
+            return False
+        if line.startswith("akms_schema:"):
+            return True
+    return False
+
+
 def _count_nodes(directory: Path) -> tuple[int, int]:
     """Return (markdown files, files that declare ``akms_schema``).
 
-    Deliberately cheap and tolerant: this is a sanity check on a downloaded
-    archive, not schema validation. The graph compiler does the real parsing
-    and reports precisely what it rejects.
+    A sanity check on a source tree, not schema validation. The graph compiler
+    does the real parsing and reports precisely what it rejects.
     """
     md = 0
     schema = 0
@@ -49,11 +75,7 @@ def _count_nodes(directory: Path) -> tuple[int, int]:
         if "content" in path.relative_to(directory).parts[:-1]:
             continue
         md += 1
-        try:
-            head = path.read_text(encoding="utf-8", errors="replace")[:2048]
-        except OSError:
-            continue
-        if "akms_schema" in head:
+        if _declares_schema(path):
             schema += 1
     return md, schema
 
@@ -62,12 +84,7 @@ def _is_node(path: Path) -> bool:
     """Does this file look like a v2 node rather than repository furniture?"""
     if path.suffix != ".md" or path.name.startswith("."):
         return False
-    try:
-        return (
-            "akms_schema" in path.read_text(encoding="utf-8", errors="replace")[:2048]
-        )
-    except OSError:
-        return False
+    return _declares_schema(path)
 
 
 def _install_tree(src: Path, dest: Path) -> tuple[int, list[str]]:
