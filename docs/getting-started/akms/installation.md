@@ -65,12 +65,22 @@ Check what you have:
 akms vault status
 ```
 
-To install one from a directory, a `.tar.gz`, or an https URL to a released
-vault archive:
+With no argument, `vault install` fetches the canonical computational-mechanics
+vault — [`CEmM2/akms-vault-compmech`](https://github.com/CEmM2/akms-vault-compmech),
+264 nodes covering computational mechanics, micromechanics, constitutive
+modelling, phase-field fracture, solvers and the MOOSE framework:
+
+```bash
+akms vault install
+```
+
+The default is pinned to a release tag, so it installs the same content today
+and in a year. To install a different vault, pass a directory, a `.tar.gz`, or
+an https URL to a released archive:
 
 ```bash
 akms vault install ./my-vault
-akms vault install https://example.org/vault-v1.0.0.tar.gz
+akms vault install https://example.org/vault-v2.0.0.tar.gz
 ```
 
 `vault install` refuses to replace a vault that already holds nodes unless you

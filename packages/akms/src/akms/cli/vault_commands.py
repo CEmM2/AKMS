@@ -25,9 +25,13 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-# Set this once the canonical vault publishes its first tagged release; until
-# then a source must be given explicitly rather than guessed at.
-DEFAULT_VAULT_SOURCE: str | None = None
+# The canonical vault, pinned to a tag rather than a branch: `vault install`
+# with no argument should install the same content today and in a year, and a
+# moving `main` would make it silently install something else. Bump this when
+# a new vault release is cut.
+DEFAULT_VAULT_SOURCE: str | None = (
+    "https://github.com/CEmM2/akms-vault-compmech/archive/refs/tags/v1.0.0.tar.gz"
+)
 
 
 class VaultInstallError(RuntimeError):
@@ -157,6 +161,32 @@ def _safe_extract(archive: Path, dest: Path) -> None:
             tar.extractall(dest_resolved)  # noqa: S202 - members checked above
 
 
+def _https_only_redirect_handler():
+    """A redirect handler that follows redirects but never off https.
+
+    ``urlopen`` follows redirects by itself, so checking only the URL the user
+    typed would let an https source hand off to plain http mid-flight and still
+    be treated as trusted. Redirects cannot simply be refused either: GitHub's
+    archive URLs redirect to codeload, which is the normal path for
+    ``akms vault install <release tarball>``. So follow them — refuse only the
+    downgrade.
+
+    Built lazily so importing this module does not pull in urllib.
+    """
+    import urllib.request
+
+    class _HTTPSOnlyRedirects(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            if not newurl.lower().startswith("https://"):
+                scheme = newurl.split(":", 1)[0]
+                raise VaultInstallError(
+                    f"refusing a redirect from https to {scheme}: {newurl}"
+                )
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+    return _HTTPSOnlyRedirects
+
+
 def _fetch(source: str, workdir: Path) -> Path:
     """Resolve ``source`` to a directory of vault content inside ``workdir``."""
     staged = workdir / "staged"
@@ -168,9 +198,10 @@ def _fetch(source: str, workdir: Path) -> Path:
             )
         import urllib.request
 
+        opener = urllib.request.build_opener(_https_only_redirect_handler())
         archive = workdir / "vault.tar.gz"
         try:
-            with urllib.request.urlopen(source) as response:  # noqa: S310 - https enforced
+            with opener.open(source) as response:  # noqa: S310 - https enforced above
                 archive.write_bytes(response.read())
         except OSError as exc:
             raise VaultInstallError(f"could not download {source}: {exc}") from exc
@@ -222,13 +253,13 @@ def cmd_vault_status(args: argparse.Namespace) -> int:
         print("  status: not present")
         print()
         print("  No vault is installed. Install one with:")
-        print("      akms vault install <url-or-path>")
+        print("      akms vault install")
         return 0
     print(f"  status: {md} node file(s), {schema} declaring akms_schema")
     if md == 0:
         print()
         print("  The vault is empty. Install one with:")
-        print("      akms vault install <url-or-path>")
+        print("      akms vault install")
     return 0
 
 
@@ -363,7 +394,10 @@ def register_vault_commands(subparsers: argparse._SubParsersAction) -> None:
     install.add_argument(
         "source",
         nargs="?",
-        help="Directory, .tar.gz, or https URL holding the vault",
+        help=(
+            "Directory, .tar.gz, or https URL holding the vault. "
+            "Defaults to the canonical vault release."
+        ),
     )
     install.add_argument(
         "--dest",

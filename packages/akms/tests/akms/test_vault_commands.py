@@ -13,8 +13,13 @@ from pathlib import Path
 
 import pytest
 
+from akms.cli import vault_commands
 from akms.cli.commands import build_parser
-from akms.cli.vault_commands import _count_nodes
+from akms.cli.vault_commands import (
+    VaultInstallError,
+    _count_nodes,
+    _https_only_redirect_handler,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -163,8 +168,24 @@ def test_force_replaces_rather_than_merges(tmp_path: Path) -> None:
     assert _count_nodes(dest) == (2, 2)
 
 
-def test_install_without_a_source_is_a_usage_error(tmp_path: Path) -> None:
+def test_install_without_a_source_is_a_usage_error_when_no_default(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(vault_commands, "DEFAULT_VAULT_SOURCE", None)
     assert _run(["vault", "install", "--dest", str(tmp_path / "v")]) == 2
+
+
+def test_the_default_source_is_pinned_to_a_tag() -> None:
+    """A bare `vault install` must resolve to the same content every time.
+
+    Pointing the default at a branch would make the command install whatever
+    that branch happens to hold today, which is not something a user typing
+    four words has consented to.
+    """
+    source = vault_commands.DEFAULT_VAULT_SOURCE
+    assert source, "the canonical vault source should be configured"
+    assert source.startswith("https://")
+    assert "/refs/tags/" in source, f"{source!r} is not pinned to a tag"
 
 
 def test_install_rejects_a_directory_holding_no_nodes(tmp_path: Path) -> None:
@@ -223,6 +244,37 @@ def test_install_refuses_an_archive_that_escapes_the_destination(
     assert _run(["vault", "install", str(archive), "--dest", str(dest)]) == 1
     assert not outside.exists()
     assert not (tmp_path / "escaped.md").exists()
+
+
+# ── transport ───────────────────────────────────────────────────────────
+
+
+def test_redirects_may_not_leave_https() -> None:
+    """urlopen follows redirects itself, so the scheme check must too.
+
+    Guarding only the URL the user typed would let an https source hand off to
+    plain http mid-flight and still be trusted. GitHub's archive URLs do
+    redirect — to codeload — so redirects must be followed, just not
+    downgraded.
+    """
+    handler = _https_only_redirect_handler()()
+    with pytest.raises(VaultInstallError, match="refusing a redirect"):
+        handler.redirect_request(
+            None, None, 302, "Found", {}, "http://example.invalid/vault.tar.gz"
+        )
+
+
+def test_https_to_https_redirects_are_followed() -> None:
+    """The codeload hop every real GitHub tarball takes must keep working."""
+    import urllib.request
+
+    handler = _https_only_redirect_handler()()
+    req = urllib.request.Request("https://github.com/x/y/archive/v1.tar.gz")
+    out = handler.redirect_request(
+        req, None, 302, "Found", {}, "https://codeload.github.com/x/y/tar.gz/v1"
+    )
+    assert out is not None
+    assert out.full_url.startswith("https://codeload.github.com/")
 
 
 # ── status ──────────────────────────────────────────────────────────────
