@@ -8,7 +8,7 @@ NotebookLM owns source-grounded synthesis from the selected batch notebook.
 
 ## Location
 
-`Packages/AKMS_nodes_gen/src/akms_nodes_gen/nlm_batch.py`
+`packages/akms_nodes_gen/src/akms_nodes_gen/nlm_batch.py`
 
 ## When to use it
 

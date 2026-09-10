@@ -5,7 +5,7 @@ vault (`~/.claude/akms/nodes/`) with domain-based subdirectory nesting.
 
 ## Location
 
-`Packages/AKMS_nodes_gen/src/akms_nodes_gen/akms_node_promote.py`
+`packages/akms_nodes_gen/src/akms_nodes_gen/akms_node_promote.py`
 
 ## Run it
 

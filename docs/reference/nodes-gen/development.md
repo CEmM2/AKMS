@@ -7,19 +7,19 @@ How to extend, test, and contribute to the package.
 ```bash
 git clone git@github.com:the AKMS repository.git
 cd AKMS
-uv sync --project Packages/AKMS_nodes_gen
+uv sync --project packages/akms_nodes_gen
 ```
 
 For docs work, also pull in the `docs` group:
 
 ```bash
-uv sync --project Packages/AKMS_nodes_gen --group docs
+uv sync --project packages/akms_nodes_gen --group docs
 ```
 
 ## Running the docs locally
 
 ```bash
-uv --project Packages/AKMS_nodes_gen run --group docs mkdocs serve -f Packages/AKMS_nodes_gen/mkdocs.yml
+uv --project packages/akms_nodes_gen run --group docs mkdocs serve -f packages/akms_nodes_gen/mkdocs.yml
 ```
 
 Opens at `http://127.0.0.1:8000/`. Live-reloads on save.
@@ -27,7 +27,7 @@ Opens at `http://127.0.0.1:8000/`. Live-reloads on save.
 ## Running the picker in dev mode
 
 ```bash
-uv --project Packages/AKMS_nodes_gen run akms-pick --reload
+uv --project packages/akms_nodes_gen run akms-pick --reload
 ```
 
 `--reload` enables uvicorn's file watcher; saving any `.py` under the
@@ -61,7 +61,7 @@ There is no `tests/` folder yet — adding one would be an easy win. The
 shape that fits this codebase:
 
 ```
-Packages/AKMS_nodes_gen/tests/
+packages/akms_nodes_gen/tests/
 └── batch_picker/
     ├── conftest.py          # shared fixtures (Paths, fake catalog)
     ├── test_plan_parser.py  # parse_plan against known plans + edge cases

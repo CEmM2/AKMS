@@ -136,7 +136,7 @@ from a tooling perspective.
 
 ## 3. `generation_plan.md` (the batch plan)
 
-Default: `Packages/AKMS_nodes_gen/generation_plan.md`. Override with
+Default: `packages/akms_nodes_gen/generation_plan.md`. Override with
 `AKMS_PLAN_MD`.
 
 The parser is intentionally lenient about ordering and tolerates extra

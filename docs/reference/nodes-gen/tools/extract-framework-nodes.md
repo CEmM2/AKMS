@@ -8,12 +8,12 @@ distilled content.
 
 ## Location
 
-`Packages/AKMS_nodes_gen/extract_framework_nodes.py`
+`packages/akms_nodes_gen/extract_framework_nodes.py`
 
 ## Run it
 
 ```bash
-python Packages/AKMS_nodes_gen/extract_framework_nodes.py \
+python packages/akms_nodes_gen/extract_framework_nodes.py \
     <results_file> <output_dir> [--manifest manifest.yaml]
 ```
 

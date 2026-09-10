@@ -7,8 +7,8 @@ Every path is overridable via an environment variable.
 
 | Env var | Default | What it points at |
 |---------|---------|-------------------|
-| `AKMS_REPO_ROOT` | Auto-detected (`Packages/AKMS_nodes_gen/src/akms_nodes_gen/batch_picker/config.py` walked up 5 levels) | The AKMS monorepo root — base for the other defaults |
-| `AKMS_PLAN_MD` | `<repo>/Packages/AKMS_nodes_gen/generation_plan.md` | Markdown file the parser reads |
+| `AKMS_REPO_ROOT` | Auto-detected (`packages/akms_nodes_gen/src/akms_nodes_gen/batch_picker/config.py` walked up 5 levels) | The AKMS monorepo root — base for the other defaults |
+| `AKMS_PLAN_MD` | `<repo>/packages/akms_nodes_gen/generation_plan.md` | Markdown file the parser reads |
 | `AKMS_BBT_JSON` | `~/ZotSums/zsumbib.json` | BetterBibTeX export with all paper metadata + PDF paths |
 | `AKMS_ZOTSUMS_ROOT` | `~/ZotSums` | ZotSums Obsidian vault (Papers/, Collections/) |
 | `AKMS_BATCH_STATE` | `<repo>/Sources_Evals/NLM/batch_assignments.json` | Per-batch citekey assignments + NLM metadata |
