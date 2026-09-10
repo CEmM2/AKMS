@@ -1,0 +1,29 @@
+source_pack_schema: akms-learn-source-pack/v1
+source_pack_id: compmech.symbolic_fem_workbench
+name: Symbolic FEM Workbench
+version: "0.1.0"
+companion_role: pedagogical_workbench
+# The source is public and obtainable; the adapter that would consume it is
+# not written yet. `planned` describes the adapter, not the availability of
+# the material.
+capability_status: planned
+repo:
+  kind: github
+  name: SOSOVSKI/Teaching-materials
+  ref: main
+roots:
+  docs: packages/symbolic-fem-workbench/docs
+  code: packages/symbolic-fem-workbench/src/symbolic_fem_workbench
+  examples: packages/symbolic-fem-workbench/notebooks
+  tests: packages/symbolic-fem-workbench/tests
+capabilities:
+  static_code_mirror: true
+  static_lessons: true
+  notebook_cells: true
+  executable_runner: false
+runtime:
+  required_python: ">=3.12,<3.13"
+  dependencies: []
+adapter:
+  adapter_id: compmech.symbolic_fem_workbench_adapter
+  status: planned

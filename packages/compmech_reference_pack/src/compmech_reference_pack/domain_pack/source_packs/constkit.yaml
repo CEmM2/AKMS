@@ -1,0 +1,28 @@
+source_pack_schema: akms-learn-source-pack/v1
+source_pack_id: compmech.constkit
+name: ConstKit Concept Helpers
+version: "0.1.0"
+companion_role: concept_kit
+# The source is public and obtainable; the adapter that would consume it is
+# not written yet. `planned` describes the adapter, not the availability of
+# the material.
+capability_status: planned
+repo:
+  kind: github
+  name: SOSOVSKI/Teaching-materials
+  ref: main
+roots:
+  docs: packages/constkit/docs
+  code: packages/constkit/src/constkit
+  tests: packages/constkit/tests
+capabilities:
+  static_code_mirror: true
+  static_lessons: true
+  notebook_cells: false
+  executable_runner: false
+runtime:
+  required_python: ">=3.12,<3.13"
+  dependencies: []
+adapter:
+  adapter_id: compmech.constkit_adapter
+  status: planned
