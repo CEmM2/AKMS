@@ -7,8 +7,8 @@ authors:
   - family-names: Osovski
     given-names: Shmuel
     email: shmuliko@technion.ac.il
-version: 0.3.0
-date-released: 2026-08-31
+version: 0.3.1
+date-released: 2026-09-10
 repository-code: "https://github.com/CEmM2/AKMS"
 abstract: >-
   A deterministic global-local knowledge compiler: typed knowledge nodes,
