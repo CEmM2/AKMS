@@ -114,6 +114,32 @@ def test_install_leaves_repository_furniture_behind(tmp_path: Path) -> None:
     assert not (dest / ".github").exists()
 
 
+def test_a_readme_documenting_the_node_format_is_not_a_node(tmp_path: Path) -> None:
+    """A vault's README explains the format, so it *mentions* ``akms_schema``.
+
+    Regression: a substring test classified such a README as a node, installed
+    it, and the graph compiler then aborted every build on it. The real vault
+    README hit this immediately. Detection has to be structural — frontmatter
+    fence first, key at the top level of that block.
+    """
+    src = _make_vault(tmp_path / "src", count=3)
+    (src / "README.md").write_text(
+        "# My Vault\n\n"
+        "Every node declares `akms_schema` in its frontmatter:\n\n"
+        "```yaml\n"
+        "---\n"
+        "akms_schema: v2\n"
+        "id: example\n"
+        "---\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    dest = tmp_path / "vault" / "nodes"
+    assert _run(["vault", "install", str(src), "--dest", str(dest)]) == 0
+    assert _count_nodes(dest) == (3, 3)
+    assert not (dest / "README.md").exists()
+
+
 def test_install_reports_what_it_left_behind(tmp_path: Path, capsys) -> None:
     src = _make_vault(tmp_path / "src", count=2)
     (src / "README.md").write_text("# Vault\n", encoding="utf-8")
