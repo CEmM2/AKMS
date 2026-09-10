@@ -37,13 +37,13 @@ omnivorous agent framework:
     Batch Picker and generation tools for turning source collections into
     validated AKMS nodes, including a NotebookLM CLI path.
 
--   :material-function-variant: __[Companion adapters](architecture/modules.md)__
+-   :material-function-variant: __[compmech-reference-pack](architecture/modules.md)__
 
     ---
 
-    Executable-domain bridges such as `compmech-reference-pack`, which maps
-    computational-mechanics LSP excerpts onto the MechDSL backend while
-    preserving provenance.
+    Companion adapter that maps computational-mechanics LSP excerpts onto the
+    MechDSL executable backend while preserving provenance. The compile path is
+    an optional extra.
 
 </div>
 

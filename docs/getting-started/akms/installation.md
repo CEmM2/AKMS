@@ -23,9 +23,19 @@ That is the deterministic core: graph compilation, task-context resolution,
 loadouts and the CLI. The companion packages are independent installs:
 
 ```bash
-pip install akms-learn             # learning-packet compiler
-pip install akms-nodes-gen         # node generation and validation tooling
-pip install akms-failure-memory    # project-owned failure memory
+pip install akms-learn                # learning-packet compiler
+pip install akms-nodes-gen            # node generation and validation tooling
+pip install akms-failure-memory       # project-owned failure memory
+pip install compmech-reference-pack   # computational-mechanics companion adapter
+```
+
+`compmech-reference-pack` bridges computational-mechanics learning packets to
+the [MechDSL](https://github.com/CEmM2/MechDSL) executable backend. The compile
+and verify path is an extra, so the backend is not pulled in unless you ask
+for it:
+
+```bash
+pip install "compmech-reference-pack[mechdsl]"
 ```
 
 The optional embedded coding-agent runtime is an extra rather than a separate
