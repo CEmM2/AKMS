@@ -63,6 +63,12 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.smartsymbols
+  # Resolves `:material-graph:` and friends into inline SVG. Without this the
+  # docs render the literal text `:material-graph:` — which is what the
+  # published homepage cards were doing.
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.keys
   - pymdownx.tabbed:
       alternate_style: true
