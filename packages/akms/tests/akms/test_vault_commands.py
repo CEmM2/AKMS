@@ -246,6 +246,34 @@ def test_install_refuses_an_archive_that_escapes_the_destination(
     assert not (tmp_path / "escaped.md").exists()
 
 
+def test_install_ignores_non_regular_archive_members(tmp_path: Path) -> None:
+    """A vault is directories and regular files. Everything else is skipped.
+
+    Extraction whitelists rather than blacklists, so a symlink in the archive
+    is not followed, not recreated, and not reasoned about — it simply does not
+    land. Nor are archive permissions carried over, so nothing can arrive with
+    an executable or setuid bit.
+    """
+    src = _make_vault(tmp_path / "src", count=2)
+    archive = tmp_path / "vault.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        tar.add(src / "node-0.md", arcname="v/node-0.md")
+        tar.add(src / "node-1.md", arcname="v/node-1.md")
+        link = tarfile.TarInfo(name="v/passwd-link")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "/etc/passwd"
+        tar.addfile(link)
+        loud = tarfile.TarInfo(name="v/node-0.md")
+        loud.mode = 0o4777
+
+    dest = tmp_path / "vault" / "nodes"
+    assert _run(["vault", "install", str(archive), "--dest", str(dest)]) == 0
+    assert _count_nodes(dest) == (2, 2)
+    assert not (dest / "passwd-link").exists()
+    assert not (dest / "passwd-link").is_symlink()
+    assert not (dest / "node-0.md").stat().st_mode & 0o111
+
+
 # ── transport ───────────────────────────────────────────────────────────
 
 
