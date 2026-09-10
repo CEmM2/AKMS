@@ -40,18 +40,28 @@ def test_mechdsl_source_pack_and_adapter_available() -> None:
 
 
 @pytest.mark.unit
-def test_public_pack_declares_only_shippable_companions() -> None:
-    """Every companion role in the public pack is one a user can actually use.
-
-    The `constkit` and `symbolic_fem_workbench` roles were dropped on
-    publication: both were `planned` — no adapter exists — and both named
-    source repositories that are not publicly resolvable. A pack that
-    advertises companions nobody can obtain is worse than one that stays quiet
-    about them, so the public descriptor declares only what ships.
-    """
+def test_other_companions_still_planned() -> None:
+    """Promotion only flips MechDSL — the other two companions stay planned."""
     desc = load_descriptor_from_yaml(domain_pack_path())
     roles = {r.id: r for r in desc.companion_roles}
-    assert set(roles) == {"mechdsl"}
-    assert all(
-        r.capability_status is CapabilityStatus.available for r in desc.companion_roles
-    )
+    assert roles["constkit"].capability_status is CapabilityStatus.planned
+    assert roles["symbolic_fem_workbench"].capability_status is CapabilityStatus.planned
+
+
+@pytest.mark.unit
+def test_every_source_pack_names_a_public_repository() -> None:
+    """A published pack must not point a reader at something they cannot fetch.
+
+    The two `planned` companions originally named per-project repositories that
+    do not resolve; their source actually lives in the public
+    `Teaching-materials` monorepo. This pins the corrected targets so a future
+    edit cannot quietly reintroduce a reference nobody outside the project can
+    follow.
+    """
+    public_repos = {"CEmM2/MechDSL", "SOSOVSKI/Teaching-materials"}
+    for name in ("constkit", "symbolic_fem_workbench", "mechdsl"):
+        sp = load_source_pack_from_yaml(source_pack_path(name))
+        assert sp.repo is not None, f"{name} declares no repo"
+        assert sp.repo["name"] in public_repos, (
+            f"{name} names {sp.repo['name']!r}, which is not a known public repository"
+        )

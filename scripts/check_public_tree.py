@@ -86,12 +86,24 @@ TEXT_FILES_AT_ROOT = (
     "mkdocs.yml",
 )
 
+# Repositories under the personal account that are deliberately public and may
+# therefore be referenced from the public tree. Everything else under that
+# account is assumed private, which is the safe default: the old pattern
+# matched only `SOSOVSKI/AKMS` and so waved through `SOSOVSKI/MechDSL`,
+# `SOSOVSKI/ConstKit` and `SOSOVSKI/SymbolicFemWorkbench`.
+#
+# Verify with `gh api repos/<name> --jq .visibility` before adding to this list.
+PUBLIC_PERSONAL_REPOS = ("Teaching-materials",)
+
 HISTORY_PATTERNS = {
-    # Any repository under the private account, not just SOSOVSKI/AKMS. The
-    # narrower pattern would have waved through `SOSOVSKI/MechDSL`,
-    # `SOSOVSKI/ConstKit` and `SOSOVSKI/SymbolicFemWorkbench`, which are named
-    # in compmech-reference-pack's shipped source packs and are not public.
-    "private repository reference": re.compile(r"\bSOSOVSKI/[\w.-]+", re.I),
+    # The trailing `(?![\w.-])` is load-bearing: with a plain `\b` there, a
+    # hyphen counts as a boundary, so `Teaching-materials-private` would match
+    # the allowlisted prefix and be waved through. The allowlist must admit
+    # exactly the named repository, not anything sharing its prefix.
+    "private repository reference": re.compile(
+        r"\bSOSOVSKI/(?!(?:" + "|".join(PUBLIC_PERSONAL_REPOS) + r")(?![\w.-]))[\w.-]+",
+        re.I,
+    ),
     "plan or task identifier": re.compile(
         r"\b(?:ADM|AO|CAR)-\d+\b|"
         r"\bTask\s+P\d+(?:[-_]\d+)+\b|"

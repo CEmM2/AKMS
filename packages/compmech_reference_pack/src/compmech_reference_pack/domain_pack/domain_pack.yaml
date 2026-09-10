@@ -22,17 +22,26 @@ capabilities:
   executable_notebook: false
   external_runner: true
   code_mirror: true
-# The `constkit` and `symbolic_fem_workbench` companions were dropped from the
-# public pack. Both were `planned` — no adapter exists — and both named source
-# repositories that are not publicly resolvable, so shipping them would have
-# advertised capabilities nobody can use while disclosing private repository
-# names. Restore them when those repositories and their adapters are public.
+# `constkit` and `symbolic_fem_workbench` stay `planned`: their adapters are
+# not written. Their source is public — both live under
+# https://github.com/SOSOVSKI/Teaching-materials — so `planned` here describes
+# the adapter, not the availability of the material.
 companion_roles:
+  - id: constkit
+    package_name: compmech.constkit
+    runtime_hint: optional
+    capability_status: planned
+  - id: symbolic_fem_workbench
+    package_name: compmech.symbolic_fem_workbench
+    runtime_hint: optional
+    capability_status: planned
   - id: mechdsl
     package_name: compmech.mechdsl
     runtime_hint: required
     capability_status: available
 source_packs:
+  - source_packs/constkit.yaml
+  - source_packs/symbolic_fem_workbench.yaml
   - source_packs/mechdsl.yaml
 provenance:
   source_repos: []
