@@ -1,0 +1,200 @@
+/* AKMS documentation theme.
+ *
+ * Ports the house look from dev/demos/02-adaptive-path.html onto MkDocs
+ * Material. The demo scopes its tokens to [data-theme="light"|"dark"]; Material
+ * stamps [data-md-color-scheme="default"|"slate"], so the palettes are
+ * re-scoped here and mapped onto Material's own --md-* variables rather than
+ * being restated as a parallel system.
+ *
+ * Typography is deliberately not a literal port. The demo sets a cursive face
+ * for body and monospace text, which costs too much on reference tables, API
+ * signatures and code blocks. Baloo 2 carries the identity on headings and the
+ * header; body and code keep Material's readable defaults.
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap");
+
+:root {
+  --akms-radius: 16px;
+  --akms-radius-card: 20px;
+  --akms-card-border-width: 2.5px;
+  --akms-red: #e63b2e;
+  --akms-font-display: "Baloo 2", system-ui, sans-serif;
+}
+
+/* ========== LIGHT ========== */
+[data-md-color-scheme="default"] {
+  --akms-bg: #fff8e7;
+  --akms-surface: #ffffff;
+  --akms-elevated: #fff0cc;
+  --akms-border: #e8b84b;
+  --akms-text-muted: #6b5b3e;
+  --akms-shadow: 3px 4px 0 #2b2b2b;
+  --akms-shadow-hover: 5px 6px 0 #2b2b2b;
+
+  --md-primary-fg-color: #e63b2e;
+  --md-primary-fg-color--light: #f06055;
+  --md-primary-fg-color--dark: #b22e24;
+  --md-primary-bg-color: #ffffff;
+  --md-accent-fg-color: #2b78c4;
+
+  --md-default-bg-color: #fff8e7;
+  --md-default-fg-color: #2b2b2b;
+  --md-default-fg-color--light: #6b5b3e;
+  --md-default-fg-color--lighter: #9a8a6e;
+  --md-typeset-color: #2b2b2b;
+  --md-typeset-a-color: #2b78c4;
+  --md-code-bg-color: #fff0cc;
+  --md-code-fg-color: #2b2b2b;
+  --md-footer-bg-color: #2b2b2b;
+}
+
+/* ========== DARK ========== */
+[data-md-color-scheme="slate"] {
+  --akms-bg: #0d1117;
+  --akms-surface: #161b22;
+  --akms-elevated: #1c2128;
+  --akms-border: #484f58;
+  --akms-text-muted: #8b949e;
+  --akms-shadow: 3px 4px 0 #000000;
+  --akms-shadow-hover: 5px 6px 0 #000000;
+
+  --md-primary-fg-color: #161b22;
+  --md-primary-fg-color--light: #1c2128;
+  --md-primary-fg-color--dark: #0d1117;
+  --md-primary-bg-color: #f0f6fc;
+  --md-accent-fg-color: #58a6ff;
+
+  --md-default-bg-color: #0d1117;
+  --md-default-fg-color: #c9d1d9;
+  --md-default-fg-color--light: #8b949e;
+  --md-default-fg-color--lighter: #6e7681;
+  --md-typeset-color: #c9d1d9;
+  --md-typeset-a-color: #58a6ff;
+  --md-code-bg-color: #161b22;
+  --md-code-fg-color: #c9d1d9;
+  --md-footer-bg-color: #161b22;
+}
+
+/* ========== DISPLAY TYPE ========== */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-header__title,
+.md-nav__title {
+  font-family: var(--akms-font-display);
+  letter-spacing: 0.01em;
+}
+
+.md-typeset h1,
+.md-typeset h2 {
+  font-weight: 800;
+}
+
+/* The demo's signature: a hard rule under the top bar in the accent red. */
+.md-header {
+  box-shadow: 0 3px 0 var(--akms-red);
+}
+
+[data-md-color-scheme="default"] .md-header {
+  box-shadow: 0 3px 0 #b22e24;
+}
+
+/* ========== CARDS ========== */
+.md-typeset .grid.cards > ul > li,
+.md-typeset .grid > .card {
+  background: var(--akms-surface);
+  border: var(--akms-card-border-width) solid var(--akms-border);
+  border-radius: var(--akms-radius-card);
+  box-shadow: var(--akms-shadow);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.md-typeset .grid.cards > ul > li:hover,
+.md-typeset .grid > .card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--akms-shadow-hover);
+  border-color: var(--md-accent-fg-color);
+}
+
+/* Card icons pick up the accent rather than sitting in body grey. */
+.md-typeset .grid.cards > ul > li > hr + p > .twemoji,
+.md-typeset .grid.cards > ul > li > p > .twemoji {
+  color: var(--md-accent-fg-color);
+}
+
+.md-typeset .grid.cards > ul > li .twemoji svg {
+  width: 1.6em;
+  height: 1.6em;
+}
+
+/* ========== ADMONITIONS, QUOTES, TABLES ========== */
+.md-typeset .admonition,
+.md-typeset details {
+  border-width: var(--akms-card-border-width);
+  border-radius: var(--akms-radius);
+  box-shadow: var(--akms-shadow);
+}
+
+.md-typeset blockquote {
+  border-left: var(--akms-card-border-width) solid var(--akms-border);
+  border-radius: 0 var(--akms-radius) var(--akms-radius) 0;
+  background: var(--akms-elevated);
+  color: var(--akms-text-muted);
+  padding: 0.4rem 0.8rem;
+}
+
+.md-typeset table:not([class]) {
+  border: var(--akms-card-border-width) solid var(--akms-border);
+  border-radius: var(--akms-radius);
+  overflow: hidden;
+  box-shadow: var(--akms-shadow);
+}
+
+.md-typeset table:not([class]) th {
+  background: var(--akms-elevated);
+  font-family: var(--akms-font-display);
+  font-weight: 700;
+}
+
+/* ========== CODE ========== */
+.md-typeset pre > code,
+.md-typeset .highlight {
+  border-radius: var(--akms-radius);
+}
+
+.md-typeset .highlight {
+  border: 1.5px solid var(--akms-border);
+}
+
+.md-typeset code {
+  border-radius: 6px;
+}
+
+/* ========== BUTTONS AND PILLS ========== */
+.md-typeset .md-button {
+  border-width: var(--akms-card-border-width);
+  border-radius: var(--akms-radius);
+  box-shadow: var(--akms-shadow);
+  font-family: var(--akms-font-display);
+  font-weight: 600;
+}
+
+.md-typeset .md-button:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--akms-shadow-hover);
+}
+
+/* ========== NARROW SCREENS ========== */
+/* The offset shadows read as clutter once cards go full-bleed. */
+@media screen and (max-width: 44.9375em) {
+  .md-typeset .grid.cards > ul > li,
+  .md-typeset table:not([class]),
+  .md-typeset .admonition,
+  .md-typeset details {
+    box-shadow: none;
+  }
+}
