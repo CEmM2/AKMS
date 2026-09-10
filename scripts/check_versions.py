@@ -16,6 +16,9 @@ PACKAGE_FILES = {
     "akms-learn": ROOT / "packages" / "akms_learn" / "pyproject.toml",
     "akms-nodes-gen": ROOT / "packages" / "akms_nodes_gen" / "pyproject.toml",
     "akms-failure-memory": ROOT / "packages" / "akms_failure_memory" / "pyproject.toml",
+    "compmech-reference-pack": (
+        ROOT / "packages" / "compmech_reference_pack" / "pyproject.toml"
+    ),
 }
 
 

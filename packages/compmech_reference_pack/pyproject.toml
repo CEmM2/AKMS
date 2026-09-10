@@ -1,0 +1,48 @@
+[project]
+name = "compmech-reference-pack"
+version = "0.3.0"
+description = "Computational-mechanics companion adapter — bridges AKMS LSP excerpts to the MechDSL executable backend (Tier 2 of the AKMS executable-bridge)."
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "akms-learn",
+]
+
+[project.optional-dependencies]
+# The executable-build path (MechDSLRunner.build_executable / transpile /
+# verify) lazily imports the MechDSL Tier-1 backend — every mechdsl/algo2code
+# import in src/ is function-scoped, so the package installs and imports
+# cleanly without them.  They are an optional extra so a downstream consumer
+# (e.g. Logic-Loom's frozen core sidecar) can resolve and install
+# compmech-reference-pack WITHOUT pulling mechdsl-core/algo2code — and
+# transitively Taichi — into its uv lock closure.  Install the `mechdsl` extra
+# to enable the actual compile/transpile/verify capability.
+mechdsl = [
+    "mechdsl-core",
+    "algo2code",
+]
+dev = [
+    "pytest>=9.0.2",
+    "compmech-reference-pack[mechdsl]",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+compmech_reference_pack = [
+    "domain_pack/*.yaml",
+    "domain_pack/source_packs/*.yaml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "unit: fast unit-level tests",
+    "integration: cross-module/integration tests",
+    "slow: tests that initialise Taichi (the only Taichi-paying adapter path)",
+]

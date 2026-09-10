@@ -59,6 +59,7 @@ jobs:
           uv build --package akms-learn --out-dir dist/packages
           uv build --package akms-nodes-gen --out-dir dist/packages
           uv build --package akms-failure-memory --out-dir dist/packages
+          uv build --package compmech-reference-pack --out-dir dist/packages
           uv run --with twine twine check dist/packages/*
           sha256sum dist/packages/* > dist/SHA256SUMS
 
@@ -131,6 +132,8 @@ jobs:
             prefix: "akms_nodes_gen-"
           - package: akms-failure-memory
             prefix: "akms_failure_memory-"
+          - package: compmech-reference-pack
+            prefix: "compmech_reference_pack-"
     steps:
       - name: Download the verified distributions
         uses: actions/download-artifact@v8.0.1
