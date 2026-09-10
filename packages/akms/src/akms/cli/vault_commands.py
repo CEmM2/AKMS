@@ -130,14 +130,24 @@ def _install_tree(src: Path, dest: Path) -> tuple[int, list[str]]:
 
 
 def _safe_extract(archive: Path, dest: Path) -> None:
-    """Extract a tar archive, refusing members that escape ``dest``.
+    """Extract a tar archive member by member, writing only regular files.
 
-    Uses the stdlib ``data`` filter where available (3.12, and 3.11.4+), which
-    rejects absolute paths, parent traversal, links pointing outside the tree,
-    device nodes and setuid bits. The explicit check below is not redundant:
-    it keeps the guarantee on interpreters whose tarfile predates the filter,
-    and it states the invariant at the call site rather than trusting a
-    default that has changed across versions.
+    This deliberately does not call ``extractall``. The earlier version
+    validated every member and then called it, falling back to an unfiltered
+    call on interpreters whose tarfile predates the ``data`` filter — and that
+    fallback was a genuine weak point, not a false positive: it re-derived each
+    destination path inside tarfile from the same member names, so the
+    validation above it was advisory rather than load-bearing. CodeQL flagged
+    it as `py/tarslip`, correctly.
+
+    Extracting explicitly makes the check the only path to disk, and turns a
+    blacklist into a whitelist: a vault is directories and regular files, so
+    symlinks, hardlinks, devices, FIFOs and anything else are skipped rather
+    than reasoned about. Permissions are not carried over either, so an archive
+    cannot set an executable or setuid bit on anything it lands.
+
+    It also removes the version-dependent behaviour: this works identically on
+    every interpreter, with no filter argument to be present or absent.
     """
     dest_resolved = dest.resolve()
     with tarfile.open(archive, "r:*") as tar:
@@ -148,17 +158,17 @@ def _safe_extract(archive: Path, dest: Path) -> None:
                     f"archive member {member.name!r} escapes the destination "
                     "directory; refusing to extract"
                 )
-            if member.issym() or member.islnk():
-                link = (target.parent / member.linkname).resolve()
-                if not link.is_relative_to(dest_resolved):
-                    raise VaultInstallError(
-                        f"archive member {member.name!r} links outside the "
-                        "destination directory; refusing to extract"
-                    )
-        try:
-            tar.extractall(dest_resolved, filter="data")
-        except TypeError:  # tarfile without the filter argument
-            tar.extractall(dest_resolved)  # noqa: S202 - members checked above
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            if not member.isfile():
+                continue
+            source = tar.extractfile(member)
+            if source is None:
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with source, open(target, "wb") as sink:
+                shutil.copyfileobj(source, sink)
 
 
 def _https_only_redirect_handler():
