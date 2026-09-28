@@ -301,3 +301,19 @@ def test_import_agent_class_rejects_non_subclass(monkeypatch):
 
     with pytest.raises(TypeError, match="not a subclass of AKMSAgent"):
         _import_agent_class("fake.module.NotAgent")
+
+
+class TestVersionFlag:
+    def test_version_reports_installed_distribution(self, capsys):
+        from importlib.metadata import version as dist_version
+
+        with pytest.raises(SystemExit) as exc:
+            main(["--version"])
+        assert exc.value.code == 0
+        out = capsys.readouterr().out.strip()
+        assert out == f"akms {dist_version('akms')}"
+
+    def test_version_is_advertised_in_help(self, capsys):
+        with pytest.raises(SystemExit):
+            main(["--help"])
+        assert "--version" in capsys.readouterr().out

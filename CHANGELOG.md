@@ -4,6 +4,20 @@ All notable changes to the public AKMS packages are documented here. The
 public history begins with the first curated release; earlier private
 development is intentionally not replayed.
 
+## [Unreleased]
+
+### Added
+- `akms --version` prints `akms <version>` from the installed distribution's
+  metadata and exits 0. Host adapters probe it before `--help`; without it they
+  could only report an unknown version and skip strict compatibility checks.
+
+### Fixed
+- `akms.__version__` and `akms_failure_memory.__version__` had stayed at 0.3.0
+  through the 0.3.1 release, so `failure-memory --version` and the akms
+  toolchain fingerprint reported the wrong version. Both literals now match
+  `pyproject.toml`, and `scripts/check_versions.py` fails the release when they
+  drift again.
+
 ## [0.3.1] — 2026-09-10
 
 ### Added

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/CEmM2/AKMS/main/docs/assets/akms-banner.jpg" alt="AKMS, the knowledge atomizer: scrolls of equations go into a machine that breaks them into claims and emits a connected knowledge graph" width="100%">
+</p>
+
 # akms
 
 A deterministic global-local knowledge compiler. AKMS turns typed knowledge
