@@ -8,7 +8,9 @@ an agent tries to violate them, rather than after the fact.
 | `akms-guard-global-vault.sh` | **Blocks** any Edit/Write whose target resolves inside the global vault. The vault is read-only to automated processes (FR-O01, NFR-R03). |
 | `akms-guard-frozen-schema.sh` | **Warns** when `schema/models.py` is edited, listing which changes are breaking (require v3 + migration) and which are safe. |
 
-The vault guard exits nonzero, which blocks the tool call. The schema guard emits
+The vault guard exits 2 with the reason on stderr: for a `PreToolUse` hook that
+code blocks the tool call and hands the reason back to the agent (any other
+nonzero code is reported but does not block). The schema guard emits
 a `systemMessage` and always exits 0 — it informs, it does not block, because
 adding an *optional* field is legitimate.
 
@@ -59,7 +61,7 @@ it was meant to guard — so verify it before relying on the vault guard:
 ```bash
 command -v jq || echo "install jq first: brew install jq"
 echo '{"tool_input":{"file_path":"'"$HOME"'/.claude/akms/nodes/x.md"}}' \
-  | bash hooks/akms-guard-global-vault.sh; echo "exit=$? (expect 1 = blocked)"
+  | bash hooks/akms-guard-global-vault.sh; echo "exit=$? (expect 2 = blocked)"
 ```
 
 If that prints `exit=0`, the guard is not protecting anything.
@@ -76,8 +78,9 @@ a relative path or a symlink into the vault is still caught.
 
 ## Scope note
 
-`akms-guard-frozen-schema.sh` matches the literal path
-`Packages/AKMS/src/akms/schema/models.py`. That is AKMS's own layout, so the
+`akms-guard-frozen-schema.sh` matches `packages/akms/src/akms/schema/models.py`
+(and the older `Packages/AKMS/...` layout), relative or absolute. That is
+AKMS's own layout, so the
 warning fires only when you are editing AKMS itself — useful if you vendor the
 source, inert otherwise. The vault guard is layout-independent and is the one
 that matters for ordinary consumers.
