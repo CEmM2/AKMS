@@ -888,7 +888,7 @@ async def handle_execute(
             warnings.append(
                 f"mirror provider {exc.provider or mirror_cfg.provider!r} failed: {exc}"
             )
-            # Block graph rebuild when policy requires success (A2-6).
+            # Block graph rebuild when policy requires success.
             if mirror_cfg.require_success or (
                 mirror_cfg.provider != "legacy" and not mirror_cfg.fallback_on_error
             ):
@@ -997,7 +997,7 @@ async def handle_review(
         fallback_tags.extend(task.get("akms_tags") or [])
     # Preserve order while de-duplicating.
     fallback_tags = list(dict.fromkeys(fallback_tags))
-    # Optional exact required-knowledge path (A2-3 wiring).
+    # Optional exact required-knowledge path.
     route_index_path = _find_task_route_index(ctx.repo_root)
     if route_index_path is None:
         logger.info(

@@ -1,4 +1,4 @@
-"""Tests for cli/commands.py — Phase 5: Developer CLI.
+"""Tests for cli/commands.py.
 
 Coverage:
 - promote: tentative → established (local nodes only)

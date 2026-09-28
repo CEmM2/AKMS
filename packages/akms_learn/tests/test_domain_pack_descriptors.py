@@ -7,8 +7,8 @@ descriptor models without error.
 
 The fixtures are pure metadata; no companion package (``constkit``,
 ``mechdsl``, ``symbolic_fem_workbench``) is imported or installed. The test
-must succeed in an akms-learn-only environment per the the specification closure
-condition (L425).
+must succeed in an akms-learn-only environment (the "no companion
+installed" closure condition).
 """
 
 from __future__ import annotations

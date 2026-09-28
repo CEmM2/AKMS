@@ -1,4 +1,4 @@
-"""Tests for MCP tools wrapper — Phase 6 Task 6.1 (mcp_tools.py).
+"""Tests for the MCP tools wrapper (mcp_tools.py).
 
 Verifies that the FastMCP server correctly wraps all AKMS graph functions
 and returns JSON-serializable results. All tests use the same tmp_vault

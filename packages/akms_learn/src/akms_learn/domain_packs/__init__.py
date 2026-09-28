@@ -10,8 +10,6 @@ packs. The runtime contract is:
   :class:`CompanionRole`.
 * All descriptors are loaded from YAML at runtime via the registry —
   never from Python imports.
-
-Spec: the akms-learn internal specification (not published).
 """
 
 from akms_learn.domain_packs.capabilities import (

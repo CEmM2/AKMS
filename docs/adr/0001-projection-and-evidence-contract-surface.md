@@ -7,7 +7,7 @@
 AKMS must expose stable contracts that external consumers can use without
 adopting the embedded first-party runtime: a **projection contract** (request a
 task-scoped slice of the knowledge graph) and an **evidence contract** (return
-structured outcomes for ingestion). An earlier release plan sketched dedicated
+structured outcomes for ingestion). An earlier design sketched dedicated
 `akms.projections` and `akms.evidence` packages for this purpose.
 
 The implementation already carries both capabilities under different names, and

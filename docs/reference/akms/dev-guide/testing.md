@@ -9,7 +9,7 @@ useful test, which is an oddly self-defeating quality metric.
 ```bash
 uv run --project packages/akms pytest packages/akms/tests/akms -q
 uv run --project packages/akms pytest packages/akms/tests/e2e -q
-uv run --project packages/akms pytest packages/akms/tests/plan_tests -q
+uv run --project packages/akms pytest packages/akms/tests/integration -q
 ```
 
 Markers declared by the core package include `unit`, `integration`,

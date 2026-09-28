@@ -83,7 +83,7 @@ __all__ = [
 # Constants
 # ---------------------------------------------------------------------------
 
-# Approved headings that signal derivation-heavy content (plan §7, L151).
+# Approved headings that signal derivation-heavy content.
 # Equation-heavy content is inferred from the presence of these headings too,
 # since the approved heading set does not have a separate "equations" heading.
 DERIVATION_HEAVY_HEADINGS: frozenset[str] = frozenset(

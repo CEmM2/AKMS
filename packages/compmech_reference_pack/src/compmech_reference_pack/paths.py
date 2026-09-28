@@ -2,9 +2,9 @@
 
 The domain pack and its source packs ship as package data under
 ``compmech_reference_pack/domain_pack/``. These helpers return concrete
-``Path`` objects so the ``akms_learn`` descriptor loaders — and the
-`CEmM2/Logic-Loom <https://github.com/CEmM2/Logic-Loom>`_ status route — can
-read them without hardcoding the install layout.
+``Path`` objects so the ``akms_learn`` descriptor loaders — and any host
+application's status route — can read them without hardcoding the
+install layout.
 """
 
 from __future__ import annotations

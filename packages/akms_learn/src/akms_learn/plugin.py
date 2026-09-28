@@ -17,7 +17,7 @@ The canonical capability listing lives in
 delegates :meth:`Plugin.capabilities` to
 :func:`~akms_learn.capabilities_catalog.all_capabilities` and adds a sibling
 :meth:`Plugin.capabilities_with_status` for gate-aware consumers such as
-Logic-Loom feature detection and the review bundle.
+host feature detection and the review bundle.
 
 Append-only invariant
 ---------------------
@@ -44,7 +44,7 @@ __all__ = ["Plugin", "get_plugin"]
 class Plugin:
     """Static plugin metadata for the akms-learn plugin.
 
-    Attribute values follow plan §7 (L125–L131) verbatim. The dataclass is
+    The dataclass is
     frozen so callers cannot mutate the version constants in flight.
     """
 

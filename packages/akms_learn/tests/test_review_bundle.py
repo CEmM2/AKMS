@@ -47,7 +47,7 @@ def _sha256_stripped(path: Path) -> str:
     return hashlib.sha256(_strip_timestamps(path.read_bytes())).hexdigest()
 
 
-# Exactly the 9 keys from the specification (L464-L477) -- no paraphrase, sorted for
+# Exactly the 9 keys the bundle contract requires -- no paraphrase, sorted for
 # deterministic test failure messages.
 _REQUIRED_MANIFEST_KEYS = (
     "plan_id",

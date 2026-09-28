@@ -479,7 +479,7 @@ def format_report(report: dict[str, Any]) -> str:
         lines.append(f"  - {d.get('file', '?')}::{d['function']}: {d['detail']}")
     lines.append("")
 
-    # Mirror provider identity (A2-6) — non-secret only
+    # Mirror provider identity — non-secret only
     mp = report.get("mirror_provider") or {}
     if mp:
         lines.append("## Mirror Provider")
@@ -553,7 +553,7 @@ def graph_status(
         blocked_tasks: Optional blocked-task entries to include in report.
         today: Override date for stale check (for testing).
         mirror_provider: Optional non-secret mirror provider identity / last
-            refresh status (A2-6). When omitted, derived from config.mirror.
+            refresh status. When omitted, derived from config.mirror.
         allow_graph_rebuild: When False, skip ``build_graph`` if graph.json is
             missing (used after a required mirror-provider failure so a partial
             mirror set cannot enter the graph).
@@ -636,7 +636,7 @@ def graph_status(
         # health reports expose non-fatal parse failures instead of silently
         # omitting sources.
         "skipped_files": list(G.graph.get("skipped_files", [])),
-        # A2-6: configured / last-refresh mirror provider identity (non-secret).
+        # Configured / last-refresh mirror provider identity (non-secret).
         "mirror_provider": mirror_provider,
     }
 

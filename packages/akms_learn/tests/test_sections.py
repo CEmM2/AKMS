@@ -266,7 +266,7 @@ class TestSections:
     def test_merge_sections_writes_to_included_sections_field(self):
         """``merge_sections_into_node_view`` must update ``included_sections``.
 
-        Regression test from PR #50 review: the helper previously checked
+        Regression test: the helper previously checked
         ``hasattr(node_view, "sections")`` and assigned to ``node_view.sections``,
         but :class:`LearningNodeView` exposes ``included_sections`` (dict-shaped),
         not ``sections``. The mismatched name meant the field was never

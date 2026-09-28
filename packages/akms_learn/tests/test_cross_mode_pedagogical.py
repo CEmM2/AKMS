@@ -50,7 +50,7 @@ def _make_request(
 ) -> LearningRequest:
     defaults: dict[str, Any] = dict(
         topic="cross-mode sweep",
-        goal="Exercise §11 bullets via the public compile pipeline.",
+        goal="Exercise pedagogical modes via the public compile pipeline.",
         audience="engineer",
         depth="implementation",
         generation_option=generation_option,
@@ -106,7 +106,7 @@ class TestPedagogicalCrossModeSweep:
 
     @pytest.mark.regression
     def test_pedagogical_fallback_when_section_missing(self, tmp_path: Path) -> None:
-        """§11 — pedagogical_template falls back when a section is absent.
+        """pedagogical_template falls back when a section is absent.
 
         The toy_concept_kit fixture intentionally lacks several pedagogical
         slots (e.g. "Worked example", "Exercises"). The export must still
@@ -129,7 +129,7 @@ class TestPedagogicalCrossModeSweep:
 
     @pytest.mark.regression
     def test_section_extraction_line_ranges_present(self, tmp_path: Path) -> None:
-        """§11 — extracted section line ranges flow into the LSP via node line_range."""
+        """extracted section line ranges flow into the LSP via node line_range."""
         result = compile_learning_source(
             request=_make_request("derivation_first"),
             graph_slice=fixture_graph_toy_derivation_gap(),
@@ -145,7 +145,7 @@ class TestPedagogicalCrossModeSweep:
 
     @pytest.mark.regression
     def test_derivation_first_orders_heavy_before_light(self, tmp_path: Path) -> None:
-        """§11 — derivation_first places ## Derivation before ## Implementation."""
+        """derivation_first places ## Derivation before ## Implementation."""
         compile_learning_source(
             request=_make_request("derivation_first"),
             graph_slice=fixture_graph_toy_derivation_gap(),
@@ -159,7 +159,7 @@ class TestPedagogicalCrossModeSweep:
 
     @pytest.mark.regression
     def test_implementation_anchor_detection(self, tmp_path: Path) -> None:
-        """§11 — implementation_first detects code-mirror anchors via CodeLinkView."""
+        """implementation_first detects code-mirror anchors via CodeLinkView."""
         result = compile_learning_source(
             request=_make_request("implementation_first"),
             graph_slice=fixture_graph_toy_executable_bridge(),
@@ -173,7 +173,7 @@ class TestPedagogicalCrossModeSweep:
 
     @pytest.mark.regression
     def test_code_link_warning_emitted_end_to_end(self, tmp_path: Path) -> None:
-        """§11 — code-link missing-source warning fires from the compile pipeline.
+        """code-link missing-source warning fires from the compile pipeline.
 
         Builds a minimal slice with an ``implements`` edge whose target is a
         ``code_mirror`` node with no usable ``source_path``. The compiler's
@@ -230,7 +230,7 @@ class TestPedagogicalCrossModeSweep:
 
     @pytest.mark.regression
     def test_granularity_convention_selection(self, tmp_path: Path) -> None:
-        """§11 — multi_granularity selects per convention (tags / id-prefix)."""
+        """multi_granularity selects per convention (tags / id-prefix)."""
         result = compile_learning_source(
             request=_make_request("multi_granularity", granularity="overview"),
             graph_slice=fixture_graph_toy_multi_granularity(),
@@ -254,7 +254,7 @@ class TestPedagogicalCrossModeSweep:
         result = compile_learning_source(
             request={
                 "topic": "cross-mode sweep",
-                "goal": "Exercise §11 bullets via the public compile pipeline.",
+                "goal": "Exercise pedagogical modes via the public compile pipeline.",
                 "generation_option": "multi_granularity",
                 "granularity": "overview",
                 "exporters": ["markdown", "bundle"],
@@ -275,7 +275,7 @@ class TestPedagogicalCrossModeSweep:
         result = compile_learning_source(
             request={
                 "topic": "cross-mode sweep",
-                "goal": "Exercise §11 bullets via the public compile pipeline.",
+                "goal": "Exercise pedagogical modes via the public compile pipeline.",
                 "generation_option": "multi_granularity",
                 "granularity": "bogus",
                 "exporters": ["markdown", "bundle"],

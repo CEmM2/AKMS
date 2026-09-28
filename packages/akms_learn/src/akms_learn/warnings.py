@@ -7,8 +7,8 @@ This module provides:
   instances. Used throughout the LSP compiler pipeline (Phases 2–4) to gather
   soft issues without short-circuiting compilation.
 * Helper emit functions that build canonical :class:`LearningWarning`
-  payloads for the common soft-issue shapes consumed by the Phase 3 extractors
-  and the Phase 2 validator.
+  payloads for the common soft-issue shapes consumed by the section extractors
+  and the packet validator.
 
 Hard errors are raised through :class:`akms_learn.validation.PacketValidationError`;
 the accumulator is exclusively for soft (``warning`` / ``info``) issues.
@@ -83,7 +83,7 @@ class WarningAccumulator:
 def emit_missing_section_warning(node_id: str, section_name: str) -> LearningWarning:
     """Build a soft warning for a node missing an optional teaching section.
 
-    Used by the Phase 3 extractors when a node lacks ``prerequisites`` /
+    Used by the section extractors when a node lacks ``prerequisites`` /
     ``derivations`` / ``implementations`` / ``pitfalls`` content. The
     ``source_ref`` is namespaced as ``"<node_id>#<section_name>"`` so two
     different missing sections on the same node are NOT deduped.
@@ -129,8 +129,8 @@ def emit_dangling_reference_warning(
 ) -> LearningWarning:
     """Build a soft warning for an edge that references an unresolved node.
 
-    Exposed for higher layers (e.g. Phase 3 extractors) that may prefer to
-    *warn* about a dangling reference rather than raise. The Phase 2
+    Exposed for higher layers (e.g. section extractors) that may prefer to
+    *warn* about a dangling reference rather than raise. The
     :func:`akms_learn.validation.validate_packet` itself treats dangling
     edges as a HARD error and raises ``PacketValidationError``.
     """

@@ -445,8 +445,8 @@ def build_fastmcp_app(
         Read directly from ``local_state.yaml`` (no qmd call required — this
         is structural graph data). Returns a list of
         ``{from, to, type, weight, note, source_id}`` dicts. The ``source_id``
-        field is optional and only present on edges produced by the Phase 3
-        replay-ledger changes.
+        field is optional and only present on edges produced by the
+        replay ledger.
         """
         import yaml as _yaml
 

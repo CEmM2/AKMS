@@ -1,8 +1,8 @@
-"""Opt-in real repo2md subprocess → mirror → graph E2E (A2-7).
+"""Opt-in real repo2md subprocess → mirror → graph E2E.
 
 Skipped unless ``AKMS_REPO2MD_E2E=1``. Uses the pinned repo2md fixture source
-tree and a real ``repo-wiki`` executable. Does not require resolve-task from
-A2-α; uses public ``build_graph`` + ``query_subgraph`` / loadout APIs.
+tree and a real ``repo-wiki`` executable. Does not require resolve-task; uses
+the public ``build_graph`` + ``query_subgraph`` / loadout APIs.
 
 Environment:
   AKMS_REPO2MD_E2E=1

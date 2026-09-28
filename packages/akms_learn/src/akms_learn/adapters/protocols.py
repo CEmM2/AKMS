@@ -8,7 +8,7 @@ graph objects, or perform any filesystem write targeting AKMS-owned paths.
 All four protocols consume *validated LSP excerpts* or *bounded excerpts* —
 small, self-contained data structures derived from a compiled LSP (Learner
 Support Pack).  Return types are generic ``dict[str, Any]`` so that
-downstream Phase-2/3 code can pattern-match on the keys without this module
+downstream code can pattern-match on the keys without this module
 importing domain-specific types from computational mechanics.
 
 Design principles

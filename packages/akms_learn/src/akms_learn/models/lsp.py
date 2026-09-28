@@ -1,7 +1,7 @@
 """Pydantic v2 models for Learning Source Packets (LSP) and related artifacts.
 
-These models are the canonical in-memory representation of an LSP as defined in
-the akms-learn internal specification (not published) (frozen v0.1).
+These models are the canonical in-memory representation of an LSP
+(frozen v0.1 schema).
 
 All 12 models are pure data containers; no business logic or I/O at import time.
 
@@ -64,12 +64,12 @@ class LearningWarning(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Top-level header blocks (spec §3, L33-L69)
+# Top-level header blocks
 # ---------------------------------------------------------------------------
 
 
 class CompilerInfo(BaseModel):
-    """Identifies the compiler that produced the packet (spec §3)."""
+    """Identifies the compiler that produced the packet."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -79,7 +79,7 @@ class CompilerInfo(BaseModel):
 
 
 class SourceInfo(BaseModel):
-    """Identifies the AKMS graph + query that produced this packet (spec §3).
+    """Identifies the AKMS graph + query that produced this packet.
 
     ``graph_hash`` and ``graph_path`` are the stable provenance anchors that
     let the review bundle reproduce the packet from the same graph.
@@ -96,10 +96,10 @@ class SourceInfo(BaseModel):
 
 
 class LearningRequestInfo(BaseModel):
-    """Normalized request snapshot + hash (spec §3, plan §10).
+    """Normalized request snapshot + hash.
 
     Only the normalized 11 request fields contribute to ``request_hash``; UI
-    state from Logic-Loom must NOT contribute (plan §10, L203). Hash stability
+    state from a host UI must NOT contribute. Hash stability
     is enforced upstream in ``request.normalize``.
     """
 
@@ -131,12 +131,12 @@ class LearningRequestInfo(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# View models (spec §4-§5, L71-L124) — all carry required provenance.
+# View models — all carry required provenance.
 # ---------------------------------------------------------------------------
 
 
 class LearningNodeView(BaseModel):
-    """A node included in the packet (spec §4).
+    """A node included in the packet.
 
     Required provenance: ``node_id``, ``source_path``, ``line_range``.
     ``line_range`` is a ``(start, end)`` tuple of 1-indexed inclusive line
@@ -166,7 +166,7 @@ class LearningNodeView(BaseModel):
 
 
 class LearningEdgeView(BaseModel):
-    """An edge included in the packet (spec §5).
+    """An edge included in the packet.
 
     Required provenance: ``edge_id``, ``source_path``, ``line_range``. The
     ``from``/``to`` semantic endpoints from the spec YAML are mapped via
@@ -188,7 +188,7 @@ class LearningEdgeView(BaseModel):
 
 
 class PitfallView(BaseModel):
-    """A pitfall surfaced into the packet (spec §4, extracted.pitfalls + §6)."""
+    """A pitfall surfaced into the packet (``extracted.pitfalls``)."""
 
     model_config = ConfigDict()
 
@@ -201,7 +201,7 @@ class PitfallView(BaseModel):
 
 
 class CodeLinkView(BaseModel):
-    """A code link (spec §7).
+    """A code link.
 
     This view-type carries optional fields that the
     implementation-first mode populates when walking ``implements``
@@ -240,7 +240,7 @@ class CodeLinkView(BaseModel):
 
 
 class AssessmentView(BaseModel):
-    """Forward-compatibility stub for assessment items (spec §8).
+    """Forward-compatibility stub for assessment items.
 
     Schema is NOT enforced; arbitrary keys are accepted. An empty
     ``assessments=[]`` is the typical value.
@@ -250,7 +250,7 @@ class AssessmentView(BaseModel):
 
 
 class ReferenceView(BaseModel):
-    """A reference / further-reading entry (spec §9, references array)."""
+    """A reference / further-reading entry (``references`` array)."""
 
     model_config = ConfigDict()
 
@@ -267,11 +267,11 @@ class ReferenceView(BaseModel):
 
 
 class PacketBody(BaseModel):
-    """The body of the LSP — all the rendered view collections (spec §3).
+    """The body of the LSP — all the rendered view collections.
 
     Optional forward-compat fields ``domain_pack_provenance`` and
     ``source_pack_provenance`` exist so the domain-pack layer can populate
-    metadata without forcing a v2 schema bump (spec §12).
+    metadata without forcing a v2 schema bump.
     """
 
     model_config = ConfigDict()
@@ -285,7 +285,7 @@ class PacketBody(BaseModel):
     reading_order: list[str] = Field(default_factory=list)
     sections: list[dict[str, Any]] = Field(default_factory=list)
 
-    # Forward-compat slots populated by the domain-pack layer (spec §12).
+    # Forward-compat slots populated by the domain-pack layer.
     domain_pack_provenance: Any | None = None
     source_pack_provenance: Any | None = None
 
@@ -298,7 +298,7 @@ class PacketBody(BaseModel):
 
 
 class LearningSourcePacket(BaseModel):
-    """Root of the LSP (spec §3, L33-L69).
+    """Root of the LSP.
 
     Holds top-level header fields, the request snapshot, the packet body, and
     a list of soft warnings accumulated during compilation.

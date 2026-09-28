@@ -1,6 +1,6 @@
 """Mode 2: node anthology — ordered mini-reader compiled from node sections.
 
-Five sub-tasks (plan §14, L253-L259):
+Five sub-tasks:
   1. Compile ordered node summaries/full sections into an anthology view.
   2. Respect ``reading_priority`` when present (lower = earlier; missing = +infinity).
   3. Include confidence and status badges in Markdown.

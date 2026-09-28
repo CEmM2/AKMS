@@ -16,7 +16,7 @@ Behaviour
   Taichi-free.
 - **Taichi only on demand.** Tier-1 ``verify`` is called **only** when
   ``options["run_verify"]`` is truthy; that is the single Taichi-paying branch.
-- **Never invalidates the packet** (spec 09 §7 rule 5): a transpile/compile
+- **Never invalidates the packet**: a transpile/compile
   failure is captured into ``warnings`` and reported as ``status="error"``
   only when the caller explicitly required executable output
   (``options["require_executable"]``); otherwise ``status`` stays ``"ok"``.

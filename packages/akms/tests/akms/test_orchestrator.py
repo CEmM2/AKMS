@@ -1,4 +1,4 @@
-"""Tests for orchestrator module — Phase 6: Stage Pipeline & Checkpoints.
+"""Tests for orchestrator module — stage pipeline & checkpoints.
 
 Coverage:
 - Stage definitions and transitions

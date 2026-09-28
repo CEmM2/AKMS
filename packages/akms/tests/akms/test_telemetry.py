@@ -1,4 +1,4 @@
-"""Tests for AKMS telemetry instrumentation (Phase 3).
+"""Tests for AKMS telemetry instrumentation.
 
 Covers:
 - Telemetry initialization with configurable exporter

@@ -1,12 +1,5 @@
 # Nodes Generation from NotebookLM
 
-> **Provenance.** Published copy of the internal asset at `.claude/commands/node-gen-invoker.md`. It is a copy
-> rather than a move: consumers of this repository (Logic-Loom vendors it via git
-> subtree) reference the internal path, so relocating it would change that
-> integration surface. Treat the internal copy as the source of truth and update
-> both when behaviour changes.
-
-
 ## Goal
 Invoke the `node-gen` skill to generate self-contained AKMS domain knowledge nodes by querying NotebookLM notebooks, outputting structured YAML, and converting to validated markdown.
 

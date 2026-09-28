@@ -1,4 +1,4 @@
-"""Reviewer context resolution from the actual task-local diff (A2-3).
+"""Reviewer context resolution from the actual task-local diff.
 
 Generates role-specific reviewer loadouts from files actually changed by a
 task, while reporting required lessons that appear only after the
@@ -7,7 +7,7 @@ implementation diff is known.
 Design rules
 ------------
 * Changed paths come from an explicit sequence **or** a base/head git pair.
-  A bare single-path string is rejected (Phase 1 canonicalisation).
+  A bare single-path string is rejected.
 * Empty diffs fall back to task-derived scope without failure.
 * Pre-task required nodes (scope/deliverables only) are compared with the
   post-diff required set so callers can surface newly mandatory lessons.

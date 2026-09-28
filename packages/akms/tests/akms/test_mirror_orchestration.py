@@ -1,4 +1,4 @@
-"""Orchestration / CLI / MCP smoke for mirror providers (A2-6)."""
+"""Orchestration / CLI / MCP smoke for mirror providers."""
 
 from __future__ import annotations
 
@@ -180,7 +180,7 @@ class TestMCPGenerateMirror:
         from akms.orchestrator.mcp_tools import build_fastmcp_app
 
         cfg = PropagationConfig(mirror=MirrorConfig(provider="legacy"))
-        # Same call signature the akms_generate_mirror tool uses after A2-6.
+        # Same call signature the akms_generate_mirror tool uses.
         result = generate_mirror(
             str(repo),
             1,

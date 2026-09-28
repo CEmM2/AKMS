@@ -1,6 +1,6 @@
 """Capabilities catalog — single source of truth for capability strings.
 
-Two groups of capability strings are exposed to Logic-Loom / external
+Two groups of capability strings are exposed to external
 callers:
 
 * six mode/exporter capability strings:
@@ -108,7 +108,7 @@ BASELINE_CAPABILITIES: tuple[str, ...] = (
     "pitfall_driven",
     "markdown_export",
     "bundle_export",
-    # plan §21 (L404–L409) — domain-pack additions.
+    # Domain-pack additions.
     "domain_pack_registry",
     "static_domain_pack_descriptors",
     "source_pack_descriptors",
@@ -128,7 +128,7 @@ BASELINE_CAPABILITIES: tuple[str, ...] = (
 
 #: Exporter capability strings (already present in
 #: ``_CAPABILITY_EXTRA_MAP``).  Appended to the catalog so they surface
-#: to external consumers such as Logic-Loom.
+#: to external consumers.
 EXPORTER_CAPABILITIES: tuple[str, ...] = (
     "notebook_export",
     "quiz_export",
@@ -206,7 +206,7 @@ def capabilities_with_status(
           present, ``unavailable`` otherwise.
         * Adapter strings report the registry's :class:`AdapterStatus` value
           (default ``planned``) — they never disappear, satisfying the
-          §14 surface requirement.
+          append-only surface requirement.
 
     The returned list is sorted by capability name for deterministic output.
     """

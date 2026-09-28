@@ -1,6 +1,6 @@
-"""Mode 8 — Pitfall-driven learning source (plan §15, L265-L271).
+"""Mode 8 — Pitfall-driven learning source.
 
-Plan §15 enumerates 5 sub-tasks implemented below:
+Five sub-tasks are implemented below:
 
     1. Detect pitfall edges in selected graph/slice.            (Step 1)
     2. Build failure-mode sections: symptom, cause,             (Step 2)
@@ -165,7 +165,7 @@ def pitfall_mode(
         Pass an empty dict when section extraction has not been performed.
     request:
         Optional ``LearningRequest``; reserved for future gate filtering.
-        Not used in Phase 4.
+        Currently unused.
 
     Returns
     -------

@@ -53,7 +53,7 @@ def _sha256_stripped(path: Path) -> str:
     return hashlib.sha256(_strip_timestamps(path.read_bytes())).hexdigest()
 
 
-# Exactly the 9 keys from the specification (L335-L344) — no paraphrase.
+# Exactly the 9 keys the bundle contract requires — no paraphrase.
 _REQUIRED_MANIFEST_KEYS = (
     "plan_id",
     "status",
@@ -121,7 +121,7 @@ class TestPedagogicalReviewBundle:
         assert "regenerate.sh" in manifest["command"]
         assert PLAN_ID in manifest["command"]
 
-        # artifacts field lists the 8 §14 filenames, in §14 order.
+        # artifacts field lists the 8 bundle filenames, in contract order.
         assert manifest["artifacts"] == list(BUNDLE_ARTIFACTS)
 
         # unavailable_capabilities is empty — every required pedagogical mode
@@ -129,9 +129,11 @@ class TestPedagogicalReviewBundle:
         assert manifest["unavailable_capabilities"] == []
 
     @pytest.mark.e2e
-    def test_learning_modes_used_lists_four_plan2_modes(self, tmp_path: Path) -> None:
+    def test_learning_modes_used_lists_four_pedagogical_modes(
+        self, tmp_path: Path
+    ) -> None:
         """manifest.learning_modes_used lists the four pedagogical modes
-        verbatim, in §14 order.
+        verbatim, in contract order.
         """
         out_dir = tmp_path / "bundle"
         generate_review_bundle_pedagogical(out_dir, work_dir=tmp_path / "work")

@@ -18,7 +18,7 @@ requires-python = ">=3.12,<3.13"
 # Core deps are import-clean and browser-free. NotebookLM is reached through the
 # external `nlm` CLI (shelled out at call time), NOT a Python package — so a
 # missing `nlm` is a runtime "generation unavailable" state, never an ImportError.
-# This lets Logic-Loom vendor akms-nodes-gen without a Playwright/browser stack:
+# This lets consumers vendor akms-nodes-gen without a Playwright/browser stack:
 # Picker / Nodes / Graph import and work; only an actual NotebookLM dispatch needs
 # the `nlm` CLI present.
 dependencies = [
