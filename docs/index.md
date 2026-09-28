@@ -4,6 +4,10 @@
 project and domain knowledge into deterministic, inspectable inputs for agents,
 reviewers, learning workflows, and executable-domain adapters.
 
+<figure markdown>
+  ![AKMS, the knowledge atomizer: a machine takes scrolls of equations, breaks them into atomic claims, and emits them as a connected knowledge graph](assets/akms-atomizer.jpg){ width="520" loading=lazy }
+</figure>
+
 The system is deliberately split into narrow responsibilities rather than one
 omnivorous agent framework:
 
