@@ -5,17 +5,21 @@ we know about; absence from this list is not a guarantee.
 
 ## Capability maturity
 
-| Surface | Status |
-|---|---|
-| Core graph compilation, deterministic queries, projections, evidence ingestion | Stable |
-| `akms` CLI | Stable |
-| Read-only global vault + writable project overlay model | Stable |
-| Embedded first-party runtime (`akms.orchestrator`, `akms.agents`) | Experimental — optional, install via `akms[orchestration]` |
-| MCP tool server | Experimental — install via `akms[mcp]` |
-| `akms-learn` (learning-packet compiler) | **Experimental preview** |
-| `akms-nodes-gen` (node generation, batch picker) | Experimental — requires external tools for generation |
-| `akms-failure-memory` | Beta |
-| OpenTelemetry export | Experimental — install via `akms[telemetry]` |
+Maturity and installation footprint are separate axes. "Optional" means the
+surface is not installed by a bare `pip install akms` and needs an extra or an
+external tool; it says nothing about how well-tested the surface is.
+
+| Surface | Maturity | Installation |
+|---|---|---|
+| Core graph compilation, deterministic queries, projections, evidence ingestion | Stable | base package |
+| `akms` CLI | Stable | base package |
+| Read-only global vault + writable project overlay model | Stable | base package |
+| MCP tool server (`akms-mcp-stdio`, same operations as the CLI) | Stable | optional, `akms[mcp]` |
+| OpenTelemetry export | Stable | optional, `akms[telemetry]`; inert without an exporter |
+| `akms-nodes-gen` (batch picker, converters, validators) | Stable | separate package; grounded generation needs the external `nlm` CLI, ranked search needs `qmd` |
+| `akms-failure-memory` | Beta | separate package |
+| Embedded first-party runtime (`akms.orchestrator`, `akms.agents`) | Experimental | optional, `akms[orchestration]`; needs provider SDKs or the `claude` / `codex` binaries |
+| `akms-learn` (learning-packet compiler) | **Experimental preview** | separate package |
 
 ## Performance
 
@@ -57,14 +61,12 @@ we know about; absence from this list is not a guarantee.
 - AKMS does not own portfolio-wide orchestration. The embedded runtime is a
   bounded, optional workflow; broader coordination belongs to external
   consumers of the projection and evidence contracts.
-- The bundled corpus (302 nodes) is heavily domain-skewed: computational
-  solid mechanics, plus a large block describing the MOOSE framework. It
-  demonstrates the system on one domain; it is not a general knowledge base.
-- Corpus nodes differ in provenance and confidence. 52 are author-written,
-  180 are author-reviewed summaries of published literature, and 70 are
-  machine-generated summaries of a third-party codebase; 88 of the 302 carry
-  `status: tentative`. Each node's `source` and `status` fields record this —
-  consult them before relying on a node. See `THIRD_PARTY_NOTICES.md`.
+- No knowledge corpus ships inside the packages. `akms vault install` fetches
+  the [compmech vault](https://github.com/CEmM2/akms-vault-compmech), which
+  covers one domain (computational solid mechanics, plus the MOOSE framework)
+  and is not a general knowledge base. Its README's *Provenance* section and
+  each node's `source` and `status` fields say how a node was produced;
+  consult them before relying on one.
 - Python 3.12 only in this release.
 - Linux and macOS only. CI tests both; Windows is not tested and not
   supported in this release. The agent skills, git hooks and qmd helper
