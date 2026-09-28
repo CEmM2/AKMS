@@ -950,8 +950,9 @@ def test_graph_metadata_global_vault_is_portable_across_mount_paths(
     absolute paths produced two different ``graph_sha256`` values -- and
     therefore two different ``result.fingerprint`` /
     ``result.resolution_fingerprint`` / ``resolution.graph_version`` values,
-    which would make WWW's required stale-fingerprint check fire falsely on
-    nothing but a different machine, container, or per-run temp mount.
+    which would make a consumer's required stale-fingerprint check fire
+    falsely on nothing but a different machine, container, or per-run temp
+    mount.
 
     This asserts the actual property downstream consumers depend on: build twice from
     the identical logical state with the vault mounted at two different

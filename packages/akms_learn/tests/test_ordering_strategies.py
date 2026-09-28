@@ -8,14 +8,9 @@ Covers all four acceptance criteria:
          (no silent fallback to default).
   the 'default' strategy reproduces the canonical ordering byte-for-byte
          on the fixture graph.
-  Phase-1 stub strategies (pedagogical / derivation / implementation
+  Stub strategies (pedagogical / derivation / implementation
          / multi_granularity) currently behave identically to default and
          carry an override-contract docstring.
-
-Spec refs:
-    the internal plan
-    the akms-learn internal specification (not published)
-    the akms-learn internal specification (not published)
 """
 
 from __future__ import annotations
@@ -115,9 +110,9 @@ class TestDefaultStrategyMatchesCanonicalOrdering:
     def test_default_strategy_matches_order_nodes_on_fixture(self):
         slice_ = fixture_graph()
         ordered_via_strategy, warnings_via_strategy = get_strategy("default")(slice_)
-        ordered_via_plan1, warnings_via_plan1 = order_nodes(slice_)
-        assert ordered_via_strategy == ordered_via_plan1
-        assert warnings_via_strategy == warnings_via_plan1
+        ordered_via_default, warnings_via_default = order_nodes(slice_)
+        assert ordered_via_strategy == ordered_via_default
+        assert warnings_via_strategy == warnings_via_default
 
     @pytest.mark.unit
     def test_default_strategy_byte_stable_across_runs(self):
@@ -129,10 +124,10 @@ class TestDefaultStrategyMatchesCanonicalOrdering:
 
 
 class TestStubStrategiesFallThroughToDefault:
-    """Phase-1 stubs delegate to default and document the contract.
+    """Stubs delegate to default and document the contract.
 
-    Note: ``derivation_first`` is no longer a stub — it was implemented in
-    Phase 2 and intentionally diverges from the default ordering.
+    Note: ``derivation_first`` is no longer a stub — it is implemented
+    and intentionally diverges from the default ordering.
     ``implementation_first`` is also live and diverges from the
     default ordering. Both are excluded from STUB_KEYS but covered by
     ``TestLiveDerivationFirstStrategy`` / ``TestLiveImplementationFirstStrategy``.
@@ -245,12 +240,12 @@ class TestPitfallDrivenPreserved:
     """Canary — pitfall_driven must keep its existing behaviour."""
 
     @pytest.mark.unit
-    def test_pitfall_driven_matches_plan1_on_fixture(self):
+    def test_pitfall_driven_matches_default_on_fixture(self):
         slice_ = fixture_graph()
         pitfall_order, pitfall_warnings = get_strategy("pitfall_driven")(slice_)
-        plan1_order, plan1_warnings = order_nodes(slice_)
-        assert pitfall_order == plan1_order
-        assert pitfall_warnings == plan1_warnings
+        default_order, default_warnings = order_nodes(slice_)
+        assert pitfall_order == default_order
+        assert pitfall_warnings == default_warnings
 
     @pytest.mark.unit
     def test_pitfall_driven_byte_stable_across_runs(self):

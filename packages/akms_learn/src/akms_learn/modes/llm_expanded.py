@@ -26,7 +26,7 @@ Design decisions
   exempt from the gate (it is the default and is always available).  When
   the caller asks for a non-stub provider, :func:`require_capability` runs
   on entry; absent ``llm`` extra raises :class:`PreconditionError` before
-  any work begins.  This matches the Phase 1 contract: ``llm`` is an
+  any work begins.  This matches the packaging contract: ``llm`` is an
   intentionally empty extra and the no-provider path remains usable
   without it.
 * **Source-locked citations are a HARD invariant** — every

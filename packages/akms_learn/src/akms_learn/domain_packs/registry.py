@@ -1,7 +1,7 @@
 """In-memory registry for :class:`DomainPackDescriptor` plus YAML loaders.
 
-This module is the public surface that the Phase 3 ``compile_learning_source``
-orchestrator will consume to discover what domain packs are available. It is
+This module is the public surface that the ``compile_learning_source``
+orchestrator consumes to discover what domain packs are available. It is
 **pure** — no companion-package imports, no filesystem side effects beyond
 reading the user-supplied YAML files via :mod:`yaml.safe_load`.
 

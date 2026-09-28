@@ -1,7 +1,6 @@
 """Section extraction with provenance fallback for AKMS node markdown.
 
-Recognises the 9 approved teaching-oriented headings defined in plan1 §17
-(L294–L304) and the Phase 3 context summary.  Matching is **case-insensitive
+Recognises the 9 approved teaching-oriented headings.  Matching is **case-insensitive
 and depth-agnostic** (``## Pitfalls`` and ``### Pitfalls`` are equivalent).
 
 Public API
@@ -318,7 +317,7 @@ def merge_sections_into_node_view(
     attribute we set it to a serialised version of *sections_dict*:
     ``{k: v.model_dump() if v else None for k, v in sections_dict.items()}``.
 
-    Returns the serialised dict regardless, so Phase 3.4 can attach it to
+    Returns the serialised dict regardless, so the compiler can attach it to
     the packet body without depending on this helper having a side-effect.
     """
     serialised: dict[str, Any] = {

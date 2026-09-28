@@ -13,7 +13,7 @@ cite exactly ``active_node_ids``.
 Division of labour
 ------------------
 Populating the notebook from nodes (+ PDFs) is the **host's existing AKMS
-NotebookLM workflow** (Logic-Loom ``/api/nlm/*`` / ``akms_nodes_gen``); this
+NotebookLM workflow** (e.g. ``akms_nodes_gen``); this
 adapter *queries* the already-populated notebook. The grounding bundle is passed
 via the Protocol's ``sources`` argument (a dict):
 

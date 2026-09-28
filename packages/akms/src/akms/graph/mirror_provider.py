@@ -1,4 +1,4 @@
-"""mirror_provider.py — Pluggable code-mirror source projection (A2-4).
+"""mirror_provider.py — Pluggable code-mirror source projection.
 
 Separates mirror *orchestration* from the legacy Python AST generator.
 Default provider remains ``legacy`` for backward compatibility. External

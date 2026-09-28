@@ -1,6 +1,6 @@
 """required-unavailable capability hard failure.
 
-Per the specification rule 5 / spec §4 rule 2: a learning request that lists a
+A learning request that lists a
 capability in ``required_capabilities`` which the plugin does NOT provide
 MUST raise :class:`LearningCapabilityError`. The CLI surfaces this as exit
 code 3 (see ``cli.main``).
@@ -19,7 +19,7 @@ from akms_learn.graph_import import fixture_graph
 
 # A capability string that is intentionally absent from
 # ``akms_learn.plugin.Plugin.capabilities()``. The plugin currently ships
-# 10 capabilities (6 §7 originals + 4 §21 domain-pack additions); this
+# 10 capabilities (6 originals + 4 domain-pack additions); this
 # made-up name is guaranteed to be missing.
 _UNAVAILABLE_CAPABILITY = "executable_companion_runner"
 

@@ -13,7 +13,7 @@ dependencies = [
 # verify) lazily imports the MechDSL Tier-1 backend — every mechdsl/algo2code
 # import in src/ is function-scoped, so the package installs and imports
 # cleanly without them.  They are an optional extra so a downstream consumer
-# (e.g. Logic-Loom's frozen core sidecar) can resolve and install
+# (e.g. a consumer's frozen core sidecar) can resolve and install
 # compmech-reference-pack WITHOUT pulling mechdsl-core/algo2code — and
 # transitively Taichi — into its uv lock closure.  Install the `mechdsl` extra
 # to enable the actual compile/transpile/verify capability.

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/akms-banner.jpg" alt="AKMS, the knowledge atomizer: scrolls of equations go into a machine that breaks them into claims and emits a connected knowledge graph" width="100%">
+</p>
+
 # AKMS — Adaptive Knowledge Management System
 
 A **deterministic global-local knowledge compiler**: typed knowledge nodes

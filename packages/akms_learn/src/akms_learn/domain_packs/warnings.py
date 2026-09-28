@@ -1,6 +1,6 @@
 """DomainPackWarning model and helpers for domain-pack soft issues.
 
-Per the Phase 2 context summary (L13), ``DomainPackWarning`` is an
+``DomainPackWarning`` is an
 *independent type* from ``LearningWarning`` but reuses the same shape:
 ``severity / code / message / source_ref``.
 
@@ -43,7 +43,7 @@ def warn_planned_companion(role_id: str, package_name: str) -> DomainPackWarning
     Used when an LSP compile resolves a :class:`CompanionRole` whose
     ``capability_status`` is ``planned``. The companion's absence is not a
     failure — exporters that ignore the role-specific fields will still
-    produce a valid LSP — but Logic-Loom / CLI surfaces should display the
+    produce a valid LSP — but host UI / CLI surfaces should display the
     warning so users understand why the artifact is static-only.
 
     Args:

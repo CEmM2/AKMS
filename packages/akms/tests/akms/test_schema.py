@@ -1,4 +1,4 @@
-"""Tests for AKMS schema models and validators (Phase 1).
+"""Tests for AKMS schema models and validators.
 
 Covers:
 - Global node frontmatter validation

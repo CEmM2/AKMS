@@ -21,9 +21,9 @@ So the genuinely-useful work here is:
    taichi`` when the author didn't, so the emitted function is meaningfully
    named instead of the ``algo2code`` default ``algorithm``; author-supplied
    directives are preserved.
-3. **Surface parser failures as structured warnings, never raise** — per spec
-   09 §7 rule 5 (a failed adapter must not invalidate the packet unless
-   executable output was explicitly required).
+3. **Surface parser failures as structured warnings, never raise** — a
+   failed adapter must not invalidate the packet unless executable output
+   was explicitly required.
 
 The public deliverable is :func:`normalize_algpseudocode` (``str -> str``);
 :func:`normalize` wraps it with a trial parse and the warning report the

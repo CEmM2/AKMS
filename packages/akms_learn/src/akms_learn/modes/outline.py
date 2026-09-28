@@ -1,12 +1,12 @@
-"""Mode 1 — Deterministic outline (plan §13, L231-L249).
+"""Mode 1 — Deterministic outline.
 
 Pure graph-to-outline transformation. **No LLM, no network, no randomness, no
 wall-clock reads.** The output is a plain ``dict`` that the orchestrator
 (``compile_learning_source``) folds into the ``PacketBody`` before serialising
 the LSP.
 
-Plan §13 enumerates 7 sub-tasks (L233-L242). Each is implemented inline below
-and called out in a comment so reviewers can map code → spec line:
+Seven sub-tasks are implemented inline below and called out in a comment
+so reviewers can map code to step:
 
     1. Generate learning goal from request.                 (Step 1)
     2. Build prerequisite list from ``requires`` edges.     (Step 2)
@@ -16,7 +16,7 @@ and called out in a comment so reviewers can map code → spec line:
     6. Emit ``reading_order`` and ``concept_map.json`` data. (Step 6)
     7. Preserve all source node ids and edge ids/attributes. (Step 7)
 
-Acceptance criteria (plan §13, L244-L247):
+Acceptance criteria:
 
 * same graph + request → byte-stable output (this dict has no timestamps)
 * node ids and edge provenance included (``provenance`` + ``concept_map``)
@@ -81,7 +81,7 @@ def outline_mode(
         ``request.topic`` feed Step 1; ``request.include_pitfalls`` gates
         Step 5.
     sections_by_node:
-        Reserved for Phase 5+. Mode 1 never inspects section content; only
+        Reserved for future use. Mode 1 never inspects section content; only
         structural edge/node classification is needed.
 
     Returns
@@ -132,7 +132,7 @@ def outline_mode(
     # We compute pitfalls before core_path so core_path can exclude them
     # cleanly, keeping the four buckets DISJOINT. Pitfalls are gated by
     # ``request.include_pitfalls``; the field is a typed bool on
-    # ``LearningRequest`` (Phase 2), so no getattr fallback is needed.
+    # ``LearningRequest``, so no getattr fallback is needed.
     include_pitfalls: bool = bool(request.include_pitfalls)
     pitfall_ids: set[str] = set()
     if include_pitfalls:

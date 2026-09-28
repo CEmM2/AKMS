@@ -1,4 +1,4 @@
-"""Tests for the mirror-provider protocol (A2-4).
+"""Tests for the mirror-provider protocol.
 
 Coverage:
 - Legacy default path is unchanged for existing generate_mirror callers

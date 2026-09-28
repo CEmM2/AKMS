@@ -1,4 +1,4 @@
-"""Tests for generate_mirror.py — Phase 5: Code Mirror Generation + Drift Check.
+"""Tests for generate_mirror.py — code mirror generation + drift check.
 
 Coverage:
 - AST extraction: functions, async functions, classes, methods, docstrings

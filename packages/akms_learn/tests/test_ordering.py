@@ -3,7 +3,7 @@
 Covers all 5 acceptance criteria:
   AC1 – acyclic slice produces same order on repeated calls
   AC2 – cyclic slice produces deterministic order plus ≥1 'cycle_broken' warning
-  AC3 – bucket order matches §12 exactly
+  AC3 – bucket order matches LEARNING_BUCKETS contract exactly
   AC4 – within bucket, lexicographic sort when no edge constraint applies
   AC5 – order_nodes is pure (no mutation of input slice)
 """
@@ -132,7 +132,8 @@ class TestOrdering:
             "next paths",
         ]
         assert list(LEARNING_BUCKETS) == expected_order, (
-            f"LEARNING_BUCKETS constant does not match §12 spec: {list(LEARNING_BUCKETS)}"
+            "LEARNING_BUCKETS constant does not match the bucket contract: "
+            f"{list(LEARNING_BUCKETS)}"
         )
 
     @pytest.mark.unit

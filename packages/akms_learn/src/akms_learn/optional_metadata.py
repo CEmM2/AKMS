@@ -4,7 +4,7 @@ This module introduces a non-breaking metadata hint layer.  Nodes that carry
 v2.1 fields are read via :func:`read_v21_metadata`; nodes without them receive
 fully-defaulted instances.  **No node mutation, no vault writes.**
 
-Six optional hint fields (plan §9, L195-L200):
+Six optional hint fields:
 
 - ``expansion_policy``            — LLM expansion policy for option 4 compilers.
 - ``llm_allowed``                 — whether LLM calls are permitted on this node.
@@ -151,7 +151,7 @@ def read_v21_metadata(node: dict[str, Any]) -> V21Metadata:
       AKMS global vault, or to any other filesystem path.
     * ``skipped_prerequisites`` and ``assessment_items`` are sorted before
       construction so set-valued sources produce deterministic output
-      (cross-phase determinism contract).
+      (determinism contract).
     """
     # -- expansion_policy: validate if present --------------------------------
     raw_policy = node.get("expansion_policy")

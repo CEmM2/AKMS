@@ -238,7 +238,7 @@ class TestAvailableCapabilities:
         assert "assessment_first" in caps
 
     def test_result_is_sorted(self):
-        """Capability listing must be deterministically sorted (cross-phase warning)."""
+        """Capability listing must be deterministically sorted."""
         with patch(
             "importlib.util.find_spec",
             side_effect=_make_find_spec({"nbformat", "jinja2"}),

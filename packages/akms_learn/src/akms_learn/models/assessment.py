@@ -73,7 +73,7 @@ class AssessmentItem(BaseModel):
         ``source_ref``.
     kind
         One of ``"conceptual"`` / ``"derivation"`` / ``"coding"`` /
-        ``"debugging"`` (plan §6 task 5).
+        ``"debugging"``.
     prompt
         The public prompt text shown to the learner.  MUST NOT contain any
         portion of ``hidden_answer`` — the compiler enforces this invariant

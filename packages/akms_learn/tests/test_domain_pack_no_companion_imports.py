@@ -3,8 +3,8 @@
 The whole ``akms_learn`` runtime is data-only with respect to the three
 computational-mechanics companion packages. Any top-level ``import
 constkit`` / ``from mechdsl import x`` / etc. would silently couple the
-core compiler to a real installation requirement and break the specification's
-"no companion installed" closure condition (L425).
+core compiler to a real installation requirement and break the
+"no companion installed" closure condition.
 
 This test walks every ``.py`` file under
 ``packages/akms_learn/src/akms_learn/`` and rejects any
@@ -77,7 +77,7 @@ def test_no_companion_imports_in_src() -> None:
 
     assert not offenders, (
         "Forbidden companion imports detected in src/akms_learn/ — "
-        "Plan §22 / spec §4 invariant violated:\n"
+        "no-companion-import invariant violated:\n"
         + "\n".join(f"  {p}:{ln}  ->  {name}" for p, ln, name in offenders)
     )
 

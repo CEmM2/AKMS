@@ -43,10 +43,9 @@ from akms_failure_memory.refresh import (
 # The pack's expected outputs pin provider fingerprints, and those move with
 # akms_version (it feeds toolchain_sha256). Pack v1 was frozen under the akms
 # version below; under any other version the pinned expectations cannot verify,
-# so the suite skips rather than fail on a known toolchain mismatch. Owner
-# decision 2026-08-18: the public tree defers the deliberate re-freeze; remove
-# the mismatch by re-freezing the pack (new EXPECTED_PACK_SHA256) or running
-# under the frozen toolchain.
+# so the suite skips rather than fail on a known toolchain mismatch. To clear
+# the mismatch, either run under the frozen toolchain or re-freeze the pack,
+# which means regenerating expected/ and computing a new EXPECTED_PACK_SHA256.
 PACK_FROZEN_AKMS_VERSION = "0.6.1"
 
 pytestmark = [
@@ -56,8 +55,7 @@ pytestmark = [
         reason=(
             f"consumer-contract pack v1 is frozen under akms "
             f"{PACK_FROZEN_AKMS_VERSION}; provider fingerprints cannot verify "
-            f"under akms {akms.__version__} (re-freeze deferred by owner "
-            f"decision, 2026-08-18)"
+            f"under akms {akms.__version__}; re-freeze the pack to run it here"
         ),
     ),
 ]
@@ -66,14 +64,11 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 PACK = PACKAGE_ROOT / "tests/fixtures/consumer_contract/v1"
 REPO_ROOT = PACKAGE_ROOT.parents[1]
 
-# The digest every consumer must assert. Do not edit without a full contract
-# review. Amendment 1 (docs routing + fingerprint
-# portability) superseded 4d3e5e2a3c0aca8861f5420959b91c7d14be7ac5bbeb134b28620e97b2a8127c.
-# Re-frozen when akms_public_api_sha256 was removed from the provider fingerprint
-# inputs: that key appeared in eight expected results, and every pinned
-# fingerprint moved with it. Deliberate re-freeze -- the pin stays literal so an
-# accidental pack edit still fails loudly. Previous value:
-# 8efa2a0135d0481f2b7281f0ba1dce436f2fcc190137d1070ead63c0741108f3
+# The digest every consumer must assert. It is pinned literally rather than
+# computed so that an accidental edit to the pack fails loudly; changing it is
+# a deliberate re-freeze. Last re-frozen when akms_public_api_sha256 was removed
+# from the provider fingerprint inputs: that key appeared in eight expected
+# results, and every pinned fingerprint moved with it.
 EXPECTED_PACK_SHA256 = (
     "90ad2801481723e224e7215fffb3a7b1cd661e615bcbaa9c5a62565a40c94eb7"
 )
@@ -341,7 +336,6 @@ def test_manifest_behaviour_matrix_is_complete() -> None:
         "record_recompile_roundtrip",
         "readonly_mutation_rejection",
         "absent_package_degradation",
-        # Amendment 1, required by the contract review.
         "documentation_only_route_suppression",
         "fingerprint_portability",
         "staleness_decidability",

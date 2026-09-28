@@ -14,7 +14,7 @@ files modified in the current phase (from ``git diff``).
   3. Write mirror file to ``knowledge/code-mirror/{module_path}.md``
   4. Write mirror node frontmatter (marker only)
 
-**Provider routing (A2-4):**
+**Provider routing:**
   Public :func:`generate_mirror` dispatches through the mirror-provider
   protocol (default: legacy AST). The pure legacy body is
   :func:`generate_mirror_legacy`.

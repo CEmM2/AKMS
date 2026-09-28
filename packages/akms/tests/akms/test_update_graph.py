@@ -1,10 +1,10 @@
-"""Tests for update_graph.py — Phase 4: PCD Processing & Local State Updates.
+"""Tests for update_graph.py — PCD processing & local state updates.
 
-Coverage per development plan Task 4.5:
-- Task 4.1: confidence mutations (boost, decay, auto_update skip, floor, idempotent)
-- Task 4.2: neighbor propagation (predecessors, edge multipliers, hop_limit)
-- Task 4.3: pitfalls → local_edges, session nodes, new knowledge + dedup
-- Task 4.4: write-back + recompile (overlay correct, graph.json updated, globals untouched)
+Coverage:
+- confidence mutations (boost, decay, auto_update skip, floor, idempotent)
+- neighbor propagation (predecessors, edge multipliers, hop_limit)
+- pitfalls → local_edges, session nodes, new knowledge + dedup
+- write-back + recompile (overlay correct, graph.json updated, globals untouched)
 """
 
 from __future__ import annotations
@@ -95,7 +95,7 @@ def _build_and_load(tmp_repo, tmp_vault):
 
 
 class TestConfidenceMutations:
-    """Tests for _process_nodes_used (Task 4.1)."""
+    """Tests for _process_nodes_used."""
 
     def test_boost_useful_node(self, tmp_vault, tmp_repo):
         """useful=true → confidence boosted by activation_boost."""
@@ -338,7 +338,7 @@ class TestConfidenceMutations:
 
 
 class TestNeighborPropagation:
-    """Tests for _propagate_to_neighbors (Task 4.2)."""
+    """Tests for _propagate_to_neighbors."""
 
     def test_predecessor_receives_propagated_decay(self, tmp_vault, tmp_repo):
         """Predecessor of a decayed node gets a proportional confidence hit."""
@@ -581,7 +581,7 @@ class TestNeighborPropagation:
 
 
 class TestPitfallEdges:
-    """Tests for _process_pitfalls (Task 4.3)."""
+    """Tests for _process_pitfalls."""
 
     def test_pitfall_creates_local_edge(self):
         """Pitfall with node_ref creates a pitfall edge in local_edges."""
@@ -660,7 +660,7 @@ class TestPitfallEdges:
 
 
 class TestSessionNodes:
-    """Tests for _create_session_node (Task 4.3)."""
+    """Tests for _create_session_node."""
 
     def test_agent_memory_creates_session_node(self):
         """AgentMemory creates a session node entry."""
@@ -731,7 +731,7 @@ class TestSessionNodes:
 
 
 class TestNewKnowledge:
-    """Tests for _process_new_knowledge (Task 4.3)."""
+    """Tests for _process_new_knowledge."""
 
     def test_creates_new_local_node(self, tmp_vault, tmp_repo):
         """New knowledge creates a tentative .md file in local-nodes/."""

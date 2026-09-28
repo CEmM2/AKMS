@@ -185,7 +185,7 @@ class TestStructuredClosureSurface:
             "\n"
             "- Role:\n"
             "- Familiarity with topic:\n"
-            "- Familiarity with AKMS / Logic-Loom:\n"
+            "- Familiarity with AKMS and its host tooling:\n"
             "\n"
             "## Learning value\n"
             "\n"
@@ -219,7 +219,7 @@ class TestStructuredClosureSurface:
         )
         form_path = _require_bundle_file("feedback_form.md")
         on_disk = _normalise_newlines(form_path.read_text(encoding="utf-8"))
-        assert on_disk == seed, "feedback_form.md is not byte-identical to §15 seed"
+        assert on_disk == seed, "feedback_form.md is not byte-identical to the seed"
 
     @pytest.mark.integration
     def test_feedback_form_matches_builder_output(self) -> None:
@@ -378,7 +378,7 @@ class TestStructuredClosureSurface:
 
     @pytest.mark.integration
     def test_closure_md_states_rule(self) -> None:
-        """Verifies: CLOSURE.md states the §15 closure rule verbatim — contains
+        """Verifies: CLOSURE.md states the closure rule verbatim — contains
         the closed-plan token, 'MUST NOT', the review_bundle_generated status,
         and that the transition is manual.."""
         closure_path = _require_bundle_file("CLOSURE.md")

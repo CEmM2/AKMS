@@ -1,6 +1,6 @@
-"""CLI commands for mirror-provider status and refresh (A2-6).
+"""CLI commands for mirror-provider status and refresh.
 
-Kept separate from ``commands.py`` resolve-task sections owned by A2-α.
+Kept separate from the resolve-task sections of ``commands.py``.
 Registered via :func:`register_provider_commands`.
 """
 

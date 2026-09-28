@@ -780,7 +780,7 @@ def update_graph(
 ) -> dict:
     """Apply persistent zone mutations from a PCD or AgentMemory to the graph.
 
-    This is the main entry point for Phase 4. It:
+    This is the main entry point for PCD processing. It:
     1. Loads the current compiled graph
     2. Processes nodes_used → confidence mutations
     3. Propagates decay to neighbors

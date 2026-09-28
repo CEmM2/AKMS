@@ -10,6 +10,10 @@ akms <command> --help
 `--repo` defaults to the current directory and is accepted on the top-level
 parser and on subcommands.
 
+`--version` prints `akms <version>`, where the version is read from the
+installed distribution's metadata, and exits 0. Host adapters probe it before
+`--help` to decide whether they can enforce a supported-version range.
+
 ## Node lifecycle
 
 ### `promote`

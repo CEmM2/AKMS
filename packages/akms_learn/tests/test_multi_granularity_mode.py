@@ -436,7 +436,7 @@ class TestRequestHashStability:
 
 
 class TestNoGraphLeak:
-    """Phase 2 context §"Key Principles" item 3: granularity is LSP-only."""
+    """Granularity is LSP-only."""
 
     def test_mode_does_not_mutate_graph_slice(self):
         slice_ = fixture_graph_toy_multi_granularity()
@@ -452,7 +452,7 @@ class TestNoGraphLeak:
         for node in slice_.nodes:
             assert "granularity" not in node, (
                 f"node {node.get('node_id')!r} must not carry a 'granularity' "
-                f"key after multi_granularity_mode runs (Phase 2 graph-leak "
+                f"key after multi_granularity_mode runs (graph-leak "
                 f"invariant)"
             )
 

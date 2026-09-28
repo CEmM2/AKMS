@@ -1,4 +1,4 @@
-"""Adversarial repo2md export validation (A2-7).
+"""Adversarial repo2md export validation.
 
 Hermetic: uses committed contract fixtures under tests/contracts/repo2md/
 and synthetic on-disk mirrors. Never imports or runs real repo2md.

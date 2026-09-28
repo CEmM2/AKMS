@@ -3,11 +3,10 @@
 This module defines:
 
 * :class:`CapabilityStatus` — a string enum with the three statuses recognized
-  by the AKMS Learn domain-pack architecture (spec
-  ``09_domain_pack_and_companion_architecture.md`` §6).
+  by the AKMS Learn domain-pack architecture.
 * :class:`LearningCapabilityError` — a hard error raised when an LSP compile
   request explicitly requires a capability whose backing companion/source pack
-  is ``unavailable`` (plan §21 rule 5).
+  is ``unavailable``.
 
 Note: missing / planned companions are *soft* issues and produce a
 :class:`~akms_learn.domain_packs.warnings.DomainPackWarning` instead of an
@@ -43,7 +42,7 @@ class CapabilityStatus(str, Enum):
 class LearningCapabilityError(Exception):
     """Raised when a request needs an unavailable required capability.
 
-    Per plan §21 rule 5 / spec §4 rule 2: missing source packs degrade to
+    Missing source packs degrade to
     warnings *unless* the requested mode explicitly requires that pack — in
     which case the compiler MUST raise this error.
     """

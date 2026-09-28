@@ -3,7 +3,7 @@
 When the compile pipeline is run with ``exporters=["bundle"]`` AND a
 domain-pack path, ``manifest.json`` MUST carry a ``domain_packs`` block
 listing each descriptor's identifying ``id`` and ``version``. Without this
-field, downstream review tooling (Phase 6 Logic-Loom bundle consumer)
+field, downstream review tooling (a bundle consumer)
 cannot reconstruct which packs were in scope for the compile.
 
 Symmetric coverage for ``source_packs`` confirms the same invariant for

@@ -1,4 +1,4 @@
-"""Tests for generate_loadout.py — Phase 3 Task 3.3.
+"""Tests for generate_loadout.py.
 
 Tests loadout generation:
   - Routing mode (summary + paths)

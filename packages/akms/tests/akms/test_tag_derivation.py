@@ -1,4 +1,4 @@
-"""Tests for tag_derivation.py — Phase 6: Hybrid Tag Derivation.
+"""Tests for tag_derivation.py — hybrid tag derivation.
 
 Coverage:
 - Scope-based derivation (source_file, content_ref matching)

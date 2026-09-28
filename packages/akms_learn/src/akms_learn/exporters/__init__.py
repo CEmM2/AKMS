@@ -16,7 +16,7 @@ Rationale:
   ``CompileResult.stage_log``.
 * The CLI surface stays minimal: one entry point, one byte-stable artifact
   set per invocation.
-* External callers (e.g. Logic-Loom feature detection, review-bundle
+* External callers (e.g. host feature detection, review-bundle
   regeneration) get a single mental model: pass a request, receive a
   ``CompileResult``.
 
@@ -75,7 +75,7 @@ KNOWN_EXPORTERS: tuple[str, ...] = (
 
 @runtime_checkable
 class Exporter(Protocol):
-    """Callable contract every Phase 4 exporter module must satisfy.
+    """Callable contract every exporter module must satisfy.
 
     ``markdown.py`` and ``bundle.py`` expose real ``export`` functions
     matching this protocol.
