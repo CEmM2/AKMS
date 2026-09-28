@@ -2,6 +2,8 @@
 # PreToolUse hook: Block edits to the AKMS global vault directory.
 # The global vault is READ-ONLY from all automated processes (FR-O01, NFR-R03).
 # Vault path resolved from: AKMS_GLOBAL_VAULT env var > default ~/.claude/akms/nodes
+# Exit 2 is what makes Claude Code block a PreToolUse call and feed stderr back
+# to the agent; any other nonzero code only reports an error and lets it run.
 set -euo pipefail
 
 input=$(cat)
@@ -30,5 +32,5 @@ if [[ "$file_resolved" == "$vault"* ]]; then
   echo "  File:  $file_resolved" >&2
   echo "  To modify global nodes, do so manually outside automated processes." >&2
   echo "  To promote a local node to global, manually move the file (FR-O08)." >&2
-  exit 1
+  exit 2
 fi

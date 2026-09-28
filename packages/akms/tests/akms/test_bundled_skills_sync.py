@@ -9,7 +9,7 @@ install, and why the repo-root ``skills/`` tree could not reach anyone who ran
 ``src/akms/_bundled/`` is a **mirror** of those canonical trees, declared as
 package data so a wheel carries them. The canonical copies stay where they are:
 
-    Packages/AKMS/seed/*   ->  src/akms/_bundled/*      (qmd, global_nodes, ...)
+    Packages/AKMS/seed/*   ->  src/akms/_bundled/*      (qmd, claude_md_kernel.md)
     skills/                ->  src/akms/_bundled/skills
 
 Mirrors drift. This repo has already been bitten by that once, when a mirrored
@@ -51,7 +51,6 @@ MIRRORS = [
     ("commands", _REPO_ROOT / "commands", _BUNDLED / "commands"),
     ("hooks", _REPO_ROOT / "hooks", _BUNDLED / "hooks"),
     ("seed/qmd", _SEED / "qmd", _BUNDLED / "qmd"),
-    ("seed/global_nodes", _SEED / "global_nodes", _BUNDLED / "global_nodes"),
 ]
 
 _RESYNC = "\n\nResync with:\n  bash scripts/sync_bundled.sh"
