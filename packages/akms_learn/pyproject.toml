@@ -28,6 +28,14 @@ dependencies = [
     "markdown-it-py>=3,<5",
 ]
 
+
+[project.urls]
+Homepage = "https://github.com/CEmM2/AKMS"
+Documentation = "https://cemm2.github.io/AKMS/reference/akms-learn/index.html"
+Source = "https://github.com/CEmM2/AKMS/tree/main/packages/akms_learn"
+Issues = "https://github.com/CEmM2/AKMS/issues"
+Changelog = "https://github.com/CEmM2/AKMS/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 # nbformat/jinja2 moved to base dependencies above; these stay as empty
 # sentinels so `akms-learn[notebook]` / `akms-learn[html]` keep resolving.

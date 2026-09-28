@@ -44,7 +44,7 @@ def check_inputs(
             Notice(
                 "error",
                 f"Could not read the generation plan at {paths.plan_md}: {plan_error}",
-                f"{DOCS_URL}data-sources/",
+                f"{DOCS_URL}data-sources.html",
                 "plan format",
             )
         )
@@ -54,7 +54,7 @@ def check_inputs(
                 "error",
                 f"No generation plan at {paths.plan_md}. Start the picker with "
                 "--plan PATH, or set AKMS_PLAN_MD, to point at your plan.",
-                f"{DOCS_URL}data-sources/",
+                f"{DOCS_URL}data-sources.html",
                 "plan format",
             )
         )
@@ -64,7 +64,7 @@ def check_inputs(
                 "warning",
                 f"The plan at {paths.plan_md} contains no batches. Batch headings "
                 "look like `## R1_B1 — Title (5 nodes)`.",
-                f"{DOCS_URL}data-sources/",
+                f"{DOCS_URL}data-sources.html",
                 "plan format",
             )
         )

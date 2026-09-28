@@ -7,6 +7,9 @@ development is intentionally not replayed.
 ## [Unreleased]
 
 ### Added
+- Every package declares its homepage, documentation, source, issue tracker
+  and changelog, so its PyPI page links back to the project.
+  `scripts/check_versions.py` fails if a package loses them.
 - `akms --version` prints `akms <version>` from the installed distribution's
   metadata and exits 0. Host adapters probe it before `--help`; without it they
   could only report an unknown version and skip strict compatibility checks.

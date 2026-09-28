@@ -17,6 +17,14 @@ dependencies = [
     "akms-learn>=0.3.1,<0.4",
 ]
 
+
+[project.urls]
+Homepage = "https://github.com/CEmM2/AKMS"
+Documentation = "https://cemm2.github.io/AKMS/architecture/modules.html"
+Source = "https://github.com/CEmM2/AKMS/tree/main/packages/compmech_reference_pack"
+Issues = "https://github.com/CEmM2/AKMS/issues"
+Changelog = "https://github.com/CEmM2/AKMS/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 # The executable-build path (MechDSLRunner.build_executable / transpile /
 # verify) lazily imports the MechDSL Tier-1 backend — every mechdsl/algo2code

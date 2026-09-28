@@ -37,6 +37,14 @@ dependencies = [
 #   akms[mcp]             MCP tool server
 #   akms[telemetry]       OpenTelemetry export
 #   akms[orchestration]   the complete embedded runtime
+
+[project.urls]
+Homepage = "https://github.com/CEmM2/AKMS"
+Documentation = "https://cemm2.github.io/AKMS/reference/akms/index.html"
+Source = "https://github.com/CEmM2/AKMS/tree/main/packages/akms"
+Issues = "https://github.com/CEmM2/AKMS/issues"
+Changelog = "https://github.com/CEmM2/AKMS/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 agents = [
     "claude-agent-sdk>=0.1.45,<1",
