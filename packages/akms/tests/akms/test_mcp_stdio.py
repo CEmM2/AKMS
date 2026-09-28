@@ -80,3 +80,39 @@ def test_mcp_stdio_main_serves_built_app(tmp_repo, monkeypatch):
 
     assert captured["transport"] == "stdio"
     assert str(captured["repo_root"]) == str(tmp_repo)
+
+
+@pytest.mark.unit
+def test_stdio_main_without_mcp_extra_exits_with_install_hint(monkeypatch, tmp_repo):
+    """Without the `mcp` package the entry point names the extra to install."""
+    import akms.orchestrator.mcp_stdio as mcp_stdio
+
+    monkeypatch.setattr(mcp_stdio, "build_fastmcp_app", None)
+    monkeypatch.setattr("sys.argv", ["akms-mcp-stdio", "--repo-root", str(tmp_repo)])
+    with pytest.raises(SystemExit) as exc:
+        mcp_stdio.main()
+    assert 'pip install "akms[mcp]"' in str(exc.value.code)
+
+
+@pytest.mark.unit
+def test_stdio_import_reraises_unrelated_import_errors(monkeypatch):
+    """Only a missing `mcp` becomes an install hint; other failures surface."""
+    import builtins
+    import importlib
+
+    import akms.orchestrator.mcp_stdio as mcp_stdio
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "akms.orchestrator.mcp_tools":
+            raise ModuleNotFoundError("No module named 'yaml'", name="yaml")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    try:
+        with pytest.raises(ModuleNotFoundError):
+            importlib.reload(mcp_stdio)
+    finally:
+        monkeypatch.undo()
+        importlib.reload(mcp_stdio)

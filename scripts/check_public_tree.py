@@ -116,6 +116,50 @@ HISTORY_PATTERNS = {
     "absolute Windows user path": re.compile(r"[A-Za-z]:\\Users\\[^\\\s]+\\"),
 }
 
+# Residue from private development: names of private downstream projects and
+# references to implementation plans, task ids and decision records that public
+# readers cannot open. A one-off sweep removed them before release; this keeps
+# them from creeping back in through new code and comments.
+RESIDUE_PATTERNS = {
+    "private project name": re.compile(
+        r"\b(?:Logic-?Loom|NumerixWeave|TiFEM|WhichWhereWhatter)\b"
+    ),
+    "internal plan or decision reference": re.compile(
+        r"\bA2-\d+\b|"
+        r"\bplan1? \u00a7|"
+        r"\bdevelopment plan\b|"
+        r"\bcontext summary\b|"
+        r"\bPhase \d+ Task \d+(?:\.\d+)?\b|"
+        r"\b[Oo]wner(?:'s)? decision\b|"
+        r"\bAmendment \d+\b",
+        re.I,
+    ),
+}
+
+# Files allowed to match RESIDUE_PATTERNS, each with the reason. Keep this short:
+# a new entry needs the same justification as the ones below.
+RESIDUE_EXEMPT = {
+    # Hash-pinned test data: renaming the project in these fixtures changes the
+    # pinned digests and needs a deliberate re-freeze of the fixture packs.
+    "packages/akms_failure_memory/tests/fixtures/": "hash-pinned fixture data",
+    "packages/akms_failure_memory/tests/test_provider_cli.py": "asserts fixture values",
+    "packages/akms_failure_memory/tests/test_refresh.py": "asserts fixture values",
+    "packages/akms_failure_memory/tests/test_compiler.py": "asserts fixture values",
+    "packages/akms_failure_memory/src/akms_failure_memory/ci.py": "fixture paths",
+    "packages/akms_failure_memory/pyproject.toml": "ships the fixture files",
+    "packages/akms/tests/akms/test_build_graph.py": "fixture node ids",
+    "packages/akms/tests/akms/test_schema.py": "fixture repository id",
+}
+
+
+def residue_exempt(path: Path) -> bool:
+    rel = path.relative_to(ROOT).as_posix()
+    return any(
+        rel == entry or (entry.endswith("/") and rel.startswith(entry))
+        for entry in RESIDUE_EXEMPT
+    )
+
+
 SECRET_PATTERNS = {
     "GitHub classic token": re.compile(r"\bghp_[A-Za-z0-9]{30,}\b"),
     "GitHub fine-grained token": re.compile(r"\bgithub_pat_[A-Za-z0-9_]{40,}\b"),
@@ -248,6 +292,8 @@ def main() -> int:
 
     for path in iter_public_text_files(publishable):
         findings.extend(scan_text(path, patterns))
+        if not args.security_only and not residue_exempt(path):
+            findings.extend(scan_text(path, RESIDUE_PATTERNS))
 
     if findings:
         print("Public-tree audit failed:", file=sys.stderr)

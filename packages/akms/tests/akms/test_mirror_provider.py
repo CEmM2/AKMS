@@ -157,7 +157,7 @@ class TestProviderRegistry:
 
     def test_register_custom_provider(self, repo: Path):
         class FakeProvider:
-            name = "fake-a2-4"
+            name = "fake-custom"
 
             def generate(self, request, config):
                 return MirrorResult(
@@ -166,17 +166,17 @@ class TestProviderRegistry:
                     success=True,
                 )
 
-        register_provider("fake-a2-4", FakeProvider, replace=True)
+        register_provider("fake-custom", FakeProvider, replace=True)
         try:
             result = run_mirror_provider(
                 MirrorRequest(repo_root=repo, phase=1, source_files=["src/mod.py"]),
-                MirrorConfig(provider="fake-a2-4"),
+                MirrorConfig(provider="fake-custom"),
             )
-            assert result.provider == "fake-a2-4"
+            assert result.provider == "fake-custom"
             assert result.success is True
             assert result.mirrors[0]["node_id"] == "mirror-x"
         finally:
-            unregister_provider("fake-a2-4")
+            unregister_provider("fake-custom")
 
 
 # ═══════════════════════════════════════════════════════════════════════

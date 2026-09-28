@@ -151,3 +151,33 @@ def test_cli_entry_point_works_without_extras(tmp_path):
     )
     assert result.returncode == 0
     assert "AKMS" in result.stdout
+
+
+@pytest.mark.e2e
+def test_mcp_entry_point_exists_and_explains_missing_extra(tmp_path):
+    """`akms-mcp-stdio` is installed by the core package in every install.
+
+    Its help works without the `mcp` extra, and actually starting it without
+    that extra fails with an install hint rather than a traceback.
+    """
+    command = BIN / "akms-mcp-stdio"
+    assert command.exists(), "akms-mcp-stdio console script is not installed"
+
+    help_run = subprocess.run(
+        [str(command), "--help"], capture_output=True, text=True, timeout=60
+    )
+    assert help_run.returncode == 0, help_run.stderr
+    assert "--repo-root" in help_run.stdout
+
+    try:
+        import mcp  # noqa: F401
+    except ModuleNotFoundError:
+        serve = subprocess.run(
+            [str(command), "--repo-root", str(tmp_path)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert serve.returncode != 0
+        assert 'pip install "akms[mcp]"' in serve.stderr
+        assert "Traceback" not in serve.stderr

@@ -474,9 +474,9 @@ mechdsl = [
 [package.metadata]
 requires-dist = [
     { name = "akms-learn", editable = "packages/akms_learn" },
-    { name = "algo2code", marker = "extra == 'mechdsl'" },
+    { name = "algo2code", marker = "extra == 'mechdsl'", specifier = ">=0.2,<0.3" },
     { name = "compmech-reference-pack", extras = ["mechdsl"], marker = "extra == 'dev'", editable = "packages/compmech_reference_pack" },
-    { name = "mechdsl-core", marker = "extra == 'mechdsl'" },
+    { name = "mechdsl-core", marker = "extra == 'mechdsl'", specifier = ">=0.2,<0.3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.2" },
 ]
 provides-extras = ["mechdsl", "dev"]
