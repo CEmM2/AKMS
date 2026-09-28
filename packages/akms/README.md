@@ -32,6 +32,14 @@ Optional capabilities are explicit extras:
 | `akms[mcp]` | the MCP tool server |
 | `akms[telemetry]` | OpenTelemetry span export |
 | `akms[orchestration]` | the complete embedded first-party runtime |
+| `akms[learn]` | `akms-learn`, the learning-packet compiler |
+| `akms[failure-memory]` | `akms-failure-memory`, project-owned failure memory |
+| `akms[nodes-gen]` | `akms-nodes-gen`, node generation and validation tooling |
+| `akms[compmech]` | `compmech-reference-pack` with its MechDSL backend |
+| `akms[all]` | every extra above |
+
+Extras combine: `pip install "akms[learn,failure-memory]"`. Quote the argument
+in zsh, which otherwise treats the brackets as a glob.
 
 ## Consumption modes
 

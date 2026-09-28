@@ -4,6 +4,14 @@ All notable changes to the public AKMS packages are documented here. The
 public history begins with the first curated release; earlier private
 development is intentionally not replayed.
 
+## [Unreleased]
+
+### Added
+- `akms[learn]`, `akms[failure-memory]`, `akms[nodes-gen]`, `akms[compmech]`
+  and `akms[all]` install the companion packages through `akms`, pinned to the
+  same minor series. `scripts/check_versions.py` fails the release if those
+  pins drift from the `akms` version.
+
 ## [0.3.1] — 2026-09-10
 
 ### Added

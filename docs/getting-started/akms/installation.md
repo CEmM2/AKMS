@@ -20,7 +20,31 @@ akms --help
 ```
 
 That is the deterministic core: graph compilation, task-context resolution,
-loadouts and the CLI. The companion packages are independent installs:
+loadouts and the CLI. Everything else is an extra of `akms`:
+
+| Install | Adds |
+|---|---|
+| `akms[learn]` | `akms-learn`, the learning-packet compiler |
+| `akms[failure-memory]` | `akms-failure-memory`, project-owned failure memory |
+| `akms[nodes-gen]` | `akms-nodes-gen`, node generation and validation tooling |
+| `akms[compmech]` | `compmech-reference-pack` with its MechDSL backend |
+| `akms[agents]` | coding-agent backends |
+| `akms[mcp]` | the MCP tool server |
+| `akms[telemetry]` | OpenTelemetry span export |
+| `akms[orchestration]` | the embedded runtime: `agents`, `mcp`, `telemetry` and LiteLLM |
+| `akms[all]` | every extra above, plus LiteLLM for `akms-nodes-gen` |
+
+```bash
+pip install "akms[learn,failure-memory]"
+pip install "akms[all]"
+```
+
+Quote the argument: zsh otherwise treats the brackets as a glob. The package
+extras pin the companions to the same minor series as `akms`, because the
+five packages are released in lockstep.
+
+The companion packages remain independent installs if you prefer to name
+them directly:
 
 ```bash
 pip install akms-learn                # learning-packet compiler
