@@ -21,6 +21,23 @@ development is intentionally not replayed.
   toolchain fingerprint reported the wrong version. Both literals now match
   `pyproject.toml`, and `scripts/check_versions.py` fails the release when they
   drift again.
+- `akms-mcp-stdio` is now installed as a command. It was registered in a
+  custom entry-point group, so the command the MCP docs tell you to run did not
+  exist. Without the `mcp` extra it now exits with an install hint.
+- `compmech-reference-pack` declares its Apache-2.0 licence and ships the
+  licence file, and its Python range now matches its dependencies (3.12).
+- Every dependency one package in the family has on another is bounded to the
+  current minor series (`akms-learn` on `akms`, `compmech-reference-pack` on
+  `akms-learn`, the MechDSL backend to 0.2). `scripts/check_versions.py` now
+  rejects an unbounded or stale sibling requirement.
+- `failure-memory` commands default `--config` to the file `init` writes, so
+  `failure-memory doctor --repo .` works straight after `init`.
+
+### Changed
+- CI installs every `akms[...]` extra and pairing from the freshly built wheels
+  and checks each installs exactly its companions and their commands.
+- The public-tree audit now also fails on private project names and internal
+  plan or decision references in the published tree.
 
 ## [0.3.1] — 2026-09-10
 

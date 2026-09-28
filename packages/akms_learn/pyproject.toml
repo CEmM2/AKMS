@@ -14,7 +14,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "akms",
+    "akms>=0.3.1,<0.4",
     # nbformat + jinja2 are now BASE deps (previously the [notebook]/[html]
     # extras) so notebook/html features — assessment_first, quiz_export,
     # html_export, notebook_source, notebook_export — work out of the box

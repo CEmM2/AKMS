@@ -634,7 +634,7 @@ def test_absent_package_degradation() -> None:
 # ── documented package findings, kept executable so they cannot rot ───────
 
 
-# ── amendment 1: documentation-only route suppression ─────────────────────
+# ── documentation-only route suppression ──────────────────────────────────
 
 
 def test_docs_only_scope_suppresses_the_required_lane(
@@ -714,7 +714,7 @@ def test_docs_lesson_is_required_once_any_declared_path_is_code(
     )
 
 
-# ── amendment 1: fingerprint portability and staleness decidability ───────
+# ── fingerprint portability and staleness decidability ────────────────────
 
 
 def test_pack_staging_matches_canonical_refresh_publication(

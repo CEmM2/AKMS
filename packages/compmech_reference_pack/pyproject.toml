@@ -3,9 +3,18 @@ name = "compmech-reference-pack"
 version = "0.3.1"
 description = "Computational-mechanics companion adapter — bridges AKMS LSP excerpts to the MechDSL executable backend."
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+# akms-learn, its only hard dependency, supports 3.12 only.
+requires-python = ">=3.12,<3.13"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
-    "akms-learn",
+    "akms-learn>=0.3.1,<0.4",
 ]
 
 [project.optional-dependencies]
@@ -18,8 +27,8 @@ dependencies = [
 # transitively Taichi — into its uv lock closure.  Install the `mechdsl` extra
 # to enable the actual compile/transpile/verify capability.
 mechdsl = [
-    "mechdsl-core",
-    "algo2code",
+    "mechdsl-core>=0.2,<0.3",
+    "algo2code>=0.2,<0.3",
 ]
 dev = [
     "pytest>=9.0.2",
@@ -27,7 +36,7 @@ dev = [
 ]
 
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

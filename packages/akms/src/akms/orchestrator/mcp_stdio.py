@@ -12,8 +12,18 @@ Run::
 from __future__ import annotations
 
 import argparse
+import sys
 
-from akms.orchestrator.mcp_tools import build_fastmcp_app
+
+# The console script is installed with the core package, but the server needs
+# the `mcp` extra. Only a missing `mcp` is turned into an install hint; any
+# other import failure is a real bug and propagates.
+try:
+    from akms.orchestrator.mcp_tools import build_fastmcp_app
+except ModuleNotFoundError as exc:
+    if (exc.name or "").split(".")[0] != "mcp":
+        raise
+    build_fastmcp_app = None
 
 
 def main() -> None:
@@ -27,6 +37,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if build_fastmcp_app is None:
+        sys.exit(
+            "akms-mcp-stdio needs the MCP server dependencies. "
+            'Install them with: pip install "akms[mcp]"'
+        )
     app = build_fastmcp_app(args.repo_root, args.global_vault)
     app.run(transport="stdio")
 

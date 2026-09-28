@@ -152,3 +152,39 @@ def test_init_rejects_symlink_escape(tmp_path: Path) -> None:
     (repo / ".failure-memory").symlink_to(outside, target_is_directory=True)
     with pytest.raises(FailureMemoryError, match="outside|escapes"):
         init_project(repository_root=repo, config_path=".failure-memory/config.toml")
+
+
+def test_commands_default_to_the_config_init_wrote(tmp_path: Path) -> None:
+    """After `init`, `doctor` needs no --config: it reads <repo>/.failure-memory."""
+    from akms_failure_memory.cli import main
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    assert (
+        main(
+            [
+                "init",
+                "--repo",
+                str(repo),
+                "--repository-id",
+                "demo",
+                "--node-namespace",
+                "demo-failure",
+            ]
+        )
+        == 0
+    )
+    assert main(["doctor", "--repo", str(repo)]) == 0
+
+
+def test_explicit_config_still_wins(tmp_path: Path, capsys) -> None:
+    """An explicit --config keeps its meaning; a missing file is still an error."""
+    from akms_failure_memory.cli import main
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    code = main(
+        ["doctor", "--repo", str(repo), "--config", str(tmp_path / "nope.toml")]
+    )
+    assert code != 0
