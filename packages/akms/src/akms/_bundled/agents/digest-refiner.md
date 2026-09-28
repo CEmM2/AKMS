@@ -3,14 +3,6 @@ name: digest-refiner
 description: "Refine a zotero-summarizer collection digest into a high-quality structured summary the AKMS bridge can consume for knowledge-graph specialization. Takes an existing digest — often from a smaller or local model — and improves it rather than rewriting from scratch, cross-referencing paper cards with NotebookLM-grounded verification. Use when a collection digest is structurally sound but thin, or content-rich but missing connections. Triggers on: 'refine digest', 'improve collection summary', 'zotero digest quality', 'prepare digest for akms bridge'."
 ---
 
-> **Provenance.** Published copy of the internal asset at `.claude/agents/digest-refiner.md`. It is a copy
-> rather than a move: consumers of this repository (Logic-Loom vendors it via git
-> subtree) reference the internal path, so relocating it would change that
-> integration surface. Treat the internal copy as the source of truth and update
-> both when behaviour changes.
-> It carried **no YAML frontmatter** internally, so no agent runtime could load it
-> by name; the block above was added for this published copy.
-
 # Agent: digest-refiner
 
 > Refines a zotero-summarizer collection digest using Opus-quality analysis,

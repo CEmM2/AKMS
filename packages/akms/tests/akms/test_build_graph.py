@@ -1,4 +1,4 @@
-"""Tests for build_graph.py — the merge compiler (Phase 1).
+"""Tests for build_graph.py — the merge compiler.
 
 Covers:
 - Merging global + local nodes correctly

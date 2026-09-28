@@ -1,4 +1,4 @@
-"""Tests for the repo2md subprocess mirror provider (A2-5).
+"""Tests for the repo2md subprocess mirror provider.
 
 Hermetic by default: uses a fake executable that emits controlled JSON
 and writes mirror files on disk. Real repo2md is never imported.

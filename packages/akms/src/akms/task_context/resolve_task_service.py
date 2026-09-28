@@ -160,7 +160,7 @@ def _require_sequence(
 ) -> tuple[str, ...]:
     """Reject bare strings so a single path cannot be treated as a char sequence.
 
-    Phase 1 canonicalisation rule: changed paths must be a sequence of strings,
+    Canonicalisation rule: changed paths must be a sequence of strings,
     never a lone string (which would iterate character-by-character).
     """
     if value is None:

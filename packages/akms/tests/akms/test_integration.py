@@ -1,8 +1,8 @@
-"""Tests for end-to-end feedback loop — Phase 6 Task 6.6.
+"""Tests for end-to-end feedback loop.
 
 Simulates the full 7-stage pipeline with mock agents.
 
-Success criteria (from development plan §6.6):
+Success criteria:
 1. Init: build_graph compiles seed nodes → graph.json valid
 2. Plan: Planning agent gets loadout with domain context
 3. Task Breakdown: Tasks get hybrid-derived akms_tags

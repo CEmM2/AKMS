@@ -34,6 +34,12 @@ The current `main` branch includes these public surfaces:
   a project-defined `AKMSAgent` subclass. These integrations are not required
   for graph, task-context, or failure-memory workflows.
 
+## 2026-09-28
+
+- **`akms --version`.** The core CLI reports `akms <version>` from the
+  installed distribution's metadata and exits 0. Host adapters probe it before
+  `--help` to decide whether they can enforce a supported-version range.
+
 ## Documentation policy
 
 Public pages should describe contracts and workflows that can be verified from

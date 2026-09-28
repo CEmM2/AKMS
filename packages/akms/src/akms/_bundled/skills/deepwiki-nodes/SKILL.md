@@ -3,12 +3,11 @@ name: deepwiki-nodes
 description: "Generate AKMS domain knowledge nodes from a GitHub repository indexed by DeepWiki. Queries DeepWiki's MCP server for algorithms, formulations, and pitfalls, writes structured YAML, and converts it to schema-valid AKMS markdown. Use when the knowledge you need is embodied in a public codebase rather than in papers — a solver, a framework, a reference implementation. Triggers on: 'generate nodes from deepwiki', 'extract knowledge from a repo', 'akms nodes from github', 'deepwiki to akms', 'document this framework as nodes', 'what does this library know'."
 ---
 
-> **Provenance.** Reworked from the internal `.claude/skills/deepwiki-eval/`, which
-> scores DeepWiki output against expert ground truth to decide whether a repo is
-> worth extracting from. That skill answers *"is this source good enough?"*. This
-> one answers *"turn this source into nodes"* — the query engine is shared, the
-> purpose is not. Run the internal eval skill first if you do not yet trust the
-> source; run this one once you do.
+> **Scope.** This skill turns a DeepWiki-indexed source into nodes. It assumes
+> you have already judged the source trustworthy; scoring DeepWiki output
+> against expert ground truth is a separate step, and extracting from a
+> source you do not yet trust produces confident-looking nodes with wrong
+> content.
 
 ## Goal
 

@@ -37,7 +37,7 @@ cycle-break and bucket order are preserved.
 
 LSP-only metadata
 -----------------
-Per the Phase 2 context (§"Key Principles" item 3), the resolved
+The resolved
 ``selected_granularity`` lives on the LSP request block and on the
 :class:`MultiGranularityResult`. It MUST NOT be written into the AKMS v2
 graph. The mode is a pure function that returns a result struct; it never

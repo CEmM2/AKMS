@@ -167,7 +167,7 @@ class TestPartialFields:
 
     @pytest.mark.unit
     def test_skipped_prerequisites_sorted_deterministically(self) -> None:
-        """skipped_prerequisites must be sorted for cross-phase determinism."""
+        """skipped_prerequisites must be sorted for determinism."""
         node = _bare_node(skipped_prerequisites=["z-node", "a-node", "m-node"])
         meta = read_v21_metadata(node)
         assert meta.skipped_prerequisites == ("a-node", "m-node", "z-node")
@@ -339,7 +339,7 @@ class TestVaultCanary:
 
 
 class TestDeterminism:
-    """Cross-phase determinism contract: sorted collection access."""
+    """Determinism contract: sorted collection access."""
 
     @pytest.mark.unit
     def test_skipped_prerequisites_stable_across_calls(self) -> None:

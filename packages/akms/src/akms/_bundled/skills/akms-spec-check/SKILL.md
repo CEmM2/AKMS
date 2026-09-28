@@ -3,12 +3,6 @@ name: akms-spec-check
 description: Verify AKMS implementation against frozen v2 design specifications. Use when implementing or modifying AKMS components to catch spec violations.
 ---
 
-> **Provenance.** Published copy of the internal asset at `.claude/skills/akms-spec-check/SKILL.md`. It is a copy
-> rather than a move: consumers of this repository (Logic-Loom vendors it via git
-> subtree) reference the internal path, so relocating it would change that
-> integration surface. Treat the internal copy as the source of truth and update
-> both when behaviour changes.
-
 # AKMS Spec Compliance Checker
 
 You are auditing the AKMS implementation against its frozen v2.0 design specification.

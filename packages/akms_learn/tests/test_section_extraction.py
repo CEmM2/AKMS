@@ -345,10 +345,10 @@ def test_extract_sections_from_nodes_batch():
 
 
 @pytest.mark.unit
-def test_approved_headings_match_spec_01_verbatim():
-    """Spec mirror canary: APPROVED_HEADINGS must equal spec 01 §126-145."""
-    # If this assertion fails, the spec was updated without bumping this
-    # constant (or vice versa). Re-read spec 01 §126-145 before changing.
+def test_approved_headings_match_contract_verbatim():
+    """Canary: APPROVED_HEADINGS must equal the v0.1 allowed section types."""
+    # If this assertion fails, the allowed section types were changed without
+    # updating this constant (or vice versa). Confirm intent before changing.
     assert APPROVED_HEADINGS == (
         "motivation",
         "prerequisites",

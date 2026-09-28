@@ -1,4 +1,4 @@
-"""Legacy Python-AST mirror provider (A2-4).
+"""Legacy Python-AST mirror provider.
 
 Wraps the pre-provider ``generate_mirror`` implementation so the default
 AKMS path stays byte-compatible while orchestration goes through the

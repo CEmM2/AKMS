@@ -37,7 +37,7 @@ def test_taichi_required_for_mirrors_tier1() -> None:
 
 @pytest.mark.unit
 def test_surface_is_json_serialisable() -> None:
-    """Logic-Loom serialises the surface into its status response."""
+    """A host serialises the surface into its status response."""
     recovered = json.loads(json.dumps(capabilities()))
     assert recovered["package"] == "compmech_reference_pack"
     assert recovered["domain_pack"] == "compmech.reference"

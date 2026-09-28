@@ -18,12 +18,10 @@ pedagogical modes consume. It is intentionally separate from the
 Approved heading set
 --------------------
 
-The approved heading set is the v0.1 allowed section types from
-the akms-learn internal specification (not published)
-§ "Allowed section types in v0.1" (lines 126-145). It is mirrored
-verbatim here as :data:`APPROVED_HEADINGS` and MUST NOT be redefined
-or paraphrased elsewhere. Updates to the spec are the
-only legitimate trigger to update this constant.
+The approved heading set is the v0.1 allowed section types. It is
+defined once here as :data:`APPROVED_HEADINGS` and MUST NOT be redefined
+or paraphrased elsewhere. A deliberate change to the allowed section
+types is the only legitimate trigger to update this constant.
 
 Fallback ladder (deterministic, no random tiebreaks)
 -----------------------------------------------------
@@ -68,9 +66,9 @@ __all__ = [
 
 
 # ---------------------------------------------------------------------------
-# Approved heading set — mirrored verbatim from spec 01 §126-145.
+# Approved heading set — the single source of truth.
 # DO NOT paraphrase; DO NOT reorder for "aesthetics"; only update when
-# spec 01 §126-145 itself changes.
+# the allowed section types themselves change.
 # ---------------------------------------------------------------------------
 
 APPROVED_HEADINGS: tuple[str, ...] = (

@@ -1,4 +1,4 @@
-"""drift.py — Provider-neutral docstring drift checks (A2-6).
+"""drift.py — Provider-neutral docstring drift checks.
 
 Structural (deterministic, no LLM) and optional LLM drift checks live
 here so mirror providers (legacy AST, repo2md subprocess) share one

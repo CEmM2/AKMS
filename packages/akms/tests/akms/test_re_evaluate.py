@@ -1,4 +1,4 @@
-"""Tests for re_evaluate.py — Phase 5: Loadout Regeneration.
+"""Tests for re_evaluate.py — loadout regeneration.
 
 Coverage:
 - Basic regeneration with updated graph state

@@ -1,6 +1,6 @@
 """Deterministic learning-order computation over a GraphSlice.
 
-**Bucket sequence** (plan §12):
+**Bucket sequence**:
     prerequisites → core concepts → derivations → implementations →
     pitfalls → exercises → next paths
 

@@ -1,9 +1,9 @@
 """Package-level tests for Global vault is read-only.
 
 These tests pin the AKMS invariant that ``compile_learning_source`` MUST NOT
-write anywhere under ``~/.claude/akms/nodes/`` (the global vault). Plan §1
-out-of-scope reminder (the internal plan) forbids any mutation of
-the global vault from automated processes.
+write anywhere under ``~/.claude/akms/nodes/`` (the global vault). The AKMS
+invariants forbid any mutation of the global vault from automated
+processes.
 
 Three cases together enforce the invariant:
 

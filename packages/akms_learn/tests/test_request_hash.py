@@ -1,6 +1,6 @@
 """Package-level tests for Request normalization and stable hash.
 
-Covers the specification (the internal plan) acceptance criteria:
+Acceptance criteria:
 
 1. Same input → same hash across two invocations (and across sessions).
 2. Adding a UI-only key does not change the hash.
@@ -67,7 +67,7 @@ class TestRequestHash:
 
     @pytest.mark.unit
     def test_request_hash_ignores_ui_state(self):
-        """Adding Logic-Loom UI-only keys does not change the hash."""
+        """Adding host-UI-only keys does not change the hash."""
         base = dict(FIXTURE_REQUEST)
         polluted = dict(FIXTURE_REQUEST)
         polluted.update(

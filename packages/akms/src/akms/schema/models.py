@@ -639,7 +639,7 @@ class ModelRoutingConfig(BaseModel):
 
 
 class MirrorConfig(BaseModel):
-    """Optional code-mirror provider configuration (A2-4).
+    """Optional code-mirror provider configuration.
 
     Additive on :class:`PropagationConfig`. Defaults preserve the legacy
     in-process Python AST generator. External providers (repo2md) are
@@ -706,5 +706,5 @@ class PropagationConfig(BaseModel):
     tag_derivation: TagDerivationConfig = Field(default_factory=TagDerivationConfig)
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     model_routing: ModelRoutingConfig = Field(default_factory=ModelRoutingConfig)
-    # A2-4: optional mirror provider block (defaults keep legacy behavior).
+    # Optional mirror provider block (defaults keep legacy behavior).
     mirror: MirrorConfig = Field(default_factory=MirrorConfig)

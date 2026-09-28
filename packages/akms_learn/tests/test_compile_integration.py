@@ -232,7 +232,7 @@ def _make_request_dict(**overrides) -> dict:
 
 
 class TestCompileDictRequest:
-    """Regression tests for dict-shaped ``request`` handling (PR #50 review)."""
+    """Regression tests for dict-shaped ``request`` handling."""
 
     @pytest.mark.integration
     def test_dict_request_required_capabilities_enforced(self) -> None:

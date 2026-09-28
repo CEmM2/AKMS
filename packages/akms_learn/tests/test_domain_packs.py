@@ -214,10 +214,10 @@ class TestDomainPackFoundation:
 
     @pytest.mark.unit
     def test_source_pack_descriptor_accepts_spec_aliases(self) -> None:
-        """Spec §4 bare 'role:' / 'status:' must parse as forward-compat aliases.
+        """Bare 'role:' / 'status:' must parse as forward-compat aliases.
 
         The Python field names are ``companion_role`` / ``capability_status``,
-        but spec §4 wording uses the bare names ``role`` / ``status``.
+        but source-pack YAML may use the bare names ``role`` / ``status``.
         Pydantic v2 ``AliasChoices`` ensures both spellings populate the same
         canonical Python attributes.
         """
@@ -225,8 +225,8 @@ class TestDomainPackFoundation:
             "source_pack_id": "compmech.constkit",
             "name": "ConstKit Concept Helpers",
             "version": "0.1.0",
-            "role": "concept_kit",  # spec §4 bare name
-            "status": "planned",  # spec §4 bare name
+            "role": "concept_kit",  # bare alias
+            "status": "planned",  # bare alias
         }
         sp = SourcePackDescriptor.model_validate(data)
         assert sp.id == "compmech.constkit"
@@ -246,7 +246,7 @@ class TestDomainPackFoundation:
 
     @pytest.mark.unit
     def test_domain_pack_summary_accepts_description_alias(self) -> None:
-        """Single canonical ``summary`` field — spec §3 uses ``summary``; the
+        """Single canonical ``summary`` field — the canonical key is ``summary``; the
         older ``description`` key is accepted as an alias for backward compat.
 
         Replaces the earlier redundant pair of optional fields. A YAML may
@@ -263,9 +263,9 @@ class TestDomainPackFoundation:
 
         data2 = dict(data)
         data2.pop("description")
-        data2["summary"] = "Canonical spec §3 key."
+        data2["summary"] = "Canonical summary key."
         pack2 = DomainPackDescriptor.model_validate(data2)
-        assert pack2.summary == "Canonical spec §3 key."
+        assert pack2.summary == "Canonical summary key."
 
     @pytest.mark.unit
     def test_build_registry_from_paths(self) -> None:

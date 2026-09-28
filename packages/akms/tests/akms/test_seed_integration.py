@@ -1,4 +1,4 @@
-"""Phase 2 integration tests — Compile seed nodes through the full pipeline.
+"""Seed-node integration tests — compile seed nodes through the full pipeline.
 
 Tests verify:
   - Tier 1 global nodes compile cleanly with empty overlay
@@ -113,7 +113,7 @@ class TestSeedNodeValidation:
         """Bundled corpus contains the 6 Tier 1 skill nodes.
 
         Was 7 until the 2026-08-18 §07C rights audit removed
-        ``skill-sim-setup`` (private TiFEM APIs throughout, not genericizable).
+        ``skill-sim-setup`` (project-specific APIs throughout, not genericizable).
         """
         nodes = list(SEED_NODES_DIR.glob("skill-*.md"))
         assert len(nodes) == 6, f"Expected 6 skill nodes, found {len(nodes)}: {nodes}"
@@ -178,7 +178,7 @@ class TestSeedNodeValidation:
 
 
 class TestCompileEmptyOverlay:
-    """Task 2.4: build_graph from seed nodes + empty local overlay."""
+    """build_graph from seed nodes + empty local overlay."""
 
     def test_compile_clean(self, seed_vault: Path, seed_repo: Path, monkeypatch):
         """build_graph runs without errors on seed nodes."""

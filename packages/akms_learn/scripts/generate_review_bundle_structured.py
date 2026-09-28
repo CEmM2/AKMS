@@ -57,10 +57,7 @@ dict/collection iteration is sorted.
 
 The generator drives ``compile_learning_source`` directly (the Python API
 path) because the ``akms-learn compile`` CLI does not expose a flag to select
-the toy fixtures; the Python API is the contract mandated by
-("implemented AKMS Learn CLI/API").
-
-`the internal plan`.
+the toy fixtures; the Python API is the supported contract.
 """
 
 from __future__ import annotations
@@ -303,8 +300,7 @@ def _build_traceability(
     ``source_node_id``. Columns:
     ``mode | section | source_node_ids | source``.
 
-    Plan ref: `the internal plan`; task ref:
-    `the internal plan` (AC-2).
+    Acceptance criterion: AC-2.
     """
     lines: list[str] = [
         f"# Traceability -- {PLAN_ID}",
@@ -314,8 +310,6 @@ def _build_traceability(
         "the originating graph source path / line range) that informed it. "
         "Generated directly from the per-mode LearningSourcePackets -- never "
         "hand-written.",
-        "",
-        "Plan ref: the internal plan; task ref: the internal plan.",
         "",
         "| mode | section | source_node_ids | source |",
         "| --- | --- | --- | --- |",
@@ -394,8 +388,7 @@ def _build_warnings(
     so ``warnings.md`` and ``manifest.warnings`` never drift. If the
     aggregated list is empty, writes a single ``no warnings`` line.
 
-    Plan ref: `the internal plan`; task ref:
-    `the internal plan` (AC-3).
+    Acceptance criterion: AC-3.
     """
     aggregated = _aggregate_warnings(mode_packets)
 
@@ -405,8 +398,6 @@ def _build_warnings(
         "Aggregated warning catalogue from all bundle compilation passes.",
         "One entry per unique (code, source_ref, message) triple.",
         "Mirrors the ``warnings`` field in ``manifest.json``.",
-        "",
-        "Plan ref: the internal plan; task ref: the internal plan.",
         "",
     ]
 
@@ -431,8 +422,7 @@ def _build_feedback_form() -> str:
     ``akms_learn_structured`` per the plan. This is the final content
     (AC-1): newline-normalised and byte-identical to the seed.
 
-    Plan ref: `the internal plan`; task ref:
-    `the internal plan` (AC-1).
+    Acceptance criterion: AC-1.
     """
     return (
         "# Review Feedback: akms_learn_structured\n"
@@ -441,7 +431,7 @@ def _build_feedback_form() -> str:
         "\n"
         "- Role:\n"
         "- Familiarity with topic:\n"
-        "- Familiarity with AKMS / Logic-Loom:\n"
+        "- Familiarity with AKMS and its host tooling:\n"
         "\n"
         "## Learning value\n"
         "\n"
@@ -487,8 +477,7 @@ def _build_unavailable_capabilities_md(
     manifest field can never drift, then renders one bullet per entry. The
     content is fully data-driven -- never hand-written.
 
-    Plan ref: `the internal plan`; task ref:
-    `the internal plan` (AC-4).
+    Acceptance criterion: AC-4.
     """
     ordered = sorted(
         unavailable, key=lambda e: (e.get("capability", ""), e.get("missing_extra", ""))
@@ -504,8 +493,6 @@ def _build_unavailable_capabilities_md(
         "",
         "Mirrors the ``unavailable_capabilities`` field in ``manifest.json`` "
         "(sorted by capability).",
-        "",
-        "Plan ref: the internal plan; task ref: the internal plan.",
         "",
     ]
 
@@ -539,8 +526,7 @@ def _build_closure_md() -> str:
     ``manifest.artifacts``. It lives at the bundle root as a sibling to
     ``manifest.json`` and ``regenerate.sh``.
 
-    Plan ref: `the internal plan`; task ref:
-    `the internal plan` (AC-5).
+    Acceptance criterion: AC-5.
     """
     # The closed-plan status token is assembled from fragments so the literal
     # joined string never appears in this source file -- the AST canary is
@@ -587,9 +573,6 @@ def _build_closure_md() -> str:
         "\n"
         "The reviewer-facing feedback form is at "
         f"`artifacts/review_bundles/{PLAN_ID}/feedback_form.md`.\n"
-        "\n"
-        "Plan ref: the internal plan; "
-        "task ref: the internal plan.\n"
     )
 
 
@@ -630,9 +613,8 @@ def _build_regenerate_sh() -> str:
     return (
         "#!/usr/bin/env bash\n"
         "# Regenerate the review bundle deterministically from the\n"
-        "# the plan toy fixtures. Idempotent: safe to re-run.\n"
+        "# toy fixtures. Idempotent: safe to re-run.\n"
         "#\n"
-        "# Plan ref: the internal plan; task ref: the internal plan\n"
         "# Generator: packages/akms_learn/scripts/generate_review_bundle_structured.py\n"
         "set -euo pipefail\n"
         "\n"

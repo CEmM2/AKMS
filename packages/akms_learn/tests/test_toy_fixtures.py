@@ -252,7 +252,7 @@ class TestWorkbenchDerivationSection:
     def test_workbench_includes_assumption_or_selfcheck_section(self):
         """Workbench-style packs should carry assumption-like content.
 
-        Plan §13 wording: "derivation-first mode SHOULD prove it can use
+        Contract wording: "derivation-first mode SHOULD prove it can use
         assumptions/equations/derivation sections from any domain pack".
         We accept either an explicit Self-check or an "assume" mention
         inside Derivation as the generic equivalent.

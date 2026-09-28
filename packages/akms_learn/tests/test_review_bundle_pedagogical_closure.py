@@ -63,8 +63,8 @@ class TestPedagogicalClosureSurface:
     # -- Feedback form ---------------------------------------------------------
 
     @pytest.mark.e2e
-    def test_feedback_form_matches_section_14_seed_verbatim(self) -> None:
-        """Verifies: feedback_form.md reproduces §14 seed byte-for-byte under
+    def test_feedback_form_matches_seed_verbatim(self) -> None:
+        """Verifies: feedback_form.md reproduces the seed byte-for-byte under
         the akms_learn_pedagogical title."""
         form_path = _require_bundle_file("feedback_form.md")
         form_text = form_path.read_text(encoding="utf-8")
@@ -74,7 +74,7 @@ class TestPedagogicalClosureSurface:
             "feedback_form.md must contain '# Review Feedback: akms_learn_pedagogical'"
         )
 
-        # All §14 section headings verbatim.
+        # All section headings verbatim.
         required_headings = [
             "## Reviewer background",
             "## Learning value",
@@ -88,7 +88,7 @@ class TestPedagogicalClosureSurface:
                 f"feedback_form.md is missing required heading: {heading!r}"
             )
 
-        # Verbatim verdict checkboxes from §14 seed.
+        # Verbatim verdict checkboxes from the seed.
         for checkbox in (
             "- [ ] Ship as-is",
             "- [ ] Ship with minor edits",
@@ -103,10 +103,10 @@ class TestPedagogicalClosureSurface:
             "feedback_form.md must contain the placeholder '- [ ] ...'"
         )
 
-        # Reviewer-background bullet labels (verbatim from §14).
+        # Reviewer-background bullet labels (verbatim from the seed).
         assert "- Role:" in form_text
         assert "- Familiarity with topic:" in form_text
-        assert "- Familiarity with AKMS / Logic-Loom:" in form_text
+        assert "- Familiarity with AKMS and its host tooling:" in form_text
 
     @pytest.mark.e2e
     def test_feedback_form_matches_builder_output(self) -> None:
@@ -295,8 +295,8 @@ class TestPedagogicalClosureSurface:
     # -- Closure rule ----------------------------------------------------------
 
     @pytest.mark.e2e
-    def test_closure_md_quotes_section_14_rule(self) -> None:
-        """Verifies: CLOSURE.md contains 'plan_closed' and 'MUST NOT' from §14
+    def test_closure_md_quotes_closure_rule(self) -> None:
+        """Verifies: CLOSURE.md contains 'plan_closed' and 'MUST NOT' from the
         closure rule."""
         closure_path = _require_bundle_file("CLOSURE.md")
         closure_text = closure_path.read_text(encoding="utf-8")
@@ -327,5 +327,5 @@ class TestPedagogicalClosureSurface:
         artifacts: list = manifest.get("artifacts", [])
         assert "CLOSURE.md" not in artifacts, (
             "CLOSURE.md must NOT be listed in manifest.artifacts "
-            "(it is a sibling, not a §14 artifact)"
+            "(it is a sibling, not a bundle artifact)"
         )

@@ -30,10 +30,8 @@ identical artifact bytes after timestamp stripping.
 
 The generator drives ``compile_learning_source`` directly (the Python
 API path) because the ``akms-learn compile`` CLI does not yet expose a
-flag to select the toy fixtures; the Python API is the contract
-mandated by ("implemented akms-learn CLI/API").
-
-`the internal plan`.
+flag to select the toy fixtures; the Python API is the supported
+contract.
 """
 
 from __future__ import annotations
@@ -352,7 +350,7 @@ def _build_traceability(
     anchor, or ``<mode>:<section-slug>`` for boilerplate sections without
     one.
 
-    Plan ref: the internal plan; task  AC-2.
+    Acceptance criterion: AC-2.
     """
 
     # Build a lookup: node_id -> (source_path, line_range) per mode.
@@ -432,8 +430,6 @@ def _build_traceability(
         "to the graph artifacts (packet nodes / source paths) that informed it. "
         "Sections without a direct packet anchor use a synthetic id of the form "
         "`<mode>:<section-slug>`.",
-        "",
-        "Plan ref: the internal plan; task ref: the internal plan.",
         "",
         header,
         separator,
@@ -580,7 +576,7 @@ def _build_warnings(
     both surfaces share :func:`_aggregate_warnings`). If the aggregated list
     is empty, writes a single ``no warnings`` line.
 
-    Plan ref: the internal plan; task  AC-3.
+    Acceptance criterion: AC-3.
     """
     aggregated = _aggregate_warnings(mode_packets, multi_gran_packets)
 
@@ -590,8 +586,6 @@ def _build_warnings(
         "Aggregated warning catalogue from all bundle compilation passes.",
         "One entry per unique (code, source_ref, message) triple.",
         "Mirrors the ``warnings`` field in ``manifest.json``.",
-        "",
-        "Plan ref: the internal plan; task ref: the internal plan.",
         "",
     ]
 
@@ -615,7 +609,7 @@ def _build_feedback_form() -> str:
     The content is reproduced byte-for-byte from the plan.md.
     The title slug is ``akms_learn_pedagogical`` per the plan.
 
-    Plan ref: the internal plan; task  AC-1.
+    Acceptance criterion: AC-1.
     """
     return (
         "# Review Feedback: akms_learn_pedagogical\n"
@@ -624,7 +618,7 @@ def _build_feedback_form() -> str:
         "\n"
         "- Role:\n"
         "- Familiarity with topic:\n"
-        "- Familiarity with AKMS / Logic-Loom:\n"
+        "- Familiarity with AKMS and its host tooling:\n"
         "\n"
         "## Learning value\n"
         "\n"
@@ -668,7 +662,7 @@ def _build_closure_md() -> str:
     CLOSURE.md is NOT in BUNDLE_ARTIFACTS and is not listed in manifest.artifacts.
     It lives at the bundle root as a sibling to manifest.json and regenerate.sh.
 
-    Plan ref: the internal plan; task  AC-5.
+    Acceptance criterion: AC-5.
     """
     return (
         f"# Closure Gate -- {PLAN_ID}\n"
@@ -707,9 +701,6 @@ def _build_closure_md() -> str:
         "\n"
         "The reviewer-facing feedback form is at "
         "`artifacts/review_bundles/akms_learn_pedagogical/feedback_form.md`.\n"
-        "\n"
-        "Plan ref: the internal plan; "
-        "task ref: the internal plan.\n"
     )
 
 
@@ -752,9 +743,8 @@ def _build_regenerate_sh() -> str:
     return (
         "#!/usr/bin/env bash\n"
         "# Regenerate the review bundle deterministically from the\n"
-        "# the plan toy fixtures. Idempotent: safe to re-run.\n"
+        "# toy fixtures. Idempotent: safe to re-run.\n"
         "#\n"
-        "# Plan ref: the internal plan; task ref: the internal plan\n"
         "# Generator: packages/akms_learn/scripts/generate_review_bundle_pedagogical.py\n"
         "set -euo pipefail\n"
         "\n"

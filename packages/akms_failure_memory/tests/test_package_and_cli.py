@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from importlib.metadata import version as dist_version
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,7 @@ FIXTURES = PACKAGE_ROOT / "tests/fixtures/project_configs"
 
 
 def test_package_metadata_and_dependency_direction() -> None:
-    assert akms_failure_memory.__version__ == "0.3.0"
+    assert akms_failure_memory.__version__ == dist_version("akms-failure-memory")
     assert not any(name.startswith("repo2md") for name in sys.modules)
     assert not any(name.lower().startswith("numerix") for name in sys.modules)
 
@@ -76,7 +77,10 @@ def test_cli_help_version_and_json_error() -> None:
         env=environment,
     )
     assert version.returncode == 0
-    assert version.stdout.strip() == "failure-memory 0.3.0"
+    assert (
+        version.stdout.strip()
+        == f"failure-memory {dist_version('akms-failure-memory')}"
+    )
     help_result = subprocess.run(
         [sys.executable, "-m", "akms_failure_memory.cli", "--help"],
         check=False,

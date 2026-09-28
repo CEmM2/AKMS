@@ -21,6 +21,27 @@ PACKAGE_FILES = {
     ),
 }
 
+# Packages whose `__version__` literal is meant to mirror the distribution
+# version: `akms.__version__` feeds failure-memory toolchain fingerprints and
+# `akms --version`; `akms_failure_memory.__version__` backs
+# `failure-memory --version`. 0.3.1 bumped the pyproject files and left both
+# literals at 0.3.0, so this check exists to make that drift a release error.
+# `compmech_reference_pack.__version__` is deliberately absent: it is the
+# domain-pack contract version reported to akms-learn, not the wheel version.
+INIT_FILES = {
+    "akms": ROOT / "packages" / "akms" / "src" / "akms" / "__init__.py",
+    "akms-failure-memory": (
+        ROOT
+        / "packages"
+        / "akms_failure_memory"
+        / "src"
+        / "akms_failure_memory"
+        / "__init__.py"
+    ),
+}
+
+_DUNDER_VERSION = re.compile(r'^__version__\s*=\s*"([^"]+)"', re.MULTILINE)
+
 
 def read_version(path: Path) -> str:
     if not path.exists():

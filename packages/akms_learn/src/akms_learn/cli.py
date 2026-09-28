@@ -1,14 +1,13 @@
 """Command-line interface entry point: ``akms-learn``.
 
-Plan §18 (L309-L327) defines the ``compile`` invocation; plan §23
-(L530-L540) requires the CLI to reuse the Python API and surface packet
+The CLI reuses the Python API and surfaces packet
 path, export paths, warnings, unavailable capabilities, and manifest
 path. This module is a *thin* dispatcher: it parses argv, builds a
 ``LearningRequest`` (or raw dict — both shapes accepted by
 :func:`compile_learning_source`), calls into the API, and presents the
 result. No business logic lives here.
 
-Exit codes (plan §18 + Phase 5 context summary L17):
+Exit codes:
 
 * ``0`` — success.
 * ``2`` — :class:`PacketValidationError` raised by the compiler.

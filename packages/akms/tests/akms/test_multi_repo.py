@@ -1,9 +1,9 @@
-"""Tests for multi-repo isolation — Phase 6 Task 6.5.
+"""Tests for multi-repo isolation.
 
 Verifies that two repos sharing the same global vault maintain
 independent local state without cross-contamination.
 
-Success criteria (from development plan §6.5):
+Success criteria:
 1. Repo-A boosts a node; Repo-B decays same node — independent
 2. Global node file untouched
 3. Pitfall in Repo-A doesn't appear in Repo-B
