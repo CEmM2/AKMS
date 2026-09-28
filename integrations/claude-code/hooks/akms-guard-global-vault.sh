@@ -19,6 +19,8 @@ vault="${AKMS_GLOBAL_VAULT:-$HOME/.claude/akms/nodes}"
 vault="${vault/#\~/$HOME}"
 # Normalize: resolve to absolute path (handle trailing slashes, symlinks)
 vault=$(cd "$vault" 2>/dev/null && pwd || echo "$vault")
+# Drop a trailing slash left over when the vault does not exist yet
+vault="${vault%/}"
 
 # Normalize the target file path
 file_dir=$(dirname "$file_path")
@@ -26,7 +28,8 @@ file_dir_resolved=$(cd "$file_dir" 2>/dev/null && pwd || echo "$file_dir")
 file_resolved="$file_dir_resolved/$(basename "$file_path")"
 
 # Check if the file lives inside the global vault
-if [[ "$file_resolved" == "$vault"* ]]; then
+# Match the vault itself or a path under it, never a sibling such as nodes-old/
+if [[ "$file_resolved" == "$vault" || "$file_resolved" == "$vault"/* ]]; then
   echo "BLOCKED: Global vault nodes are READ-ONLY from automated processes (FR-O01, NFR-R03)." >&2
   echo "  Vault: $vault" >&2
   echo "  File:  $file_resolved" >&2
