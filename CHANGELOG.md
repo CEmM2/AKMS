@@ -19,6 +19,18 @@ development is intentionally not replayed.
   pins drift from the `akms` version.
 
 ### Fixed
+- `akms deprecate`, `akms suppress` and `akms promote` now delete the compiled
+  `knowledge/graph/graph.json` and the qmd cache. Before, `resolve-task`,
+  `query` and `loadout` kept reading the old graph, so a deprecated node was
+  still resolved as required until someone deleted the file by hand. The next
+  reader now recompiles, and a required node that is no longer loadable fails
+  with `required_node_unavailable`.
+- `graph_version` no longer changes when the graph is recompiled from
+  identical inputs. It hashed the whole `graph.json`, including its
+  `generated_at` timestamp, so every rebuild produced a new graph version and
+  a new resolution fingerprint. It now hashes the graph's canonical JSON
+  without that timestamp. Existing graph versions and fingerprints change once
+  on upgrade.
 - `akms.__version__` and `akms_failure_memory.__version__` had stayed at 0.3.0
   through the 0.3.1 release, so `failure-memory --version` and the akms
   toolchain fingerprint reported the wrong version. Both literals now match

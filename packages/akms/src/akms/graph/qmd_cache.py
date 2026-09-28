@@ -3,7 +3,8 @@
 Caches qmd search results by (graph_version, query_hash).
 Cache is invalidated when graph_version changes.
 
-Graph version = SHA256 of graph.json contents.
+Graph version = SHA256 of graph.json contents, minus the ``generated_at``
+timestamp, so recompiling identical inputs keeps the same version.
 Query hash = SHA256 of (tags, role, depth) — see query_subgraph.compute_query_hash.
 
 Cache storage: <repo>/knowledge/graph/.qmd_cache/
@@ -22,20 +23,40 @@ logger = logging.getLogger(__name__)
 
 
 def compute_graph_version(graph_json_path: str | Path) -> str:
-    """Compute SHA256 hash of graph.json as the graph version.
+    """Compute the graph version: a SHA256 of graph.json's content.
+
+    The ``graph.generated_at`` timestamp is left out, so recompiling the same
+    inputs yields the same version (and the same resolution fingerprint). The
+    rest of the document is hashed as canonical JSON (sorted keys, compact
+    separators), so whitespace differences do not change the version either.
+    A file that is not a JSON object is hashed byte for byte.
 
     Args:
         graph_json_path: Path to graph.json.
 
     Returns:
-        SHA256 hex digest of the file contents.
+        SHA256 hex digest, or ``"no-graph"`` when the file is missing.
     """
     path = Path(graph_json_path)
     if not path.exists():
         return "no-graph"
 
     content = path.read_bytes()
-    return hashlib.sha256(content).hexdigest()
+    try:
+        data = json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return hashlib.sha256(content).hexdigest()
+    if not isinstance(data, dict):
+        return hashlib.sha256(content).hexdigest()
+
+    graph_meta = data.get("graph")
+    if isinstance(graph_meta, dict) and "generated_at" in graph_meta:
+        stable_meta = {k: v for k, v in graph_meta.items() if k != "generated_at"}
+        data = {**data, "graph": stable_meta}
+    canonical = json.dumps(
+        data, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _cache_dir(repo_root: str | Path) -> Path:

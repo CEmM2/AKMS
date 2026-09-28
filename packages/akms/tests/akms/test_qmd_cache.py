@@ -117,3 +117,44 @@ class TestGraphVersion:
         f2.write_text(json.dumps({"nodes": [{"id": "n2"}]}))
 
         assert compute_graph_version(f1) != compute_graph_version(f2)
+
+    def test_generated_at_does_not_change_version(self, tmp_path):
+        """Recompiling identical inputs must not move the graph version."""
+        f1 = tmp_path / "a.json"
+        f2 = tmp_path / "b.json"
+        base = {"graph": {"akms_schema": "v2"}, "nodes": [{"id": "n1"}], "links": []}
+        f1.write_text(
+            json.dumps(
+                {
+                    **base,
+                    "graph": {**base["graph"], "generated_at": "2026-01-01T00:00:00"},
+                }
+            )
+        )
+        f2.write_text(
+            json.dumps(
+                {
+                    **base,
+                    "graph": {**base["graph"], "generated_at": "2031-06-07T08:09:10"},
+                },
+                indent=2,
+            )
+        )
+
+        assert compute_graph_version(f1) == compute_graph_version(f2)
+
+    def test_other_graph_metadata_still_changes_version(self, tmp_path):
+        """Only generated_at is excluded; other metadata still counts."""
+        f1 = tmp_path / "a.json"
+        f2 = tmp_path / "b.json"
+        f1.write_text(json.dumps({"graph": {"repo_id": "a", "generated_at": "x"}}))
+        f2.write_text(json.dumps({"graph": {"repo_id": "b", "generated_at": "x"}}))
+
+        assert compute_graph_version(f1) != compute_graph_version(f2)
+
+    def test_non_json_file_hashes_bytes(self, tmp_path):
+        """A corrupt graph.json still gets a version rather than raising."""
+        f1 = tmp_path / "a.json"
+        f1.write_bytes(b"{not json")
+
+        assert len(compute_graph_version(f1)) == 64
