@@ -17,13 +17,34 @@ intended to bind on `127.0.0.1` only.
 
 ## Meta
 
+### `GET /api/status`
+
+Returns the start-up notices: missing or unreadable inputs, and whether the
+optional zsum vault is present. The UI renders these as a banner.
+
+```json
+{
+  "notices": [
+    {
+      "level": "info",
+      "message": "Per-paper summaries and keywords are off: ... This stage can be simplified using zsum.",
+      "link": "https://github.com/CEmM2/zotero-summarizer",
+      "link_text": "zsum"
+    }
+  ]
+}
+```
+
+`level` is `error`, `warning` or `info`. `POST /api/reload` returns the same
+list under `notices` after re-reading every input.
+
 ### `GET /api/config`
 
 Returns the resolved paths the picker is using.
 
 ```json
 {
-  "repo_root": "...",
+  "workspace": "...",
   "plan_md": "...",
   "bbt_json": "...",
   "zotsums_root": "...",
@@ -330,7 +351,7 @@ Returns `204 No Content` on success, `404` if the name doesn't exist.
 
 ### `POST /api/batches/{batch_id}/export_plan`
 
-Writes `Sources_Evals/NLM/Inputs/<slug>_plan.json`.
+Writes `<workspace>/plans/<slug>_plan.json`.
 
 ```json
 // response
@@ -346,7 +367,7 @@ Writes `Sources_Evals/NLM/Inputs/<slug>_plan.json`.
 // response
 {
   "ok": true,
-  "message": "Staged 11 PDFs into /.../AKMS_Sources/new/R7_B2_pf_energy_solvers",
+  "message": "Staged 11 PDFs into /.../research/pdfs/R7_B2_pf_energy_solvers",
   "target_dir": "...",
   "staged":  ["citekey1", "..."],
   "skipped": [{"citekey": "...", "reason": "no local PDF"}],

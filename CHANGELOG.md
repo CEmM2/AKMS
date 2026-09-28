@@ -33,7 +33,20 @@ development is intentionally not replayed.
 - `failure-memory` commands default `--config` to the file `init` writes, so
   `failure-memory doctor --repo .` works straight after `init`.
 
+- `akms-pick` crashed on start-up in every 0.3.1 install: one route's return
+  annotation is rejected by the FastAPI version the package requires, and no
+  test built the app. A smoke test now starts the installed command.
+
 ### Changed
+- `akms-pick` no longer needs an AKMS checkout. `--plan`, `--bibtex-json`,
+  `--zsum-root` and `--workspace` locate its inputs from anywhere, falling back
+  to the existing environment variables. Its own files default to the plan's
+  directory rather than `Sources_Evals/NLM/`; `AKMS_REPO_ROOT` restores the
+  old layout. The plan's `PDF folder` field accepts any path.
+- `akms-pick` starts with a missing plan, Zotero export or zsum vault and
+  lists what is missing in the terminal and in a banner on the page. Without
+  zsum it points to [zsum](https://github.com/CEmM2/zotero-summarizer) as the
+  simpler route rather than failing.
 - CI installs every `akms[...]` extra and pairing from the freshly built wheels
   and checks each installs exactly its companions and their commands.
 - The public-tree audit now also fails on private project names and internal

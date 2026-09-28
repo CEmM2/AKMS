@@ -12,15 +12,15 @@ vault (`~/.claude/akms/nodes/`) with domain-based subdirectory nesting.
 ```bash
 # Dry-run (default) — show what would happen, touch nothing
 python -m akms_nodes_gen.akms_node_promote \
-    --source Sources_Evals/NLM/Outputs/fft_nodes
+    --source outputs/fft_nodes
 
 # Actually move the files
 python -m akms_nodes_gen.akms_node_promote \
-    --source Sources_Evals/NLM/Outputs/fft_nodes --execute
+    --source outputs/fft_nodes --execute
 
 # Move and promote frontmatter status: tentative → established
 python -m akms_nodes_gen.akms_node_promote \
-    --source Sources_Evals/NLM/Outputs/fft_nodes --execute --promote
+    --source outputs/fft_nodes --execute --promote
 
 # Override vault location
 python -m akms_nodes_gen.akms_node_promote \

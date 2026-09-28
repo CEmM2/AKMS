@@ -111,7 +111,7 @@ batch tree once they complete.
 
 | Control | Effect |
 |---------|--------|
-| Saved query dropdown | Lists queries from `Sources_Evals/NLM/saved_queries.json`. |
+| Saved query dropdown | Lists queries from `<workspace>/saved_queries.json`. |
 | **Apply** | Loads the selected query's filter spec into the toolbar and runs the search. |
 | **Save current as…** | Prompts for a name; persists the current toolbar state. Re-using a name overwrites. |
 | **Delete** | Removes the selected saved query (with confirm). |

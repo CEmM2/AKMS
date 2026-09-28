@@ -827,10 +827,30 @@ async function loadConfig() {
     `plan: ${cfg.plan_md.split("/").pop()} · state: ${cfg.state_file.split("/").pop()}`;
 }
 
+function renderNotices(notices) {
+  const box = $("#notices");
+  box.innerHTML = "";
+  for (const n of notices || []) {
+    const row = el("div", { class: `notice notice-${n.level}` }, n.message);
+    if (n.link) {
+      row.appendChild(document.createTextNode(" "));
+      row.appendChild(el("a", { href: n.link, target: "_blank", rel: "noopener" }, n.link_text || n.link));
+    }
+    box.appendChild(row);
+  }
+  box.hidden = !box.children.length;
+}
+
+async function loadStatus() {
+  const s = await api("/api/status");
+  renderNotices(s.notices);
+}
+
 async function reloadAll() {
   toast("Reloading data…");
   const r = await api("/api/reload", { method: "POST" });
   toast(`Reloaded: ${r.papers} papers, ${r.collections} collections, ${r.batches} batches, ${r.saved_queries} queries`, "good");
+  renderNotices(r.notices);
   await Promise.all([loadCollections(), refreshBatches(), loadSavedQueries()]);
   if (state.selectedBatchId) await selectBatch(state.selectedBatchId);
 }
@@ -884,7 +904,7 @@ function bindEvents() {
 
 async function boot() {
   bindEvents();
-  await loadConfig();
+  await Promise.all([loadConfig(), loadStatus()]);
   await Promise.all([loadCollections(), refreshBatches(), loadSavedQueries()]);
 }
 

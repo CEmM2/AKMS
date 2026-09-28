@@ -1,12 +1,13 @@
 # State files
 
-Every persistent piece of UI state lives in a JSON file under
-`Sources_Evals/NLM/`. All writes are atomic
+Every persistent piece of UI state lives in a JSON file in the picker's
+workspace, which defaults to the plan's directory (see
+[Configuration](configuration.md)). All writes are atomic
 (`tempfile.mkstemp` + `os.replace`).
 
 ## `batch_assignments.json`
 
-Default: `<repo>/Sources_Evals/NLM/batch_assignments.json` — override with
+Default: `<workspace>/batch_assignments.json` — override with
 `AKMS_BATCH_STATE`.
 
 Created on first save; absent until then.
@@ -68,7 +69,7 @@ Created on first save; absent until then.
 
 ## `saved_queries.json`
 
-Default: `<repo>/Sources_Evals/NLM/saved_queries.json` — override with
+Default: `<workspace>/saved_queries.json` — override with
 `AKMS_SAVED_QUERIES`.
 
 ### Schema (v1)
@@ -111,7 +112,7 @@ selected batch** (not the one stored in the saved query). This way you can
 reuse the same "interesting collection of phase-field papers" filter
 across multiple batches.
 
-## Per-batch plan JSON — `Sources_Evals/NLM/Inputs/<slug>_plan.json`
+## Per-batch plan JSON — `<workspace>/plans/<slug>_plan.json`
 
 Output of **Write plan JSON**. Consumed by `node-gen-invoker`.
 
@@ -129,7 +130,7 @@ Output of **Write plan JSON**. Consumed by `node-gen-invoker`.
   "existing_nodes": 0,
   "notes": {
     "source_convention": "Sources picked manually via batch_picker UI; one NLM notebook per batch.",
-    "notebook_setup": "Upload 12 PDFs from AKMS_Sources/new/R7_B2_pf_energy_solvers/",
+    "notebook_setup": "Upload 12 PDFs from the staged R7_B2_pf_energy_solvers/ folder",
     "round": 7
   },
   "notebook_sources": [
@@ -178,7 +179,7 @@ The `notebook_sources` list (free-text labels) is what the existing
 motivated this whole tool. New downstream tooling should prefer
 `papers_by_citekey`; the legacy list is for backward compatibility.
 
-## Staged PDFs — `AKMS_Sources/new/<slug>/<citekey>.pdf`
+## Staged PDFs — `<workspace>/pdfs/<slug>/<citekey>.pdf`
 
 Symlinks (default) or copies (if `use_symlink=false` is passed to
 `/stage_pdfs`). Filename is the BBT citekey, so duplicates are impossible
@@ -191,7 +192,7 @@ cleaned up automatically — that's a manual step:
 ```bash
 # Sanity-clean a batch folder by removing symlinks that don't correspond
 # to currently assigned citekeys
-cd AKMS_Sources/new/R7_B2_pf_energy_solvers/
+cd path/to/workspace/pdfs/R7_B2_pf_energy_solvers/
 # (then manual rm of any orphaned <citekey>.pdf entries)
 ```
 

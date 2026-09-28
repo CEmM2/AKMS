@@ -71,7 +71,8 @@ def write_plan_json(
         "notes": {
             "source_convention": "Sources picked manually via batch_picker UI; one NLM notebook per batch.",
             "notebook_setup": (
-                f"Upload {len(notebook_sources)} PDFs from AKMS_Sources/new/{batch.pdf_slug or batch.id}/"
+                f"Upload {len(notebook_sources)} PDFs from the staged "
+                f"{batch.pdf_slug or batch.id}/ folder"
             ),
             "round": batch.round,
         },
@@ -122,7 +123,7 @@ def stage_pdfs(
     sources_dir: Path,
     use_symlink: bool = True,
 ) -> ActionResult:
-    """Drop PDFs into AKMS_Sources/new/<slug>/ as symlinks (or copies)."""
+    """Drop PDFs into <sources_dir>/<slug>/ as symlinks (or copies)."""
     folder_name = batch.pdf_slug or batch.id
     target = sources_dir / folder_name
     target.mkdir(parents=True, exist_ok=True)

@@ -30,9 +30,9 @@ Anthropic/MCP path.
 
 ```bash
 uv run python -m akms_nodes_gen.nlm_batch \
-  --plan Sources_Evals/NLM/Inputs/R7_B2_pf_energy_solvers_plan.json \
+  --plan path/to/workspace/plans/R7_B2_pf_energy_solvers_plan.json \
   --batch-id R7_B2 \
-  --out-dir Sources_Evals/NLM/Outputs/R7_B2_pf_energy_solvers \
+  --out-dir outputs/R7_B2_pf_energy_solvers \
   --prompt-file dev/AKMS_gen_prompts/notebooklm_node_prompt.md \
   --template-file .agents/skills/node-gen/references/akms_node_template.md \
   --source-ids source_a,source_b \
@@ -92,12 +92,12 @@ To derive Markdown and validate it after each YAML write:
 
 ```bash
 uv run python -m akms_nodes_gen.nlm_batch \
-  --plan Sources_Evals/NLM/Inputs/R7_B2_pf_energy_solvers_plan.json \
+  --plan path/to/workspace/plans/R7_B2_pf_energy_solvers_plan.json \
   --batch-id R7_B2 \
-  --out-dir Sources_Evals/NLM/Outputs/R7_B2_pf_energy_solvers \
+  --out-dir outputs/R7_B2_pf_energy_solvers \
   --prompt-file dev/AKMS_gen_prompts/notebooklm_node_prompt.md \
   --template-file .agents/skills/node-gen/references/akms_node_template.md \
-  --source-ids-file Sources_Evals/NLM/Inputs/R7_B2_sources.txt \
+  --source-ids-file path/to/workspace/plans/R7_B2_sources.txt \
   --timeout 180 \
   --output-format yaml \
   --converter .agents/skills/node-gen/scripts/akms_node_convert.py \

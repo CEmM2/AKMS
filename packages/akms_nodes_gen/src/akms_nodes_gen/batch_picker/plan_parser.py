@@ -8,7 +8,7 @@ The plan file has a regular structure:
     **Dependencies:** ...
 
     ## Rn_Bm — Batch Title (K nodes)
-    **PDF folder:** AKMS_Sources/new/Rn_Bm_<slug>/
+    **PDF folder:** <any path>/Rn_Bm_<slug>/   (the last folder name is used)
     **Sources:** <free text>
     **ZotSums:** <free text>            (optional)
     **Missing sources (...):** <free text>   (optional)
@@ -36,7 +36,6 @@ _ROUND_HEADER = re.compile(r"^#\s+Round\s+(?P<r>\d+):\s*(?P<title>.+?)\s*$")
 _FIELD = re.compile(r"^\*\*(?P<name>[^*]+?):\*\*\s*(?P<value>.+?)\s*$")
 _TABLE_ROW = re.compile(r"^\s*\|")
 _NODE_ID = re.compile(r"`([^`]+)`")
-_PDF_FOLDER = re.compile(r"AKMS_Sources/new/(?P<slug>[^/`)\s]+)/?")
 
 
 @dataclass
@@ -72,8 +71,12 @@ class Batch:
 
 
 def _slug_from_pdf_folder(value: str) -> str:
-    m = _PDF_FOLDER.search(value)
-    return m.group("slug") if m else ""
+    """The batch's PDF folder name: the last component of whatever path the
+    plan gives, so `pdfs/R1_B1_x/` and `AKMS_Sources/new/R1_B1_x/` both work."""
+    cleaned = value.strip().strip("`").strip()
+    if not cleaned:
+        return ""
+    return Path(cleaned.rstrip("/\\")).name
 
 
 def _parse_node_table(lines: list[str], start: int) -> tuple[list[BatchNode], int]:
