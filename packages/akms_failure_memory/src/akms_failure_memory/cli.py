@@ -12,6 +12,13 @@ from akms_failure_memory import __version__
 from akms_failure_memory.errors import FailureMemoryError
 
 
+DEFAULT_CONFIG = Path(".failure-memory/config.toml")
+_CONFIG_HELP = (
+    "project config (default: <repo>/.failure-memory/config.toml, "
+    "where `failure-memory init` writes it)"
+)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="failure-memory")
     parser.add_argument(
@@ -22,7 +29,7 @@ def _parser() -> argparse.ArgumentParser:
 
     for name in ("validate", "compile", "check", "doctor", "migrate-check", "ci-check"):
         command = sub.add_parser(name)
-        command.add_argument("--config", type=Path, required=True)
+        command.add_argument("--config", type=Path, help=_CONFIG_HELP)
         command.add_argument("--repo", type=Path, default=Path.cwd())
         if name in {"compile", "check"}:
             command.add_argument("--output-root", type=Path)
@@ -38,7 +45,7 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--node-namespace")
 
     add = sub.add_parser("add")
-    add.add_argument("--config", type=Path, required=True)
+    add.add_argument("--config", type=Path, help=_CONFIG_HELP)
     add.add_argument("--repo", type=Path, default=Path.cwd())
     source = add.add_mutually_exclusive_group(required=True)
     source.add_argument("--interactive", action="store_true")
@@ -46,7 +53,7 @@ def _parser() -> argparse.ArgumentParser:
     add.add_argument("--global-vault", type=Path, required=True)
 
     wrapper = sub.add_parser("generate-wrapper")
-    wrapper.add_argument("--config", type=Path, required=True)
+    wrapper.add_argument("--config", type=Path, help=_CONFIG_HELP)
     wrapper.add_argument("--repo", type=Path, default=Path.cwd())
     wrapper.add_argument("--output", type=Path, required=True)
     wrapper.add_argument("--force", action="store_true")
@@ -56,7 +63,7 @@ def _parser() -> argparse.ArgumentParser:
         "action",
         choices=("preflight", "status", "lessons", "mirror", "graph", "all", "clean"),
     )
-    refresh.add_argument("--config", type=Path, required=True)
+    refresh.add_argument("--config", type=Path, help=_CONFIG_HELP)
     refresh.add_argument("--repo", type=Path, default=Path.cwd())
     refresh.add_argument("--global-vault", type=Path, required=True)
     refresh.add_argument("--phase", type=int, default=1)
@@ -64,12 +71,12 @@ def _parser() -> argparse.ArgumentParser:
     refresh.add_argument("--force-lock", action="store_true")
 
     resolve = sub.add_parser("resolve")
-    resolve.add_argument("--config", type=Path, required=True)
+    resolve.add_argument("--config", type=Path, help=_CONFIG_HELP)
     resolve.add_argument("--repo", type=Path, default=Path.cwd())
     resolve.add_argument("--request", type=Path, required=True)
 
     stale = sub.add_parser("validate-fingerprint")
-    stale.add_argument("--config", type=Path, required=True)
+    stale.add_argument("--config", type=Path, help=_CONFIG_HELP)
     stale.add_argument("--repo", type=Path, default=Path.cwd())
     stale.add_argument("--request", type=Path, required=True)
     stale.add_argument("--result", type=Path, required=True)
@@ -134,6 +141,8 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
+    if getattr(args, "config", "unset") is None:
+        args.config = Path(args.repo) / DEFAULT_CONFIG
     try:
         result = _dispatch(args)
     except FailureMemoryError as exc:

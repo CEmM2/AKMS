@@ -230,9 +230,15 @@ jobs:
           uv build --package akms-learn --out-dir dist
           uv build --package akms-nodes-gen --out-dir dist
           uv build --package akms-failure-memory --out-dir dist
+          uv build --package compmech-reference-pack --out-dir dist
 
       - name: Validate distribution metadata
         run: uv run --with twine twine check dist/*
+
+      # Every `akms[...]` extra and pairing installs exactly its companions
+      # from these wheels, resolves cleanly, and exposes its commands.
+      - name: Install every umbrella-extra combination from the built wheels
+        run: python scripts/check_extras_matrix.py dist
 
       - name: Clean-install full advertised runtime outside the source environment
         shell: bash

@@ -79,25 +79,42 @@ def main() -> int:
                 f"match pyproject version {versions[name]!r}"
             )
 
-    # `akms[learn]`, `akms[all]` and friends pin the sibling packages to the
-    # current minor series. A bump that forgot them would publish an `akms`
-    # whose extras install the previous release of its siblings.
-    sibling_pin = re.compile(
-        r'"(akms-learn|akms-failure-memory|akms-nodes-gen|compmech-reference-pack)'
-        r'(?:\[[^\]]*\])?>=([0-9][^,"]*),<([0-9][^"]*)"'
-    )
+    # Every requirement one package in the family places on another is pinned to
+    # the current minor series: `akms[learn]` and friends in akms, and each
+    # companion's dependency on akms or akms-learn. A bump that forgot one would
+    # publish a package that installs, or accepts, the wrong sibling release.
+    # Unbounded sibling requirements are errors too, so a future breaking
+    # release cannot slip under an older companion.
+    sibling = r"(akms(?:-learn|-failure-memory|-nodes-gen)?|compmech-reference-pack)"
+    sibling_req = re.compile(r'"' + sibling + r'(\[[^\]]*\])?([^"]*)"')
+    bounds = re.compile(r"^>=([0-9][^,]*),<([0-9].*)$")
     core = versions.get("akms")
     if core:
-        core_text = PACKAGE_FILES["akms"].read_text(encoding="utf-8")
         major, minor = (int(part) for part in core.split(".")[:2])
         ceiling = f"{major}.{minor + 1}"
-        for match in sibling_pin.finditer(core_text):
-            name, floor, upper = match.groups()
-            if floor != core or upper != ceiling:
-                errors.append(
-                    f"akms extra pins {name}>={floor},<{upper}; "
-                    f"expected >={core},<{ceiling}"
-                )
+        for owner, path in PACKAGE_FILES.items():
+            data = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+            requirements = list(data.get("dependencies", []))
+            for extra in data.get("optional-dependencies", {}).values():
+                requirements.extend(extra)
+            for requirement in requirements:
+                match = sibling_req.fullmatch(f'"{requirement.replace(" ", "")}"')
+                if not match:
+                    continue
+                name, extras, spec = match.groups()
+                if name == owner and not spec:
+                    continue  # self-referencing extra such as akms[agents,mcp]
+                pinned = bounds.match(spec)
+                if not pinned:
+                    errors.append(
+                        f"{owner} requires {requirement!r}; sibling requirements "
+                        f"must read >={core},<{ceiling}"
+                    )
+                elif pinned.groups() != (core, ceiling):
+                    errors.append(
+                        f"{owner} pins {name}>={pinned.group(1)},<{pinned.group(2)}; "
+                        f"expected >={core},<{ceiling}"
+                    )
 
     unique_versions = sorted(set(versions.values()))
     if len(unique_versions) > 1:

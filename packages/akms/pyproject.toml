@@ -83,11 +83,8 @@ all = [
 
 [project.scripts]
 akms = "akms.cli.commands:main"
-
-# The MCP server is only importable with the `mcp` extra installed; the console
-# script is declared unconditionally so `akms-mcp-stdio` exists as a name and
-# can report a clear missing-extra error rather than not existing at all.
-[project.entry-points."akms.optional_scripts"]
+# Declared unconditionally so the command exists in every install. Without the
+# `mcp` extra it exits with an install hint rather than a traceback.
 akms-mcp-stdio = "akms.orchestrator.mcp_stdio:main"
 
 [build-system]
