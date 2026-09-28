@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 
 import frontmatter as fm
 
+from akms import __version__
 from akms.graph.graph_status import format_report, graph_status
 
 if TYPE_CHECKING:
@@ -577,6 +578,14 @@ def build_parser() -> argparse.ArgumentParser:
         description="AKMS — Adaptive Knowledge Management System CLI",
     )
     _add_repo_argument(parser, top_level=True)
+    # Host adapters probe `akms --version` before `--help` to decide whether
+    # they can enforce a supported-version range, so the output shape
+    # (`akms <version>` on stdout, exit 0) is part of the CLI contract.
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
