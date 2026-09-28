@@ -44,8 +44,7 @@ def _write_valid_agent_memory(repo_root: Path, task_id: str = "task-1") -> Path:
         "akms_schema": "v2",
     }
     post = frontmatter.Post(content="\n## Notes\n\nok\n", **memory_dict)
-    with open(output_path, "wb") as f:
-        frontmatter.dump(post, f)
+    output_path.write_text(frontmatter.dumps(post), encoding="utf-8", newline="\n")
     return output_path
 
 
