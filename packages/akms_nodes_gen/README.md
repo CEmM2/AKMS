@@ -13,27 +13,33 @@ The package has two complementary flows:
 
 ## Install
 
-From the AKMS repo root:
-
 ```bash
-uv sync --project packages/akms_nodes_gen
-```
-
-If you also want the documentation toolchain:
-
-```bash
-uv sync --project packages/akms_nodes_gen --group docs
+uv tool install akms-nodes-gen      # akms-pick on your PATH
+# or
+pip install "akms[nodes-gen]"
 ```
 
 ## Batch picker
 
 ```bash
-uv --project packages/akms_nodes_gen run akms-pick
+akms-pick --plan path/to/generation_plan.md --bibtex-json path/to/library.json
 ```
 
-The picker runs a local FastAPI UI for selecting papers, staging PDFs, creating
-NotebookLM notebooks, and writing batch plan JSON files under
-`Sources_Evals/NLM/Inputs/`.
+The picker is a local web UI for assigning papers from a Zotero library to the
+batches of a generation plan, staging their PDFs, creating one NotebookLM
+notebook per batch, and writing per-batch plan JSON. It needs:
+
+- a **generation plan**, anywhere on disk (`--plan`);
+- a **Zotero library export** in Better BibTeX JSON format (`--bibtex-json`).
+
+[zsum](https://github.com/CEmM2/zotero-summarizer) is optional. It keeps the
+export current and adds per-paper summaries that improve search. Without it,
+the picker says so in a banner and works from titles, abstracts and tags.
+
+Its own files go in a workspace, by default the plan's directory
+(`--workspace` to change it). Nothing needs an AKMS checkout. See the
+[picker documentation](https://cemm2.github.io/AKMS/reference/nodes-gen/batch-picker/)
+for the plan format and every option.
 
 ## Serial NotebookLM batch generation
 
@@ -43,9 +49,9 @@ CLI boundary.
 
 ```bash
 uv run python -m akms_nodes_gen.nlm_batch \
-  --plan Sources_Evals/NLM/Inputs/R7_B2_pf_energy_solvers_plan.json \
+  --plan path/to/workspace/plans/R7_B2_pf_energy_solvers_plan.json \
   --batch-id R7_B2 \
-  --out-dir Sources_Evals/NLM/Outputs/R7_B2_pf_energy_solvers \
+  --out-dir outputs/R7_B2_pf_energy_solvers \
   --prompt-file path/to/notebooklm_prompt.md \
   --template-file path/to/output_template.yaml \
   --source-ids source_a,source_b \

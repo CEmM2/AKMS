@@ -19,6 +19,7 @@ from .exporters import (
     write_plan_json,
 )
 from .loaders import Catalog, Paper, load_catalog
+from .status import Notice, check_inputs
 from .plan_parser import Batch, parse_plan
 from .queries import (
     SavedQuery,
@@ -155,14 +156,38 @@ class _Repo:
         self.batch_index: dict[str, Batch] = {}
         self.state: dict[str, BatchAssignment] = {}
         self.queries: dict[str, SavedQuery] = {}
+        self.notices: list[Notice] = []
 
     def load(self) -> None:
         with self.lock:
-            self.catalog = load_catalog(self.paths.bbt_json, self.paths.zotsums_root)
-            self.batches = parse_plan(self.paths.plan_md)
+            catalog_error = ""
+            if self.paths.bbt_json.is_file():
+                try:
+                    self.catalog = load_catalog(
+                        self.paths.bbt_json, self.paths.zotsums_root
+                    )
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    catalog_error = str(exc)
+                    self.catalog = Catalog(papers={}, collections={})
+            else:
+                self.catalog = Catalog(papers={}, collections={})
+
+            plan_error = ""
+            self.batches = []
+            if self.paths.plan_md.is_file():
+                try:
+                    self.batches = parse_plan(self.paths.plan_md)
+                except (OSError, UnicodeDecodeError, ValueError) as exc:
+                    plan_error = str(exc)
             self.batch_index = {b.id: b for b in self.batches}
             self.state = load_state(self.paths.state_file)
             self.queries = load_queries(self.paths.queries_file)
+            self.notices = check_inputs(
+                self.paths,
+                batches=len(self.batches),
+                catalog_error=catalog_error,
+                plan_error=plan_error,
+            )
 
     def get_batch(self, batch_id: str) -> Batch:
         b = self.batch_index.get(batch_id)
@@ -334,6 +359,7 @@ def create_app(paths: Paths | None = None) -> FastAPI:
     repo.load()
 
     app = FastAPI(title="AKMS Batch Picker")
+    app.state.picker = repo
     static_dir = Path(__file__).resolve().parent / "static"
 
     @app.get("/", include_in_schema=False)
@@ -354,12 +380,17 @@ def create_app(paths: Paths | None = None) -> FastAPI:
             "batches": len(repo.batches),
             "state_batches": len(repo.state),
             "saved_queries": len(repo.queries),
+            "notices": [n.to_dict() for n in repo.notices],
         }
+
+    @app.get("/api/status")
+    def status_() -> dict[str, Any]:
+        return {"notices": [n.to_dict() for n in repo.notices]}
 
     @app.get("/api/config")
     def config() -> dict[str, str]:
         return {
-            "repo_root": str(paths.repo_root),
+            "workspace": str(paths.workspace),
             "plan_md": str(paths.plan_md),
             "bbt_json": str(paths.bbt_json),
             "zotsums_root": str(paths.zotsums_root),
@@ -624,7 +655,7 @@ def create_app(paths: Paths | None = None) -> FastAPI:
         )
         return {"ok": result.ok, "message": result.message, **result.data}
 
-    @app.post("/api/batches/{batch_id}/create_notebook")
+    @app.post("/api/batches/{batch_id}/create_notebook", response_model=None)
     def create_nb(
         batch_id: str, body: CreateNotebookRequest
     ) -> dict[str, Any] | JSONResponse:

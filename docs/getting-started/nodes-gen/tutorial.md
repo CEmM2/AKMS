@@ -81,7 +81,7 @@ based purely on the current filter.
 ## 6. (Optional) Save the query for next time
 
 Hit **Save current as…**, name it (e.g. `pf-monolithic-2020+`), confirm.
-The named filter now lives in `Sources_Evals/NLM/saved_queries.json` and
+The named filter now lives in `<workspace>/saved_queries.json` and
 appears in the **Saved query** dropdown across sessions.
 
 ## 7. (Optional) Compare with a sibling batch
@@ -102,7 +102,7 @@ shift work between batches.
 ## 8. Stage PDFs
 
 Click **Stage PDFs**. The picker symlinks each assigned paper's local PDF
-into `AKMS_Sources/new/R7_B2_pf_energy_solvers/<citekey>.pdf` so the
+into `<workspace>/pdfs/R7_B2_pf_energy_solvers/<citekey>.pdf` so the
 extraction pipeline (and your manual inspection) can find them in one
 place.
 
@@ -112,7 +112,7 @@ the cause is a missing or moved local file.
 ## 9. Write the plan JSON
 
 Click **Write plan JSON**. The output lands at
-`Sources_Evals/NLM/Inputs/R7_B2_pf_energy_solvers_plan.json` and is wired
+`<workspace>/plans/R7_B2_pf_energy_solvers_plan.json` and is wired
 into the existing `node-gen-invoker` schema (with extra `papers_by_citekey`
 and `nlm` blocks for traceability).
 
@@ -135,8 +135,8 @@ The plan JSON is now consumable by `node-gen-invoker`:
 
 ```bash
 /node-gen-invoker <NLM_ID> all \
-    Sources_Evals/NLM/Inputs/R7_B2_pf_energy_solvers_plan.json \
-    Sources_Evals/NLM/Outputs/R7_B2_pf_energy_solvers/ \
+    path/to/workspace/plans/R7_B2_pf_energy_solvers_plan.json \
+    outputs/R7_B2_pf_energy_solvers/ \
     true
 ```
 

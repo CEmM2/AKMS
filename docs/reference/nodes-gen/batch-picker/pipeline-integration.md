@@ -16,7 +16,7 @@ flowchart TD
 
     subgraph "On disk after picker actions"
       P[<slug>_plan.json]
-      F[AKMS_Sources/new/<slug>/<citekey>.pdf<br/>symlinks]
+      F[workspace/pdfs/<slug>/<citekey>.pdf<br/>symlinks]
     end
 
     subgraph "External"
@@ -41,7 +41,7 @@ flowchart TD
 ## Plan JSON shape (what `node-gen-invoker` consumes)
 
 The picker's `Write plan JSON` produces a file in
-`Sources_Evals/NLM/Inputs/<slug>_plan.json`:
+`<workspace>/plans/<slug>_plan.json`:
 
 ```json
 {
@@ -56,7 +56,7 @@ The picker's `Write plan JSON` produces a file in
 
   "notes": {
     "source_convention": "Sources picked manually via batch_picker UI; one NLM notebook per batch.",
-    "notebook_setup": "Upload 12 PDFs from AKMS_Sources/new/R7_B2_pf_energy_solvers/",
+    "notebook_setup": "Upload 12 PDFs from the staged R7_B2_pf_energy_solvers/ folder",
     "round": 7
   },
 
@@ -112,8 +112,8 @@ form looks like:
 
 ```bash
 /node-gen-invoker <NLM_ID> all \
-    Sources_Evals/NLM/Inputs/R7_B2_pf_energy_solvers_plan.json \
-    Sources_Evals/NLM/Outputs/R7_B2_pf_energy_solvers/ \
+    path/to/workspace/plans/R7_B2_pf_energy_solvers_plan.json \
+    outputs/R7_B2_pf_energy_solvers/ \
     true
 ```
 
@@ -123,16 +123,16 @@ You can recover it from either source:
 
 ```bash
 # from the assignment file
-jq -r '.batches.R7_B2.nlm_notebook_id' Sources_Evals/NLM/batch_assignments.json
+jq -r '.batches.R7_B2.nlm_notebook_id' path/to/workspace/batch_assignments.json
 
 # or from the plan
-jq -r '.nlm.notebook_id' Sources_Evals/NLM/Inputs/R7_B2_pf_energy_solvers_plan.json
+jq -r '.nlm.notebook_id' path/to/workspace/plans/R7_B2_pf_energy_solvers_plan.json
 ```
 
 ## After extraction
 
 `node-gen-invoker` writes generated nodes into
-`Sources_Evals/NLM/Outputs/<slug>/`. From there:
+`outputs/<slug>/`. From there:
 
 1. **Review** — manually QA each node (front-matter, citations, schema validity).
 2. **Validate** — run [`validate_nodes.py`](../tools/validate-nodes.md) to cross-check against the source notebook.

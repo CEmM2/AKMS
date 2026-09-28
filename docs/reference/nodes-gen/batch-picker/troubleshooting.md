@@ -133,10 +133,10 @@ caching layers that should accumulate.
 Stop the picker, then:
 
 ```bash
-rm Sources_Evals/NLM/batch_assignments.json
-rm Sources_Evals/NLM/saved_queries.json
+rm path/to/workspace/batch_assignments.json
+rm path/to/workspace/saved_queries.json
 # optional: clean staged PDFs
-rm -rf AKMS_Sources/new/R*_B*/
+rm -rf path/to/workspace/pdfs/R*_B*/
 ```
 
 Restart the picker. The state files will be recreated on first save.

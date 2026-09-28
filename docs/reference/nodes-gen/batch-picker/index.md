@@ -33,8 +33,8 @@ assignment **explicit** and **persisted**.
 - :material-checkbox-multiple-marked: **Bulk add / replace** — push every match of the current filter into the active batch in one click.
 - :material-compare: **Side-by-side compare** — three-column diff (only-A / both / only-B) of any two batches' assignments, with bulk Move/Copy/Remove buttons.
 - :material-arrow-right-bold: **Copy-to-batch popover** — click = copy, ++shift+++click = move; works on assigned-paper pills and on each search-result row.
-- :material-rocket-launch: **End-to-end pipeline buttons** — Write plan JSON, Stage PDFs (symlinks into `AKMS_Sources/new/<slug>/`), Create NLM notebook (drives the `nlm` CLI).
-- :material-database: **Durable record** — every notebook ID and uploaded paper lives in `Sources_Evals/NLM/batch_assignments.json` so reruns only upload the delta.
+- :material-rocket-launch: **End-to-end pipeline buttons** — Write plan JSON, Stage PDFs (symlinks into `<workspace>/pdfs/<slug>/`), Create NLM notebook (drives the `nlm` CLI).
+- :material-database: **Durable record** — every notebook ID and uploaded paper lives in `<workspace>/batch_assignments.json` so reruns only upload the delta.
 
 ## Quick links
 

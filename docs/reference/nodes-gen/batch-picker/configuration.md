@@ -1,22 +1,47 @@
 # Configuration
 
-The picker resolves all paths through `batch_picker.config.Paths.resolve()`.
-Every path is overridable via an environment variable.
+Every path the picker uses is resolved in the same order: the command-line
+flag, then its environment variable, then a default. The defaults assume
+nothing about where AKMS is installed, so `akms-pick` works from any directory.
 
-## Path table
+## Inputs
 
-| Env var | Default | What it points at |
-|---------|---------|-------------------|
-| `AKMS_REPO_ROOT` | Auto-detected (`packages/akms_nodes_gen/src/akms_nodes_gen/batch_picker/config.py` walked up 5 levels) | The AKMS monorepo root — base for the other defaults |
-| `AKMS_PLAN_MD` | `<repo>/packages/akms_nodes_gen/generation_plan.md` | Markdown file the parser reads |
-| `AKMS_BBT_JSON` | `~/ZotSums/zsumbib.json` | BetterBibTeX export with all paper metadata + PDF paths |
-| `AKMS_ZOTSUMS_ROOT` | `~/ZotSums` | ZotSums Obsidian vault (Papers/, Collections/) |
-| `AKMS_BATCH_STATE` | `<repo>/Sources_Evals/NLM/batch_assignments.json` | Per-batch citekey assignments + NLM metadata |
-| `AKMS_SAVED_QUERIES` | `<repo>/Sources_Evals/NLM/saved_queries.json` | Named filter specs |
-| `AKMS_NLM_INPUTS` | `<repo>/Sources_Evals/NLM/Inputs` | Where `Write plan JSON` outputs land |
-| `AKMS_SOURCES_NEW` | `<repo>/AKMS_Sources/new` | Where `Stage PDFs` symlinks PDFs into per-batch folders |
+| Flag | Env var | Default | What it points at |
+|------|---------|---------|-------------------|
+| `--plan PATH` | `AKMS_PLAN_MD` | `./generation_plan.md` | The generation plan |
+| `--bibtex-json PATH` | `AKMS_BBT_JSON` | `<zsum-root>/zsumbib.json` | Zotero library exported as Better BibTeX JSON |
+| `--zsum-root DIR` | `AKMS_ZOTSUMS_ROOT` | `~/ZotSums` | Optional [zsum](https://github.com/CEmM2/zotero-summarizer) vault (`Papers/`, `Collections/`) |
+| `--workspace DIR` | `AKMS_PICKER_WORKSPACE` | the plan's directory | Base for the files below |
 
-All paths support `~` and `$VAR` expansion.
+## Files the picker writes
+
+Each defaults to a location inside the workspace and can be moved on its own.
+
+| Env var | Default | Contents |
+|---------|---------|----------|
+| `AKMS_BATCH_STATE` | `<workspace>/batch_assignments.json` | Per-batch paper assignments and NotebookLM metadata |
+| `AKMS_SAVED_QUERIES` | `<workspace>/saved_queries.json` | Named search filters |
+| `AKMS_NLM_INPUTS` | `<workspace>/plans/` | Per-batch plan JSON from **Write plan JSON** |
+| `AKMS_SOURCES_NEW` | `<workspace>/pdfs/` | Per-batch folders from **Stage PDFs** |
+
+All paths support `~` and `$VAR` expansion. None of these files needs to exist
+beforehand.
+
+## Start-up notices
+
+The picker never refuses to start over a missing input. Anything absent or
+unreadable is printed to the terminal and shown in a banner at the top of the
+page, and also returned by `GET /api/status`:
+
+| Situation | Level | Effect |
+|-----------|-------|--------|
+| Plan not found or unreadable | error | No batches until fixed |
+| Plan has no batch headings | warning | No batches until fixed |
+| Zotero export not found | warning | Batches show; no papers to assign |
+| Zotero export unreadable | error | As above |
+| No zsum vault | info | Everything works; no per-paper summaries or zsum keywords |
+
+After fixing an input, press **↻ Reload data**.
 
 ## Inspecting the resolved values
 
@@ -26,67 +51,50 @@ curl -sS http://127.0.0.1:8765/api/config | python -m json.tool
 
 ```json
 {
-  "repo_root": "~/AKMS",
-  "plan_md": "<repo>/packages/akms_nodes_gen/generation_plan.md",
-  "bbt_json": "~/zsumbib.json",
+  "workspace": "~/research",
+  "plan_md": "~/research/generation_plan.md",
+  "bbt_json": "~/Zotero/library.json",
   "zotsums_root": "~/ZotSums",
-  "state_file": "~/Sources_Evals/NLM/batch_assignments.json",
-  "queries_file": "~/Sources_Evals/NLM/saved_queries.json",
-  "inputs_dir": "~/Sources_Evals/NLM/Inputs",
-  "sources_dir": "~/AKMS_Sources/new"
+  "state_file": "~/research/batch_assignments.json",
+  "queries_file": "~/research/saved_queries.json",
+  "inputs_dir": "~/research/plans",
+  "sources_dir": "~/research/pdfs"
 }
 ```
 
-The header bar in the UI shows a condensed version of the same info.
+The header bar in the UI shows a condensed version of the same information.
 
 ## Common scenarios
 
-### Running against a different Zotero export
+### Keeping the picker's files away from the plan
 
 ```bash
-export AKMS_BBT_JSON=/path/to/other-zsumbib.json
-export AKMS_ZOTSUMS_ROOT=/path/to/other-vault
-akms-pick
+akms-pick --plan ~/plans/generation_plan.md --workspace ~/picker-runs/round-7
 ```
 
 ### Splitting state per experiment
 
 ```bash
-export AKMS_BATCH_STATE=$PWD/dev/batch_assignments_experiment_A.json
-export AKMS_SAVED_QUERIES=$PWD/dev/saved_queries_experiment_A.json
-akms-pick
+export AKMS_BATCH_STATE=$PWD/experiment_A/batch_assignments.json
+export AKMS_SAVED_QUERIES=$PWD/experiment_A/saved_queries.json
+akms-pick --plan generation_plan.md
 ```
 
-The state files will be created on first save; nothing else needs to change.
+### An AKMS monorepo checkout
 
-### Writing plan JSONs to a different folder
+Setting `AKMS_REPO_ROOT` restores the layout the picker was first written for:
+the plan at `<root>/Packages/AKMS_nodes_gen/generation_plan.md`, state and
+plan JSON under `<root>/Sources_Evals/NLM/`, and staged PDFs under
+`<root>/AKMS_Sources/new/`. Flags and the other variables still override it.
 
-```bash
-export AKMS_NLM_INPUTS=$PWD/dev/Inputs_review
-akms-pick
-```
-
-### Pointing at a fresh checkout
-
-If you're running from outside the repo (e.g. `uv tool install`'d globally):
-
-```bash
-export AKMS_REPO_ROOT=/path/to/AKMS
-akms-pick
-```
-
-This causes every other default to recompute relative to that root.
-
-## CLI flags (server-level)
-
-These are flags to `akms-pick` itself, not env vars:
+## Server flags
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--host HOST` | `127.0.0.1` | Bind address. Use `0.0.0.0` to expose on the LAN — be aware the picker has no auth. |
+| `--host HOST` | `127.0.0.1` | Bind address. Use `0.0.0.0` to expose on the LAN; the picker has no authentication. |
 | `--port PORT` | `8765` | Bind port |
-| `--no-browser` | (off) | Skip auto-opening the default browser |
-| `--reload` | (off) | uvicorn `reload=True`. Dev only — re-reads source files on change. |
+| `--no-browser` | off | Skip opening the default browser |
+| `--reload` | off | uvicorn `reload=True`. Development only. |
 
 ## Security notes
 

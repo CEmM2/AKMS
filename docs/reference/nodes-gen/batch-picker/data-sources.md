@@ -136,8 +136,9 @@ from a tooling perspective.
 
 ## 3. `generation_plan.md` (the batch plan)
 
-Default: `packages/akms_nodes_gen/generation_plan.md`. Override with
-`AKMS_PLAN_MD`.
+Default: `./generation_plan.md`. Point elsewhere with `--plan PATH` or
+`AKMS_PLAN_MD`. The file can live anywhere; the picker's workspace defaults
+to its directory.
 
 The parser is intentionally lenient about ordering and tolerates extra
 prose, but it expects this overall shape:
@@ -151,7 +152,7 @@ prose, but it expects this overall shape:
 
 ## R7_B2 — Energy Decomposition & Solution Strategies (7 nodes)
 
-**PDF folder:** `AKMS_Sources/new/R7_B2_pf_energy_solvers/`
+**PDF folder:** `pdfs/R7_B2_pf_energy_solvers/`
 **Sources:** Wu et al. 2020 (CMAME), Borst-Crisfield Ch. 8, ...
 **ZotSums:** `PFfrac` → `@wuComprehensiveImplementationsPhasefield2020`
 **Missing sources (retrieve from Zotero):** Tanné et al. 2018
@@ -172,7 +173,7 @@ prose, but it expects this overall shape:
 | `^## R\d+_B\d+ — (.+) \((\d+) nodes?\)$` | Batch ID + title + declared node count |
 | `^**Theme:**` (round-level) | `round_theme` |
 | `^**Subdomain:**` (round-level) | `round_subdomain` |
-| `^**PDF folder:** ...AKMS_Sources/new/<slug>/...` | `pdf_slug` |
+| `^**PDF folder:** <any path>/<slug>/` | `pdf_slug`, the last folder name |
 | `^**Sources:** ...` | `sources_text` (free text) |
 | `^**ZotSums:** ...` | `zotsums_text` |
 | `^**Missing sources (...):** ...` | `missing_text` |

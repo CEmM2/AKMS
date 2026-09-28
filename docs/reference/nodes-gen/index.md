@@ -43,7 +43,7 @@ flowchart LR
     Y[ZotSums vault<br/>summaries + keywords] --> B
     B --> C[batch_assignments.json<br/>per-batch citekeys]
     C --> D[plan JSON per batch]
-    C --> E[AKMS_Sources/new/<br/>staged PDFs]
+    C --> E[workspace/pdfs/<br/>staged PDFs]
     C --> F[NLM notebook<br/>via nlm CLI]
     D --> G[node-gen-invoker]
     F --> G

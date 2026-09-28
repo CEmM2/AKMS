@@ -32,8 +32,8 @@ flowchart TD
     subgraph "Disk (read/write)"
       S[batch_assignments.json]
       Q[saved_queries.json]
-      I[Sources_Evals/NLM/Inputs/*_plan.json]
-      A[AKMS_Sources/new/&lt;slug&gt;/]
+      I[workspace/plans/*_plan.json]
+      A[workspace/pdfs/&lt;slug&gt;/]
     end
 
     subgraph "Loaders (in-memory)"
@@ -255,10 +255,10 @@ Both are 5-line changes in `_score_paper`.
 
 | File | Owner | Schema version |
 |------|-------|----------------|
-| `Sources_Evals/NLM/batch_assignments.json` | `state.py` | 1 |
-| `Sources_Evals/NLM/saved_queries.json` | `queries.py` | 1 |
-| `Sources_Evals/NLM/Inputs/<slug>_plan.json` | `exporters.py:write_plan_json` | (driven by `node-gen-invoker` schema) |
-| `AKMS_Sources/new/<slug>/<citekey>.pdf` | `exporters.py:stage_pdfs` | symlinks to BBT paths |
+| `<workspace>/batch_assignments.json` | `state.py` | 1 |
+| `<workspace>/saved_queries.json` | `queries.py` | 1 |
+| `<workspace>/plans/<slug>_plan.json` | `exporters.py:write_plan_json` | (driven by `node-gen-invoker` schema) |
+| `<workspace>/pdfs/<slug>/<citekey>.pdf` | `exporters.py:stage_pdfs` | symlinks to BBT paths |
 
 Full schemas in [State files](../reference/nodes-gen/batch-picker/state-files.md).
 
