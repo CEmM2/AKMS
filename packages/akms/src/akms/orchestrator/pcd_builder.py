@@ -203,7 +203,6 @@ def write_handoff(
 
     body = "\n".join(body_lines) + "\n"
     post = frontmatter.Post(content=body, **meta)
-    with open(target, "wb") as f:
-        frontmatter.dump(post, f)
+    target.write_text(frontmatter.dumps(post), encoding="utf-8", newline="\n")
     logger.info("Handoff PCD written to %s", target)
     return target

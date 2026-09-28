@@ -274,8 +274,7 @@ def write_mirror_file(
 
     post = fm.Post(content)
     post.metadata = frontmatter_data
-    with open(mirror_path, "wb") as f:
-        fm.dump(post, f)
+    mirror_path.write_text(fm.dumps(post), encoding="utf-8", newline="\n")
 
     logger.info("Wrote mirror: %s → %s", source_file, mirror_path)
 

@@ -67,8 +67,7 @@ def write_node_md(path: Path, frontmatter: dict, content: str = "") -> Path:
     post = fm.Post(content)
     post.metadata = frontmatter
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "wb") as f:
-        fm.dump(post, f)
+    path.write_text(fm.dumps(post), encoding="utf-8", newline="\n")
     return path
 
 
