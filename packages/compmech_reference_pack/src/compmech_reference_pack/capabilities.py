@@ -1,8 +1,7 @@
 """Capability declarations for compmech_reference_pack.
 
-`CEmM2/Logic-Loom <https://github.com/CEmM2/Logic-Loom>`_ imports this package
-from its ``GET /api/mechdsl/status`` route and reads the capability surface to
-decide whether to expose the MechDSL gate.
+A host application can import this package from a status route and read
+the capability surface to decide whether to expose the MechDSL gate.
 This module is deliberately import-light and **Taichi-free**: it declares
 *what* the package offers; it never runs a solve or initialises Taichi.
 
@@ -36,7 +35,7 @@ CODE_MIRROR_PROVENANCE = "code_mirror_provenance"
 def capabilities() -> dict:
     """Return the machine-readable capability surface for status discovery.
 
-    Shape consumed by Logic-Loom's status route::
+    Shape consumed by a host's status route::
 
         {package, version, domain_pack, adapter_id, capabilities: {...}}
 

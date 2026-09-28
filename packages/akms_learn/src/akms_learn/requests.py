@@ -5,7 +5,7 @@ normalized fields of a learning request, their default values, the canonical
 form used for hashing, and the SHA-256 hash function that downstream code
 embeds into :class:`LearningRequestInfo` (see ``models.py``).
 
-The 11 normalized fields (plan §10, L189-L201) — exact set, no more, no less:
+The 11 normalized fields — exact set, no more, no less:
 
 ==================  ==============  ==================================
 Field               Type            Default
@@ -23,9 +23,9 @@ include_code_links  bool            ``True``
 exporters           list[str]       ``[]``
 ==================  ==============  ==================================
 
-Normalization rules (plan §10, L203 + Phase 2 context L17):
+Normalization rules:
 
-* Extra keys (e.g. Logic-Loom UI state: ``preview_mode``, ``ui_theme``,
+* Extra keys (e.g. host UI state: ``preview_mode``, ``ui_theme``,
   ``session_id``) are silently dropped — they MUST NOT contribute to the hash.
 * ``topic`` and ``goal`` are ``.strip()``-trimmed but **case-preserving**.
 * ``audience``, ``depth``, ``generation_option`` are trimmed then lowercased
@@ -35,7 +35,7 @@ Normalization rules (plan §10, L203 + Phase 2 context L17):
   such as ``markdown`` / ``bundle``).
 * Lists are sorted before serialization so hash is order-invariant.
 
-Hashing (plan §10, L203):
+Hashing:
 
 * ``request_hash`` is the SHA-256 hex digest of the canonical JSON form,
   produced with ``json.dumps(..., sort_keys=True,
@@ -44,9 +44,6 @@ Hashing (plan §10, L203):
   makes the hash byte-identical across Python sessions and platforms.
 * ``ensure_ascii=False`` is mandatory so non-ASCII topics (e.g. ``"j² return
   mapping"``) hash consistently regardless of locale.
-
-Spec refs: the akms-learn internal specification (not published),
-the akms-learn internal specification (not published).
 """
 
 from __future__ import annotations
@@ -69,7 +66,7 @@ __all__ = [
 ]
 
 
-# Exact, ordered list of the 11 normalized fields (plan §10, L189-L201).
+# Exact, ordered list of the 11 normalized fields.
 NORMALIZED_FIELDS: tuple[str, ...] = (
     "topic",
     "goal",
@@ -86,14 +83,14 @@ NORMALIZED_FIELDS: tuple[str, ...] = (
 
 
 class LearningRequest(BaseModel):
-    """Input model for a learning request (plan §10).
+    """Input model for a learning request.
 
     Only these 11 fields contribute to ``request_hash``. UI-only state from
-    Logic-Loom (preview_mode, ui_theme, session_id, ...) is rejected at
+    a host UI (preview_mode, ui_theme, session_id, ...) is rejected at
     ``normalize_request`` time and never reaches the hash.
 
     ``audience``, ``depth``, ``generation_option`` are kept as free-form
-    ``str`` rather than ``Literal`` to avoid coupling Phase 2 to a frozen
+    ``str`` rather than ``Literal`` to avoid coupling the request model to a frozen
     enum set; ``normalize_request`` lowercases them so case variations
     collapse to a single canonical form.
     """
@@ -249,13 +246,13 @@ def normalize_request(raw: dict[str, Any] | LearningRequest) -> dict[str, Any]:
     The output is a plain ``dict`` containing exactly the 11 normalized
     fields (see :data:`NORMALIZED_FIELDS`), with extras dropped and lists
     sorted. Calling :func:`request_hash` on the result yields a byte-stable
-    SHA-256 digest (plan §10, L203).
+    SHA-256 digest.
 
     Behavior:
 
-    * Accepts either a raw ``dict`` (e.g. from JSON / Logic-Loom UI) or a
+    * Accepts either a raw ``dict`` (e.g. from JSON / a host UI) or a
       validated :class:`LearningRequest` instance.
-    * Drops keys not in the 11-field schema — including Logic-Loom UI state
+    * Drops keys not in the 11-field schema — including host UI state
       such as ``preview_mode``, ``ui_theme``, ``session_id``.
     * ``topic``/``goal`` are ``.strip()`` only (case preserved).
     * ``audience``/``depth``/``generation_option`` are trimmed + lowercased.

@@ -3,10 +3,9 @@
 These descriptors are **pure metadata**. They carry companion package names
 as *strings* (e.g. ``"compmech.constkit"``) so that the AKMS Learn core can
 discover, validate, and display domain-pack declarations without ever
-importing companion packages. Spec:
-the akms-learn internal specification (not published).
+importing companion packages.
 
-Per the Phase 2 context summary (L19), the source of this subpackage MUST
+The source of this subpackage MUST
 NOT contain any ``import constkit``, ``import mechdsl``, or
 ``import symbolic_fem_workbench`` statements. The companion-import lint test
 in :mod:`tests/test_domain_packs.py` enforces this via AST scan.
@@ -17,8 +16,8 @@ The five top-level types defined here are:
 * :class:`CompanionRole` — a companion (concept_kit / pedagogical_workbench /
   executable_bridge) declared by a domain pack.
 * :class:`SourcePackDescriptor` — a companion source repository / package
-  declared as metadata only (spec §4).
-* :class:`DomainPackDescriptor` — top-level domain pack declaration (spec §3).
+  declared as metadata only.
+* :class:`DomainPackDescriptor` — top-level domain pack declaration.
 """
 
 from __future__ import annotations
@@ -52,7 +51,7 @@ class RuntimeHint(str, Enum):
 
 
 class CompanionRole(BaseModel):
-    """A companion declared by a domain pack (spec §5).
+    """A companion declared by a domain pack.
 
     Carries the companion's role id, dotted package name (as a *string* —
     never imported here), runtime hint, and current capability status.
@@ -81,7 +80,7 @@ class CompanionRole(BaseModel):
 
 
 class SourcePackDescriptor(BaseModel):
-    """A source pack — a companion source repo / package (spec §4).
+    """A source pack — a companion source repo / package.
 
     Source packs are **pure metadata** declarations. They describe a
     companion's repository roots, capability surface, and adapter id, but
@@ -90,10 +89,10 @@ class SourcePackDescriptor(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
-    # Optional spec-level fields (mirroring §4) — kept lower_snake_case.
+    # Optional schema-level fields — kept lower_snake_case.
     source_pack_schema: str | None = Field(
         default=None,
-        description="Source-pack schema URI (spec §4); informational.",
+        description="Source-pack schema URI; informational.",
     )
     id: str = Field(
         ...,
@@ -105,18 +104,18 @@ class SourcePackDescriptor(BaseModel):
     companion_role: str = Field(
         ...,
         validation_alias=AliasChoices("companion_role", "role"),
-        description="Spec-§5 role id: 'concept_kit' | "
-        "'pedagogical_workbench' | 'executable_bridge'. Spec §4 wording "
-        "uses bare 'role:'; both spellings are accepted.",
+        description="Companion role id: 'concept_kit' | "
+        "'pedagogical_workbench' | 'executable_bridge'. Source-pack YAML "
+        "may use the bare 'role:' key; both spellings are accepted.",
     )
     capability_status: CapabilityStatus = Field(
         default=CapabilityStatus.planned,
         validation_alias=AliasChoices("capability_status", "status"),
-        description="Lifecycle status of this source pack. Spec §4 wording "
-        "uses bare 'status:'; both spellings are accepted.",
+        description="Lifecycle status of this source pack. Source-pack YAML "
+        "may use the bare 'status:' key; both spellings are accepted.",
     )
 
-    # Optional metadata bags from spec §4.
+    # Optional metadata bags.
     repo: dict[str, Any] | None = Field(
         default=None,
         description="Repository hint dict — kind / name / ref.",
@@ -140,7 +139,7 @@ class SourcePackDescriptor(BaseModel):
 
 
 class DomainPackDescriptor(BaseModel):
-    """Top-level domain pack descriptor (spec §3).
+    """Top-level domain pack descriptor.
 
     A domain pack declares a curated learning domain. The core compiler
     MUST be able to load and reason about this descriptor without
@@ -149,10 +148,10 @@ class DomainPackDescriptor(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    # Optional spec-§3 schema marker.
+    # Optional schema marker.
     domain_pack_schema: str | None = Field(
         default=None,
-        description="Domain-pack schema URI (spec §3); informational.",
+        description="Domain-pack schema URI; informational.",
     )
     domain_id: str | None = Field(
         default=None,
@@ -168,17 +167,17 @@ class DomainPackDescriptor(BaseModel):
     version: str = Field(..., description="Pack version string.")
     status: Literal["reference", "experimental", "planned", "deprecated"] = Field(
         default="reference",
-        description="Lifecycle status (spec §3).",
+        description="Lifecycle status.",
     )
     summary: str | None = Field(
         default=None,
         validation_alias=AliasChoices("summary", "description"),
-        description="Short prose summary of the pack. Spec §3 canonical key "
+        description="Short prose summary of the pack. The canonical key "
         "is 'summary'; YAML written against the older 'description' key is "
         "also accepted.",
     )
 
-    # Optional spec-§3 sections.
+    # Optional descriptor sections.
     compatibility: dict[str, Any] | None = Field(
         default=None,
         description="AKMS Learn schema compatibility window.",
@@ -189,7 +188,7 @@ class DomainPackDescriptor(BaseModel):
     )
     capabilities: dict[str, bool] | None = Field(
         default=None,
-        description="Domain-pack-level capability map (spec §6).",
+        description="Domain-pack-level capability map.",
     )
     provenance: dict[str, Any] | None = Field(
         default=None,

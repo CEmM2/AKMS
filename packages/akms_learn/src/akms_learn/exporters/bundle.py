@@ -19,8 +19,8 @@ The compiler dispatches this function from Stage 9 of
 :func:`~akms_learn.compiler.compile_learning_source` with
 ``exporters=["bundle"]`` instead.
 
-Bundle layout (plan §16, L279-L286)
------------------------------------
+Bundle layout
+-------------
 Seven artifacts and two empty directories are emitted under ``output_dir``:
 
 1. ``learning_source_packet.yaml`` — full LSP serialised as YAML

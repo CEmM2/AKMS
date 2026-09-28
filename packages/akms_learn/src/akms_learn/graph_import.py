@@ -248,8 +248,8 @@ def fixture_graph() -> GraphSlice:
     Edge types used: ``requires``, ``derives``, ``implements``,
     ``pitfall_of``, ``exercise_for``.
 
-    The fixture satisfies the Phase 3 ordering vocabulary (§12) and is
-    large enough to be reused as the Phase 4 mode fixture.
+    The fixture satisfies the learning-ordering edge vocabulary and is
+    large enough to be reused as the mode fixture.
     """
     nodes: list[dict[str, Any]] = [
         {
@@ -350,7 +350,9 @@ def fixture_graph() -> GraphSlice:
     ]
 
     metadata: dict[str, Any] = {
-        "description": "Minimal fixture graph for j² return-mapping learning path (Phase 3+4 tests)",
+        "description": (
+            "Minimal fixture graph for j² return-mapping learning path (tests)"
+        ),
         "graph_version": "fixture-v1",
         "node_count": len(nodes),
         "edge_count": len(edges),

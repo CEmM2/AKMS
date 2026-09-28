@@ -1,4 +1,4 @@
-"""Tests for query_subgraph.py — Phase 3 Task 3.1.
+"""Tests for query_subgraph.py.
 
 Tests the 12-step subgraph extraction algorithm:
   - Seed matching via tag intersection

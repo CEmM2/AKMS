@@ -1,4 +1,4 @@
-"""Provider-neutral docstring drift tests (A2-6).
+"""Provider-neutral docstring drift tests.
 
 Ensures structural drift survives provider switches and that the
 deterministic path never requires an LLM.

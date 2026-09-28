@@ -66,7 +66,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 #
 # The ``llm`` extra is intentionally empty (provider-specific packages added
-# only when needed, per plan §4).  We probe the sentinel name ``_llm_extra``
+# only when needed).  We probe the sentinel name ``_llm_extra``
 # which will never be installed, so the extra always reports absent unless the
 # caller installs an LLM provider and overrides the mapping.  A deliberately
 # unreachable sentinel is cleaner than a hardcoded LLM provider name.

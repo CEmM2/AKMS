@@ -1,4 +1,4 @@
-"""Tests for qmd_cache.py — Phase 3 Task 3.2.
+"""Tests for qmd_cache.py.
 
 Tests:
   - Cache put/get round-trip

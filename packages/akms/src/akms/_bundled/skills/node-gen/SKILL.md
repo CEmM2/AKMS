@@ -3,14 +3,6 @@ name: node-gen
 description: "Extracts AKMS domain knowledge nodes from NotebookLM notebooks. Queries notebook sources for equations, algorithms, and pitfalls, then outputs structured YAML and converts to validated AKMS markdown. Use when generating new domain nodes from academic papers. Triggers on: 'generate nodes', 'extract knowledge graph', 'notebook to yaml', 'akms node generation', 'convert notebook to akms', 'generate akms nodes from papers', 'requery node', 'validate nodes', or any request to systematically extract structured domain knowledge from NotebookLM sources for AKMS node creation."
 ---
 
-> **Provenance.** This is a published copy of the internal skill at
-> `.claude/skills/node-gen/`. It is a copy rather than a move because
-> Logic-Loom consumes the internal path, and relocating it would change that
-> integration surface. The two are therefore expected to drift: if you change
-> node-generation behaviour, update both, and treat the internal copy as the
-> source of truth. Only the internal-path references differ today.
-
-
 ## Goal
 
 Generate self-contained AKMS domain knowledge nodes by querying NotebookLM notebooks, outputting structured YAML, and converting to validated markdown.

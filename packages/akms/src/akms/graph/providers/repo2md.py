@@ -1,4 +1,4 @@
-"""repo2md subprocess mirror provider (A2-5).
+"""repo2md subprocess mirror provider.
 
 Invokes the pinned ``repo-wiki export-akms`` CLI via argv list only
 (``shell=False``). Never imports the ``repo2md`` Python package.

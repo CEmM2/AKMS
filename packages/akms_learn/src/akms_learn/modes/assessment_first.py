@@ -99,7 +99,7 @@ __all__ = [
 #: Minimum combined source-section length (in characters) required to consider
 #: a ``hidden_answer`` "well-supported".  Items with populated answers but
 #: shorter combined section text trigger an ``assessment_weak_support``
-#: warning.  Per the cross-phase guidance and conservative-by-default
+#: warning.  Per the conservative-by-default
 #: principle: ~50 chars.
 WEAK_SUPPORT_THRESHOLD_CHARS: int = 50
 

@@ -4,12 +4,6 @@ description: Reviews AKMS implementation changes against frozen v2 design specif
 color: yellow
 ---
 
-> **Provenance.** Published copy of the internal asset at `.claude/agents/akms-spec-reviewer.md`. It is a copy
-> rather than a move: consumers of this repository (Logic-Loom vendors it via git
-> subtree) reference the internal path, so relocating it would change that
-> integration surface. Treat the internal copy as the source of truth and update
-> both when behaviour changes.
-
 You are reviewing changes to the AKMS package against its frozen v2 design specification.
 
 ## Context

@@ -21,7 +21,7 @@ Two render policies are supported:
 
 Policy travels on :class:`~akms_learn.requests.LearningRequest.policy`. The
 policy value never enters the AKMS graph; it lives on the LSP / mode result
-only (Phase 2 context §"Key Principles" item 3).
+only.
 
 Warning codes
 -------------

@@ -11,7 +11,7 @@ Design decisions
   determinism tests.
 * **Tuples, not lists** — the three string collections use ``tuple[str, ...]``
   so the model is frozen at the Pydantic level (lists are mutable).
-* **conservative_mode defaults True** — per plan §8 and the Phase 2 context
+* **conservative_mode defaults True** — per the
   "Conservative-by-default adaptation" invariant.  Callers must explicitly
   opt out by passing ``conservative_mode=False``; the mode compiler enforces
   this at the guard level before considering ``knows`` at all.

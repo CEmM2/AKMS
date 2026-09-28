@@ -59,7 +59,7 @@ def _sha256_stripped(path: Path) -> str:
     return hashlib.sha256(_strip_timestamps(path.read_bytes())).hexdigest()
 
 
-# Exactly the 9 keys from the specification (L323-L334) — no paraphrase.
+# Exactly the 9 keys the bundle contract requires — no paraphrase.
 _REQUIRED_MANIFEST_KEYS = (
     "plan_id",
     "status",
@@ -153,7 +153,7 @@ class TestStructuredReviewBundle:
     def test_manifest_has_nine_keys_deterministic_order(self, tmp_path: Path) -> None:
         """manifest.json contains the nine schema keys; the
         on-disk JSON is deterministically ordered (sort_keys); and
-        ``learning_modes_used`` lists the four §15 modes verbatim.
+        ``learning_modes_used`` lists the four structured modes verbatim.
         """
         out_dir = tmp_path / "bundle"
         generate_review_bundle_structured(out_dir, work_dir=tmp_path / "work")
@@ -182,10 +182,10 @@ class TestStructuredReviewBundle:
         assert "regenerate.sh" in manifest["command"]
         assert PLAN_ID in manifest["command"]
 
-        # artifacts field lists the 8 §15 filenames, in §15 order.
+        # artifacts field lists the 8 bundle filenames, in contract order.
         assert manifest["artifacts"] == list(BUNDLE_ARTIFACTS)
 
-        # learning_modes_used lists the four §15 modes verbatim, in §15 order.
+        # learning_modes_used lists the four structured modes verbatim, in order.
         assert manifest["learning_modes_used"] == [
             "notebook_source",
             "assessment_first",

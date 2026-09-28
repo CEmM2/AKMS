@@ -1,7 +1,7 @@
-"""9-stage LSP compiler pipeline orchestration (plan §9, L167-L217).
+"""9-stage LSP compiler pipeline orchestration.
 
 This module implements :func:`compile_learning_source` — the public entry point
-that fans-in every Phase 2 / Phase 3 module and produces a fully-validated
+that fans-in every pipeline module and produces a fully-validated
 :class:`~akms_learn.models.LearningSourcePacket`.
 
 The 9 stages run in fixed order, with explicit instrumentation via
@@ -17,7 +17,7 @@ The 9 stages run in fixed order, with explicit instrumentation via
 8. ``packet_assembly_and_validation``
 9. ``export``
 
-**Determinism contract** (plan §9 + Phase 3 context summary L17):
+**Determinism contract**:
 Every stage MUST produce the same output bytes when fed the same input,
 *except* for the :class:`~akms_learn.models.LearningSourcePacket.created_at`
 timestamp. Test :func:`test_compile_byte_stable_except_timestamp` enforces
@@ -26,9 +26,6 @@ this.
 **Read-only graph access**: this orchestrator never mutates ``graph_slice`` or
 any node/edge dict it receives. The seed-tag filter constructs a fresh
 :class:`~akms_learn.graph_import.GraphSlice` rather than mutating the input.
-
-Spec refs: the akms-learn internal specification (not published),
-plan1 §9 L167-L217, plan1 §21 L394-L411.
 """
 
 from __future__ import annotations
@@ -304,7 +301,7 @@ def _build_llm_expansion_request(
 def _filter_by_seed_tags(slice_: GraphSlice, seed_tags: list[str]) -> GraphSlice:
     """Return a fresh GraphSlice filtered by ``seed_tags`` (deterministic).
 
-    Semantics (plan §9 stage 4):
+    Semantics (stage 4):
 
     * If ``seed_tags`` is empty, every node is retained (slice copy returned).
     * Otherwise, retain nodes whose ``tags`` (case-insensitive) intersect
@@ -1074,7 +1071,8 @@ def compile_learning_source(
                         severity="warning",
                         code="exporter_unavailable",
                         message=(
-                            f"Exporter {exporter_name!r} is a Phase 1 stub; no artifact produced."
+                            f"Exporter {exporter_name!r} is a stub; "
+                            "no artifact produced."
                         ),
                         source_ref=exporter_name,
                     )

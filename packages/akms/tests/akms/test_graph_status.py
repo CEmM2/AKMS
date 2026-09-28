@@ -1,4 +1,4 @@
-"""Tests for graph_status.py — Phase 5: Health Check & Review Report.
+"""Tests for graph_status.py — health check & review report.
 
 Coverage:
 - Degraded nodes (confidence < 0.5)

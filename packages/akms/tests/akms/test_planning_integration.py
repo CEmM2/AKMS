@@ -1,8 +1,8 @@
-"""Planning pipeline integration test — Phase 3 Task 3.4.
+"""Planning pipeline integration test.
 
 End-to-end test: compile graph → query_subgraph → generate loadout → verify.
 
-Uses the seed nodes from Phase 2 to test the complete planning pipeline
+Uses the seed nodes to test the complete planning pipeline
 with real graph structure.
 """
 
@@ -42,7 +42,7 @@ def _default_qmd_available(monkeypatch):
 
 @pytest.fixture
 def seed_graph(tmp_vault, tmp_repo):
-    """Build a graph resembling the Phase 2 seed nodes.
+    """Build a graph resembling the seed nodes.
 
     Creates 5 nodes with interconnecting edges that mirror
     the actual seed node topology.

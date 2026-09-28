@@ -455,7 +455,7 @@ def _build_feedback_form() -> str:
         "\n"
         "- Role:\n"
         "- Familiarity with topic:\n"
-        "- Familiarity with AKMS / Logic-Loom:\n"
+        "- Familiarity with AKMS and its host tooling:\n"
         "\n"
         "## Learning value\n"
         "\n"

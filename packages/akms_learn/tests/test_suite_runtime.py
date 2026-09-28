@@ -40,8 +40,8 @@ class TestSuiteRuntime:
     def test_suite_runtime_under_30s(self, tmp_path: Path, make_request) -> None:
         """3 sequential full-exporter compiles complete in < 30 seconds.
 
-        Stand-in for "the §19 suite runs in under 30 seconds" — the 10
-        existing §19 cases are individually faster than a single compile,
+        Stand-in for "the cross-mode suite runs in under 30 seconds" — the 10
+        existing cross-mode cases are individually faster than a single compile,
         so 3 compiles is a strict upper bound on suite runtime.
         """
         budget_seconds = 30.0

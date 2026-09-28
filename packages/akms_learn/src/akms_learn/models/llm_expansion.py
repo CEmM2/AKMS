@@ -16,8 +16,7 @@ Design decisions
   enforced upstream by
   :data:`akms_learn.optional_metadata.EXPANSION_POLICY_VALUES` so the v2.1
   metadata hint set and the compiler model never drift.
-* **``validation_status`` is a Literal of exactly three values** (plan §7
-  task 3):
+* **``validation_status`` is a Literal of exactly three values**:
 
   - ``"valid"`` — citations all in packet.nodes; policy satisfied.
   - ``"rejected_orphan_citation"`` — at least one ``source_node_id`` is

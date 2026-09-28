@@ -7,10 +7,10 @@ delegate to :func:`akms_learn.exporters.bundle.export`; future work may
 expand this module to coordinate multiple mode outputs (e.g. interleaving
 outline + anthology renderings) before bundling.
 
-Like every Phase 4 mode, this module performs **no** I/O of its own beyond
+Like every mode, this module performs **no** I/O of its own beyond
 forwarding to the bundle exporter — the exporter owns all disk writes, so
 keeping the mode module a one-line passthrough preserves the
-mode-vs-exporter separation declared in the Phase 4 context summary.
+mode-vs-exporter separation.
 """
 
 from __future__ import annotations
