@@ -79,6 +79,26 @@ def main() -> int:
                 f"match pyproject version {versions[name]!r}"
             )
 
+    # `akms[learn]`, `akms[all]` and friends pin the sibling packages to the
+    # current minor series. A bump that forgot them would publish an `akms`
+    # whose extras install the previous release of its siblings.
+    sibling_pin = re.compile(
+        r'"(akms-learn|akms-failure-memory|akms-nodes-gen|compmech-reference-pack)'
+        r'(?:\[[^\]]*\])?>=([0-9][^,"]*),<([0-9][^"]*)"'
+    )
+    core = versions.get("akms")
+    if core:
+        core_text = PACKAGE_FILES["akms"].read_text(encoding="utf-8")
+        major, minor = (int(part) for part in core.split(".")[:2])
+        ceiling = f"{major}.{minor + 1}"
+        for match in sibling_pin.finditer(core_text):
+            name, floor, upper = match.groups()
+            if floor != core or upper != ceiling:
+                errors.append(
+                    f"akms extra pins {name}>={floor},<{upper}; "
+                    f"expected >={core},<{ceiling}"
+                )
+
     unique_versions = sorted(set(versions.values()))
     if len(unique_versions) > 1:
         errors.append(f"package versions differ: {versions}")

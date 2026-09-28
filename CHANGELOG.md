@@ -10,6 +10,10 @@ development is intentionally not replayed.
 - `akms --version` prints `akms <version>` from the installed distribution's
   metadata and exits 0. Host adapters probe it before `--help`; without it they
   could only report an unknown version and skip strict compatibility checks.
+- `akms[learn]`, `akms[failure-memory]`, `akms[nodes-gen]`, `akms[compmech]`
+  and `akms[all]` install the companion packages through `akms`, pinned to the
+  same minor series. `scripts/check_versions.py` fails the release if those
+  pins drift from the `akms` version.
 
 ### Fixed
 - `akms.__version__` and `akms_failure_memory.__version__` had stayed at 0.3.0

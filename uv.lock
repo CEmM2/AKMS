@@ -86,8 +86,33 @@ agents = [
     { name = "claude-agent-sdk" },
     { name = "openai-agents" },
 ]
+all = [
+    { name = "akms-failure-memory" },
+    { name = "akms-learn" },
+    { name = "akms-nodes-gen", extra = ["llm"] },
+    { name = "claude-agent-sdk" },
+    { name = "compmech-reference-pack", extra = ["mechdsl"] },
+    { name = "litellm" },
+    { name = "mcp" },
+    { name = "openai-agents" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-sdk" },
+]
+compmech = [
+    { name = "compmech-reference-pack", extra = ["mechdsl"] },
+]
+failure-memory = [
+    { name = "akms-failure-memory" },
+]
+learn = [
+    { name = "akms-learn" },
+]
 mcp = [
     { name = "mcp" },
+]
+nodes-gen = [
+    { name = "akms-nodes-gen" },
 ]
 orchestration = [
     { name = "claude-agent-sdk" },
@@ -107,7 +132,13 @@ telemetry = [
 [package.metadata]
 requires-dist = [
     { name = "akms", extras = ["agents", "mcp", "telemetry"], marker = "extra == 'orchestration'", editable = "packages/akms" },
+    { name = "akms", extras = ["orchestration", "learn", "failure-memory", "nodes-gen", "compmech"], marker = "extra == 'all'", editable = "packages/akms" },
+    { name = "akms-failure-memory", marker = "extra == 'failure-memory'", editable = "packages/akms_failure_memory" },
+    { name = "akms-learn", marker = "extra == 'learn'", editable = "packages/akms_learn" },
+    { name = "akms-nodes-gen", marker = "extra == 'nodes-gen'", editable = "packages/akms_nodes_gen" },
+    { name = "akms-nodes-gen", extras = ["llm"], marker = "extra == 'all'", editable = "packages/akms_nodes_gen" },
     { name = "claude-agent-sdk", marker = "extra == 'agents'", specifier = ">=0.1.45,<1" },
+    { name = "compmech-reference-pack", extras = ["mechdsl"], marker = "extra == 'compmech'", editable = "packages/compmech_reference_pack" },
     { name = "litellm", marker = "extra == 'orchestration'", specifier = ">=1.84.0,<2" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0,<2" },
     { name = "networkx", specifier = ">=3.0,<4" },
@@ -119,7 +150,7 @@ requires-dist = [
     { name = "python-frontmatter", specifier = ">=1.1.0,<1.2" },
     { name = "pyyaml", specifier = ">=6.0.3,<7" },
 ]
-provides-extras = ["agents", "mcp", "telemetry", "orchestration"]
+provides-extras = ["agents", "mcp", "telemetry", "orchestration", "learn", "failure-memory", "nodes-gen", "compmech", "all"]
 
 [[package]]
 name = "akms-failure-memory"
