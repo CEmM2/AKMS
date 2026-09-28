@@ -61,6 +61,39 @@ def _update_node_status(node_path: Path, new_status: str) -> bool:
         return False
 
 
+def _invalidate_compiled_graph(repo_root: Path) -> bool:
+    """Drop the compiled graph and qmd cache after a node status change.
+
+    ``query``, ``loadout`` and ``resolve-task`` load ``graph.json`` when it
+    exists, so a stale copy would keep serving a node's old status (a
+    deprecated node would still resolve as required). Removing it fails
+    closed: the next reader recompiles from the node files.
+
+    Returns True when nothing stale is left behind, False on error.
+    """
+    from akms.graph.qmd_cache import invalidate_cache
+
+    graph_json = repo_root / "knowledge" / "graph" / "graph.json"
+    try:
+        graph_json.unlink(missing_ok=True)
+        invalidate_cache(repo_root)
+    except OSError as e:
+        print(
+            f"Error: node status changed but the compiled graph could not be "
+            f"cleared ({e}). Delete {graph_json} before resolving tasks.",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
+def _set_status_and_invalidate(repo_root: Path, node_path: Path, status: str) -> int:
+    """Update a local node's status, then drop the compiled graph."""
+    if not _update_node_status(node_path, status):
+        return 1
+    return 0 if _invalidate_compiled_graph(repo_root) else 1
+
+
 def cmd_promote(args: argparse.Namespace) -> int:
     """Promote a tentative node to established (local nodes only)."""
     repo_root = Path(args.repo).resolve()
@@ -83,7 +116,7 @@ def cmd_promote(args: argparse.Namespace) -> int:
         )
         return 1
 
-    return 0 if _update_node_status(node_path, "established") else 1
+    return _set_status_and_invalidate(repo_root, node_path, "established")
 
 
 def cmd_suppress(args: argparse.Namespace) -> int:
@@ -98,7 +131,7 @@ def cmd_suppress(args: argparse.Namespace) -> int:
         )
         return 1
 
-    return 0 if _update_node_status(node_path, "draft") else 1
+    return _set_status_and_invalidate(repo_root, node_path, "draft")
 
 
 def cmd_deprecate(args: argparse.Namespace) -> int:
@@ -113,7 +146,7 @@ def cmd_deprecate(args: argparse.Namespace) -> int:
         )
         return 1
 
-    return 0 if _update_node_status(node_path, "deprecated") else 1
+    return _set_status_and_invalidate(repo_root, node_path, "deprecated")
 
 
 def cmd_status(args: argparse.Namespace) -> int:

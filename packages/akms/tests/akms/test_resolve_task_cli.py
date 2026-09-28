@@ -28,7 +28,7 @@ from akms.task_context.resolve_task_service import (
     load_changed_paths_manifest,
     resolve_task,
 )
-from tests.akms.conftest import make_global_node, make_mirror_node
+from tests.akms.conftest import make_global_node, make_local_node, make_mirror_node
 
 
 def _write_task(path: Path, **overrides) -> Path:
@@ -363,3 +363,111 @@ class TestResolveTaskMcp:
         assert result["fingerprint"]
         assert result["required_count"] >= 1
         assert Path(result["loadout_path"]).exists()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Compiled-graph cache: status changes and recompiles
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def _prepare_local_repo(tmp_vault: Path, tmp_repo: Path) -> None:
+    make_local_node(
+        tmp_repo,
+        id="lesson-solver",
+        tags=["solver"],
+        status="established",
+        confidence=0.95,
+        source="human",
+    )
+    make_mirror_node(
+        tmp_repo,
+        id="mirror-solver",
+        title="Code Mirror: src/solver.py",
+        source_file="src/solver.py",
+        content_ref="code-mirror/mirror-solver.md",
+    )
+    build_graph(tmp_repo, global_vault=tmp_vault)
+
+
+class TestStatusChangeInvalidatesGraph:
+    @pytest.mark.parametrize("command", ["deprecate", "suppress"])
+    def test_required_node_fails_closed_after_status_change(
+        self, tmp_vault, tmp_repo, set_vault_env, command
+    ):
+        _prepare_local_repo(tmp_vault, tmp_repo)
+        task_path = _write_task(tmp_repo / "task.json")
+        routes_path = _write_routes(tmp_repo / "routes.json")
+        graph_json = tmp_repo / "knowledge" / "graph" / "graph.json"
+
+        before = resolve_task(
+            repo_root=tmp_repo, task=task_path, route_index=routes_path
+        )
+        assert before.status == "ok", before.error
+        assert graph_json.exists()
+
+        assert main(["--repo", str(tmp_repo), command, "lesson-solver"]) == 0
+        assert not graph_json.exists()
+
+        after = resolve_task(
+            repo_root=tmp_repo, task=task_path, route_index=routes_path
+        )
+        assert after.status == "error"
+        assert after.error_code == "required_node_unavailable"
+        assert "lesson-solver" in (after.error or "")
+
+    def test_status_change_clears_qmd_cache(self, tmp_vault, tmp_repo):
+        make_local_node(tmp_repo, id="node-x", status="tentative")
+        build_graph(tmp_repo, global_vault=tmp_vault)
+        cache_dir = tmp_repo / "knowledge" / "graph" / ".qmd_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        (cache_dir / "stale_entry.json").write_text("{}", encoding="utf-8")
+
+        assert main(["--repo", str(tmp_repo), "promote", "node-x"]) == 0
+        assert not (tmp_repo / "knowledge" / "graph" / "graph.json").exists()
+        assert not list(cache_dir.glob("*.json"))
+
+    def test_unchanged_status_keeps_graph(self, tmp_vault, tmp_repo):
+        make_local_node(tmp_repo, id="node-x", status="established", source="human")
+        build_graph(tmp_repo, global_vault=tmp_vault)
+
+        assert main(["--repo", str(tmp_repo), "promote", "node-x"]) == 1
+        assert (tmp_repo / "knowledge" / "graph" / "graph.json").exists()
+
+
+class TestFingerprintStableAcrossRecompile:
+    def test_recompile_keeps_graph_version_and_fingerprint(
+        self, tmp_vault, tmp_repo, monkeypatch
+    ):
+        from datetime import datetime as real_datetime
+
+        import akms.graph.build_graph as build_graph_module
+
+        class _Clock(real_datetime):
+            current = real_datetime(2026, 1, 1, 9, 0, 0)
+
+            @classmethod
+            def now(cls, tz=None):
+                return cls.current
+
+        monkeypatch.setattr(build_graph_module, "datetime", _Clock)
+
+        _prepare_repo(tmp_vault, tmp_repo)
+        task_path = _write_task(tmp_repo / "task.json")
+        routes_path = _write_routes(tmp_repo / "routes.json")
+        first = resolve_task(
+            repo_root=tmp_repo, task=task_path, route_index=routes_path
+        )
+        assert first.status == "ok", first.error
+        first_bytes = (tmp_repo / "knowledge" / "graph" / "graph.json").read_bytes()
+
+        _Clock.current = real_datetime(2031, 6, 7, 8, 9, 10)
+        build_graph(tmp_repo, global_vault=tmp_vault)
+        second_bytes = (tmp_repo / "knowledge" / "graph" / "graph.json").read_bytes()
+        assert first_bytes != second_bytes  # only generated_at moved
+
+        second = resolve_task(
+            repo_root=tmp_repo, task=task_path, route_index=routes_path
+        )
+        assert second.status == "ok", second.error
+        assert second.graph_version == first.graph_version
+        assert second.fingerprint == first.fingerprint
