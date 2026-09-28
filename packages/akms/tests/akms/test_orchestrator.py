@@ -552,8 +552,7 @@ class TestHandleTaskBreakdown:
                     content="",
                     tasks=dispatched_tasks_returned,
                 )
-                with open(out_path, "wb") as f:
-                    fm_mod.dump(post, f)
+                out_path.write_text(fm_mod.dumps(post), encoding="utf-8", newline="\n")
                 results.append(
                     TaskResult(
                         task_id=task_id,
@@ -1233,8 +1232,9 @@ class TestRunSubagent:
                 post = frontmatter.Post(
                     content="\n## Notes\n\nBridge test.\n", **memory_dict
                 )
-                with open(output_path, "wb") as f:
-                    frontmatter.dump(post, f)
+                output_path.write_text(
+                    frontmatter.dumps(post), encoding="utf-8", newline="\n"
+                )
 
         config = PropagationConfig()
         task_json = {

@@ -66,8 +66,7 @@ def _write_valid_agent_memory(repo_root: Path, task_id: str = "task-1") -> Path:
         content="\n## Task Notes\n\nEverything went well.\n",
         **memory_dict,
     )
-    with open(output_path, "wb") as f:
-        frontmatter.dump(post, f)
+    output_path.write_text(frontmatter.dumps(post), encoding="utf-8", newline="\n")
     return output_path
 
 
@@ -161,8 +160,7 @@ def test_run_raises_on_malformed_memory(tmp_repo: Path):
                 content="bad memory",
                 **{"task_id": task_json["task_id"]},  # missing required fields
             )
-            with open(path, "wb") as f:
-                frontmatter.dump(post, f)
+            path.write_text(frontmatter.dumps(post), encoding="utf-8", newline="\n")
 
     agent = BadWriterAgent(config=PropagationConfig(), repo_root=tmp_repo)
     with pytest.raises(SchemaValidationError):

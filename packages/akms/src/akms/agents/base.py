@@ -521,8 +521,7 @@ class AKMSAgent:
             content=f"\n## Task Notes\n\nFailed: {reason}\n",
             **memory_dict,
         )
-        with open(output_path, "wb") as f:
-            frontmatter.dump(post, f)
+        output_path.write_text(frontmatter.dumps(post), encoding="utf-8", newline="\n")
 
         logger.warning("Wrote failed AgentMemory to %s: %s", output_path, reason)
         return memory

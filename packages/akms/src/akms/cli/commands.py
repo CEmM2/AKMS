@@ -52,8 +52,7 @@ def _update_node_status(node_path: Path, new_status: str) -> bool:
         post = fm.load(str(node_path))
         old_status = post.metadata.get("status", "unknown")
         post.metadata["status"] = new_status
-        with open(node_path, "wb") as f:
-            fm.dump(post, f)
+        node_path.write_text(fm.dumps(post), encoding="utf-8", newline="\n")
         print(f"Updated {node_path.stem}: {old_status} → {new_status}")
         return True
     except Exception as e:

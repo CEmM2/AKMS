@@ -22,12 +22,11 @@ requires-python = ">=3.12,<3.13"
 # Picker / Nodes / Graph import and work; only an actual NotebookLM dispatch needs
 # the `nlm` CLI present.
 dependencies = [
-    # Capped below 1.2: python-frontmatter 1.2.0 changed `dump` to write str
-    # rather than bytes, so every `fm.dump(post, f)` call site here — which
-    # opens its handle in binary mode — raises TypeError.  1.2.0 and 1.3.0
-    # both fail 287 tests.  Revisit by porting the dump call sites, not by
-    # widening this bound.
-    "python-frontmatter>=1.1.0,<1.2",
+    # 1.2.0 changed `dump` to write str rather than bytes. Every call site in
+    # this workspace serialises with `dumps` and writes the text itself, so
+    # the bound spans both behaviours. Keep it that way rather than calling
+    # `dump` on a binary handle again.
+    "python-frontmatter>=1.1.0,<2",
     "pyyaml>=6.0.3,<7",
     "fastapi>=0.141.1,<1",
     "uvicorn[standard]>=0.32,<0.53",

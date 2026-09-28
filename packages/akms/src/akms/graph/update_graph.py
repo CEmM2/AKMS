@@ -651,8 +651,9 @@ def _process_new_knowledge(
 
                     post = fm.load(str(local_path))
                     post.content += f"\n\n---\n\n{content_draft}"
-                    with open(local_path, "wb") as f:
-                        fm.dump(post, f)
+                    local_path.write_text(
+                        fm.dumps(post), encoding="utf-8", newline="\n"
+                    )
                     events.append(
                         {
                             "action": "dedup_append",
@@ -712,8 +713,7 @@ def _process_new_knowledge(
                 post = fm.Post(content_draft)
                 post.metadata = frontmatter_data
                 node_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(node_path, "wb") as f:
-                    fm.dump(post, f)
+                node_path.write_text(fm.dumps(post), encoding="utf-8", newline="\n")
 
                 events.append(
                     {
