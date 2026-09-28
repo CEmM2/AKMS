@@ -200,11 +200,20 @@ jobs:
           name: distributions
           path: dist
 
-      - name: Create GitHub release
+      # Created as a draft, then published once every file is attached. The
+      # repository uses immutable releases, and a published immutable release
+      # accepts no further uploads.
+      - name: Create draft GitHub release with the verified distributions
         uses: softprops/action-gh-release@v3
         with:
+          draft: true
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
             dist/packages/*
             dist/SHA256SUMS
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

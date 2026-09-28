@@ -116,6 +116,25 @@ def main() -> int:
                         f"expected >={core},<{ceiling}"
                     )
 
+    # PyPI builds a package's sidebar (source, docs, issues, changelog) from
+    # [project.urls]; without it the page offers no way back to the code. The
+    # repository link also lets PyPI verify it against the trusted publisher.
+    required_links = ("Homepage", "Documentation", "Source", "Issues", "Changelog")
+    for name, path in PACKAGE_FILES.items():
+        urls = tomllib.loads(path.read_text(encoding="utf-8"))["project"].get(
+            "urls", {}
+        )
+        missing = [key for key in required_links if key not in urls]
+        if missing:
+            errors.append(f"{name}: [project.urls] lacks {', '.join(missing)}")
+        for key, url in urls.items():
+            if not url.startswith(
+                ("https://github.com/CEmM2/AKMS", "https://cemm2.github.io/AKMS/")
+            ):
+                errors.append(
+                    f"{name}: [project.urls] {key} points outside the project: {url}"
+                )
+
     unique_versions = sorted(set(versions.values()))
     if len(unique_versions) > 1:
         errors.append(f"package versions differ: {versions}")

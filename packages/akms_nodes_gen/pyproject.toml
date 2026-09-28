@@ -37,6 +37,14 @@ dependencies = [
 # one client for hosted providers (Anthropic, Gemini, …) and any OpenAI-compatible
 # / local endpoint. Optional: nlm_batch.py (the canonical CLI path where NotebookLM
 # itself is the generator) needs none of this. Pin matches the core akms package.
+
+[project.urls]
+Homepage = "https://github.com/CEmM2/AKMS"
+Documentation = "https://cemm2.github.io/AKMS/reference/nodes-gen/index.html"
+Source = "https://github.com/CEmM2/AKMS/tree/main/packages/akms_nodes_gen"
+Issues = "https://github.com/CEmM2/AKMS/issues"
+Changelog = "https://github.com/CEmM2/AKMS/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 llm = ["litellm>=1.84.0,<2"]
 
