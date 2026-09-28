@@ -64,6 +64,10 @@ class TestSeedQmdPath:
             "run_qmd.sh",
             repo_root_candidates=[missing],
         )
-        # Falls through to the package root.
+        # Falls through to the same file as with no candidates at all (the
+        # bundled copy), never to a path under the missing candidate. The old
+        # check looked for "AKMS" in the path, which only held when the
+        # checkout directory itself was named AKMS.
         assert resolved.exists()
-        assert "Packages/AKMS" in str(resolved) or "AKMS" in str(resolved)
+        assert missing not in resolved.parents
+        assert resolved == seed_qmd_path("run_qmd.sh")
