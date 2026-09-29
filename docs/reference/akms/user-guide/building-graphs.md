@@ -51,8 +51,11 @@ provided missing `--graph` path fails rather than silently building elsewhere.
 
 The semantic graph and serialized ordering are deterministic for identical
 inputs. The ordinary graph serializer includes a current `generated_at`
-timestamp; use a canonical semantic comparison or the failure-memory pinned
-refresh path when byte identity matters.
+timestamp, so the file's bytes change on every recompile. The `graph_version`
+used by loadouts, the qmd cache and resolution fingerprints leaves that
+timestamp out, so recompiling identical inputs keeps the same version and
+fingerprint. Use the failure-memory pinned refresh path when you need the
+file itself to be byte-identical.
 
 ## Health report
 

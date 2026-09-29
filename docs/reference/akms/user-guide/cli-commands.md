@@ -41,9 +41,12 @@ akms deprecate <node_id> --repo .
 
 Sets a local node's status to deprecated.
 
-These commands edit `knowledge/local-nodes/<node_id>.md`. They do not claim to
-recompile the graph automatically; rebuild through a query/loadout, Python API,
-or explicit project workflow afterward.
+These commands edit `knowledge/local-nodes/<node_id>.md`, then delete the
+compiled `knowledge/graph/graph.json` and the qmd cache. They do not recompile
+the graph themselves: the next `query`, `loadout` or `resolve-task` rebuilds it
+from the node files, so a deprecated or suppressed node can no longer be
+resolved as required from a stale graph. If the graph cannot be deleted, the
+command exits 1 and tells you which file to remove.
 
 ## Graph inspection and selection
 

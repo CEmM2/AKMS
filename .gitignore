@@ -15,6 +15,9 @@ __pycache__/
 *.egg-info/
 dist/
 .pytest_cache/
+# GitNexus code-intelligence index and setuptools build output (both local)
+.gitnexus/
+build/
 
 # ── OS and editor noise ───────────────────────────────────────────────
 .DS_Store
