@@ -40,9 +40,11 @@ Design decisions
   and is enforced implicitly: the stub paraphrases without introducing
   new claims, and the citation validator rejects any orphan claim.
   ``explanatory_only`` and ``no_new_claims`` are accepted policy values
-  whose stricter heuristic checks are TBD; for the no-provider stub all
-  three policies behave identically because the stub never invents
-  claims.
+  with no checks of their own: the citation validator is the only
+  enforcement for every policy.  The ``akms`` completion provider names
+  the policy in its system prompt; the ``nlm`` provider and the stub
+  ignore it.  For the no-provider stub all three policies behave
+  identically because the stub never invents claims.
 * **Deterministic ordering** — the surviving GeneratedSections are sorted
   by ``(source_node_ids[0], id)`` so two consecutive runs with the same
   stub output produce byte-identical ``generated_sections`` lists.

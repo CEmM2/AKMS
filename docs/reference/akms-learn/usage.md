@@ -145,7 +145,7 @@ akms-learn compile --graph fixture --topic "j² return mapping" \
 |---|---|
 | `--llm-enable` / `--no-llm-enable` | Enable LLM expansion (default disabled). |
 | `--llm-provider` | Provider registry name: `akms`, `nlm`, or `no_provider_stub`. |
-| `--llm-policy` | `source_locked`, `explanatory_only`, or `no_new_claims`. |
+| `--llm-policy` | `source_locked`, `explanatory_only`, or `no_new_claims`. Only citations are checked, under every policy; the `akms` provider passes the policy name to the model, the others ignore it. |
 | `--llm-notebook-id` | NotebookLM notebook id used as a grounded source. |
 | `--llm-pdf` | PDF path added as a grounded source (repeatable). |
 | `--llm-profile` | NotebookLM profile name for the grounded provider. |
