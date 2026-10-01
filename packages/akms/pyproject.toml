@@ -65,7 +65,7 @@ telemetry = [
 ]
 orchestration = [
     "akms[agents,mcp,telemetry]",
-    "litellm>=1.84.0,<2",
+    "litellm>=1.96.2,<2",
 ]
 # Sibling packages, so `pip install akms[learn]` and friends work. They are
 # released in lockstep with akms, so each pin admits exactly the current

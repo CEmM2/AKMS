@@ -67,6 +67,13 @@ development is intentionally not replayed.
 - The public-tree audit now also fails on private project names and internal
   plan or decision references in the published tree.
 
+### Security
+- `akms[orchestration]` and `akms-nodes-gen[llm]` require `litellm>=1.96.2`
+  (was 1.84.0), which excludes every release affected by GHSA-3cv6-jpf6-8222
+  (authenticated SSRF and provider-credential exfiltration). Newer litellm
+  also pulls in `boto3`. The lockfile moves `pyjwt` to 2.15.1 and `urllib3` to
+  2.8.0; `uv audit` reports no known vulnerabilities.
+
 ## [0.3.1] — 2026-09-10
 
 ### Added
