@@ -1,6 +1,6 @@
 [project]
 name = "compmech-reference-pack"
-version = "0.3.1"
+version = "0.3.2"
 description = "Computational-mechanics companion adapter — bridges AKMS LSP excerpts to the MechDSL executable backend."
 readme = "README.md"
 license = "Apache-2.0"
@@ -14,7 +14,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "akms-learn>=0.3.1,<0.4",
+    "akms-learn>=0.3.2,<0.4",
 ]
 
 

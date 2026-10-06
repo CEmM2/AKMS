@@ -1,6 +1,6 @@
 [project]
 name = "akms-failure-memory"
-version = "0.3.1"
+version = "0.3.2"
 description = "Deterministic, project-owned failure memory for AKMS"
 readme = "README.md"
 license = "Apache-2.0"
@@ -14,7 +14,7 @@ classifiers = [
 ]
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "akms>=0.3.1,<0.4",
+    "akms>=0.3.2,<0.4",
     "pyyaml>=6.0.3,<7",
 ]
 
