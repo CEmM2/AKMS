@@ -4,7 +4,7 @@ All notable changes to the public AKMS packages are documented here. The
 public history begins with the first curated release; earlier private
 development is intentionally not replayed.
 
-## [Unreleased]
+## [0.3.2] — 2026-10-06
 
 ### Added
 - Every package declares its homepage, documentation, source, issue tracker

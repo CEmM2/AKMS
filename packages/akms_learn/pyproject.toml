@@ -1,6 +1,6 @@
 [project]
 name = "akms-learn"
-version = "0.3.1"
+version = "0.3.2"
 description = "Learning Source Packet compiler and exporters for AKMS (experimental preview)"
 requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"
@@ -14,7 +14,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "akms>=0.3.1,<0.4",
+    "akms>=0.3.2,<0.4",
     # nbformat + jinja2 are now BASE deps (previously the [notebook]/[html]
     # extras) so notebook/html features — assessment_first, quiz_export,
     # html_export, notebook_source, notebook_export — work out of the box

@@ -1,6 +1,6 @@
 [project]
 name = "akms"
-version = "0.3.1"
+version = "0.3.2"
 description = "A deterministic global-local knowledge compiler: typed knowledge nodes, graph compilation, projections, and evidence ingestion"
 requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"
@@ -73,20 +73,20 @@ orchestration = [
 # akms-learn and akms-failure-memory depend on akms in turn; pip and uv
 # resolve that cycle without trouble.
 learn = [
-    "akms-learn>=0.3.1,<0.4",
+    "akms-learn>=0.3.2,<0.4",
 ]
 failure-memory = [
-    "akms-failure-memory>=0.3.1,<0.4",
+    "akms-failure-memory>=0.3.2,<0.4",
 ]
 nodes-gen = [
-    "akms-nodes-gen>=0.3.1,<0.4",
+    "akms-nodes-gen>=0.3.2,<0.4",
 ]
 compmech = [
-    "compmech-reference-pack[mechdsl]>=0.3.1,<0.4",
+    "compmech-reference-pack[mechdsl]>=0.3.2,<0.4",
 ]
 all = [
     "akms[orchestration,learn,failure-memory,nodes-gen,compmech]",
-    "akms-nodes-gen[llm]>=0.3.1,<0.4",
+    "akms-nodes-gen[llm]>=0.3.2,<0.4",
 ]
 
 [project.scripts]
