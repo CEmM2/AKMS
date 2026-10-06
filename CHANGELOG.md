@@ -71,8 +71,9 @@ development is intentionally not replayed.
 - `akms[orchestration]` and `akms-nodes-gen[llm]` require `litellm>=1.96.2`
   (was 1.84.0), which excludes every release affected by GHSA-3cv6-jpf6-8222
   (authenticated SSRF and provider-credential exfiltration). Newer litellm
-  also pulls in `boto3`. The lockfile moves `pyjwt` to 2.15.1 and `urllib3` to
-  2.8.0; `uv audit` reports no known vulnerabilities.
+  also pulls in `boto3`. The lockfile moves `pyjwt` to 2.15.1, `urllib3` to
+  2.8.0 and `multidict` to 6.9.1 (GHSA-54p9-h82j-f925, a reference leak in
+  its items-view operations); `uv audit` reports no known vulnerabilities.
 
 ## [0.3.1] — 2026-09-10
 
