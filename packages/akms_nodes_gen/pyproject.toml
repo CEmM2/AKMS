@@ -46,7 +46,7 @@ Issues = "https://github.com/CEmM2/AKMS/issues"
 Changelog = "https://github.com/CEmM2/AKMS/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-llm = ["litellm>=1.84.0,<2"]
+llm = ["litellm>=1.96.2,<2"]
 
 [project.scripts]
 akms-pick = "akms_nodes_gen.batch_picker.__main__:main"
