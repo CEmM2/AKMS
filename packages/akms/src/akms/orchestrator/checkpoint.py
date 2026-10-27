@@ -389,7 +389,7 @@ class TerminalCheckpointHandler(CheckpointHandler):
     """Checkpoint handler that uses print() / input() for interactive review.
 
     Suitable for local developer workflows where the orchestrator runs in
-    a terminal session (per addendum §3.3.1, deviation D3).
+    a terminal session.
     """
 
     def present(
