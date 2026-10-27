@@ -4,6 +4,17 @@ All notable changes to the public AKMS packages are documented here. The
 public history begins with the first curated release; earlier private
 development is intentionally not replayed.
 
+## [Unreleased]
+
+### Security
+- The lockfile moves past 15 advisories published after 0.3.2: aiohttp
+  3.14.5 (eight, including request smuggling in the pure-Python parser),
+  certifi 2026.10.23 (emSign roots with compromised intermediates), filelock
+  4.2.4 (three `ReadWriteLock`/`SoftFileLock` issues), mcp 1.30.0 (unbounded
+  StreamableHTTP sessions) and the OpenTelemetry 1.45.1 family (unbounded
+  `tracestate` parsing). All are within the declared ranges, so this is a
+  lock-only change; `uv audit` reports no known vulnerabilities.
+
 ## [0.3.2] — 2026-10-06
 
 ### Added
