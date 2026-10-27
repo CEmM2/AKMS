@@ -3,8 +3,9 @@
 Thin wrapper around LiteLLM. Used for dedup and drift checks only.
 Subagents use the Claude Agent SDK directly via AKMSAgent.run().
 
-**Deviation D2 from addendum:** Accepts PropagationConfig as parameter instead
-of @lru_cache filesystem reads. More testable, consistent with AKMS patterns.
+Takes a PropagationConfig as a parameter instead of reading it from the
+filesystem behind an @lru_cache: easier to test and consistent with the rest
+of AKMS.
 """
 
 from __future__ import annotations

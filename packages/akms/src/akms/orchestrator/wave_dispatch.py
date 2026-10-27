@@ -3,8 +3,8 @@
 Uses asyncio.gather with dependency checking. No framework needed —
 just structured concurrency with the existing AKMSAgent protocol.
 
-**Deviation D1 from addendum:** Uses AKMSAgent.run() instead of raw
-claude_agent_sdk.query(). This preserves the sealed run() + open execute()
+Dispatches through AKMSAgent.run() rather than calling
+claude_agent_sdk.query() directly. This preserves the sealed run() + open execute()
 architecture — loadout resolution, system prompt assembly, and AgentMemory
 validation all happen inside the agent's lifecycle.
 """
