@@ -15,6 +15,13 @@ development is intentionally not replayed.
   `tracestate` parsing). All are within the declared ranges, so this is a
   lock-only change; `uv audit` reports no known vulnerabilities.
 
+### Fixed
+- The `akms-learn` wheel and sdist shipped none of the exporters' Jinja
+  templates (`templates/*.md.j2`, `exporters/templates/*.html.j2`), so every
+  markdown or HTML export from a pip install raised `TemplateNotFound`. The
+  package now declares them as package data, and a smoke test that CI runs
+  against the built wheels fails if they go missing again.
+
 ## [0.3.2] — 2026-10-06
 
 ### Added
