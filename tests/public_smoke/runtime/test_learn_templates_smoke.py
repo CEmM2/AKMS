@@ -24,7 +24,8 @@ TEMPLATES = (
 def test_template_ships_and_parses(relative: str) -> None:
     resource = files("akms_learn").joinpath(relative)
     assert resource.is_file(), f"akms_learn/{relative} is missing from the install"
-    jinja2.Environment().parse(resource.read_text(encoding="utf-8"))
+    env = jinja2.Environment(autoescape=jinja2.select_autoescape(["html", "xml"]))
+    env.parse(resource.read_text(encoding="utf-8"))
 
 
 def test_exporters_find_their_templates() -> None:
