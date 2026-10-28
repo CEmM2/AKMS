@@ -158,6 +158,38 @@ jobs:
           path: coverage.xml
           if-no-files-found: error
 
+  windows-lock-probe:
+    name: Windows lock liveness probe
+    needs: [quality]
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # Only failure-memory and its dependencies: the probe is its one piece of
+      # Windows-specific behaviour, and the full suite does not run on Windows.
+      - name: Install failure-memory
+        run: uv sync --locked --package akms-failure-memory
+
+      - name: Probe owner liveness without console control events
+        run: >-
+          uv run --no-sync --with pytest pytest
+          packages/akms_failure_memory/tests/test_locks_pid_probe.py
+          -q -rs -p no:cacheprovider
+
   runtime-contracts:
     name: Embedded runtime and external-consumer contracts
     needs: [core-minimal, quality]
