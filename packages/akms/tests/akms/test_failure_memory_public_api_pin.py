@@ -1,6 +1,6 @@
 """Hermetic pin: F3 may import only documented public AKMS surfaces.
 
-Loads ``Packages/AKMS/release/failure_memory_public_api_pin.json`` and asserts
+Loads ``packages/akms/release/failure_memory_public_api_pin.json`` and asserts
 each listed public symbol is importable. Also asserts a small set of forbidden
 private paths are not advertised as public and that repo2md is not imported.
 """
@@ -88,9 +88,9 @@ _EXPECTED_ALLOWED_PYTHON = {
     "akms": ("AKMS_SCHEMA_VERSION", "__version__"),
 }
 _PUBLIC_CLI_MCP_SOURCES = {
-    "Packages/AKMS/src/akms/cli/commands.py",
-    "Packages/AKMS/src/akms/cli/provider_commands.py",
-    "Packages/AKMS/src/akms/orchestrator/mcp_tools.py",
+    "packages/akms/src/akms/cli/commands.py",
+    "packages/akms/src/akms/cli/provider_commands.py",
+    "packages/akms/src/akms/orchestrator/mcp_tools.py",
 }
 
 
@@ -244,11 +244,11 @@ class TestPublicApiPin:
 
     def test_related_repo2md_pin_exists(self, pin: dict):
         rel = pin["related_pins"]["repo2md_provider"]
-        # Path is repo-relative from AKMS workspace root (Packages/AKMS/...).
+        # Path is repo-relative from AKMS workspace root (packages/akms/...).
         workspace = Path(__file__).resolve().parents[4]
         path = workspace / rel
         if not path.is_file():
-            # Fallback: relative to Packages/AKMS
+            # Fallback: relative to packages/akms
             path = (
                 Path(__file__).resolve().parents[2]
                 / "release"
