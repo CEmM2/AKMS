@@ -64,6 +64,11 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# The Jinja templates the markdown and HTML exporters load from beside their
+# modules; without this the wheel and sdist ship none of them.
+akms_learn = ["templates/*.j2", "exporters/templates/*.j2"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
