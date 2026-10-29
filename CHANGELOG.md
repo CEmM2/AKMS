@@ -15,7 +15,28 @@ development is intentionally not replayed.
   `tracestate` parsing). All are within the declared ranges, so this is a
   lock-only change; `uv audit` reports no known vulnerabilities.
 
+### Changed
+- `akms-failure-memory` provider fingerprints no longer include the installed
+  `akms` release version. The packages release in lockstep, so every patch
+  release moved every fingerprint, marking existing resolutions stale and
+  breaking the frozen consumer-contract pack, whether or not resolution
+  changed. Schema and provider-contract changes still move fingerprints
+  (`akms_schema_version`, `PROVIDER_VERSION`), as does the AKMS version a
+  project pins in its own `[toolchain]` table. Existing fingerprints change
+  once on upgrade.
+- The consumer-contract pack (`tests/fixtures/consumer_contract/v1`) is
+  re-frozen with the new fingerprints; its pack digest is now
+  `bd1c2dc3a1d35ab41d7203aecce1bd1d39a494dde1532c9360b9e3518f2f8735`.
+  Consumers that pin the pack must update that digest; behaviours, requests
+  and lessons are unchanged.
+
 ### Fixed
+- The published consumer-contract pack failed its own `verify_pack.py`: its
+  lessons, generated nodes and recording files had been edited without
+  updating their digests, and the conformance suite that checks it skipped
+  under every released `akms` version. The suite now runs on every release,
+  and `tests/refreeze_consumer_pack.py` regenerates the pack when a deliberate
+  contract change needs it.
 - The `akms-learn` wheel and sdist shipped none of the exporters' Jinja
   templates (`templates/*.md.j2`, `exporters/templates/*.html.j2`), so every
   markdown or HTML export from a pip install raised `TemplateNotFound`. The

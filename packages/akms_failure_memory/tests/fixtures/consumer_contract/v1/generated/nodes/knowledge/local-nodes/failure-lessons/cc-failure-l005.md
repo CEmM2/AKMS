@@ -16,7 +16,7 @@ content_ref: "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l
 akms_schema: "v2"
 ---
 <!-- GENERATED: edit lessons.json -->
-<!-- source_sha256: 30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247 -->
+<!-- source_sha256: 5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2 -->
 
 # L005: diff only discovery
 

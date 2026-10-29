@@ -13,15 +13,15 @@
       "expect": {
         "canonical_generated_at": "2026-08-17T00:00:00+00:00",
         "current": {
-          "current_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
-          "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+          "current_fingerprint": "691bf22a0f25111b91ab8d95d17853d1d89f61511782a3edd98458a602122f05",
+          "recorded_fingerprint": "691bf22a0f25111b91ab8d95d17853d1d89f61511782a3edd98458a602122f05",
           "stale": false,
           "status": "current"
         },
         "kind": "fingerprint_validation",
         "stale": {
-          "current_fingerprint": "a5a8e4a33ee35d3b5708bcecd512023c9c94028fd235f0f6e735c8876fd9f38e",
-          "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+          "current_fingerprint": "ebb449da903e5467a8fc0df594a002f4261fc5aa737951c44cc108af234594d3",
+          "recorded_fingerprint": "691bf22a0f25111b91ab8d95d17853d1d89f61511782a3edd98458a602122f05",
           "stale": true,
           "status": "stale"
         }
