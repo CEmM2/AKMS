@@ -248,11 +248,15 @@ def _validate_config(raw: dict[str, Any], source_path: Path) -> ProjectConfig:
         raise FailureMemoryError(
             f"Invalid id_pattern: {exc}", code="invalid_config"
         ) from exc
-    if "id_style" in validation and validation["id_style"] not in _ID_STYLES:
-        raise FailureMemoryError(
-            "validation.id_style must be sequential or dated",
-            code="invalid_config",
-        )
+    if "id_style" in validation:
+        id_style = validation["id_style"]
+        # Lists and tables are unhashable. Membership would raise TypeError
+        # and the CLI would report internal_error instead of invalid_config.
+        if not isinstance(id_style, str) or id_style not in _ID_STYLES:
+            raise FailureMemoryError(
+                "validation.id_style must be sequential or dated",
+                code="invalid_config",
+            )
     validation["allowed_roots"] = _string_list(
         validation["allowed_roots"], "validation.allowed_roots", nonempty=True
     )
