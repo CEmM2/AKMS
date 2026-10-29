@@ -55,6 +55,9 @@ _VALIDATION_KEYS = frozenset(
         "location_file_separator",
     }
 )
+# `id_style` is optional so v1 configs still load. Absent means sequential.
+_VALIDATION_ALLOWED = _VALIDATION_KEYS | {"id_style"}
+_ID_STYLES = frozenset({"sequential", "dated"})
 _TAXONOMY_KEYS = frozenset(
     {
         "area_prefix",
@@ -228,7 +231,10 @@ def _validate_config(raw: dict[str, Any], source_path: Path) -> ProjectConfig:
         )
 
     validation = _closed_table(
-        top["validation"], name="validation", required=_VALIDATION_KEYS
+        top["validation"],
+        name="validation",
+        required=_VALIDATION_KEYS,
+        allowed=_VALIDATION_ALLOWED,
     )
     if validation["registry_schema_version"] != 1:
         raise FailureMemoryError(
@@ -242,6 +248,11 @@ def _validate_config(raw: dict[str, Any], source_path: Path) -> ProjectConfig:
         raise FailureMemoryError(
             f"Invalid id_pattern: {exc}", code="invalid_config"
         ) from exc
+    if "id_style" in validation and validation["id_style"] not in _ID_STYLES:
+        raise FailureMemoryError(
+            "validation.id_style must be sequential or dated",
+            code="invalid_config",
+        )
     validation["allowed_roots"] = _string_list(
         validation["allowed_roots"], "validation.allowed_roots", nonempty=True
     )

@@ -17,6 +17,7 @@ from akms.task_context.routes import parse_route_index
 
 from akms_failure_memory.config import ProjectConfig, load_project_config
 from akms_failure_memory.errors import FailureMemoryError
+from akms_failure_memory.lesson_ids import lesson_id_sort_key
 from akms_failure_memory.locks import ProjectLock
 
 
@@ -258,7 +259,7 @@ def _frontmatter(lesson: dict[str, Any], config: ProjectConfig) -> dict[str, Any
         "edges": [],
         "load_with": [
             _node_id(config, related)
-            for related in sorted(lesson["related"], key=lambda value: int(value[1:]))
+            for related in sorted(lesson["related"], key=lesson_id_sort_key)
         ],
         "context_size": "small",
         "reading_priority": "full",
@@ -453,7 +454,7 @@ def _compile_routes(
 ) -> tuple[dict[str, Any], tuple[dict[str, str], ...]]:
     by_path: dict[str, dict[str, set[tuple[str, str]]]] = {}
     by_symbol: dict[str, dict[str, set[tuple[str, str]]]] = {}
-    for lesson in sorted(lessons, key=lambda item: int(item["id"][1:])):
+    for lesson in sorted(lessons, key=lambda item: lesson_id_sort_key(item["id"])):
         node_id = _node_id(config, lesson["id"])
         paths = _expand_location_file(lesson["location"]["file"], config)
         for path in paths:
@@ -574,7 +575,7 @@ def compile_registry(config: ProjectConfig, repository_root: str | Path) -> Comp
             frontmatter=_frontmatter(lesson, config),
             content=_content(lesson, source_sha256, config),
         )
-        for lesson in sorted(lessons, key=lambda item: int(item["id"][1:]))
+        for lesson in sorted(lessons, key=lambda item: lesson_id_sort_key(item["id"]))
     )
     canonical, warnings = _compile_routes(lessons, source_sha256, config, root)
     if config.validation["missing_path_policy"] == "error" and warnings:

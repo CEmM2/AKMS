@@ -95,7 +95,7 @@ loadouts = "disposable"
 [validation]
 registry_schema_version = 1
 missing_path_policy = "warn"
-id_pattern = "^L[0-9]{{3}}$"
+id_pattern = "^(?:L[0-9]{{3}}|L[0-9]{{8}}-[0-9a-hjkmnp-tv-z]{{4}})$"
 allowed_roots = ["src", "tests", "docs", "tools", ".github"]
 root_files = ["README.md", "pyproject.toml"]
 location_file_separator = " and "

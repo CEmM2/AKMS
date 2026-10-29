@@ -5,14 +5,23 @@ from __future__ import annotations
 import json
 import os
 import re
+import secrets
 import tempfile
 from collections.abc import Callable
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from akms_failure_memory.compiler import run_compiler, validate_registry_bytes
 from akms_failure_memory.config import ProjectConfig, load_project_config
 from akms_failure_memory.errors import FailureMemoryError
+from akms_failure_memory.lesson_ids import (
+    ALLOCATION_DATE_RE,
+    CROCKFORD_ALPHABET,
+    DATED_ID_ATTEMPTS,
+    SUFFIX_RE,
+    legacy_lesson_number,
+)
 from akms_failure_memory.locks import ProjectLock
 
 
@@ -124,11 +133,58 @@ def _validate_request_shape(request: dict[str, Any]) -> None:
         )
 
 
-def _next_id(config: ProjectConfig, lessons: list[dict[str, Any]]) -> str:
+def _utc_lesson_date() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%d")
+
+
+def _draw_id_suffix() -> str:
+    return "".join(secrets.choice(CROCKFORD_ALPHABET) for _ in range(4))
+
+
+def _next_sequential_id(config: ProjectConfig, lessons: list[dict[str, Any]]) -> str:
     width_match = re.search(r"\{([0-9]+)\}", str(config.validation["id_pattern"]))
     width = int(width_match.group(1)) if width_match else 3
-    numbers = [int(lesson["id"][1:]) for lesson in lessons]
+    numbers = [legacy_lesson_number(lesson["id"]) for lesson in lessons]
     return f"L{(max(numbers, default=0) + 1):0{width}d}"
+
+
+def _next_dated_id(lessons: list[dict[str, Any]]) -> str:
+    taken = {lesson["id"] for lesson in lessons}
+    day = _utc_lesson_date()
+    if ALLOCATION_DATE_RE.fullmatch(day) is None:
+        raise FailureMemoryError(
+            f"Lesson allocation date {day!r} is not YYYYMMDD",
+            code="id_allocation",
+        )
+    for _ in range(DATED_ID_ATTEMPTS):
+        suffix = _draw_id_suffix()
+        if SUFFIX_RE.fullmatch(suffix) is None:
+            raise FailureMemoryError(
+                f"Lesson ID suffix {suffix!r} is not 4 Crockford base32 characters",
+                code="id_allocation",
+            )
+        candidate = f"L{day}-{suffix}"
+        if candidate not in taken:
+            return candidate
+    raise FailureMemoryError(
+        "Could not allocate a unique dated lesson ID after "
+        f"{DATED_ID_ATTEMPTS} attempts",
+        code="id_allocation",
+    )
+
+
+def _next_id(config: ProjectConfig, lessons: list[dict[str, Any]]) -> str:
+    # `{n}` is the sequential width only. Dated allocation must not read it:
+    # the combined pattern's first quantifier is `{3}`, not the date width.
+    style = config.validation.get("id_style", "sequential")
+    if style == "sequential":
+        return _next_sequential_id(config, lessons)
+    if style == "dated":
+        return _next_dated_id(lessons)
+    raise FailureMemoryError(
+        f"Unsupported validation.id_style {style!r}",
+        code="invalid_config",
+    )
 
 
 def _canonical_registry(registry: dict[str, Any]) -> bytes:
