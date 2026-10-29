@@ -37,6 +37,13 @@ development is intentionally not replayed.
   under every released `akms` version. The suite now runs on every release,
   and `tests/refreeze_consumer_pack.py` regenerates the pack when a deliberate
   contract change needs it.
+- `akms-failure-memory`'s project lock no longer sends console Ctrl-C events
+  on Windows. Its owner-liveness probe used `os.kill(pid, 0)`, and on Windows
+  signal 0 is `CTRL_C_EVENT`: every 20 ms of lock contention interrupted every
+  process on the console, and a dead owner was never detected, so stale-lock
+  recovery never worked there. Windows now probes with
+  `OpenProcess`/`GetExitCodeProcess`; POSIX is unchanged. A new Windows CI job
+  runs the probe tests.
 - The `akms-learn` wheel and sdist shipped none of the exporters' Jinja
   templates (`templates/*.md.j2`, `exporters/templates/*.html.j2`), so every
   markdown or HTML export from a pip install raised `TemplateNotFound`. The
