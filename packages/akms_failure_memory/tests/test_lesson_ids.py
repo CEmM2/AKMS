@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from akms.tools.node_validator import NodeFrontmatter
+from akms_failure_memory.cli import main
 from akms_failure_memory.compiler import compile_registry
 from akms_failure_memory.config import load_project_config
 from akms_failure_memory.errors import FailureMemoryError
@@ -51,6 +52,32 @@ def test_invalid_id_style_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(FailureMemoryError, match="id_style") as exc_info:
         load_project_config(config)
     assert exc_info.value.code == "invalid_config"
+
+
+@pytest.mark.parametrize(
+    "assignment",
+    ["id_style = []", 'id_style = { mode = "dated" }'],
+)
+def test_non_string_id_style_is_invalid_config(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], assignment: str
+) -> None:
+    repo = tmp_path / "repo"
+    config = _config(repo, pattern=r"^L[0-9]{3}$", id_style=None)
+    text = config.read_text(encoding="utf-8")
+    needle = 'id_pattern = "^L[0-9]{3}$"\n'
+    config.write_text(
+        text.replace(needle, needle + assignment + "\n", 1), encoding="utf-8"
+    )
+    with pytest.raises(FailureMemoryError, match="validation.id_style") as exc_info:
+        load_project_config(config)
+    assert exc_info.value.code == "invalid_config"
+
+    exit_code = main(
+        ["--json-errors", "doctor", "--config", str(config), "--repo", str(repo)]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 2
+    assert payload["error"]["code"] == "invalid_config"
 
 
 def test_sort_key_orders_legacy_before_dated_and_rejects_other_forms() -> None:
