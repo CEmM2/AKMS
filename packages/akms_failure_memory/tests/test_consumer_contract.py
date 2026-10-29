@@ -25,7 +25,6 @@ from typing import Any
 
 import pytest
 
-import akms
 from akms.graph.build_graph import build_graph
 
 from akms_failure_memory.compiler import run_compiler
@@ -40,25 +39,10 @@ from akms_failure_memory.refresh import (
 )
 
 
-# The pack's expected outputs pin provider fingerprints, and those move with
-# akms_version (it feeds toolchain_sha256). Pack v1 was frozen under the akms
-# version below; under any other version the pinned expectations cannot verify,
-# so the suite skips rather than fail on a known toolchain mismatch. To clear
-# the mismatch, either run under the frozen toolchain or re-freeze the pack,
-# which means regenerating expected/ and computing a new EXPECTED_PACK_SHA256.
-PACK_FROZEN_AKMS_VERSION = "0.6.1"
-
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.skipif(
-        akms.__version__ != PACK_FROZEN_AKMS_VERSION,
-        reason=(
-            f"consumer-contract pack v1 is frozen under akms "
-            f"{PACK_FROZEN_AKMS_VERSION}; provider fingerprints cannot verify "
-            f"under akms {akms.__version__}; re-freeze the pack to run it here"
-        ),
-    ),
-]
+# The pack's expected outputs pin raw provider fingerprints. They do not depend
+# on the installed AKMS release version (it is not a fingerprint input), so the
+# suite runs under every release; it fails only when the contract itself moves.
+pytestmark = [pytest.mark.integration]
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 PACK = PACKAGE_ROOT / "tests/fixtures/consumer_contract/v1"
@@ -66,11 +50,12 @@ REPO_ROOT = PACKAGE_ROOT.parents[1]
 
 # The digest every consumer must assert. It is pinned literally rather than
 # computed so that an accidental edit to the pack fails loudly; changing it is
-# a deliberate re-freeze. Last re-frozen when akms_public_api_sha256 was removed
-# from the provider fingerprint inputs: that key appeared in eight expected
-# results, and every pinned fingerprint moved with it.
+# a deliberate re-freeze (refreeze_consumer_pack.py prints the new value). Last
+# re-frozen when the installed akms release version was removed from the
+# provider's toolchain_sha256, after the pack's registry text had been cleaned
+# for publication; every pinned fingerprint moved with both.
 EXPECTED_PACK_SHA256 = (
-    "90ad2801481723e224e7215fffb3a7b1cd661e615bcbaa9c5a62565a40c94eb7"
+    "bd1c2dc3a1d35ab41d7203aecce1bd1d39a494dde1532c9360b9e3518f2f8735"
 )
 
 # The pack's pinned deterministic graph timestamp. Canonical publication feeds
