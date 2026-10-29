@@ -19,13 +19,13 @@
           },
           "baseline": "baseline-001",
           "diagnostics": {},
-          "fingerprint": "49ebb47ffae987c7d7d584bc3445694df115e5e0a1f3261969a5061e0347da08",
+          "fingerprint": "307dabda4327c194519e1204d36e08d0a09d040f4ff17e40f00f9d59ecfe7036",
           "input_fingerprints": {
             "config_sha256": "4c12280a40147a8357c089b3d4b28c70d5e30d33556052d67ea2ddf206f21e82",
             "graph_sha256": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
             "repo2md_fixture_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b",
-            "routes_sha256": "05a7b5be8f3b8341fee4e7bf6208cf4c671ac5c0e38e1793cd484bf3479138d8",
-            "toolchain_sha256": "974e97b5874a35bcf1a046dd322af7fb1ed49719832902ca03f49ef4c2dad9a6"
+            "routes_sha256": "13bdf27546bb69689c2ef77c1c24619d9b975aee70d6eee4fdfe075d1e39edb0",
+            "toolchain_sha256": "ad62b1115e51de3b1c4934820f69bc7e31f6868a6688ea11230a0e983725c5c2"
           },
           "invocation_id": "docs-only",
           "mode": "pre-task",
@@ -46,18 +46,18 @@
             "advisory_count": 1,
             "changed_paths": [],
             "coactivated_count": 0,
-            "fingerprint": "bd9c9b75c5bfed128741ef9cd79d9bb2149e5f13ebbd4e099259a21061585746",
-            "graph_version": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "fingerprint": "1f10c8f44ddb84ec6b7601f92720d930a078bacd82c168e543dd18e16d69a9cc",
+            "graph_version": "d41bc0cb5329139697ec910e34e00a7c4ceecb25053388a4ae7fbd3a6ead779e",
             "mode": "routing",
             "node_count": 1,
             "phase": 1,
             "required_count": 0,
             "role": "implementer",
-            "route_index_hash": "0f9f2b97025b22f5a9bbfc780930f9ff59c8786464b393e25faba66a8e22f018",
+            "route_index_hash": "862e0ae30d43213028ce99ffb293b5288cb1a37d32ebc85158c2db6f350862d9",
             "status": "ok",
             "task_id": "docs-only"
           },
-          "resolution_fingerprint": "bd9c9b75c5bfed128741ef9cd79d9bb2149e5f13ebbd4e099259a21061585746",
+          "resolution_fingerprint": "1f10c8f44ddb84ec6b7601f92720d930a078bacd82c168e543dd18e16d69a9cc",
           "role": "implementer",
           "schema_version": "failure-memory-provider-result/v1",
           "status": "ok"
@@ -83,13 +83,13 @@
           },
           "baseline": "baseline-001",
           "diagnostics": {},
-          "fingerprint": "9fd0a396c92ffdbb3574773ba1b58f880bb078a8e491d1d94e4eddbb0da062df",
+          "fingerprint": "1a4ac22a11524d269ebf3278350c959f4e5aa5b922061db2b4a783479b3af3e7",
           "input_fingerprints": {
             "config_sha256": "4c12280a40147a8357c089b3d4b28c70d5e30d33556052d67ea2ddf206f21e82",
             "graph_sha256": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
             "repo2md_fixture_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b",
-            "routes_sha256": "05a7b5be8f3b8341fee4e7bf6208cf4c671ac5c0e38e1793cd484bf3479138d8",
-            "toolchain_sha256": "974e97b5874a35bcf1a046dd322af7fb1ed49719832902ca03f49ef4c2dad9a6"
+            "routes_sha256": "13bdf27546bb69689c2ef77c1c24619d9b975aee70d6eee4fdfe075d1e39edb0",
+            "toolchain_sha256": "ad62b1115e51de3b1c4934820f69bc7e31f6868a6688ea11230a0e983725c5c2"
           },
           "invocation_id": "docs-only-untagged",
           "mode": "pre-task",
@@ -100,18 +100,18 @@
             "advisory_count": 0,
             "changed_paths": [],
             "coactivated_count": 0,
-            "fingerprint": "931478550a3d5f542a9e7e9fab2d5c9c9019e0598400e161db6ddd940385fca5",
-            "graph_version": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "fingerprint": "9b77cc78ac9fae2b4bf5def67480788d431ae97ba22eaca35526a5f61c7c94a0",
+            "graph_version": "d41bc0cb5329139697ec910e34e00a7c4ceecb25053388a4ae7fbd3a6ead779e",
             "mode": "routing",
             "node_count": 0,
             "phase": 1,
             "required_count": 0,
             "role": "implementer",
-            "route_index_hash": "0f9f2b97025b22f5a9bbfc780930f9ff59c8786464b393e25faba66a8e22f018",
+            "route_index_hash": "862e0ae30d43213028ce99ffb293b5288cb1a37d32ebc85158c2db6f350862d9",
             "status": "ok",
             "task_id": "docs-only-untagged"
           },
-          "resolution_fingerprint": "931478550a3d5f542a9e7e9fab2d5c9c9019e0598400e161db6ddd940385fca5",
+          "resolution_fingerprint": "9b77cc78ac9fae2b4bf5def67480788d431ae97ba22eaca35526a5f61c7c94a0",
           "role": "implementer",
           "schema_version": "failure-memory-provider-result/v1",
           "status": "ok"
@@ -137,13 +137,13 @@
           },
           "baseline": "baseline-001",
           "diagnostics": {},
-          "fingerprint": "61ecd461045efa005dcfbd38b3c1f635b02bcd334559cd59377650e669f7d0dd",
+          "fingerprint": "a950b5bb947db60753375a4263f18c9ed09c51dbd080b594489bbd4285381e1b",
           "input_fingerprints": {
             "config_sha256": "4c12280a40147a8357c089b3d4b28c70d5e30d33556052d67ea2ddf206f21e82",
             "graph_sha256": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
             "repo2md_fixture_sha256": "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b",
-            "routes_sha256": "05a7b5be8f3b8341fee4e7bf6208cf4c671ac5c0e38e1793cd484bf3479138d8",
-            "toolchain_sha256": "974e97b5874a35bcf1a046dd322af7fb1ed49719832902ca03f49ef4c2dad9a6"
+            "routes_sha256": "13bdf27546bb69689c2ef77c1c24619d9b975aee70d6eee4fdfe075d1e39edb0",
+            "toolchain_sha256": "ad62b1115e51de3b1c4934820f69bc7e31f6868a6688ea11230a0e983725c5c2"
           },
           "invocation_id": "docs-mixed",
           "mode": "pre-task",
@@ -153,8 +153,8 @@
               "content_ref": "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l001.md",
               "node_id": "cc-failure-l001",
               "reasons": [
-                "required route 'src/engine/interface.py' matched exact deliverable 'src/engine/interface.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/engine/interface.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]",
-                "required route 'src/engine/interface.py' matched exact scope 'src/engine/interface.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/engine/interface.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]"
+                "required route 'src/engine/interface.py' matched exact deliverable 'src/engine/interface.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/engine/interface.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2\"}]",
+                "required route 'src/engine/interface.py' matched exact scope 'src/engine/interface.py': Exact repository path declared by location.file [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"src/engine/interface.py\",\"source_field\":\"location.file\"}],\"source_schema_version\":1,\"source_sha256\":\"5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2\"}]"
               ],
               "selection_class": "required",
               "source_ref": "human"
@@ -163,8 +163,8 @@
               "content_ref": "generated/nodes/knowledge/local-nodes/failure-lessons/cc-failure-l006.md",
               "node_id": "cc-failure-l006",
               "reasons": [
-                "required route 'docs/architecture.md' matched exact deliverable 'docs/architecture.md': Exact repository path extracted from found_by.trigger; exact repository path declared by location.file; exact repository path extracted from prevention [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"found_by.trigger\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"location.file\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"prevention\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]",
-                "required route 'docs/architecture.md' matched exact scope 'docs/architecture.md': Exact repository path extracted from found_by.trigger; exact repository path declared by location.file; exact repository path extracted from prevention [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"found_by.trigger\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"location.file\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"prevention\"}],\"source_schema_version\":1,\"source_sha256\":\"30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247\"}]"
+                "required route 'docs/architecture.md' matched exact deliverable 'docs/architecture.md': Exact repository path extracted from found_by.trigger; exact repository path declared by location.file; exact repository path extracted from prevention [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"found_by.trigger\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"location.file\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"prevention\"}],\"source_schema_version\":1,\"source_sha256\":\"5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2\"}]",
+                "required route 'docs/architecture.md' matched exact scope 'docs/architecture.md': Exact repository path extracted from found_by.trigger; exact repository path declared by location.file; exact repository path extracted from prevention [provenance={\"adapter_version\":\"failure-memory-to-akms-task-route/v1\",\"canonical_contract_version\":\"failure-route-index/v1\",\"compiler_version\":\"failure-memory-compiler/v1\",\"match_semantics\":\"exact-repository-relative-path\",\"reasons\":[{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"found_by.trigger\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"location.file\"},{\"matched_text\":\"docs/architecture.md\",\"source_field\":\"prevention\"}],\"source_schema_version\":1,\"source_sha256\":\"5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2\"}]"
               ],
               "selection_class": "required",
               "source_ref": "human"
@@ -175,18 +175,18 @@
             "advisory_count": 0,
             "changed_paths": [],
             "coactivated_count": 0,
-            "fingerprint": "c54c8377584f0c6442869d800fc87bc8f922664346a91b000f6f44c3b3bdb1b7",
-            "graph_version": "c23a1a70ec946dcb7832c82f34b1883e85a6d0444c656e96fdf8f79aee67e3d4",
+            "fingerprint": "7ba1c88e285c670aa816c35cac08c1081946036dd1e75d905b8245c268b01166",
+            "graph_version": "d41bc0cb5329139697ec910e34e00a7c4ceecb25053388a4ae7fbd3a6ead779e",
             "mode": "routing",
             "node_count": 2,
             "phase": 1,
             "required_count": 2,
             "role": "implementer",
-            "route_index_hash": "0f9f2b97025b22f5a9bbfc780930f9ff59c8786464b393e25faba66a8e22f018",
+            "route_index_hash": "862e0ae30d43213028ce99ffb293b5288cb1a37d32ebc85158c2db6f350862d9",
             "status": "ok",
             "task_id": "docs-mixed"
           },
-          "resolution_fingerprint": "c54c8377584f0c6442869d800fc87bc8f922664346a91b000f6f44c3b3bdb1b7",
+          "resolution_fingerprint": "7ba1c88e285c670aa816c35cac08c1081946036dd1e75d905b8245c268b01166",
           "role": "implementer",
           "schema_version": "failure-memory-provider-result/v1",
           "status": "ok"

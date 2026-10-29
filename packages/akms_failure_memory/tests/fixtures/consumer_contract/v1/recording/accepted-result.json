@@ -65,7 +65,7 @@
         "symptom": "A crash during append left the registry half written."
       },
       "schema_version": "failure-memory-registry/v1",
-      "source_sha256": "d458fd05a40e9a799d85e990f902e5c8a7e4b44c502766c55ce2b84ab22d97b6",
+      "source_sha256": "b49cde7ed1a090d22330e0dc6d8763c92df32fbf4a9f1fe33f1f0934fbbd1be3",
       "status": "created"
     }
   },

@@ -10,9 +10,9 @@
       ],
       "case_id": "rebuilt_is_current",
       "expect": {
-        "current_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+        "current_fingerprint": "691bf22a0f25111b91ab8d95d17853d1d89f61511782a3edd98458a602122f05",
         "kind": "fingerprint_validation",
-        "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+        "recorded_fingerprint": "691bf22a0f25111b91ab8d95d17853d1d89f61511782a3edd98458a602122f05",
         "stale": false,
         "status": "current"
       },
@@ -27,9 +27,9 @@
       ],
       "case_id": "content_change_is_stale",
       "expect": {
-        "current_fingerprint": "2230a0c66073e55452716db2844ccdddbd4d39bbaf650bbab348beab18b13990",
+        "current_fingerprint": "3859d37116c2507db8bfa4b0a6c1d1141f78010ef4438d2352efd4979c3777b7",
         "kind": "fingerprint_validation",
-        "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+        "recorded_fingerprint": "691bf22a0f25111b91ab8d95d17853d1d89f61511782a3edd98458a602122f05",
         "stale": true,
         "status": "stale"
       },
@@ -47,7 +47,7 @@
         "current_fingerprint_is_pinned": false,
         "current_fingerprint_note": "Unpinnable by construction. Assert only that it DIFFERS from recorded_fingerprint, and that two independent runs of this variant differ from EACH OTHER.",
         "kind": "fingerprint_validation",
-        "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+        "recorded_fingerprint": "691bf22a0f25111b91ab8d95d17853d1d89f61511782a3edd98458a602122f05",
         "stale": true,
         "status": "stale"
       },
@@ -64,9 +64,9 @@
       "case_id": "changed_generated_at_is_stale",
       "expect": {
         "alternate_generated_at": "2026-08-18T00:00:00+00:00",
-        "current_fingerprint": "abc4a841a31dd26926e9aafaa4ab5f2e2d027a9a04e5ba49b7660ec9d47c7c00",
+        "current_fingerprint": "1b2130f6ea09f41da920602f8b28953ae2d9759b24380ab244719690ea205bf0",
         "kind": "fingerprint_validation",
-        "recorded_fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+        "recorded_fingerprint": "691bf22a0f25111b91ab8d95d17853d1d89f61511782a3edd98458a602122f05",
         "stale": true,
         "status": "stale"
       },
@@ -77,7 +77,7 @@
   "operator_rule": "A consumer may treat 'stale' as a blocking condition ONLY if it controls the two caller-owned axes below (canonical publication and a stable generated_at). If it does not, its stale check will fire on every refresh and it must not claim the check is meaningful. Deriving generated_at from repository content -- the commit timestamp of the registry, or the registry's own source_sha256 mapped to a fixed instant -- is the supported way to hold that axis stable; wall-clock is not.",
   "pack": "consumer_contract/v1",
   "recorded_baseline": {
-    "fingerprint": "534641b643fb21f9aafad5907584f11bd613f7a5791d887c36bdc9e3f9766d44",
+    "fingerprint": "691bf22a0f25111b91ab8d95d17853d1d89f61511782a3edd98458a602122f05",
     "note": "Identical to expected/required.json -> exact_required -> expect.result.fingerprint.",
     "request": "requests/exact-path.json"
   },

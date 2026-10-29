@@ -1,6 +1,6 @@
 {
   "schema_version": "v1",
-  "source_hash": "sha256:30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+  "source_hash": "sha256:5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
   "by_path": {
     "docs/architecture.md": [
       {
@@ -11,7 +11,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {
@@ -39,7 +39,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {
@@ -59,7 +59,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {
@@ -79,7 +79,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {
@@ -99,7 +99,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {
@@ -119,7 +119,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {
@@ -143,7 +143,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {
@@ -167,7 +167,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {
@@ -191,7 +191,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {
@@ -215,7 +215,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {
@@ -235,7 +235,7 @@
           "canonical_contract_version": "failure-route-index/v1",
           "compiler_version": "failure-memory-compiler/v1",
           "source_schema_version": 1,
-          "source_sha256": "30ba4b429a5e1bbab910d1e9ef403067802a2799fa1966e8bd98de82fc006247",
+          "source_sha256": "5827bd81152da1049f56c292daa684daf7271036f1d7c3929224515f597c54c2",
           "match_semantics": "exact-repository-relative-path",
           "reasons": [
             {

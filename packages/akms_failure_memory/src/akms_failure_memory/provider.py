@@ -268,11 +268,16 @@ def _input_fingerprints(config: ProjectConfig, root: Path) -> dict[str, str]:
     # It hashes seventeen AKMS source files byte-for-byte, so any edit to one of
     # them -- including a comment or a docstring -- changed this fingerprint and
     # marked every existing publication stale, which also made the "frozen"
-    # consumer-conformance pack move with unrelated AKMS source churn. Intentional
-    # toolchain changes are already captured at a sane granularity by
-    # `toolchain_sha256` below (akms_version + akms_schema_version) and by
-    # PROVIDER_VERSION. Resolution inputs are the graph, the routes, and the
-    # config -- not the bytes of the resolver.
+    # consumer-conformance pack move with unrelated AKMS source churn.
+    #
+    # The installed AKMS *release* version is not an input either. The packages
+    # release in lockstep, so including it moved every fingerprint -- and broke
+    # the frozen pack -- on every patch release, whether or not resolution
+    # changed. Contract changes are captured by `akms_schema_version` below and
+    # by PROVIDER_VERSION; the version a project pins in its own [toolchain]
+    # table still counts through `config_sha256`. Resolution inputs are the
+    # graph, the routes, and the config -- not the bytes or release number of
+    # the resolver.
     return {
         "config_sha256": config.fingerprint,
         "graph_sha256": _sha256_file(graph),
@@ -281,7 +286,6 @@ def _input_fingerprints(config: ProjectConfig, root: Path) -> dict[str, str]:
         "toolchain_sha256": hashlib.sha256(
             _canonical_json(
                 {
-                    "akms_version": akms.__version__,
                     "akms_schema_version": akms.AKMS_SCHEMA_VERSION,
                     "repo2md_version": config.toolchain["repo2md_version"],
                     "repo2md_commit": config.toolchain["repo2md_commit"],
