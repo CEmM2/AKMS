@@ -74,6 +74,7 @@
         "registry_schema_version": {"type": "integer", "const": 1},
         "missing_path_policy": {"enum": ["warn", "error"]},
         "id_pattern": {"type": "string", "minLength": 1},
+        "id_style": {"enum": ["sequential", "dated"]},
         "allowed_roots": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "root_files": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "location_file_separator": {"type": "string", "minLength": 1}
