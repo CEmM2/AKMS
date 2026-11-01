@@ -155,7 +155,7 @@ def test_init_rejects_symlink_escape(tmp_path: Path) -> None:
 
 
 def test_commands_default_to_the_config_init_wrote(tmp_path: Path) -> None:
-    """After `init`, `doctor` needs no --config: it reads <repo>/.failure-memory."""
+    """After `init`, `doctor` needs no --config: it reads <repo>/.knowledge/failure-memory.toml."""
     from akms_failure_memory.cli import main
 
     repo = tmp_path / "repo"

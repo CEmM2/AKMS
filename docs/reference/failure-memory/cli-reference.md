@@ -10,13 +10,13 @@ Successful commands print JSON. Classified failures print a stable error code;
 ## Project lifecycle
 
 `--config` is optional on every command. When omitted it defaults to
-`<repo>/.failure-memory/config.toml`, the file `init` writes, so after `init`
+`<repo>/.knowledge/failure-memory.toml`, the file `init` writes, so after `init`
 most commands need only `--repo`. An explicit `--config` is read as given.
 
 ### `init`
 
 ```bash
-failure-memory init [--repo .] [--config .failure-memory/config.toml] \
+failure-memory init [--repo .] [--config .knowledge/failure-memory.toml] \
   [--repository-id <id>] [--node-namespace <namespace>] [--force]
 ```
 

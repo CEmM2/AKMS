@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 import frontmatter as fm
 
 from akms import __version__
+from akms.layout import local_knowledge_dir
 from akms.graph.graph_status import format_report, graph_status
 
 if TYPE_CHECKING:
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
 
 def _find_local_node(repo_root: Path, node_id: str) -> Path | None:
     """Find a local node file by id."""
-    local_nodes_dir = repo_root / "knowledge" / "local-nodes"
+    local_nodes_dir = local_knowledge_dir(repo_root) / "local-nodes"
     candidate = local_nodes_dir / f"{node_id}.md"
     if candidate.exists():
         return candidate
@@ -73,7 +74,7 @@ def _invalidate_compiled_graph(repo_root: Path) -> bool:
     """
     from akms.graph.qmd_cache import invalidate_cache
 
-    graph_json = repo_root / "knowledge" / "graph" / "graph.json"
+    graph_json = local_knowledge_dir(repo_root) / "graph" / "graph.json"
     try:
         graph_json.unlink(missing_ok=True)
         invalidate_cache(repo_root)
@@ -158,7 +159,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     # F-06: honor config.global_vault as the third step in the precedence
     # chain (explicit arg > env > config > default). `cmd_status` has no
     # --vault flag today; env var and config are the only sources.
-    config_path = repo_root / "knowledge" / "graph" / "propagation_config.yaml"
+    config_path = local_knowledge_dir(repo_root) / "graph" / "propagation_config.yaml"
     config = parse_propagation_config(config_path) if config_path.exists() else None
 
     report = graph_status(repo_root, config=config)
@@ -172,7 +173,7 @@ def _load_cli_config(repo_root: Path) -> PropagationConfig:
     from akms.schema.models import PropagationConfig
     from akms.schema.validators import parse_propagation_config
 
-    config_path = repo_root / "knowledge" / "graph" / "propagation_config.yaml"
+    config_path = local_knowledge_dir(repo_root) / "graph" / "propagation_config.yaml"
     return (
         parse_propagation_config(config_path)
         if config_path.exists()
@@ -196,7 +197,7 @@ def _load_cli_graph(
     """Load a requested graph, compiling the default graph when absent."""
     from akms.graph.build_graph import build_graph, load_graph
 
-    default_path = repo_root / "knowledge" / "graph" / "graph.json"
+    default_path = local_knowledge_dir(repo_root) / "graph" / "graph.json"
     graph_path = _resolve_cli_path(repo_root, graph_arg, default_path)
     if graph_path.exists():
         return load_graph(graph_path), graph_path
@@ -287,7 +288,7 @@ def _validate_task_id(task_id: str) -> None:
 def _canonical_loadout_path(repo_root: Path, phase: int, task_id: str) -> Path:
     """Return the canonical loadout path for a validated task identifier."""
     _validate_task_id(task_id)
-    return repo_root / "knowledge" / "loadouts" / f"{phase}-{task_id}-loadout.md"
+    return local_knowledge_dir(repo_root) / "loadouts" / f"{phase}-{task_id}-loadout.md"
 
 
 def cmd_loadout(args: argparse.Namespace) -> int:
@@ -519,7 +520,7 @@ def cmd_orchestrate(args: argparse.Namespace) -> int:
     config_path = (
         Path(args.config)
         if args.config
-        else (repo_root / "knowledge" / "graph" / "propagation_config.yaml")
+        else (local_knowledge_dir(repo_root) / "graph" / "propagation_config.yaml")
     )
     if config_path.exists():
         config = parse_propagation_config(config_path)
@@ -677,7 +678,7 @@ def build_parser() -> argparse.ArgumentParser:
     query_parser.add_argument(
         "--graph",
         default=None,
-        help="Compiled graph path relative to repo (default: knowledge/graph/graph.json)",
+        help="Compiled graph path relative to repo (default: .knowledge/graph/graph.json)",
     )
     query_parser.set_defaults(func=cmd_query)
 
@@ -724,7 +725,7 @@ def build_parser() -> argparse.ArgumentParser:
     loadout_parser.add_argument(
         "--graph",
         default=None,
-        help="Compiled graph path relative to repo (default: knowledge/graph/graph.json)",
+        help="Compiled graph path relative to repo (default: .knowledge/graph/graph.json)",
     )
     loadout_parser.add_argument(
         "--output",
@@ -765,13 +766,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         default=None,
         help="Loadout output path relative to repo "
-        "(default: knowledge/loadouts/<phase>-<task>-<role>-loadout.md)",
+        "(default: .knowledge/loadouts/<phase>-<task>-<role>-loadout.md)",
     )
     resolve_parser.add_argument(
         "--manifest",
         default=None,
         help="Resolution manifest output path relative to repo "
-        "(default: knowledge/resolution-manifests/<phase>-<task>-<role>-manifest.json)",
+        "(default: .knowledge/resolution-manifests/<phase>-<task>-<role>-manifest.json)",
     )
     resolve_parser.add_argument(
         "--changed-paths",
@@ -811,7 +812,7 @@ def build_parser() -> argparse.ArgumentParser:
     resolve_parser.add_argument(
         "--graph",
         default=None,
-        help="Compiled graph path relative to repo (default: knowledge/graph/graph.json)",
+        help="Compiled graph path relative to repo (default: .knowledge/graph/graph.json)",
     )
     resolve_parser.set_defaults(func=cmd_resolve_task)
 
@@ -831,7 +832,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--config",
         "-c",
         default=None,
-        help="Path to propagation_config.yaml (default: knowledge/graph/propagation_config.yaml)",
+        help="Path to propagation_config.yaml (default: .knowledge/graph/propagation_config.yaml)",
     )
     orch_parser.add_argument(
         "--backend",

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
+from akms.layout import local_knowledge_dir
 from akms.graph.build_graph import build_graph, load_graph
 from akms.graph.generate_loadout import generate_loadout, select_loadout_mode
 from akms.graph.qmd_cache import compute_graph_version
@@ -64,7 +65,7 @@ def re_evaluate(
         }
     """
     repo_root = Path(repo_root)
-    knowledge_dir = repo_root / "knowledge"
+    knowledge_dir = local_knowledge_dir(repo_root)
     graph_dir = knowledge_dir / "graph"
     graph_json = graph_dir / "graph.json"
 

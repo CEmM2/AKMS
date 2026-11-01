@@ -39,6 +39,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from akms.layout import local_knowledge_dir
 from akms.graph.build_graph import build_graph, load_graph
 from akms.graph.generate_loadout import generate_loadout, select_loadout_mode
 from akms.graph.generate_mirror import generate_mirror
@@ -229,17 +230,24 @@ def _git_files_modified(repo_root: Path, parent_branch: str) -> _GitDiffResult:
 # Conventional locations for the optional task route index used by exact
 # required-knowledge resolution. Absence is normal for repos that have not
 # adopted failure-memory routes yet — review falls back to tag-based loadouts.
-_TASK_ROUTE_INDEX_CANDIDATES = (
-    "knowledge/task-routes.yaml",
-    "knowledge/task-routes.yml",
-    "knowledge/task-routes.json",
-    "knowledge/graph/task-routes.yaml",
-    "knowledge/graph/task-routes.yml",
-    "knowledge/graph/task-routes.json",
-    "knowledge/routes/task-routes.yaml",
-    "knowledge/routes/task-routes.json",
-    "knowledge/failure-routes.yaml",
-    "knowledge/failure-routes.json",
+_TASK_ROUTE_INDEX_TAILS = (
+    "task-routes.yaml",
+    "task-routes.yml",
+    "task-routes.json",
+    "graph/task-routes.yaml",
+    "graph/task-routes.yml",
+    "graph/task-routes.json",
+    "routes/task-routes.yaml",
+    "routes/task-routes.json",
+    "failure-routes.yaml",
+    "failure-routes.json",
+)
+# `.knowledge` is the write default. `knowledge` stays so a checkout that
+# already has that directory, and no `.knowledge`, still resolves.
+_TASK_ROUTE_INDEX_CANDIDATES = tuple(
+    f"{dirname}/{tail}"
+    for dirname in (".knowledge", "knowledge")
+    for tail in _TASK_ROUTE_INDEX_TAILS
 )
 
 
@@ -520,7 +528,7 @@ async def handle_init(state: PipelineState, ctx: PipelineContext) -> HandlerResu
     """Stage 0: Compile graph from global + local sources."""
     G = build_graph(ctx.repo_root, global_vault=ctx.global_vault)
 
-    graph_json = ctx.repo_root / "knowledge" / "graph" / "graph.json"
+    graph_json = local_knowledge_dir(ctx.repo_root) / "graph" / "graph.json"
     graph_version = compute_graph_version(graph_json) if graph_json.exists() else ""
 
     state.started_at = state.started_at or datetime.now().isoformat()
@@ -535,7 +543,7 @@ async def handle_init(state: PipelineState, ctx: PipelineContext) -> HandlerResu
 @traced("akms.stage.plan")
 async def handle_plan(state: PipelineState, ctx: PipelineContext) -> HandlerResult:
     """Stage 1: Planning agent produces plan.md."""
-    graph_json = ctx.repo_root / "knowledge" / "graph" / "graph.json"
+    graph_json = local_knowledge_dir(ctx.repo_root) / "graph" / "graph.json"
     G = (
         load_graph(graph_json)
         if graph_json.exists()
@@ -597,7 +605,7 @@ async def handle_task_breakdown(
     tasks: list[dict] | None = None,
 ) -> HandlerResult:
     """Stage 2: Task decomposition with tag derivation."""
-    graph_json = ctx.repo_root / "knowledge" / "graph" / "graph.json"
+    graph_json = local_knowledge_dir(ctx.repo_root) / "graph" / "graph.json"
     G = (
         load_graph(graph_json)
         if graph_json.exists()
@@ -625,7 +633,7 @@ async def handle_task_breakdown(
             "akms_schema": "v2",
         }
         # Point the decomposer at detailed instructions if the file exists
-        instructions_path = ctx.repo_root / "knowledge" / "task_instructions.md"
+        instructions_path = local_knowledge_dir(ctx.repo_root) / "task_instructions.md"
         if instructions_path.exists():
             decomposer_task["task_instructions_path"] = str(instructions_path)
         results = await dispatch_phase(
@@ -724,7 +732,7 @@ async def handle_execute(
     to enforce the per-phase contract (FR-S05).
     """
     phase = state.current_phase
-    graph_json = ctx.repo_root / "knowledge" / "graph" / "graph.json"
+    graph_json = local_knowledge_dir(ctx.repo_root) / "graph" / "graph.json"
     G = (
         load_graph(graph_json)
         if graph_json.exists()
@@ -746,7 +754,7 @@ async def handle_execute(
         normalize_task_envelope(task)
     fill_task_tags(G, effective_tasks, ctx.config)
 
-    loadouts_dir = ctx.repo_root / "knowledge" / "loadouts"
+    loadouts_dir = local_knowledge_dir(ctx.repo_root) / "loadouts"
     loadouts_dir.mkdir(parents=True, exist_ok=True)
 
     if state.last_pcd_path and effective_tasks:
@@ -950,7 +958,7 @@ async def handle_review(
         return "skipped (graph-only mode)", format_report(status), warnings
 
     # Build graph for reviewer loadout generation
-    graph_json = ctx.repo_root / "knowledge" / "graph" / "graph.json"
+    graph_json = local_knowledge_dir(ctx.repo_root) / "graph" / "graph.json"
     G = (
         load_graph(graph_json)
         if graph_json.exists()
@@ -960,9 +968,9 @@ async def handle_review(
         )
     )
     graph_version = compute_graph_version(graph_json) if graph_json.exists() else ""
-    loadouts_dir = ctx.repo_root / "knowledge" / "loadouts"
+    loadouts_dir = local_knowledge_dir(ctx.repo_root) / "loadouts"
     loadouts_dir.mkdir(parents=True, exist_ok=True)
-    manifests_dir = ctx.repo_root / "knowledge" / "resolution-manifests"
+    manifests_dir = local_knowledge_dir(ctx.repo_root) / "resolution-manifests"
     manifests_dir.mkdir(parents=True, exist_ok=True)
 
     reviewer_roles = [
@@ -1290,7 +1298,9 @@ async def run_pipeline(
 
     # Load config
     if config is None:
-        config_path = repo_root / "knowledge" / "graph" / "propagation_config.yaml"
+        config_path = (
+            local_knowledge_dir(repo_root) / "graph" / "propagation_config.yaml"
+        )
         if config_path.exists():
             config = parse_propagation_config(config_path)
         else:

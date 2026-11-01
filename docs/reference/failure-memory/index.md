@@ -26,9 +26,9 @@ It is deliberately separate from the ordinary graph overlay:
 ## Start
 
 ```bash
-failure-memory init --repo . --config .failure-memory/config.toml \
+failure-memory init --repo . --config .knowledge/failure-memory.toml \
   --repository-id example --node-namespace example-failure
-failure-memory doctor --repo . --config .failure-memory/config.toml
+failure-memory doctor --repo . --config .knowledge/failure-memory.toml
 ```
 
 Continue with [Getting Started](../../getting-started/failure-memory.md).

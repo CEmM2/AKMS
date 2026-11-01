@@ -19,6 +19,18 @@ import argparse
 import sys
 from pathlib import Path
 
+
+def _local_knowledge_dir(repo: Path) -> Path:
+    """Same rule as akms.layout.local_knowledge_dir, without importing akms."""
+    dotted = repo / ".knowledge"
+    legacy = repo / "knowledge"
+    if dotted.is_dir():
+        return dotted
+    if legacy.is_dir():
+        return legacy
+    return dotted
+
+
 STATUSES = ("draft", "tentative", "established", "deprecated")
 SOURCES = ("human", "agent", "hybrid", "generated")
 CONTEXT_SIZES = ("small", "medium", "large")
@@ -130,7 +142,8 @@ def main() -> int:
     title = args.title or args.node_id.replace("-", " ").replace("_", " ").capitalize()
 
     repo = Path(args.repo).resolve()
-    out_dir = repo / "knowledge" / "local-nodes"
+    knowledge = _local_knowledge_dir(repo)
+    out_dir = knowledge / "local-nodes"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{args.node_id}.md"
 
@@ -141,7 +154,7 @@ def main() -> int:
         )
         return 1
 
-    content_ref = f"knowledge/local-nodes/{args.node_id}.md"
+    content_ref = f"{knowledge.name}/local-nodes/{args.node_id}.md"
     body = TEMPLATE.format(
         id=args.node_id,
         title=title,

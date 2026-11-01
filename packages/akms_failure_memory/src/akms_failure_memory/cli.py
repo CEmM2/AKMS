@@ -12,9 +12,9 @@ from akms_failure_memory import __version__
 from akms_failure_memory.errors import FailureMemoryError
 
 
-DEFAULT_CONFIG = Path(".failure-memory/config.toml")
+DEFAULT_CONFIG = Path(".knowledge/failure-memory.toml")
 _CONFIG_HELP = (
-    "project config (default: <repo>/.failure-memory/config.toml, "
+    "project config (default: <repo>/.knowledge/failure-memory.toml, "
     "where `failure-memory init` writes it)"
 )
 
@@ -37,9 +37,7 @@ def _parser() -> argparse.ArgumentParser:
 
     init = sub.add_parser("init")
     init.add_argument("--repo", type=Path, default=Path.cwd())
-    init.add_argument(
-        "--config", type=Path, default=Path(".failure-memory/config.toml")
-    )
+    init.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     init.add_argument("--force", action="store_true")
     init.add_argument("--repository-id")
     init.add_argument("--node-namespace")

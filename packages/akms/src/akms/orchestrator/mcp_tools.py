@@ -38,6 +38,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from akms.layout import local_knowledge_dir
 from akms.graph.build_graph import build_graph, load_graph
 from akms.graph.generate_loadout import generate_loadout
 from akms.graph.generate_mirror import generate_mirror
@@ -57,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 def _load_graph_from_repo(repo_root: Path, global_vault: str | None):
     """Load graph.json if it exists, otherwise compile from sources."""
-    graph_json = repo_root / "knowledge" / "graph" / "graph.json"
+    graph_json = local_knowledge_dir(repo_root) / "graph" / "graph.json"
     if graph_json.exists():
         return load_graph(graph_json), graph_json
     G = build_graph(str(repo_root), global_vault=global_vault)
@@ -105,7 +106,7 @@ def build_fastmcp_app(
         The :class:`~mcp.server.fastmcp.FastMCP` application instance.
     """
     _repo = Path(repo_root)
-    config_path = _repo / "knowledge" / "graph" / "propagation_config.yaml"
+    config_path = local_knowledge_dir(_repo) / "graph" / "propagation_config.yaml"
     if config_path.exists():
         _config = parse_propagation_config(config_path)
     else:
@@ -137,7 +138,7 @@ def build_fastmcp_app(
         """
         try:
             G = build_graph(str(_repo), global_vault=_vault)
-            graph_json = _repo / "knowledge" / "graph" / "graph.json"
+            graph_json = local_knowledge_dir(_repo) / "graph" / "graph.json"
             return {
                 "node_count": G.number_of_nodes(),
                 "edge_count": G.number_of_edges(),
@@ -196,7 +197,7 @@ def build_fastmcp_app(
         """Generate a loadout markdown file for an agent task.
 
         Queries the subgraph, selects content mode, and writes the loadout
-        file to ``knowledge/loadouts/``.
+        file to ``.knowledge/loadouts/``.
 
         Args:
             task_id: Task identifier for the loadout header.
@@ -209,7 +210,7 @@ def build_fastmcp_app(
             G, graph_json = _load_graph_from_repo(_repo, _vault)
             graph_version = compute_graph_version(graph_json)
             ranked = query_subgraph(G, seed_tags, agent_role, config=_config)
-            loadout_dir = _repo / "knowledge" / "loadouts"
+            loadout_dir = local_knowledge_dir(_repo) / "loadouts"
             loadout_path = loadout_dir / f"{phase}-{task_id}-loadout.md"
             generate_loadout(
                 G=G,
@@ -422,7 +423,7 @@ def build_fastmcp_app(
 
     @app.tool()
     def akms_search_mirror(query: str, limit: int = 20) -> list[dict]:
-        """Search the code mirror (``knowledge/code-mirror/``) via qmd.
+        """Search the code mirror (``.knowledge/code-mirror/``) via qmd.
 
         This is the designated replacement for Grep in agent workflows per
         FR-C05 / FR-Q05. Returns up to ``limit`` ``{path, line, snippet}``
@@ -450,7 +451,7 @@ def build_fastmcp_app(
         """
         import yaml as _yaml
 
-        overlay_path = _repo / "knowledge" / "graph" / "local_state.yaml"
+        overlay_path = local_knowledge_dir(_repo) / "graph" / "local_state.yaml"
         if not overlay_path.exists():
             return []
         try:

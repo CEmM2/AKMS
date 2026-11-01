@@ -22,6 +22,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from akms.layout import local_knowledge_dir
 from akms.agents.base import AKMSAgent, Loadout
 
 
@@ -368,7 +369,7 @@ def _tool_get_pitfalls(repo_root: Path | None, node_ids: list[str]) -> list[dict
     import yaml as _yaml
 
     root = repo_root.resolve() if repo_root is not None else Path.cwd()
-    overlay_path = root / "knowledge" / "graph" / "local_state.yaml"
+    overlay_path = local_knowledge_dir(root) / "graph" / "local_state.yaml"
     if not overlay_path.exists():
         return []
     try:

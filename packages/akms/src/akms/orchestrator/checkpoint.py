@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from akms.layout import local_knowledge_dir
 from akms.orchestrator.stages import CHECKPOINT_ACTIONS, CheckpointAction, Stage
 
 if TYPE_CHECKING:
@@ -127,7 +128,7 @@ class CheckpointResponse:
 
 def _checkpoint_dir(repo_root: Path) -> Path:
     """Get the checkpoints directory."""
-    d = repo_root / "knowledge" / "checkpoints"
+    d = local_knowledge_dir(repo_root) / "checkpoints"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

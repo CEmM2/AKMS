@@ -5,11 +5,11 @@
 ```bash
 failure-memory init \
   --repo . \
-  --config .failure-memory/config.toml \
+  --config .knowledge/failure-memory.toml \
   --repository-id example \
   --node-namespace example-failure
 
-failure-memory doctor --repo . --config .failure-memory/config.toml
+failure-memory doctor --repo . --config .knowledge/failure-memory.toml
 ```
 
 Review the generated configuration. Paths are repository-relative and checked
@@ -23,7 +23,7 @@ Interactive human path:
 ```bash
 failure-memory add --interactive \
   --repo . \
-  --config .failure-memory/config.toml \
+  --config .knowledge/failure-memory.toml \
   --global-vault /read-only/vault
 ```
 
@@ -32,7 +32,7 @@ Agent/automation path:
 ```bash
 failure-memory add --from-json lesson.json \
   --repo . \
-  --config .failure-memory/config.toml \
+  --config .knowledge/failure-memory.toml \
   --global-vault /read-only/vault
 ```
 
@@ -42,10 +42,10 @@ validated object directly, then run `validate` and `compile` or `ci-check`.
 ## 3. Compile
 
 ```bash
-failure-memory validate --repo . --config .failure-memory/config.toml
-failure-memory compile --repo . --config .failure-memory/config.toml \
+failure-memory validate --repo . --config .knowledge/failure-memory.toml
+failure-memory compile --repo . --config .knowledge/failure-memory.toml \
   --global-vault /read-only/vault
-failure-memory check --repo . --config .failure-memory/config.toml \
+failure-memory check --repo . --config .knowledge/failure-memory.toml \
   --global-vault /read-only/vault
 ```
 
@@ -56,11 +56,11 @@ hand-edited generated files as canonical.
 
 ```bash
 failure-memory refresh preflight --repo . \
-  --config .failure-memory/config.toml \
+  --config .knowledge/failure-memory.toml \
   --global-vault /read-only/vault
 
 failure-memory refresh all --repo . \
-  --config .failure-memory/config.toml \
+  --config .knowledge/failure-memory.toml \
   --global-vault /read-only/vault \
   --generated-at 2026-08-16T00:00:00Z
 ```
@@ -73,13 +73,13 @@ Refresh never clones tools, invokes an LLM, or silently falls back.
 
 ```bash
 failure-memory resolve --repo . \
-  --config .failure-memory/config.toml \
+  --config .knowledge/failure-memory.toml \
   --request request.json
 
 failure-memory validate-fingerprint --repo . \
-  --config .failure-memory/config.toml \
+  --config .knowledge/failure-memory.toml \
   --request request.json \
-  --result dev/knowledge/provider/invocation/result.json
+  --result .knowledge/provider/invocation/result.json
 ```
 
 Provider output is evidence. It does not declare task completion, approval, or a
@@ -88,5 +88,5 @@ claim about code correctness.
 ## 6. CI
 
 ```bash
-failure-memory ci-check --repo . --config .failure-memory/config.toml
+failure-memory ci-check --repo . --config .knowledge/failure-memory.toml
 ```
