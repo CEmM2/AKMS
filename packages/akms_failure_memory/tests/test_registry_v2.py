@@ -203,7 +203,7 @@ def _directory_digest(directory: Path) -> str:
 def test_new_projects_stay_on_schema_1() -> None:
     rendered = render_project_config("demo-repo", "demo-failure").decode()
     assert "registry_schema_version = 1\n" in rendered
-    assert 'registry = ".failure-memory/lessons.json"\n' in rendered
+    assert 'registry = ".knowledge/lessons.json"\n' in rendered
     assert "registry_schema_version = 2" not in rendered
 
 
