@@ -210,9 +210,12 @@ def doctor(*, config_path: str | Path, repository_root: str | Path) -> dict[str,
             }
         )
     registry = config.resolve(root, "registry")
-    checks.append(
-        {"check": "registry", "status": "ok" if registry.is_file() else "missing"}
-    )
+    version = config.validation["registry_schema_version"]
+    if version == 2:
+        registry_ok = registry.is_dir() and not registry.is_symlink()
+    else:
+        registry_ok = registry.is_file()
+    checks.append({"check": "registry", "status": "ok" if registry_ok else "missing"})
     status = "ok" if all(item["status"] == "ok" for item in checks) else "error"
     return {
         "status": status,
@@ -232,10 +235,16 @@ def migration_check(
         == "dev/knowledge/local-nodes/generated/failure-lessons"
         and config.paths["routes"] == "dev/knowledge/generated/failure_routes.json"
     )
+    registry = config.resolve(root, "registry")
+    version = config.validation["registry_schema_version"]
+    if version == 2:
+        registry_exists = registry.is_dir() and not registry.is_symlink()
+    else:
+        registry_exists = registry.is_file()
     return {
         "status": "recognized" if legacy_shape else "generic",
         "layout": "phase1-compatible" if legacy_shape else "configured",
-        "registry_exists": config.resolve(root, "registry").is_file(),
+        "registry_exists": registry_exists,
         "rewrite_performed": False,
         "moves_required": [],
     }

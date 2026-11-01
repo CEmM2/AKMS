@@ -71,7 +71,7 @@
       "additionalProperties": false,
       "required": ["registry_schema_version", "missing_path_policy", "id_pattern", "allowed_roots", "root_files", "location_file_separator"],
       "properties": {
-        "registry_schema_version": {"type": "integer", "const": 1},
+        "registry_schema_version": {"type": "integer", "enum": [1, 2]},
         "missing_path_policy": {"enum": ["warn", "error"]},
         "id_pattern": {"type": "string", "minLength": 1},
         "id_style": {"enum": ["sequential", "dated"]},

@@ -1,0 +1,33 @@
+{
+  "id": "L002",
+  "date_found": "2026-08-02",
+  "date_found_precision": "exact",
+  "date_fixed": "2026-08-03",
+  "date_fixed_precision": "exact",
+  "location": {
+    "area": "src",
+    "package": "engine",
+    "module": "engine.scheduler",
+    "file": "src/engine/scheduler.py",
+    "symbol": "Scheduler.enqueue",
+    "line_hint": "coactivation source"
+  },
+  "found_by": {
+    "type": "review",
+    "trigger": "tests/engine/test_scheduler_order.py::test_stable_order"
+  },
+  "symptom": "Enqueue order varied between runs on the same input.",
+  "root_cause": "The scheduler iterated an unordered mapping.",
+  "fix": "Sort the pending set on a total key before enqueueing.",
+  "prevention": "tests/engine/test_scheduler_order.py asserts a deterministic enqueue order.",
+  "references": {
+    "commit": "",
+    "issue": "",
+    "pr": "",
+    "plan": "dev/plans/consumer-integration.md"
+  },
+  "related": [
+    "L003"
+  ],
+  "notes": "Conformance anchor for load_with coactivation; related must stay ['L003']."
+}

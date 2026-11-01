@@ -1,0 +1,36 @@
+{
+  "checksum": {
+    "file_count": 9,
+    "files": {
+      "lessons/L001.json": "5d86bdff0aac2a68103ffafaaa3164b60f6164c369932d5d5365ce8538c56274",
+      "lessons/L002.json": "283f68522f6f9163c50d915777c1a310b5b151d56a4f1e34d1fff209f7596607",
+      "lessons/L003.json": "a1bc7858791fd1d499e45219acfafa66ccc4ba13bf5dc1e30c038299907768ff",
+      "lessons/L004.json": "f8286a829f7b25232dfaccc38f078793e89f0c2f5224142e4a826d2349afc093",
+      "lessons/L005.json": "bc918c52701d96593e1a3fc177855a87b764ff6ea96e1b63259c6e06d44162c5",
+      "lessons/L006.json": "50bdfdd594d95e81bcfd539a5574723a936bc6d6102760612e3af5ac93f55a89",
+      "lessons/_registry.json": "635086e296bb147a2372d93ea6ad0a227a2142bbeabf191c5517933d420e4991",
+      "project.toml": "02ae5aee0ac2e6a3041fb083aaa1710bfce4d93cdfea0c85d642d698791b1139",
+      "verify_pack.py": "d05ac96f8aa405bffa2b20eb5096a89ac96892fba51326660fd15e890ea57cb3"
+    },
+    "pack_sha256": "49ca6d30555f18807b88f2391973e0d5673062c5bd95fa923a7b13b223fba0e1"
+  },
+  "note": "Toolchain values in project.toml are copied from contract v1 so the file still loads. They are not a new integration pin. Generated expectations and the v1 integration lock are intentionally absent.",
+  "pack_id": "consumer-contract",
+  "pack_root": "packages/akms_failure_memory/tests/fixtures/consumer_contract/v2",
+  "pack_version": "v2",
+  "project": {
+    "config": "project.toml",
+    "lesson_ids": [
+      "L001",
+      "L002",
+      "L003",
+      "L004",
+      "L005",
+      "L006"
+    ],
+    "registry": "lessons",
+    "registry_schema_version": 2,
+    "repository_id": "ConsumerContract"
+  },
+  "purpose": "Directory-registry form of the v1 consumer-contract lessons. Schema 2 is opt-in. This pack is not an akms 0.6.1 integration freeze and does not replace contract v1."
+}

@@ -8,8 +8,9 @@ import os
 import re
 import tempfile
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
+from types import MappingProxyType
 from typing import Any
 
 import yaml
@@ -99,6 +100,126 @@ def _decode_registry(
     return raw
 
 
+_V2_META_NAME = "_registry.json"
+
+
+def canonical_json_bytes(value: Any) -> bytes:
+    """Serialize one registry JSON object without reordering its keys."""
+    return (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
+def _json_object(data: bytes, source: Path) -> dict[str, Any]:
+    try:
+        raw = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise FailureMemoryError(
+            f"Cannot load registry {source}: {exc}", code="registry_load"
+        ) from exc
+    if not isinstance(raw, dict):
+        raise FailureMemoryError(
+            f"Registry file {source.name} must be a JSON object",
+            code="registry_schema",
+        )
+    return raw
+
+
+def _directory_digest(files: list[Path]) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(files, key=lambda item: item.name):
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def load_directory_registry(
+    directory: Path, config: ProjectConfig
+) -> tuple[tuple[dict[str, Any], ...], str]:
+    """Load a schema 2 directory and return its lessons plus the v2 digest.
+
+    ``_registry.json`` must declare schema version 2. Callers select this
+    loader; the project config may still say version 1 while a migration
+    check is compiling the staged directory.
+    """
+    if directory.is_symlink() or not directory.is_dir():
+        raise FailureMemoryError(
+            f"Registry schema 2 requires a directory: {directory}",
+            code="registry_schema",
+        )
+    try:
+        entries = list(directory.iterdir())
+    except OSError as exc:
+        raise FailureMemoryError(
+            f"Cannot read registry {directory}: {exc}", code="registry_load"
+        ) from exc
+    id_pattern = re.compile(str(config.validation["id_pattern"]))
+    accepted: list[Path] = []
+    lesson_paths: list[Path] = []
+    for entry in entries:
+        name = entry.name
+        if entry.is_symlink() or not entry.is_file():
+            raise FailureMemoryError(
+                f"Registry contains stray path {name}",
+                code="registry_schema",
+            )
+        if name == _V2_META_NAME:
+            accepted.append(entry)
+            continue
+        if not name.endswith(".json"):
+            raise FailureMemoryError(
+                f"Registry contains stray path {name}",
+                code="registry_schema",
+            )
+        stem = name[: -len(".json")]
+        if id_pattern.fullmatch(stem) is None:
+            raise FailureMemoryError(
+                f"Malformed lesson ID {stem!r}", code="registry_id"
+            )
+        accepted.append(entry)
+        lesson_paths.append(entry)
+    if not any(path.name == _V2_META_NAME for path in accepted):
+        raise FailureMemoryError(
+            "Registry is missing _registry.json",
+            code="registry_schema",
+        )
+    meta_path = directory / _V2_META_NAME
+    meta = _json_object(meta_path.read_bytes(), meta_path)
+    if set(meta) != {"schema_version", "_field_spec"}:
+        raise FailureMemoryError(
+            "Directory registry _registry.json must contain only "
+            "schema_version and _field_spec",
+            code="registry_schema",
+        )
+    schema_version = meta["schema_version"]
+    if (
+        isinstance(schema_version, bool)
+        or not isinstance(schema_version, int)
+        or schema_version != 2
+    ):
+        raise FailureMemoryError(
+            "Unsupported registry schema_version", code="registry_schema"
+        )
+    if not isinstance(meta["_field_spec"], dict):
+        raise FailureMemoryError(
+            "Registry field types are invalid", code="registry_schema"
+        )
+    parsed: list[dict[str, Any]] = []
+    stems: list[str] = []
+    for path in lesson_paths:
+        parsed.append(_json_object(path.read_bytes(), path))
+        stems.append(path.name[: -len(".json")])
+    lessons = validate_lesson_records(parsed, config)
+    for stem, lesson in zip(stems, lessons, strict=True):
+        if stem != lesson["id"]:
+            raise FailureMemoryError(
+                f"Lesson file {stem}.json does not match id {lesson['id']!r}",
+                code="registry_id",
+            )
+    ordered = tuple(sorted(lessons, key=lambda item: lesson_id_sort_key(item["id"])))
+    return ordered, _directory_digest(accepted)
+
+
 def _closed(
     raw: Any,
     keys: frozenset[str],
@@ -125,15 +246,14 @@ def _scalar(raw: dict[str, Any], key: str, field: str) -> str:
     return value
 
 
-def validate_registry_bytes(
-    data: bytes, source: Path, config: ProjectConfig
+def validate_lesson_records(
+    items: list[Any], config: ProjectConfig
 ) -> tuple[dict[str, Any], ...]:
-    """Validate the canonical append-only v1 registry without mutating it."""
-    registry = _decode_registry(data, source, config)
+    """Validate lesson objects. Shared by the v1 file and the v2 directory."""
     lessons: list[dict[str, Any]] = []
     seen: set[str] = set()
     id_pattern = re.compile(str(config.validation["id_pattern"]))
-    for index, item in enumerate(registry["lessons"]):
+    for index, item in enumerate(items):
         lesson = _closed(
             item, _LESSON_KEYS, f"lessons[{index}]", optional=frozenset({"notes"})
         )
@@ -205,6 +325,14 @@ def validate_registry_bytes(
                     code="related_id",
                 )
     return tuple(lessons)
+
+
+def validate_registry_bytes(
+    data: bytes, source: Path, config: ProjectConfig
+) -> tuple[dict[str, Any], ...]:
+    """Validate the canonical append-only v1 registry without mutating it."""
+    registry = _decode_registry(data, source, config)
+    return validate_lesson_records(registry["lessons"], config)
 
 
 def _node_id(config: ProjectConfig, lesson_id: str) -> str:
@@ -557,28 +685,41 @@ def serialize_routes(adapted: dict[str, Any]) -> bytes:
     return (json.dumps(adapted, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
-def compile_registry(config: ProjectConfig, repository_root: str | Path) -> Compilation:
+def _config_for_schema(config: ProjectConfig, schema_version: int) -> ProjectConfig:
+    if schema_version == config.validation["registry_schema_version"]:
+        return config
+    validation = dict(config.validation)
+    validation["registry_schema_version"] = schema_version
+    return replace(config, validation=MappingProxyType(validation))
+
+
+def compilation_from_lessons(
+    config: ProjectConfig,
+    repository_root: str | Path,
+    lessons: tuple[dict[str, Any], ...],
+    source_sha256: str,
+    *,
+    source_schema_version: int | None = None,
+) -> Compilation:
+    """Compile already-loaded lessons. ``source_schema_version`` overrides config."""
+    version = (
+        int(config.validation["registry_schema_version"])
+        if source_schema_version is None
+        else source_schema_version
+    )
+    effective = _config_for_schema(config, version)
     root = Path(repository_root).resolve(strict=True)
-    registry_path = config.resolve(root, "registry")
-    try:
-        source = registry_path.read_bytes()
-    except OSError as exc:
-        raise FailureMemoryError(
-            f"Cannot read registry {registry_path}: {exc}", code="registry_load"
-        ) from exc
-    lessons = validate_registry_bytes(source, registry_path, config)
-    source_sha256 = hashlib.sha256(source).hexdigest()
     nodes = tuple(
         CompiledNode(
             lesson_id=lesson["id"],
-            node_id=_node_id(config, lesson["id"]),
-            frontmatter=_frontmatter(lesson, config),
-            content=_content(lesson, source_sha256, config),
+            node_id=_node_id(effective, lesson["id"]),
+            frontmatter=_frontmatter(lesson, effective),
+            content=_content(lesson, source_sha256, effective),
         )
         for lesson in sorted(lessons, key=lambda item: lesson_id_sort_key(item["id"]))
     )
-    canonical, warnings = _compile_routes(lessons, source_sha256, config, root)
-    if config.validation["missing_path_policy"] == "error" and warnings:
+    canonical, warnings = _compile_routes(lessons, source_sha256, effective, root)
+    if effective.validation["missing_path_policy"] == "error" and warnings:
         raise FailureMemoryError(
             "Configured current paths are missing",
             code="missing_path",
@@ -586,12 +727,199 @@ def compile_registry(config: ProjectConfig, repository_root: str | Path) -> Comp
         )
     return Compilation(
         source_sha256=source_sha256,
-        source_schema_version=int(config.validation["registry_schema_version"]),
+        source_schema_version=int(effective.validation["registry_schema_version"]),
         nodes=nodes,
         canonical_routes=canonical,
-        adapted_routes=adapt_routes(canonical, config),
+        adapted_routes=adapt_routes(canonical, effective),
         warnings=warnings,
     )
+
+
+def _load_registry(
+    config: ProjectConfig, registry_path: Path
+) -> tuple[tuple[dict[str, Any], ...], str]:
+    version = config.validation["registry_schema_version"]
+    if version == 1:
+        if registry_path.is_dir():
+            raise FailureMemoryError(
+                "Registry schema 1 requires a file, not a directory",
+                code="registry_schema",
+            )
+        try:
+            source = registry_path.read_bytes()
+        except OSError as exc:
+            raise FailureMemoryError(
+                f"Cannot read registry {registry_path}: {exc}", code="registry_load"
+            ) from exc
+        lessons = validate_registry_bytes(source, registry_path, config)
+        return lessons, hashlib.sha256(source).hexdigest()
+    if version == 2:
+        if registry_path.is_symlink() or registry_path.is_file():
+            raise FailureMemoryError(
+                "Registry schema 2 requires a directory, not a file",
+                code="registry_schema",
+            )
+        if not registry_path.is_dir():
+            raise FailureMemoryError(
+                f"Cannot read registry {registry_path}: not a directory",
+                code="registry_load",
+            )
+        return load_directory_registry(registry_path, config)
+    raise FailureMemoryError(
+        "registry_schema_version must be 1 or 2",
+        code="schema_version",
+    )
+
+
+def compile_registry(config: ProjectConfig, repository_root: str | Path) -> Compilation:
+    root = Path(repository_root).resolve(strict=True)
+    registry_path = config.resolve(root, "registry")
+    lessons, source_sha256 = _load_registry(config, registry_path)
+    return compilation_from_lessons(config, root, lessons, source_sha256)
+
+
+def _route_signature(routes: dict[str, Any], *, adapted: bool) -> dict[str, Any]:
+    cloned = json.loads(json.dumps(routes))
+    if adapted:
+        cloned["source_hash"] = None
+        for table in ("by_path", "by_symbol"):
+            for selections in cloned[table].values():
+                for selection in selections:
+                    provenance = selection["provenance"]
+                    provenance["source_sha256"] = None
+                    provenance["source_schema_version"] = None
+        return cloned
+    cloned["source_sha256"] = None
+    cloned["source_schema_version"] = None
+    return cloned
+
+
+def assert_migrated_outputs_match(
+    before: Compilation, after: Compilation, config: ProjectConfig
+) -> None:
+    """Node bodies and routes may change only the digest and schema version."""
+    if before.source_schema_version != 1 or after.source_schema_version != 2:
+        raise FailureMemoryError(
+            "Migration comparison expected schema versions 1 and 2",
+            code="migration_delta",
+        )
+    if [node.lesson_id for node in before.nodes] != [
+        node.lesson_id for node in after.nodes
+    ]:
+        raise FailureMemoryError(
+            "Migration changed lesson identity or order",
+            code="migration_delta",
+        )
+    prefix = str(config.compatibility["source_hash_prefix"])
+    suffix = str(config.compatibility["source_hash_suffix"])
+    expected_before = f"{prefix}{before.source_sha256}{suffix}"
+    expected_after = f"{prefix}{after.source_sha256}{suffix}"
+    for left, right in zip(before.nodes, after.nodes, strict=True):
+        if left.node_id != right.node_id or left.frontmatter != right.frontmatter:
+            raise FailureMemoryError(
+                f"Migration changed node {left.lesson_id} beyond the source digest",
+                code="migration_delta",
+            )
+        left_lines = left.content.splitlines()
+        right_lines = right.content.splitlines()
+        if before.source_sha256 == after.source_sha256:
+            changed = left.content != right.content
+        else:
+            diffs = [
+                (old, new)
+                for old, new in zip(left_lines, right_lines, strict=False)
+                if old != new
+            ]
+            changed = len(left_lines) != len(right_lines) or diffs != [
+                (expected_before, expected_after)
+            ]
+        if changed:
+            raise FailureMemoryError(
+                f"Migration changed lesson body {left.lesson_id} beyond the source digest",
+                code="migration_delta",
+            )
+    if before.canonical_routes["source_schema_version"] != 1:
+        raise FailureMemoryError(
+            "Schema 1 routes did not record source_schema_version 1",
+            code="migration_delta",
+        )
+    if after.canonical_routes["source_schema_version"] != 2:
+        raise FailureMemoryError(
+            "Schema 2 routes did not record source_schema_version 2",
+            code="migration_delta",
+        )
+    if before.canonical_routes["source_sha256"] != before.source_sha256:
+        raise FailureMemoryError(
+            "Schema 1 canonical routes do not embed the registry digest",
+            code="migration_delta",
+        )
+    if after.canonical_routes["source_sha256"] != after.source_sha256:
+        raise FailureMemoryError(
+            "Schema 2 canonical routes do not embed the registry digest",
+            code="migration_delta",
+        )
+    if _route_signature(before.canonical_routes, adapted=False) != _route_signature(
+        after.canonical_routes, adapted=False
+    ):
+        raise FailureMemoryError(
+            "Migration changed canonical routes beyond the source digest "
+            "and schema version",
+            code="migration_delta",
+        )
+    if before.adapted_routes["source_hash"] != f"sha256:{before.source_sha256}":
+        raise FailureMemoryError(
+            "Schema 1 adapted routes do not embed the registry digest",
+            code="migration_delta",
+        )
+    if after.adapted_routes["source_hash"] != f"sha256:{after.source_sha256}":
+        raise FailureMemoryError(
+            "Schema 2 adapted routes do not embed the registry digest",
+            code="migration_delta",
+        )
+
+    def provenance_rows(routes: dict[str, Any]) -> list[dict[str, Any]]:
+        rows = []
+        for table in ("by_path", "by_symbol"):
+            for selections in routes[table].values():
+                for selection in selections:
+                    rows.append(selection["provenance"])
+        return rows
+
+    before_rows = provenance_rows(before.adapted_routes)
+    after_rows = provenance_rows(after.adapted_routes)
+    if len(before_rows) != len(after_rows):
+        raise FailureMemoryError(
+            "Migration changed adapted route provenance",
+            code="migration_delta",
+        )
+    for left_row, right_row in zip(before_rows, after_rows, strict=True):
+        if left_row["source_schema_version"] != 1 or left_row["source_sha256"] != (
+            before.source_sha256
+        ):
+            raise FailureMemoryError(
+                "Schema 1 provenance does not embed the registry digest",
+                code="migration_delta",
+            )
+        if right_row["source_schema_version"] != 2 or right_row["source_sha256"] != (
+            after.source_sha256
+        ):
+            raise FailureMemoryError(
+                "Schema 2 provenance does not embed the registry digest",
+                code="migration_delta",
+            )
+    if _route_signature(before.adapted_routes, adapted=True) != _route_signature(
+        after.adapted_routes, adapted=True
+    ):
+        raise FailureMemoryError(
+            "Migration changed adapted routes beyond the source digest "
+            "and schema version",
+            code="migration_delta",
+        )
+    if before.warnings != after.warnings:
+        raise FailureMemoryError(
+            "Migration changed compiler warnings",
+            code="migration_delta",
+        )
 
 
 def _target(root: Path, relative: str) -> Path:
@@ -874,9 +1202,14 @@ __all__ = [
     "Compilation",
     "CompiledNode",
     "adapt_routes",
+    "assert_migrated_outputs_match",
+    "canonical_json_bytes",
+    "compilation_from_lessons",
     "compile_registry",
+    "load_directory_registry",
     "run_compiler",
     "serialize_node",
     "serialize_routes",
+    "validate_lesson_records",
     "validate_registry_bytes",
 ]

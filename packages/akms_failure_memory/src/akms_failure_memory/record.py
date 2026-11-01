@@ -12,7 +12,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from akms_failure_memory.compiler import run_compiler, validate_registry_bytes
+from akms_failure_memory.compiler import (
+    canonical_json_bytes,
+    load_directory_registry,
+    run_compiler,
+    validate_lesson_records,
+    validate_registry_bytes,
+)
 from akms_failure_memory.config import ProjectConfig, load_project_config
 from akms_failure_memory.errors import FailureMemoryError
 from akms_failure_memory.lesson_ids import (
@@ -216,32 +222,71 @@ def add_lesson(
         assert request_path is not None
         request = _load_request(Path(request_path))
     _validate_request_shape(request)
+    version = config.validation["registry_schema_version"]
     with ProjectLock(
         lock_path, timeout_seconds=float(config.toolchain["timeout_seconds"])
     ):
-        try:
-            prior = registry_path.read_bytes()
-            registry = json.loads(prior.decode("utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        if version == 1:
+            try:
+                prior = registry_path.read_bytes()
+                registry = json.loads(prior.decode("utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise FailureMemoryError(
+                    f"Cannot load canonical registry: {exc}", code="registry_load"
+                ) from exc
+            lesson = {"id": _next_id(config, registry["lessons"]), **request}
+            candidate = dict(registry)
+            candidate["lessons"] = [*registry["lessons"], lesson]
+            candidate_bytes = _canonical_registry(candidate)
+            validate_registry_bytes(candidate_bytes, registry_path, config)
+            _atomic_replace(registry_path, candidate_bytes)
+            try:
+                compilation = run_compiler(
+                    config_path=config_path,
+                    repository_root=root,
+                    global_vault=global_vault,
+                    mode="write",
+                )
+            except Exception:
+                _atomic_replace(registry_path, prior)
+                raise
+        elif version == 2:
+            if registry_path.is_symlink() or not registry_path.is_dir():
+                raise FailureMemoryError(
+                    "Registry schema 2 requires a directory",
+                    code="registry_schema",
+                )
+            existing, _digest = load_directory_registry(registry_path, config)
+            lesson = {"id": _next_id(config, list(existing)), **request}
+            validate_lesson_records([*existing, lesson], config)
+            lesson_path = registry_path / f"{lesson['id']}.json"
+            if lesson_path.parent != registry_path:
+                raise FailureMemoryError(
+                    f"Malformed lesson ID {lesson['id']!r}", code="registry_id"
+                )
+            if lesson_path.exists():
+                raise FailureMemoryError(
+                    f"Duplicate lesson ID {lesson['id']}", code="duplicate_id"
+                )
+            written = False
+            try:
+                _atomic_replace(lesson_path, canonical_json_bytes(lesson))
+                written = True
+                compilation = run_compiler(
+                    config_path=config_path,
+                    repository_root=root,
+                    global_vault=global_vault,
+                    mode="write",
+                )
+            except Exception:
+                if written:
+                    lesson_path.unlink(missing_ok=True)
+                raise
+        else:
             raise FailureMemoryError(
-                f"Cannot load canonical registry: {exc}", code="registry_load"
-            ) from exc
-        lesson = {"id": _next_id(config, registry["lessons"]), **request}
-        candidate = dict(registry)
-        candidate["lessons"] = [*registry["lessons"], lesson]
-        candidate_bytes = _canonical_registry(candidate)
-        validate_registry_bytes(candidate_bytes, registry_path, config)
-        _atomic_replace(registry_path, candidate_bytes)
-        try:
-            compilation = run_compiler(
-                config_path=config_path,
-                repository_root=root,
-                global_vault=global_vault,
-                mode="write",
+                "registry_schema_version must be 1 or 2",
+                code="schema_version",
             )
-        except Exception:
-            _atomic_replace(registry_path, prior)
-            raise
     return {
         "status": "created",
         "schema_version": "failure-memory-registry/v1",

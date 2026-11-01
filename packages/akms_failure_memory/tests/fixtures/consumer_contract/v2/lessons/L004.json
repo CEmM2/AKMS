@@ -1,0 +1,31 @@
+{
+  "id": "L004",
+  "date_found": "2026-08-04",
+  "date_found_precision": "exact",
+  "date_fixed": "2026-08-05",
+  "date_fixed_precision": "exact",
+  "location": {
+    "area": "tools",
+    "package": "report",
+    "module": "tools.report.render",
+    "file": "tools/report/render.py",
+    "symbol": "render_summary",
+    "line_hint": "advisory only lesson"
+  },
+  "found_by": {
+    "type": "manual audit",
+    "trigger": "tools/report/test_render.py::test_summary_escapes"
+  },
+  "symptom": "Untrusted lesson prose reached the rendered summary unescaped.",
+  "root_cause": "The renderer interpolated raw text into markup.",
+  "fix": "Escape every interpolated field at the render boundary.",
+  "prevention": "tools/report/test_render.py asserts that summary rendering escapes untrusted text.",
+  "references": {
+    "commit": "",
+    "issue": "",
+    "pr": "",
+    "plan": "dev/plans/consumer-integration.md"
+  },
+  "related": [],
+  "notes": "Conformance anchor for advisory selection; reachable only by the akms_tags advisory path."
+}

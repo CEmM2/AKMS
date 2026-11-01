@@ -236,9 +236,18 @@ def _validate_config(raw: dict[str, Any], source_path: Path) -> ProjectConfig:
         required=_VALIDATION_KEYS,
         allowed=_VALIDATION_ALLOWED,
     )
-    if validation["registry_schema_version"] != 1:
+    registry_schema_version = validation["registry_schema_version"]
+    # bool is an int and True == 1. Reject it before the integer check so
+    # `registry_schema_version = true` is schema_version, not version 1.
+    # Lists and tables are unhashable; membership must not raise TypeError.
+    if (
+        isinstance(registry_schema_version, bool)
+        or not isinstance(registry_schema_version, int)
+        or registry_schema_version not in (1, 2)
+    ):
         raise FailureMemoryError(
-            "registry_schema_version must be 1", code="schema_version"
+            "registry_schema_version must be 1 or 2",
+            code="schema_version",
         )
     if validation["missing_path_policy"] not in {"warn", "error"}:
         raise FailureMemoryError("invalid missing_path_policy", code="invalid_config")

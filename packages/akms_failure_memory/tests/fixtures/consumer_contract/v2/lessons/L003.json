@@ -1,0 +1,31 @@
+{
+  "id": "L003",
+  "date_found": "2026-08-03",
+  "date_found_precision": "exact",
+  "date_fixed": "2026-08-04",
+  "date_fixed_precision": "exact",
+  "location": {
+    "area": "src",
+    "package": "engine",
+    "module": "engine.queue",
+    "file": "src/engine/queue.py",
+    "symbol": "Queue.drain",
+    "line_hint": "coactivation target"
+  },
+  "found_by": {
+    "type": "test failure",
+    "trigger": "tests/engine/test_queue_drain.py::test_drain_is_total"
+  },
+  "symptom": "Draining the queue left items behind when a consumer raised.",
+  "root_cause": "The drain loop mutated the queue while iterating it.",
+  "fix": "Drain from a snapshot and re-queue only unconsumed items.",
+  "prevention": "tests/engine/test_queue_drain.py asserts that drain consumes every queued item.",
+  "references": {
+    "commit": "",
+    "issue": "",
+    "pr": "",
+    "plan": "dev/plans/consumer-integration.md"
+  },
+  "related": [],
+  "notes": "Reached only through L002.related; never routed directly by the conformance requests."
+}

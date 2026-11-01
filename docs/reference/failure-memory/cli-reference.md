@@ -43,6 +43,19 @@ failure-memory generate-wrapper [--config <path>] --output <path> \
 
 ## Registry and compiler
 
+### `registry migrate`
+
+```bash
+failure-memory registry migrate --to 2 [--check] [--config <path>] [--repo .]
+```
+
+`--to` accepts only `2`. Schema 2 is opt-in: the command splits a schema 1
+registry file into a sibling directory (`lessons.json` becomes `lessons`) of
+`<ID>.json` files plus `_registry.json`. It does not allocate new IDs and does
+not delete the original file. `previous_registry` in the result is that file.
+`--check` compiles both forms in a temporary directory outside the repository
+and writes nothing. There is no `--global-vault`. This is not `migrate-check`.
+
 ### `add`
 
 Choose exactly one source:
