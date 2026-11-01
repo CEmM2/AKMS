@@ -213,7 +213,9 @@ def add_lesson(
         )
     config = load_project_config(config_path)
     root = Path(repository_root).resolve(strict=True)
-    registry_path = config.resolve(root, "registry")
+    # The lock path is stable across migration. Registry path and schema
+    # version are not: migration can publish schema 2 while this add waits
+    # for the lock or collects interactive input.
     lock_path = config.resolve(root, "lock")
     if interactive:
         request = _interactive_request(input_fn)
@@ -222,10 +224,12 @@ def add_lesson(
         assert request_path is not None
         request = _load_request(Path(request_path))
     _validate_request_shape(request)
-    version = config.validation["registry_schema_version"]
     with ProjectLock(
         lock_path, timeout_seconds=float(config.toolchain["timeout_seconds"])
     ):
+        config = load_project_config(config_path)
+        registry_path = config.resolve(root, "registry")
+        version = config.validation["registry_schema_version"]
         if version == 1:
             try:
                 prior = registry_path.read_bytes()
