@@ -76,14 +76,14 @@ domain = "{repository_id.lower()}"
 subdomain = "failure-memory"
 
 [paths]
-registry = ".failure-memory/lessons.json"
-generated_nodes = ".failure-memory/runtime/knowledge/local-nodes/failure-lessons"
-local_nodes = ".failure-memory/runtime/knowledge/local-nodes"
-routes = ".failure-memory/generated/routes.json"
-akms_repo_root = ".failure-memory/runtime"
-graph = ".failure-memory/runtime/knowledge/graph/graph.json"
-provider_outputs = ".failure-memory/runtime/provider"
-lock = ".failure-memory/.lock"
+registry = ".knowledge/lessons.json"
+generated_nodes = ".knowledge/local-nodes/generated/failure-lessons"
+local_nodes = ".knowledge/local-nodes"
+routes = ".knowledge/generated/failure_routes.json"
+akms_repo_root = "."
+graph = ".knowledge/graph/graph.json"
+provider_outputs = ".knowledge/provider"
+lock = ".knowledge/.failure-memory.lock"
 
 [generated]
 lessons = "disposable"
@@ -114,7 +114,7 @@ max_tag_length = 80
 compiler_version = "failure-memory-compiler/v1"
 route_contract_version = "failure-route-index/v1"
 route_adapter_version = "failure-memory-to-akms-task-route/v1"
-generated_warning = "<!-- GENERATED: edit .failure-memory/lessons.json -->"
+generated_warning = "<!-- GENERATED: edit .knowledge/lessons.json -->"
 source_hash_prefix = "<!-- source_sha256: "
 source_hash_suffix = " -->"
 

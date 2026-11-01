@@ -11,6 +11,8 @@ import json
 import sys
 from pathlib import Path
 
+from akms.layout import local_knowledge_dir
+
 
 def cmd_mirror_status(args: argparse.Namespace) -> int:
     """Print non-secret mirror provider identity from config."""
@@ -25,7 +27,7 @@ def cmd_mirror_status(args: argparse.Namespace) -> int:
     config_path = (
         Path(args.config)
         if args.config
-        else (repo / "knowledge" / "graph" / "propagation_config.yaml")
+        else (local_knowledge_dir(repo) / "graph" / "propagation_config.yaml")
     )
     if config_path.is_file():
         config = parse_propagation_config(config_path)
@@ -54,7 +56,7 @@ def cmd_generate_mirror(args: argparse.Namespace) -> int:
     config_path = (
         Path(args.config)
         if args.config
-        else (repo / "knowledge" / "graph" / "propagation_config.yaml")
+        else (local_knowledge_dir(repo) / "graph" / "propagation_config.yaml")
     )
     if config_path.is_file():
         config = parse_propagation_config(config_path)

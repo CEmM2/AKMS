@@ -74,7 +74,7 @@ class TestPresent:
         def respond():
             deadline = time.time() + 4
             while time.time() < deadline:
-                cps = list((tmp_path / "knowledge" / "checkpoints").glob("*.yaml"))
+                cps = list((tmp_path / ".knowledge" / "checkpoints").glob("*.yaml"))
                 cps = [c for c in cps if not c.stem.endswith("_response")]
                 if cps:
                     write_checkpoint_response(cps[0], "approve")

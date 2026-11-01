@@ -81,13 +81,13 @@ def _adversarial_project(tmp_path: Path) -> tuple[Path, Path, Path]:
         node_namespace="adversarial-failure",
     )
     text = config_path.read_text(encoding="utf-8")
-    assert 'lock = ".failure-memory/.lock"' in text
+    assert 'lock = ".knowledge/.failure-memory.lock"' in text
     text = text.replace(
-        'lock = ".failure-memory/.lock"',
-        'lock = ".failure-memory/runtime/.lock"',
+        'lock = ".knowledge/.failure-memory.lock"',
+        'lock = ".knowledge/runtime/.lock"',
     )
     config_path.write_text(text, encoding="utf-8")
-    lock_parent = repo / ".failure-memory" / "runtime"
+    lock_parent = repo / ".knowledge" / "runtime"
     assert not lock_parent.exists(), "test setup must start with no lock parent"
     return repo, vault, config_path
 
@@ -113,7 +113,7 @@ def _provider_request(repository_id: str) -> dict:
         "head": None,
         "baseline": "readonly-no-mutation-baseline",
         "refresh_policy": "never",
-        "output_dir": ".failure-memory/runtime/provider",
+        "output_dir": ".knowledge/provider",
     }
 
 
@@ -121,7 +121,7 @@ def test_read_operations_create_nothing_from_a_nonexistent_lock_parent(
     tmp_path: Path,
 ) -> None:
     repo, vault, config_path = _adversarial_project(tmp_path)
-    lock_parent = repo / ".failure-memory" / "runtime"
+    lock_parent = repo / ".knowledge" / "runtime"
     before_digest = _tree_digest(repo)
     before_paths = _paths(repo)
 
@@ -219,7 +219,7 @@ def test_write_operations_still_create_what_they_need(tmp_path: Path) -> None:
     state.
     """
     repo, vault, config_path = _adversarial_project(tmp_path)
-    lock_parent = repo / ".failure-memory" / "runtime"
+    lock_parent = repo / ".knowledge" / "runtime"
     assert not lock_parent.exists()
 
     proposal = {

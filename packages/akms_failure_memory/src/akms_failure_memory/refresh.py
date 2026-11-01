@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from akms.layout import local_knowledge_dir
 from akms.graph.build_graph import build_graph
 from akms.graph.mirror_provider import MirrorRequest, run_mirror_provider
 from akms.schema.models import MirrorConfig
@@ -668,16 +669,19 @@ def _clean(config: ProjectConfig, root: Path) -> dict[str, Any]:
         candidates.append(config.resolve(root, "routes"))
     if config.generated["graph"] == "disposable":
         candidates.append(config.resolve(root, "graph"))
+    akms_root = config.resolve(root, "akms_repo_root")
+    knowledge = local_knowledge_dir(akms_root)
     if config.generated["mirror"] == "disposable":
-        candidates.append(
-            config.resolve(root, "akms_repo_root") / "knowledge/code-mirror"
-        )
+        candidates.append(knowledge / "code-mirror")
+        # repo-wiki still emits knowledge/code-mirror under akms_repo_root.
+        repo2md_mirror = akms_root / "knowledge" / "code-mirror"
+        if repo2md_mirror != knowledge / "code-mirror":
+            candidates.append(repo2md_mirror)
     if config.generated["loadouts"] == "disposable":
         candidates.extend(
             [
-                config.resolve(root, "akms_repo_root") / "knowledge/loadouts",
-                config.resolve(root, "akms_repo_root")
-                / "knowledge/resolution-manifests",
+                knowledge / "loadouts",
+                knowledge / "resolution-manifests",
                 config.resolve(root, "provider_outputs"),
             ]
         )

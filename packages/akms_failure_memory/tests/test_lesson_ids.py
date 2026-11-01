@@ -30,6 +30,9 @@ def test_new_project_pattern_accepts_both_id_forms() -> None:
     rendered = render_project_config("demo-repo", "demo-failure").decode()
     assert 'id_pattern = "^(?:L[0-9]{3}|L[0-9]{8}-[0-9a-hjkmnp-tv-z]{4})$"' in rendered
     assert "id_style" not in rendered
+    assert 'akms_repo_root = "."' in rendered
+    assert 'registry = ".knowledge/lessons.json"' in rendered
+    assert 'graph = ".knowledge/graph/graph.json"' in rendered
 
 
 def test_id_style_is_optional_and_closed() -> None:

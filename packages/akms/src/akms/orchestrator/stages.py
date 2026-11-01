@@ -17,6 +17,8 @@ from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Any
 
+from akms.layout import local_knowledge_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -381,7 +383,7 @@ class PipelineState:
 
     def save(self, repo_root: Path) -> Path:
         """Save pipeline state to knowledge/graph/pipeline_state.json."""
-        state_path = repo_root / "knowledge" / "graph" / "pipeline_state.json"
+        state_path = local_knowledge_dir(repo_root) / "graph" / "pipeline_state.json"
         state_path.parent.mkdir(parents=True, exist_ok=True)
         with open(state_path, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
@@ -394,7 +396,7 @@ class PipelineState:
 
         Returns None if no state file exists.
         """
-        state_path = repo_root / "knowledge" / "graph" / "pipeline_state.json"
+        state_path = local_knowledge_dir(repo_root) / "graph" / "pipeline_state.json"
         if not state_path.exists():
             return None
         with open(state_path) as f:

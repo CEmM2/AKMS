@@ -28,6 +28,7 @@ import frontmatter
 import networkx as nx
 import yaml
 
+from akms.layout import local_knowledge_dir
 from akms.graph.build_graph import build_graph, load_graph, resolve_global_vault
 from akms.schema.models import NodeStatus, PropagationConfig
 from akms.schema.validators import parse_propagation_config
@@ -562,7 +563,7 @@ def graph_status(
         Dict with all check results.
     """
     repo_root = Path(repo_root)
-    knowledge_dir = repo_root / "knowledge"
+    knowledge_dir = local_knowledge_dir(repo_root)
     graph_dir = knowledge_dir / "graph"
     graph_json = graph_dir / "graph.json"
     overlay_path = graph_dir / "local_state.yaml"

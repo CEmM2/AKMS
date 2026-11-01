@@ -186,11 +186,15 @@ class ProjectConfig:
             )
         root = Path(repository_root).resolve(strict=True)
         candidate = root.joinpath(*PurePosixPath(self.paths[key]).parts)
-        resolved_parent = candidate.parent.resolve(strict=False)
-        if not resolved_parent.is_relative_to(root):
-            raise FailureMemoryError(
-                f"Configured path {key!r} escapes repository root", code="path_escape"
-            )
+        # "." is the repository itself. Its parent is outside the root, and
+        # that is not an escape.
+        if candidate != root:
+            resolved_parent = candidate.parent.resolve(strict=False)
+            if not resolved_parent.is_relative_to(root):
+                raise FailureMemoryError(
+                    f"Configured path {key!r} escapes repository root",
+                    code="path_escape",
+                )
         if candidate.exists() and not candidate.resolve().is_relative_to(root):
             raise FailureMemoryError(
                 f"Configured path {key!r} resolves outside repository root",
