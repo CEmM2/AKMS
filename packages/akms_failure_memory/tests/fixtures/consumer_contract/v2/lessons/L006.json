@@ -1,0 +1,31 @@
+{
+  "id": "L006",
+  "date_found": "2026-08-06",
+  "date_found_precision": "exact",
+  "date_fixed": "2026-08-07",
+  "date_fixed_precision": "exact",
+  "location": {
+    "area": "docs",
+    "package": "docs",
+    "module": "docs.architecture",
+    "file": "docs/architecture.md",
+    "symbol": "",
+    "line_hint": "documentation only route"
+  },
+  "found_by": {
+    "type": "review",
+    "trigger": "docs/architecture.md"
+  },
+  "symptom": "The published architecture note kept describing a contract the engine no longer honoured.",
+  "root_cause": "The document was not part of any review checklist tied to the contract it described.",
+  "fix": "Bind the document to the contract's own review step so the two move together.",
+  "prevention": "docs/architecture.md is re-reviewed whenever the engine contract changes.",
+  "references": {
+    "commit": "",
+    "issue": "",
+    "pr": "",
+    "plan": "dev/plans/consumer-integration.md"
+  },
+  "related": [],
+  "notes": "Conformance anchor for documentation-only route suppression. location.file is a docs path, so AKMS drops it from the exact-required lane whenever EVERY declared/changed path in a task is documentation. Do not change this file path."
+}

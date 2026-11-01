@@ -1,0 +1,9 @@
+{
+  "schema_version": 2,
+  "_field_spec": {
+    "id": "Stable append-only lesson identifier.",
+    "location": "Repository location for the failure.",
+    "found_by": "Discovery mechanism and trigger.",
+    "related": "Related lesson identifiers."
+  }
+}

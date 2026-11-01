@@ -42,7 +42,7 @@ def test_id_style_is_optional_and_closed() -> None:
     assert "id_style" not in validation["required"]
     assert validation["properties"]["id_style"]["enum"] == ["sequential", "dated"]
     assert validation["additionalProperties"] is False
-    assert validation["properties"]["registry_schema_version"]["const"] == 1
+    assert validation["properties"]["registry_schema_version"]["enum"] == [1, 2]
     loaded = load_project_config(CONFIG)
     assert "id_style" not in loaded.validation
 
