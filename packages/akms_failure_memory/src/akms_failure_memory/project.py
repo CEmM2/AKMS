@@ -11,6 +11,9 @@ from argparse import Namespace
 from pathlib import Path
 from typing import Any
 
+import akms
+from packaging.version import InvalidVersion, Version
+
 from akms_failure_memory.config import load_project_config
 from akms_failure_memory.errors import FailureMemoryError
 
@@ -65,10 +68,29 @@ def _identifier(value: str, *, namespace: bool = False) -> str:
     return value
 
 
+def _installed_akms_range() -> str:
+    """Pin the installed AKMS minor series, e.g. ``">=0.3.2,<0.4"``.
+
+    This is the range the packages use for each other. A hard-coded exact pin
+    went stale with every release, so every new project reported version drift
+    on its first refresh.
+    """
+    try:
+        installed = Version(akms.__version__)
+    except InvalidVersion as exc:
+        raise FailureMemoryError(
+            f"Installed AKMS version is not PEP 440: {akms.__version__!r}",
+            code="akms_contract",
+        ) from exc
+    major, minor = (*installed.release, 0)[:2]
+    return f">={installed.public},<{major}.{minor + 1}"
+
+
 def render_project_config(repository_id: str, node_namespace: str) -> bytes:
     """Render the minimal generic layout; consumer-specific choices stay explicit."""
     repository_id = _identifier(repository_id)
     node_namespace = _identifier(node_namespace, namespace=True)
+    akms_range = _installed_akms_range()
     text = f'''schema_version = "failure-memory-project/v1"
 repository_id = "{repository_id}"
 node_namespace = "{node_namespace}"
@@ -119,7 +141,7 @@ source_hash_prefix = "<!-- source_sha256: "
 source_hash_suffix = " -->"
 
 [toolchain]
-akms_version = "0.6.1"
+akms_version = "{akms_range}"
 akms_schema_version = "v2"
 akms_public_api_sha256 = "{_AKMS_PUBLIC_API_SHA256}"
 repo2md_command = ["repo-wiki"]
