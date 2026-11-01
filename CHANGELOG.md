@@ -15,6 +15,21 @@ development is intentionally not replayed.
   `tracestate` parsing). All are within the declared ranges, so this is a
   lock-only change; `uv audit` reports no known vulnerabilities.
 
+### Added
+- `akms-failure-memory` can allocate collision-free lesson IDs:
+  `validation.id_style = "dated"` gives `L<YYYYMMDD>-<4 Crockford base32>`
+  IDs, so lessons added on two branches no longer collide. `"sequential"`
+  stays the default, and existing `L001`-style IDs keep working alongside the
+  new form.
+- Opt-in registry schema 2 (`validation.registry_schema_version = 2`): the
+  registry is a directory of one `<ID>.json` file per lesson plus
+  `_registry.json`, so adding lessons on two branches no longer conflicts.
+  Schema 1 stays a single JSON file and is still what `failure-memory init`
+  writes.
+- `failure-memory registry migrate --to 2 [--check]` splits a schema 1 file
+  into that directory; `--check` compiles both forms without changing the
+  repository. A consumer-contract v2 pack covers the directory form.
+
 ### Changed
 - `akms-failure-memory` provider fingerprints no longer include the installed
   `akms` release version. The packages release in lockstep, so every patch
@@ -30,6 +45,14 @@ development is intentionally not replayed.
   Consumers that pin the pack must update that digest; behaviours, requests
   and lessons are unchanged.
 
+- New projects keep their knowledge in `<repo>/.knowledge/`: lessons, the
+  compiled graph and generated outputs. An existing `knowledge/` directory is
+  still used when `.knowledge/` is absent, and `build_graph`'s signature is
+  unchanged.
+- A registry schema 2 source digest is SHA-256 over the registry files sorted
+  by filename (name, NUL, raw bytes, NUL each, `_registry.json` included).
+  Schema 1 digests are unchanged. Migrating a registry changes its lesson
+  fingerprints once.
 ### Fixed
 - `akms-failure-memory`'s project lock no longer sends console Ctrl-C events
   on Windows. Its owner-liveness probe used `os.kill(pid, 0)`, and on Windows
