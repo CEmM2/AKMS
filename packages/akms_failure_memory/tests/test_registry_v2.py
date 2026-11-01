@@ -19,9 +19,11 @@ from akms_failure_memory.compiler import (
 )
 from akms_failure_memory.config import load_project_config
 from akms_failure_memory.errors import FailureMemoryError
+from akms_failure_memory.locks import ProjectLock
 from akms_failure_memory.project import render_project_config
 from akms_failure_memory.record import add_lesson
 from akms_failure_memory.registry_migrate import (
+    _atomic_replace,
     migrate_registry,
     write_directory_registry,
 )
@@ -545,6 +547,82 @@ def test_v2_add_writes_one_file_and_rolls_back_only_that_file(
         )
     assert {path.name: path.read_bytes() for path in registry.iterdir()} == siblings
     assert not (registry / "L903.json").exists()
+
+
+def test_add_reloads_registry_when_migration_finishes_while_it_waits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, config = _phase1_repo(tmp_path)
+    vault = _vault(tmp_path)
+    request = _request_file(repo, "request.json", related=["L900"])
+    retained = repo / "dev/lessons_from_failing.json"
+    retained_bytes = retained.read_bytes()
+    original_acquire = ProjectLock.acquire
+    migrated = False
+
+    def acquire_after_migration(self: ProjectLock) -> ProjectLock:
+        nonlocal migrated
+        if not migrated:
+            migrated = True
+            migrate_registry(config_path=config, repository_root=repo, to="2")
+        return original_acquire(self)
+
+    monkeypatch.setattr(ProjectLock, "acquire", acquire_after_migration)
+    created = add_lesson(
+        config_path=config,
+        repository_root=repo,
+        global_vault=vault,
+        request_path=request,
+    )
+    lesson_id = created["record"]["id"]
+    directory = repo / "dev/lessons_from_failing"
+    assert created["status"] == "created"
+    assert (directory / f"{lesson_id}.json").is_file()
+    assert retained.read_bytes() == retained_bytes
+    loaded, _digest = load_directory_registry(directory, load_project_config(config))
+    assert any(lesson["id"] == lesson_id for lesson in loaded)
+    compiled = compile_registry(load_project_config(config), repo)
+    assert any(node.lesson_id == lesson_id for node in compiled.nodes)
+
+
+def test_failed_migration_publication_is_removed_and_retry_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, config = _phase1_repo(tmp_path)
+    before = _snapshot(repo)
+    real_replace = _atomic_replace
+
+    def fail_after_registry_metadata(path: Path, content: bytes) -> None:
+        real_replace(path, content)
+        if path.name == "_registry.json" and repo.resolve() in path.resolve().parents:
+            raise OSError("disk full after registry metadata")
+
+    monkeypatch.setattr(
+        "akms_failure_memory.registry_migrate._atomic_replace",
+        fail_after_registry_metadata,
+    )
+    with pytest.raises(OSError, match="disk full after registry metadata"):
+        migrate_registry(config_path=config, repository_root=repo, to="2")
+    destination = repo / "dev/lessons_from_failing"
+    assert not destination.exists()
+    assert not destination.is_symlink()
+    assert [
+        path.name
+        for path in (repo / "dev").iterdir()
+        if path.name.startswith(".failure-memory-migrate-")
+    ] == []
+    assert _snapshot(repo) == before
+    assert load_project_config(config).validation["registry_schema_version"] == 1
+
+    monkeypatch.undo()
+    migrated = migrate_registry(config_path=config, repository_root=repo, to="2")
+    assert migrated["status"] == "migrated"
+    assert destination.is_dir()
+    assert (destination / "_registry.json").is_file()
+    assert any(
+        path.suffix == ".json" and path.name != "_registry.json"
+        for path in destination.iterdir()
+    )
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:

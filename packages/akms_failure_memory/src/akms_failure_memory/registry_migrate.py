@@ -255,15 +255,32 @@ def migrate_registry(
                 code="file_exists",
             )
         prior_config = config.source_path.read_bytes()
-        created = False
+        published = False
         config_written = False
+        staging_root: Path | None = None
         try:
+            # Publish only a complete directory. A failure while writing
+            # lesson files must not leave a destination that the next
+            # attempt rejects as already existing.
+            staging_root = Path(
+                tempfile.mkdtemp(
+                    prefix=".failure-memory-migrate-",
+                    dir=destination.parent,
+                )
+            )
+            staged = staging_root / "registry"
             write_directory_registry(
-                destination,
+                staged,
                 field_spec=raw["_field_spec"],
                 lessons=list(raw["lessons"]),
             )
-            created = True
+            if destination.exists() or destination.is_symlink():
+                raise FailureMemoryError(
+                    f"Migration destination already exists: {new_rel}",
+                    code="file_exists",
+                )
+            staged.replace(destination)
+            published = True
             rewritten = _rewrite_config_text(
                 prior_config.decode("utf-8"),
                 old_registry=old_rel,
@@ -282,9 +299,12 @@ def migrate_registry(
         except Exception:
             if config_written:
                 _atomic_replace(config.source_path, prior_config)
-            if created and destination.exists():
+            if published and (destination.exists() or destination.is_symlink()):
                 shutil.rmtree(destination)
             raise
+        finally:
+            if staging_root is not None and staging_root.exists():
+                shutil.rmtree(staging_root)
     return {
         "status": "migrated",
         "registry": new_rel,
