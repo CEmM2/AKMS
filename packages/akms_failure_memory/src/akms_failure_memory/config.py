@@ -11,6 +11,9 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any, Mapping
 
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
+from packaging.version import InvalidVersion, Version
+
 from akms_failure_memory.errors import FailureMemoryError
 
 
@@ -160,6 +163,53 @@ def _string_list(value: Any, field: str, *, nonempty: bool = False) -> tuple[str
     return items
 
 
+# A toolchain version pin is a PEP 440 specifier set when it contains any of
+# these characters, and a single version otherwise. The test is lexical on
+# purpose: no valid plain version contains one of them, so a pin is never
+# ambiguous, and a malformed range such as "0.3.2,0.4" is reported as a bad
+# specifier set rather than a bad version.
+_SPECIFIER_CHARS = frozenset("<>=!~,")
+
+
+def is_version_specifier(pin: str) -> bool:
+    """Return whether a toolchain version pin is a specifier set (a range)."""
+    return any(char in _SPECIFIER_CHARS for char in pin)
+
+
+def _version_pin(value: Any, field: str) -> str:
+    """Validate a plain version or PEP 440 specifier set, keeping its text."""
+    text = _text(value, field)
+    try:
+        if is_version_specifier(text):
+            SpecifierSet(text)
+        else:
+            Version(text)
+    except (InvalidSpecifier, InvalidVersion) as exc:
+        kind = "specifier set" if is_version_specifier(text) else "version"
+        raise FailureMemoryError(
+            f"{field} is not a valid PEP 440 {kind}: {text!r}", code="invalid_config"
+        ) from exc
+    # The original text is kept, not a normalized form, so the config
+    # fingerprint of an existing project does not move.
+    return text
+
+
+def version_pin_matches(pin: str, installed: str) -> bool:
+    """Return whether an installed version satisfies a toolchain version pin.
+
+    A plain pin keeps the original exact string comparison. A specifier set
+    matches when the installed version is inside it; pre-releases inside the
+    bounds count, so a development build of the pinned series is not drift. An
+    installed version that is not PEP 440 never satisfies a range.
+    """
+    if not is_version_specifier(pin):
+        return installed == pin
+    try:
+        return SpecifierSet(pin).contains(Version(installed), prereleases=True)
+    except (InvalidSpecifier, InvalidVersion):
+        return False
+
+
 @dataclass(frozen=True)
 class ProjectConfig:
     """Validated immutable project policy and its canonical fingerprint."""
@@ -307,6 +357,8 @@ def _validate_config(raw: dict[str, Any], source_path: Path) -> ProjectConfig:
         required=_TOOLCHAIN_REQUIRED,
         allowed=_TOOLCHAIN_ALLOWED,
     )
+    for pin_key in ("akms_version", "repo2md_version"):
+        toolchain[pin_key] = _version_pin(toolchain[pin_key], f"toolchain.{pin_key}")
     toolchain["repo2md_command"] = _string_list(
         toolchain["repo2md_command"], "toolchain.repo2md_command", nonempty=True
     )
@@ -395,4 +447,10 @@ def load_project_config(path: str | Path) -> ProjectConfig:
     return _validate_config(raw, source.resolve())
 
 
-__all__ = ["ProjectConfig", "SCHEMA_VERSION", "load_project_config"]
+__all__ = [
+    "ProjectConfig",
+    "SCHEMA_VERSION",
+    "is_version_specifier",
+    "load_project_config",
+    "version_pin_matches",
+]

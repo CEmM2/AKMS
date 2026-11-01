@@ -1043,3 +1043,87 @@ def test_home_relative_global_vault_collapses_to_tilde_form(
         == "<external-global-vault>"
     )
     assert _canonical_global_vault(None) == "<external-global-vault>"
+
+
+def _pin(config_path: Path, key: str, value: str) -> None:
+    """Replace one `[toolchain]` version pin in a test project config."""
+    text = config_path.read_text(encoding="utf-8")
+    text, count = re.subn(
+        rf'^{key} = "[^"]*"$', f'{key} = "{value}"', text, flags=re.MULTILINE
+    )
+    assert count == 1
+    config_path.write_text(text, encoding="utf-8")
+
+
+def _advisory(result: dict, code: str) -> dict | None:
+    return next(
+        (entry for entry in result["advisories"] if entry["code"] == code), None
+    )
+
+
+@pytest.mark.parametrize(
+    ("pin", "drifts"),
+    [
+        ("0.3.5", False),
+        ("0.3.4", True),
+        (">=0.3.2,<0.4", False),
+        ("~=0.3.2", False),
+        (">=0.4,<0.5", True),
+        ("==0.3.4", True),
+    ],
+)
+def test_akms_version_pin_accepts_a_plain_version_or_a_range(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pin: str, drifts: bool
+) -> None:
+    """A range never equals a version, so it is matched as a range instead."""
+    monkeypatch.setattr(akms, "__version__", "0.3.5")
+    repo, config_path, _vault, _tool_root = _repo(tmp_path)
+    _pin(config_path, "akms_version", pin)
+    result = preflight(config=load_project_config(config_path), repository_root=repo)
+    assert result["status"] == "ok"
+    drift = _advisory(result, "akms_version_drift")
+    if drifts:
+        assert drift == {
+            "code": "akms_version_drift",
+            "message": "Installed AKMS version differs from the project pin",
+            "details": {"actual": "0.3.5", "expected": pin},
+        }
+    else:
+        assert drift is None
+
+
+def test_akms_version_range_counts_a_prerelease_inside_the_bounds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(akms, "__version__", "0.3.6.dev0")
+    repo, config_path, _vault, _tool_root = _repo(tmp_path)
+    _pin(config_path, "akms_version", ">=0.3.2,<0.4")
+    result = preflight(config=load_project_config(config_path), repository_root=repo)
+    assert "akms_version_drift" not in _codes(result)
+
+
+@pytest.mark.parametrize(
+    ("pin", "drifts"),
+    [
+        ("0.2.3", False),
+        ("0.2.0", True),
+        (">=0.2,<0.3", False),
+        (">=0.3,<0.4", True),
+    ],
+)
+def test_repo2md_version_pin_accepts_a_plain_version_or_a_range(
+    tmp_path: Path, pin: str, drifts: bool
+) -> None:
+    repo, config_path, _vault, _tool_root = _repo(tmp_path, version="0.2.3")
+    _pin(config_path, "repo2md_version", pin)
+    result = preflight(config=load_project_config(config_path), repository_root=repo)
+    assert result["status"] == "ok"
+    drift = _advisory(result, "repo2md_version_drift")
+    if drifts:
+        assert drift == {
+            "code": "repo2md_version_drift",
+            "message": "repo2md version differs from the project pin",
+            "details": {"actual": "0.2.3", "expected": pin},
+        }
+    else:
+        assert drift is None
