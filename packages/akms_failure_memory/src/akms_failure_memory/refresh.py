@@ -23,7 +23,11 @@ from akms.schema.models import MirrorConfig
 
 import akms
 from akms_failure_memory.compiler import run_compiler
-from akms_failure_memory.config import ProjectConfig, load_project_config
+from akms_failure_memory.config import (
+    ProjectConfig,
+    load_project_config,
+    version_pin_matches,
+)
 from akms_failure_memory.errors import FailureMemoryError
 from akms_failure_memory.locks import ProjectLock
 
@@ -265,8 +269,9 @@ def preflight(*, config: ProjectConfig, repository_root: str | Path) -> dict[str
         )
 
     # ── Advisory: AKMS identity ───────────────────────────────────────────
+    # The pin is a plain version (exact match) or a PEP 440 range.
     pinned_version = config.toolchain.get("akms_version")
-    if pinned_version and akms.__version__ != pinned_version:
+    if pinned_version and not version_pin_matches(pinned_version, akms.__version__):
         note(
             "akms_version_drift",
             "Installed AKMS version differs from the project pin",
@@ -354,7 +359,9 @@ def preflight(*, config: ProjectConfig, repository_root: str | Path) -> dict[str
         except Exception as exc:  # noqa: BLE001 - advisory only
             note("repo2md_version_unknown", f"Cannot read repo2md version: {exc}")
         expected_version = str(config.toolchain["repo2md_version"])
-        if checkout_version and checkout_version != expected_version:
+        if checkout_version and not version_pin_matches(
+            expected_version, checkout_version
+        ):
             note(
                 "repo2md_version_drift",
                 "repo2md version differs from the project pin",
