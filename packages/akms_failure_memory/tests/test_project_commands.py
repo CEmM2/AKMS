@@ -5,9 +5,11 @@ import os
 import subprocess
 from pathlib import Path
 
+import akms
 import pytest
 
 from akms_failure_memory.compiler import run_compiler
+from akms_failure_memory.config import load_project_config, version_pin_matches
 from akms_failure_memory.errors import FailureMemoryError
 from akms_failure_memory.project import (
     doctor,
@@ -188,3 +190,30 @@ def test_explicit_config_still_wins(tmp_path: Path, capsys) -> None:
         ["doctor", "--repo", str(repo), "--config", str(tmp_path / "nope.toml")]
     )
     assert code != 0
+
+
+@pytest.mark.parametrize(
+    ("installed", "expected"),
+    [
+        ("0.3.2", ">=0.3.2,<0.4"),
+        ("0.3.7", ">=0.3.7,<0.4"),
+        ("1.12.0", ">=1.12.0,<1.13"),
+        ("2.0.0rc1", ">=2.0.0rc1,<2.1"),
+        ("0.3.2+local.build", ">=0.3.2,<0.4"),
+    ],
+)
+def test_init_pins_the_installed_akms_minor_series(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, installed: str, expected: str
+) -> None:
+    """A hard-coded exact pin made every new project report drift at once."""
+    monkeypatch.setattr(akms, "__version__", installed)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    init_project(repository_root=repo, config_path="config.toml")
+    text = (repo / "config.toml").read_text(encoding="utf-8")
+    assert f'akms_version = "{expected}"\n' in text
+    config = load_project_config(repo / "config.toml")
+    assert config.toolchain["akms_version"] == expected
+    assert version_pin_matches(expected, installed)
+    # The other toolchain pins keep their template values.
+    assert config.toolchain["repo2md_version"] == "0.2.0"
