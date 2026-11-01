@@ -38,8 +38,9 @@ global vault is an explicit read-only collision/input boundary.
 The machine contract lives in
 `schemas/project-config.schema.json`.  It binds repository identity and node
 namespace, canonical and generated paths, generated-file policy, validation
-and taxonomy rules, compatibility renderer identifiers, and exact AKMS /
-repo2md toolchain pins.  All configured paths are repository-relative POSIX
+and taxonomy rules, compatibility renderer identifiers, and AKMS / repo2md
+toolchain pins (`akms_version` and `repo2md_version` are each a plain version
+matched exactly or a PEP 440 specifier set matched as a range).  All configured paths are repository-relative POSIX
 paths and are resolved component-by-component with symlink containment checks before mutation. Compiler publication of nodes and routes is transactional, deterministic graph publication validates all AKMS inputs before atomically replacing the prior artifact, and compile, record, refresh, and provider operations coordinate through the same project lock. Graph refresh never synthesizes experiential state: an absent `local_state.yaml` remains absent, while pre-existing state and graph bytes survive validation failures unchanged. Explicit refresh timestamps are preserved as graph metadata rather than replaced by wall-clock time.
 
 Repository identity has one authority: `repository_id` in the validated project

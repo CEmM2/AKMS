@@ -36,7 +36,7 @@ repository or repo2md as a Python package.
 - Generated-file policy
 - Validation and taxonomy rules
 - Compatibility renderer identifiers
-- Exact AKMS and repo2md toolchain pins
+- AKMS and repo2md toolchain pins (an exact version or a PEP 440 range)
 
 Paths are repository-relative POSIX paths and are containment-checked through
 symlink components before mutation.
