@@ -29,6 +29,16 @@ development is intentionally not replayed.
 - `failure-memory registry migrate --to 2 [--check]` splits a schema 1 file
   into that directory; `--check` compiles both forms without changing the
   repository. A consumer-contract v2 pack covers the directory form.
+- `akms-failure-memory` toolchain pins accept version ranges:
+  `toolchain.akms_version` and `toolchain.repo2md_version` take a plain
+  version, still matched exactly, or a PEP 440 specifier set such as
+  `">=0.3.2,<0.4"`, matched as a range. A project that pinned a range got a
+  permanent `akms_version_drift` advisory, because a range never equals a
+  version. A value containing any of `<`, `>`, `=`, `!`, `~` or `,` is a
+  specifier set; a value that is neither a valid version nor a valid
+  specifier set fails config loading with `invalid_config`. Pins are kept as
+  written, so existing config fingerprints do not change. `packaging` is now a
+  declared dependency (`>=24,<27`).
 
 ### Changed
 - `akms-failure-memory` provider fingerprints no longer include the installed
@@ -45,6 +55,10 @@ development is intentionally not replayed.
   Consumers that pin the pack must update that digest; behaviours, requests
   and lessons are unchanged.
 
+- `failure-memory init` pins `akms_version` to the installed AKMS minor
+  series, `">=<installed>,<<major>.<minor + 1>"` (for example
+  `">=0.3.2,<0.4"`), instead of a hard-coded `"0.6.1"` that made every new
+  project report version drift on its first refresh.
 - New projects keep their knowledge in `<repo>/.knowledge/`: lessons, the
   compiled graph and generated outputs. An existing `knowledge/` directory is
   still used when `.knowledge/` is absent, and `build_graph`'s signature is

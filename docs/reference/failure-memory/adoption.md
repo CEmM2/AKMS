@@ -16,6 +16,8 @@ failure-memory doctor --repo . --config .knowledge/failure-memory.toml
 
 Review the generated configuration before recording lessons. Every configured path is repository-relative and containment checked. Existing files are not overwritten unless the operator explicitly passes `--force` to initialization or wrapper generation.
 
+`[toolchain].akms_version` and `[toolchain].repo2md_version` each take either a plain version or a PEP 440 specifier set. A value containing any of `<`, `>`, `=`, `!`, `~` or `,` is a specifier set; anything else is a plain version. A plain version must equal the installed version exactly, as before. A specifier set such as `">=0.3.2,<0.4"` matches any installed version inside it, pre-releases within the bounds included. A version outside the pin is reported by preflight as the `akms_version_drift` or `repo2md_version_drift` advisory. A value that is neither a valid version nor a valid specifier set fails configuration loading with `invalid_config`. `failure-memory init` writes a range covering the installed AKMS minor series, `">=<installed>,<<major>.<minor + 1>"`, so a new project does not report drift on its first refresh.
+
 ## Three equivalent recording paths
 
 Humans can answer prompts:
