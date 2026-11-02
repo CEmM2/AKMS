@@ -39,6 +39,19 @@ development is intentionally not replayed.
   specifier set fails config loading with `invalid_config`. Pins are kept as
   written, so existing config fingerprints do not change. `packaging` is now a
   declared dependency (`>=24,<27`).
+- `akms` now ships the repository wiki and code-mirror exporter that was
+  previously installed separately as `repo-wiki`, with the same subcommands
+  and flags (`init`, `scan`, `parse`, `build`, `index`, `query`, `summarize`,
+  `export-akms`, `stats`, `graph`, `clean`). Run it as `repo-wiki`,
+  `akms wiki` or `python -m akms.repo_wiki`. Python needs nothing beyond
+  `akms`, and C++ works through an installed `doxygen`. `akms[rust]`,
+  `akms[cpp]` and `akms[julia]` add the tree-sitter grammars, and
+  `akms[multilang]` adds all three. `akms[all]`
+  now includes `multilang`. Repositories keep their `.repo_wiki/` directory
+  and configuration. The scanner no longer follows symbolic links. A link
+  that points outside the repository used to abort the scan. It is now
+  listed as skipped, with the reason `symlink`, or `excluded` when an
+  ignore or exclude pattern matches it.
 
 ### Changed
 - `akms-failure-memory` provider fingerprints no longer include the installed
