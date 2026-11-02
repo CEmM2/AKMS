@@ -46,6 +46,16 @@ class TestPromote:
         exit_code = main(["--repo", str(tmp_repo), "promote", "nonexistent"])
         assert exit_code == 1
 
+    def test_node_not_found_names_dotted_knowledge_dir(self, tmp_path, capsys):
+        repo = tmp_path / "repo"
+        (repo / ".knowledge" / "local-nodes").mkdir(parents=True)
+
+        exit_code = main(["--repo", str(repo), "promote", "nonexistent"])
+
+        assert exit_code == 1
+        err = capsys.readouterr().err
+        assert f"{repo.resolve() / '.knowledge' / 'local-nodes'}/" in err
+
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Suppress

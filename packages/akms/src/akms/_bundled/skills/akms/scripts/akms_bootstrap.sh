@@ -20,8 +20,14 @@ if ! command -v akms >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "$REPO/knowledge/local-nodes" "$REPO/knowledge/graph"
-echo "  created knowledge/local-nodes/ and knowledge/graph/"
+# New projects use .knowledge/; a project that already has only the older
+# knowledge/ directory keeps it.
+KNOW=".knowledge"
+if [ ! -d "$REPO/.knowledge" ] && [ -d "$REPO/knowledge" ]; then
+  KNOW="knowledge"
+fi
+mkdir -p "$REPO/$KNOW/local-nodes" "$REPO/$KNOW/graph"
+echo "  created $KNOW/local-nodes/ and $KNOW/graph/"
 
 VAULT="${AKMS_GLOBAL_VAULT:-$HOME/.claude/akms/nodes}"
 if [ -d "$VAULT" ]; then
@@ -32,7 +38,7 @@ else
   echo "    that is fine; AKMS works without a vault."
 fi
 
-NODES="$(find "$REPO/knowledge/local-nodes" -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
+NODES="$(find "$REPO/$KNOW/local-nodes" -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
 echo "  local nodes: $NODES"
 
 echo "==> compiling graph"

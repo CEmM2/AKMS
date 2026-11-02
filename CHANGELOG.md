@@ -48,7 +48,10 @@ development is intentionally not replayed.
 - New projects keep their knowledge in `<repo>/.knowledge/`: lessons, the
   compiled graph and generated outputs. An existing `knowledge/` directory is
   still used when `.knowledge/` is absent, and `build_graph`'s signature is
-  unchanged.
+  unchanged. The bundled qmd scripts and the skill's `akms_bootstrap.sh`
+  follow the same rule. When run from the akms package, the qmd scripts now
+  search the repository they are run from; before, they looked inside the
+  installed package and found no local nodes, mirror or sessions.
 - A registry schema 2 source digest is SHA-256 over the registry files sorted
   by filename (name, NUL, raw bytes, NUL each, `_registry.json` included).
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
