@@ -7,7 +7,8 @@ Graph version = SHA256 of graph.json contents, minus the ``generated_at``
 timestamp, so recompiling identical inputs keeps the same version.
 Query hash = SHA256 of (tags, role, depth) — see query_subgraph.compute_query_hash.
 
-Cache storage: <repo>/knowledge/graph/.qmd_cache/
+Cache storage: <repo>/.knowledge/graph/.qmd_cache/
+(or <repo>/knowledge/graph/.qmd_cache/ when that older directory is the one in use)
 Each entry: {graph_version}_{query_hash}.json
 """
 
@@ -18,6 +19,8 @@ import json
 import logging
 import shutil
 from pathlib import Path
+
+from akms.layout import local_knowledge_dir
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +64,7 @@ def compute_graph_version(graph_json_path: str | Path) -> str:
 
 def _cache_dir(repo_root: str | Path) -> Path:
     """Resolve the cache directory path."""
-    return Path(repo_root) / "knowledge" / "graph" / ".qmd_cache"
+    return local_knowledge_dir(repo_root) / "graph" / ".qmd_cache"
 
 
 def _cache_key(graph_version: str, query_hash: str) -> str:

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from akms.layout import local_knowledge_dir
 from akms.orchestrator.agent_configs import get_agent_config, get_special_agent_config
 from akms.telemetry import trace_agent_call
 
@@ -140,7 +141,7 @@ async def run_subagent(
         memory_path = ""
         if hasattr(memory, "task_id"):
             memory_path = str(
-                repo_root / "knowledge" / "sessions" / f"{memory.task_id}.md"
+                local_knowledge_dir(repo_root) / "sessions" / f"{memory.task_id}.md"
             )
 
         # The sealed run() never raises for an agent failure — it writes and

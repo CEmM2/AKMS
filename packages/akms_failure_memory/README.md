@@ -23,11 +23,11 @@ failure-memory --version
 
 failure-memory init \
   --repo . \
-  --config .failure-memory/config.toml \
+  --config .knowledge/failure-memory.toml \
   --repository-id example \
   --node-namespace example-failure
 
-failure-memory doctor --repo . --config .failure-memory/config.toml
+failure-memory doctor --repo . --config .knowledge/failure-memory.toml
 ```
 
 Then follow `docs/adoption.md` or the unified site under

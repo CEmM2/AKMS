@@ -76,14 +76,14 @@ domain = "{repository_id.lower()}"
 subdomain = "failure-memory"
 
 [paths]
-registry = ".failure-memory/lessons.json"
-generated_nodes = ".failure-memory/runtime/knowledge/local-nodes/failure-lessons"
-local_nodes = ".failure-memory/runtime/knowledge/local-nodes"
-routes = ".failure-memory/generated/routes.json"
-akms_repo_root = ".failure-memory/runtime"
-graph = ".failure-memory/runtime/knowledge/graph/graph.json"
-provider_outputs = ".failure-memory/runtime/provider"
-lock = ".failure-memory/.lock"
+registry = ".knowledge/lessons.json"
+generated_nodes = ".knowledge/local-nodes/generated/failure-lessons"
+local_nodes = ".knowledge/local-nodes"
+routes = ".knowledge/generated/failure_routes.json"
+akms_repo_root = "."
+graph = ".knowledge/graph/graph.json"
+provider_outputs = ".knowledge/provider"
+lock = ".knowledge/.failure-memory.lock"
 
 [generated]
 lessons = "disposable"
@@ -95,7 +95,7 @@ loadouts = "disposable"
 [validation]
 registry_schema_version = 1
 missing_path_policy = "warn"
-id_pattern = "^L[0-9]{{3}}$"
+id_pattern = "^(?:L[0-9]{{3}}|L[0-9]{{8}}-[0-9a-hjkmnp-tv-z]{{4}})$"
 allowed_roots = ["src", "tests", "docs", "tools", ".github"]
 root_files = ["README.md", "pyproject.toml"]
 location_file_separator = " and "
@@ -114,7 +114,7 @@ max_tag_length = 80
 compiler_version = "failure-memory-compiler/v1"
 route_contract_version = "failure-route-index/v1"
 route_adapter_version = "failure-memory-to-akms-task-route/v1"
-generated_warning = "<!-- GENERATED: edit .failure-memory/lessons.json -->"
+generated_warning = "<!-- GENERATED: edit .knowledge/lessons.json -->"
 source_hash_prefix = "<!-- source_sha256: "
 source_hash_suffix = " -->"
 
@@ -210,9 +210,12 @@ def doctor(*, config_path: str | Path, repository_root: str | Path) -> dict[str,
             }
         )
     registry = config.resolve(root, "registry")
-    checks.append(
-        {"check": "registry", "status": "ok" if registry.is_file() else "missing"}
-    )
+    version = config.validation["registry_schema_version"]
+    if version == 2:
+        registry_ok = registry.is_dir() and not registry.is_symlink()
+    else:
+        registry_ok = registry.is_file()
+    checks.append({"check": "registry", "status": "ok" if registry_ok else "missing"})
     status = "ok" if all(item["status"] == "ok" for item in checks) else "error"
     return {
         "status": status,
@@ -232,10 +235,16 @@ def migration_check(
         == "dev/knowledge/local-nodes/generated/failure-lessons"
         and config.paths["routes"] == "dev/knowledge/generated/failure_routes.json"
     )
+    registry = config.resolve(root, "registry")
+    version = config.validation["registry_schema_version"]
+    if version == 2:
+        registry_exists = registry.is_dir() and not registry.is_symlink()
+    else:
+        registry_exists = registry.is_file()
     return {
         "status": "recognized" if legacy_shape else "generic",
         "layout": "phase1-compatible" if legacy_shape else "configured",
-        "registry_exists": config.resolve(root, "registry").is_file(),
+        "registry_exists": registry_exists,
         "rewrite_performed": False,
         "moves_required": [],
     }

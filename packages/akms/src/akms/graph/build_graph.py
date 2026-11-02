@@ -2,10 +2,13 @@
 
 Compiles the unified NetworkX DiGraph from all sources:
   1. Global nodes from ~/.claude/akms/nodes/ (or $AKMS_GLOBAL_VAULT)
-  2. Local nodes from <repo>/knowledge/local-nodes/
-  3. Code-mirror nodes from <repo>/knowledge/code-mirror/ (canonical schema-validated)
+  2. Local nodes from <repo>/.knowledge/local-nodes/
+  3. Code-mirror nodes from <repo>/.knowledge/code-mirror/ (canonical schema-validated)
   4. Local state overlay from local_state.yaml
   5. Serialize to graph.json
+
+`<repo>/knowledge/` is still read when that directory already exists and
+`<repo>/.knowledge/` does not. See `akms.layout.local_knowledge_dir`.
 
 All operations are deterministic. Output is stable across runs.
 """
@@ -23,6 +26,7 @@ import frontmatter
 import networkx as nx
 
 from akms import AKMS_SCHEMA_VERSION
+from akms.layout import local_knowledge_dir
 from akms.schema.errors import SchemaValidationError, SchemaVersionError
 from akms.schema.validators import (
     parse_local_state,
@@ -134,7 +138,7 @@ def build_graph(
                       precedence: AKMS_GLOBAL_VAULT env var > ``config.global_vault``
                       (when ``config`` is supplied) > default ``~/.claude/akms/nodes``.
         output_path: Override path for graph.json output. If None, writes to
-                     <repo_root>/knowledge/graph/graph.json.
+                     <repo_root>/.knowledge/graph/graph.json.
         config: Optional PropagationConfig. When provided, ``config.global_vault``
                 becomes the third step in the precedence chain (honored if no
                 explicit arg and no env var is set).
@@ -147,7 +151,7 @@ def build_graph(
         SchemaValidationError: If any source has invalid schema.
     """
     repo_root = Path(repo_root)
-    knowledge_dir = repo_root / "knowledge"
+    knowledge_dir = local_knowledge_dir(repo_root)
     graph_dir = knowledge_dir / "graph"
 
     vault_path = resolve_global_vault(explicit=global_vault, config=config)

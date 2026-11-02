@@ -1,0 +1,31 @@
+{
+  "id": "L005",
+  "date_found": "2026-08-05",
+  "date_found_precision": "exact",
+  "date_fixed": "2026-08-06",
+  "date_fixed_precision": "exact",
+  "location": {
+    "area": "src",
+    "package": "storage",
+    "module": "storage.writer",
+    "file": "src/storage/writer.py",
+    "symbol": "Writer.flush",
+    "line_hint": "diff only discovery"
+  },
+  "found_by": {
+    "type": "test failure",
+    "trigger": "tests/storage/test_writer_flush.py::test_flush_is_atomic"
+  },
+  "symptom": "A failed flush left a truncated file on disk.",
+  "root_cause": "The writer opened the destination for truncation before the payload was complete.",
+  "fix": "Write a sibling temporary file and atomically replace the destination.",
+  "prevention": "tests/storage/test_writer_flush.py asserts that a failed flush leaves the prior file intact.",
+  "references": {
+    "commit": "",
+    "issue": "",
+    "pr": "",
+    "plan": "dev/plans/consumer-integration.md"
+  },
+  "related": [],
+  "notes": "Conformance anchor for post-diff-only discovery; never declared in pre-task scope."
+}

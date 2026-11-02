@@ -55,6 +55,9 @@ _VALIDATION_KEYS = frozenset(
         "location_file_separator",
     }
 )
+# `id_style` is optional so v1 configs still load. Absent means sequential.
+_VALIDATION_ALLOWED = _VALIDATION_KEYS | {"id_style"}
+_ID_STYLES = frozenset({"sequential", "dated"})
 _TAXONOMY_KEYS = frozenset(
     {
         "area_prefix",
@@ -183,11 +186,15 @@ class ProjectConfig:
             )
         root = Path(repository_root).resolve(strict=True)
         candidate = root.joinpath(*PurePosixPath(self.paths[key]).parts)
-        resolved_parent = candidate.parent.resolve(strict=False)
-        if not resolved_parent.is_relative_to(root):
-            raise FailureMemoryError(
-                f"Configured path {key!r} escapes repository root", code="path_escape"
-            )
+        # "." is the repository itself. Its parent is outside the root, and
+        # that is not an escape.
+        if candidate != root:
+            resolved_parent = candidate.parent.resolve(strict=False)
+            if not resolved_parent.is_relative_to(root):
+                raise FailureMemoryError(
+                    f"Configured path {key!r} escapes repository root",
+                    code="path_escape",
+                )
         if candidate.exists() and not candidate.resolve().is_relative_to(root):
             raise FailureMemoryError(
                 f"Configured path {key!r} resolves outside repository root",
@@ -228,11 +235,23 @@ def _validate_config(raw: dict[str, Any], source_path: Path) -> ProjectConfig:
         )
 
     validation = _closed_table(
-        top["validation"], name="validation", required=_VALIDATION_KEYS
+        top["validation"],
+        name="validation",
+        required=_VALIDATION_KEYS,
+        allowed=_VALIDATION_ALLOWED,
     )
-    if validation["registry_schema_version"] != 1:
+    registry_schema_version = validation["registry_schema_version"]
+    # bool is an int and True == 1. Reject it before the integer check so
+    # `registry_schema_version = true` is schema_version, not version 1.
+    # Lists and tables are unhashable; membership must not raise TypeError.
+    if (
+        isinstance(registry_schema_version, bool)
+        or not isinstance(registry_schema_version, int)
+        or registry_schema_version not in (1, 2)
+    ):
         raise FailureMemoryError(
-            "registry_schema_version must be 1", code="schema_version"
+            "registry_schema_version must be 1 or 2",
+            code="schema_version",
         )
     if validation["missing_path_policy"] not in {"warn", "error"}:
         raise FailureMemoryError("invalid missing_path_policy", code="invalid_config")
@@ -242,6 +261,15 @@ def _validate_config(raw: dict[str, Any], source_path: Path) -> ProjectConfig:
         raise FailureMemoryError(
             f"Invalid id_pattern: {exc}", code="invalid_config"
         ) from exc
+    if "id_style" in validation:
+        id_style = validation["id_style"]
+        # Lists and tables are unhashable. Membership would raise TypeError
+        # and the CLI would report internal_error instead of invalid_config.
+        if not isinstance(id_style, str) or id_style not in _ID_STYLES:
+            raise FailureMemoryError(
+                "validation.id_style must be sequential or dated",
+                code="invalid_config",
+            )
     validation["allowed_roots"] = _string_list(
         validation["allowed_roots"], "validation.allowed_roots", nonempty=True
     )

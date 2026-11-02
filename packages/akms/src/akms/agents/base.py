@@ -38,6 +38,7 @@ from typing import Any
 import frontmatter
 from pydantic import ValidationError
 
+from akms.layout import local_knowledge_dir
 from akms.schema.errors import SchemaValidationError
 from akms.schema.models import (
     AgentMemory,
@@ -457,9 +458,9 @@ class AKMSAgent:
         return "\n".join(parts)
 
     def _expected_memory_path(self, task_json: dict) -> Path:
-        """knowledge/sessions/{task_id}.md"""
+        """.knowledge/sessions/{task_id}.md"""
         task_id = task_json.get("task_id", task_json.get("id", "unknown"))
-        return self.repo_root / "knowledge" / "sessions" / f"{task_id}.md"
+        return local_knowledge_dir(self.repo_root) / "sessions" / f"{task_id}.md"
 
     def _parse_and_validate_memory(self, path: Path) -> AgentMemory:
         """Read the AgentMemory file the agent wrote, parse YAML
@@ -512,7 +513,7 @@ class AKMSAgent:
         )
 
         # Write to disk
-        sessions_dir = self.repo_root / "knowledge" / "sessions"
+        sessions_dir = local_knowledge_dir(self.repo_root) / "sessions"
         sessions_dir.mkdir(parents=True, exist_ok=True)
         output_path = sessions_dir / f"{task_id}.md"
 

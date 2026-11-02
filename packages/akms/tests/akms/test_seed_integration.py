@@ -479,6 +479,53 @@ class TestQMDScripts:
         )
         assert result.returncode == 0, f"Syntax error in run_qmd.sh: {result.stderr}"
 
+    @pytest.mark.parametrize(
+        ("dirs", "expected"),
+        [
+            ([".knowledge"], ".knowledge"),
+            (["knowledge"], "knowledge"),
+            ([".knowledge", "knowledge"], ".knowledge"),
+            ([], ".knowledge"),
+        ],
+    )
+    def test_bundled_scripts_resolve_knowledge_dir_from_cwd(
+        self, tmp_path: Path, dirs: list[str], expected: str
+    ):
+        """The bundled copy, run from the repo, picks .knowledge/ over knowledge/."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        for name in dirs:
+            (repo / name).mkdir()
+        result = subprocess.run(
+            ["bash", str(SEED_QMD_DIR / "run_qmd.sh"), "graph_status"],
+            capture_output=True,
+            text=True,
+            cwd=repo,
+        )
+        assert result.returncode == 1
+        resolved = repo.resolve() / expected / "graph" / "graph.json"
+        assert f"graph.json not found at {resolved}" in result.stdout
+
+    @pytest.mark.parametrize("knowledge_dir", [".knowledge", "knowledge"])
+    def test_installed_scripts_use_their_own_knowledge_dir(
+        self, tmp_path: Path, knowledge_dir: str
+    ):
+        """A copy under <repo>/<knowledge>/qmd/ reads that directory from any cwd."""
+        repo = tmp_path / "repo"
+        qmd_dest = repo / knowledge_dir / "qmd"
+        qmd_dest.mkdir(parents=True)
+        for qmd_file in SEED_QMD_DIR.glob("*"):
+            shutil.copy2(qmd_file, qmd_dest / qmd_file.name)
+        result = subprocess.run(
+            ["bash", str(qmd_dest / "run_qmd.sh"), "graph_status"],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+        assert result.returncode == 1
+        resolved = repo.resolve() / knowledge_dir / "graph" / "graph.json"
+        assert f"graph.json not found at {resolved}" in result.stdout
+
     def test_search_nodes_scopes_both_dirs(self):
         """search_nodes.qmd references both global vault and local nodes."""
         content = (SEED_QMD_DIR / "search_nodes.qmd").read_text()

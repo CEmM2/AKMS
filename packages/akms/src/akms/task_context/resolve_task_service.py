@@ -25,6 +25,7 @@ from typing import Any, Literal
 
 import networkx as nx
 
+from akms.layout import local_knowledge_dir
 from akms.graph.build_graph import build_graph, load_graph
 from akms.graph.generate_loadout import generate_loadout
 from akms.graph.qmd_cache import compute_graph_version
@@ -334,7 +335,7 @@ def _load_propagation_config(
 ) -> PropagationConfig:
     if config is not None:
         return config
-    config_path = repo_root / "knowledge" / "graph" / "propagation_config.yaml"
+    config_path = local_knowledge_dir(repo_root) / "graph" / "propagation_config.yaml"
     if config_path.exists():
         return parse_propagation_config(config_path)
     return PropagationConfig()
@@ -345,7 +346,7 @@ def _load_graph(
     graph_path: str | Path | None,
     config: PropagationConfig,
 ) -> tuple[nx.DiGraph, Path]:
-    default = repo_root / "knowledge" / "graph" / "graph.json"
+    default = local_knowledge_dir(repo_root) / "graph" / "graph.json"
     path = Path(graph_path) if graph_path is not None else default
     if not path.is_absolute():
         path = repo_root / path
@@ -377,8 +378,8 @@ def _default_paths(
     loadout_path: str | Path | None,
     manifest_path: str | Path | None,
 ) -> tuple[Path, Path]:
-    loadouts_dir = repo_root / "knowledge" / "loadouts"
-    manifests_dir = repo_root / "knowledge" / "resolution-manifests"
+    loadouts_dir = local_knowledge_dir(repo_root) / "loadouts"
+    manifests_dir = local_knowledge_dir(repo_root) / "resolution-manifests"
     if loadout_path is not None:
         out_loadout = Path(loadout_path)
         if not out_loadout.is_absolute():

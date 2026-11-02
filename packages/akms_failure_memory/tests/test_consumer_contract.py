@@ -905,8 +905,9 @@ def test_init_default_layout_feeds_the_graph_and_resolves(tmp_path: Path) -> Non
     This test previously asserted the OPPOSITE outcome (that ``init``'s default
     layout could not feed the graph -- see git history for
     ``test_init_default_layout_cannot_feed_the_graph``). ``akms.graph.build_graph``
-    still hardcodes ``<akms_repo_root>/knowledge/local-nodes/`` as the only
-    local-node source; the fix was on the ``failure-memory`` side:
+    reads local nodes through ``akms.layout.local_knowledge_dir``
+    (``.knowledge`` when present, otherwise an existing ``knowledge``); the
+    failure-memory default puts that directory inside the repo root:
     ``render_project_config``'s default ``[paths]`` now puts ``local_nodes``
     (and therefore ``generated_nodes``) INSIDE ``akms_repo_root``, so compiled
     output is graph input by construction, matching this pack's own
@@ -984,7 +985,7 @@ def test_init_default_layout_feeds_the_graph_and_resolves(tmp_path: Path) -> Non
         "head": None,
         "baseline": "init-default-regression-baseline",
         "refresh_policy": "never",
-        "output_dir": ".failure-memory/runtime/provider",
+        "output_dir": ".knowledge/provider",
     }
     request_path = tmp_path / "request.json"
     request_path.write_text(json.dumps(provider_request), encoding="utf-8")

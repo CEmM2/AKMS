@@ -12,9 +12,9 @@ from akms_failure_memory import __version__
 from akms_failure_memory.errors import FailureMemoryError
 
 
-DEFAULT_CONFIG = Path(".failure-memory/config.toml")
+DEFAULT_CONFIG = Path(".knowledge/failure-memory.toml")
 _CONFIG_HELP = (
-    "project config (default: <repo>/.failure-memory/config.toml, "
+    "project config (default: <repo>/.knowledge/failure-memory.toml, "
     "where `failure-memory init` writes it)"
 )
 
@@ -37,9 +37,7 @@ def _parser() -> argparse.ArgumentParser:
 
     init = sub.add_parser("init")
     init.add_argument("--repo", type=Path, default=Path.cwd())
-    init.add_argument(
-        "--config", type=Path, default=Path(".failure-memory/config.toml")
-    )
+    init.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     init.add_argument("--force", action="store_true")
     init.add_argument("--repository-id")
     init.add_argument("--node-namespace")
@@ -80,6 +78,14 @@ def _parser() -> argparse.ArgumentParser:
     stale.add_argument("--repo", type=Path, default=Path.cwd())
     stale.add_argument("--request", type=Path, required=True)
     stale.add_argument("--result", type=Path, required=True)
+
+    registry = sub.add_parser("registry")
+    registry_commands = registry.add_subparsers(dest="registry_command", required=True)
+    migrate = registry_commands.add_parser("migrate")
+    migrate.add_argument("--to", required=True)
+    migrate.add_argument("--check", action="store_true")
+    migrate.add_argument("--config", type=Path, help=_CONFIG_HELP)
+    migrate.add_argument("--repo", type=Path, default=Path.cwd())
     return parser
 
 
@@ -135,6 +141,20 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         from akms_failure_memory.ci import ci_check
 
         return ci_check(config_path=args.config, repository_root=args.repo)
+    if args.command == "registry":
+        from akms_failure_memory.registry_migrate import migrate_registry
+
+        if args.registry_command != "migrate":
+            raise FailureMemoryError(
+                f"Unknown registry command {args.registry_command!r}",
+                code="usage",
+            )
+        return migrate_registry(
+            config_path=args.config,
+            repository_root=args.repo,
+            to=args.to,
+            check=args.check,
+        )
     raise FailureMemoryError(f"Unknown command {args.command!r}", code="usage")
 
 

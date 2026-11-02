@@ -24,6 +24,7 @@ from typing import Any
 
 import frontmatter
 
+from akms.layout import local_knowledge_dir
 from akms.schema.models import (
     AgentMemory,
     KnownIssues,
@@ -142,7 +143,7 @@ def build_pcd(
 
 
 def _default_handoff_path(repo_root: Path, phase: int) -> Path:
-    return repo_root / "knowledge" / "sessions" / f"handoff_phase_{phase}.md"
+    return local_knowledge_dir(repo_root) / "sessions" / f"handoff_phase_{phase}.md"
 
 
 def write_handoff(

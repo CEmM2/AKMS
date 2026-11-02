@@ -1,0 +1,31 @@
+{
+  "id": "L001",
+  "date_found": "2026-08-01",
+  "date_found_precision": "exact",
+  "date_fixed": "2026-08-02",
+  "date_fixed_precision": "exact",
+  "location": {
+    "area": "src",
+    "package": "engine",
+    "module": "engine.interface",
+    "file": "src/engine/interface.py",
+    "symbol": "Interface.commit_state",
+    "line_hint": "exact route conformance"
+  },
+  "found_by": {
+    "type": "test failure",
+    "trigger": "tests/engine/test_interface_commit.py::test_commit_is_idempotent"
+  },
+  "symptom": "Repeated commits advanced state that should have been idempotent.",
+  "root_cause": "Trial state was written directly into the committed record.",
+  "fix": "Separate trial state from committed state and promote only accepted transitions.",
+  "prevention": "tests/engine/test_interface_commit.py asserts that repeated commits do not advance state.",
+  "references": {
+    "commit": "",
+    "issue": "",
+    "pr": "",
+    "plan": "dev/plans/consumer-integration.md"
+  },
+  "related": [],
+  "notes": "Conformance anchor for the exact-required behaviour; prose is normative and must not be summarized."
+}

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # node_detail.qmd — Show detailed information for a specific node.
 #
-# Reads: <repo>/knowledge/graph/graph.json
+# Reads: <repo>/.knowledge/graph/graph.json
 #
 # Usage: run_qmd.sh node_detail <node_id>
 #
@@ -11,10 +11,27 @@ set -euo pipefail
 
 NODE_ID="${1:?Usage: node_detail <node_id>}"
 
-# Resolve repo root (walk up from script location)
+# Resolve the repo and its knowledge directory. A copy installed at
+# <repo>/.knowledge/qmd/ (or the older <repo>/knowledge/qmd/) uses the
+# directory it sits in. The copy bundled in the akms package is run with the
+# repo as its working directory, and picks .knowledge/ unless only the older
+# knowledge/ exists.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-GRAPH_JSON="$REPO_ROOT/knowledge/graph/graph.json"
+case "$(basename "$(dirname "$SCRIPT_DIR")")" in
+    .knowledge|knowledge)
+        KNOWLEDGE_DIR="$(dirname "$SCRIPT_DIR")"
+        REPO_ROOT="$(dirname "$KNOWLEDGE_DIR")"
+        ;;
+    *)
+        REPO_ROOT="$(pwd)"
+        if [ -d "$REPO_ROOT/.knowledge" ] || [ ! -d "$REPO_ROOT/knowledge" ]; then
+            KNOWLEDGE_DIR="$REPO_ROOT/.knowledge"
+        else
+            KNOWLEDGE_DIR="$REPO_ROOT/knowledge"
+        fi
+        ;;
+esac
+GRAPH_JSON="$KNOWLEDGE_DIR/graph/graph.json"
 
 if [ ! -f "$GRAPH_JSON" ]; then
     echo "ERROR: graph.json not found at $GRAPH_JSON"

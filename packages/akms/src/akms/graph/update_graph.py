@@ -29,6 +29,7 @@ import networkx as nx
 import yaml
 
 from akms import AKMS_SCHEMA_VERSION
+from akms.layout import local_knowledge_dir
 from akms.graph.build_graph import build_graph, load_graph
 from akms.schema.models import (
     AgentMemory,
@@ -504,7 +505,7 @@ def _process_new_knowledge(
     Returns list of knowledge events.
     """
     events = []
-    local_nodes_dir = repo_root / "knowledge" / "local-nodes"
+    local_nodes_dir = local_knowledge_dir(repo_root) / "local-nodes"
     local_nodes_dir.mkdir(parents=True, exist_ok=True)
 
     dedup_threshold = config.graph.dedup_threshold
@@ -808,7 +809,7 @@ def update_graph(
         }
     """
     repo_root = Path(repo_root)
-    knowledge_dir = repo_root / "knowledge"
+    knowledge_dir = local_knowledge_dir(repo_root)
     graph_dir = knowledge_dir / "graph"
     overlay_path = graph_dir / "local_state.yaml"
     graph_json = graph_dir / "graph.json"

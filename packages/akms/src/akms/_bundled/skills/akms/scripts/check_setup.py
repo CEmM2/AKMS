@@ -21,6 +21,18 @@ import os
 import shutil
 from pathlib import Path
 
+
+def _local_knowledge_dir(repo: Path) -> Path:
+    """Same rule as akms.layout.local_knowledge_dir, without importing akms."""
+    dotted = repo / ".knowledge"
+    legacy = repo / "knowledge"
+    if dotted.is_dir():
+        return dotted
+    if legacy.is_dir():
+        return legacy
+    return dotted
+
+
 OK, WARN, BAD = "ok", "warn", "FAIL"
 _MARK = {OK: "  [ok]  ", WARN: "  [warn]", BAD: "  [FAIL]"}
 
@@ -102,7 +114,7 @@ def check_vault() -> None:
 
 
 def check_layout(repo: Path) -> None:
-    local = repo / "knowledge" / "local-nodes"
+    local = _local_knowledge_dir(repo) / "local-nodes"
     if not local.exists():
         report(WARN, f"{local.relative_to(repo)} missing — run akms_bootstrap.sh")
         return
@@ -118,7 +130,7 @@ def check_layout(repo: Path) -> None:
 
 
 def check_graph(repo: Path) -> None:
-    graph = repo / "knowledge" / "graph" / "graph.json"
+    graph = _local_knowledge_dir(repo) / "graph" / "graph.json"
     if not graph.exists():
         report(WARN, "graph.json not compiled yet — run `akms status --repo .`")
         return

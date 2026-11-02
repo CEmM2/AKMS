@@ -11,7 +11,7 @@ files modified in the current phase (from ``git diff``).
   2. For each FunctionDef, AsyncFunctionDef, ClassDef:
      - Extract docstring → rendered as markdown (semantic search layer)
      - Extract full source → wrapped in ```python block (literal search layer)
-  3. Write mirror file to ``knowledge/code-mirror/{module_path}.md``
+  3. Write mirror file to ``.knowledge/code-mirror/{module_path}.md``
   4. Write mirror node frontmatter (marker only)
 
 **Provider routing:**
@@ -35,6 +35,7 @@ from typing import Any
 import frontmatter as fm
 
 from akms import AKMS_SCHEMA_VERSION
+from akms.layout import local_knowledge_dir
 from akms.graph.drift import (
     check_docstring_drift_llm,
     check_docstring_drift_structural,
@@ -268,7 +269,9 @@ def write_mirror_file(
 
     # Write mirror file
     mirror_path = (
-        repo_root / "knowledge" / "code-mirror" / source_file.replace(".py", ".md")
+        local_knowledge_dir(repo_root)
+        / "code-mirror"
+        / source_file.replace(".py", ".md")
     )
     mirror_path.parent.mkdir(parents=True, exist_ok=True)
 
