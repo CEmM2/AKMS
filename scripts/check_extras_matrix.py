@@ -37,6 +37,17 @@ EXTRAS = {
     "failure-memory": ({"akms-failure-memory"}, ["failure-memory"]),
     "nodes-gen": ({"akms-nodes-gen"}, ["akms-pick"]),
     "compmech": ({"akms-learn", "compmech-reference-pack"}, ["akms-learn"]),
+    "multilang": (set(), []),
+}
+
+# Extra -> modules it must make importable (extras that add no sibling).
+EXTRA_MODULES = {
+    "multilang": [
+        "tree_sitter",
+        "tree_sitter_rust",
+        "tree_sitter_cpp",
+        "tree_sitter_julia",
+    ],
 }
 
 CASES = [
@@ -45,20 +56,24 @@ CASES = [
     "failure-memory",
     "nodes-gen",
     "compmech",
+    "multilang",
     "learn,failure-memory",
     "learn,nodes-gen",
     "failure-memory,nodes-gen",
     "all",
 ]
 
-CORE_COMMANDS = ["akms", "akms-mcp-stdio"]
+CORE_COMMANDS = ["akms", "akms-mcp-stdio", "repo-wiki"]
 
 PROBE = """
-import importlib.metadata as m, json
+import importlib.metadata as m, importlib.util as u, json
 names = {d.metadata["Name"].lower().replace("_", "-") for d in m.distributions()}
 plugins = sorted(e.name for e in m.entry_points(group="akms.plugins"))
-print(json.dumps({"names": sorted(names), "plugins": plugins}))
+wanted = %r
+modules = sorted(n for n in wanted if u.find_spec(n) is not None)
+print(json.dumps({"names": sorted(names), "plugins": plugins, "modules": modules}))
 """
+ALL_MODULES = sorted({name for names in EXTRA_MODULES.values() for name in names})
 
 
 def wheel_for(wheelhouse: Path, distribution: str) -> Path:
@@ -71,17 +86,19 @@ def wheel_for(wheelhouse: Path, distribution: str) -> Path:
     return matches[0].resolve()
 
 
-def expected_for(case: str) -> tuple[set[str], list[str]]:
+def expected_for(case: str) -> tuple[set[str], list[str], set[str]]:
     extras = [e for e in case.split(",") if e]
     if extras == ["all"]:
         extras = list(EXTRAS)
     siblings: set[str] = set()
     commands = list(CORE_COMMANDS)
+    modules: set[str] = set()
     for extra in extras:
         dists, cmds = EXTRAS[extra]
         siblings |= dists
         commands += cmds
-    return siblings, commands
+        modules |= set(EXTRA_MODULES.get(extra, []))
+    return siblings, commands, modules
 
 
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
@@ -123,12 +140,16 @@ def check_case(
             f"{label}: dependency check failed:\n{checked.stdout}{checked.stderr}"
         )
 
-    probe = json.loads(run([str(exe / "python"), "-c", PROBE]).stdout)
+    probe = json.loads(run([str(exe / "python"), "-c", PROBE % ALL_MODULES]).stdout)
     present = {name for name in probe["names"] if name in SIBLINGS}
-    siblings, commands = expected_for(case)
+    siblings, commands, modules = expected_for(case)
     if present != siblings:
         errors.append(
             f"{label}: installed siblings {sorted(present)}, expected {sorted(siblings)}"
+        )
+    if set(probe["modules"]) != modules:
+        errors.append(
+            f"{label}: importable modules {probe['modules']}, expected {sorted(modules)}"
         )
     if ("akms-learn" in siblings) != ("learn" in probe["plugins"]):
         errors.append(f"{label}: akms.plugins entry points are {probe['plugins']}")

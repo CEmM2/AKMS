@@ -37,6 +37,7 @@ dependencies = [
 #   akms[mcp]             MCP tool server
 #   akms[telemetry]       OpenTelemetry export
 #   akms[orchestration]   the complete embedded runtime
+#   akms[multilang]       tree-sitter grammars for repo-wiki (Rust, C++, Julia)
 
 [project.urls]
 Homepage = "https://github.com/CEmM2/AKMS"
@@ -67,6 +68,23 @@ orchestration = [
     "akms[agents,mcp,telemetry]",
     "litellm>=1.96.2,<2",
 ]
+# Language backends for `repo-wiki` beyond Python and Doxygen C++. Each grammar
+# is imported only when its language is enabled in `.repo_wiki/config.yaml`.
+rust = [
+    "tree-sitter>=0.25,<1",
+    "tree-sitter-rust>=0.24,<1",
+]
+cpp = [
+    "tree-sitter>=0.25,<1",
+    "tree-sitter-cpp>=0.23,<1",
+]
+julia = [
+    "tree-sitter>=0.25,<1",
+    "tree-sitter-julia>=0.23,<1",
+]
+multilang = [
+    "akms[rust,cpp,julia]",
+]
 # Sibling packages, so `pip install akms[learn]` and friends work. They are
 # released in lockstep with akms, so each pin admits exactly the current
 # minor series; scripts/check_versions.py fails the release if one drifts.
@@ -85,7 +103,7 @@ compmech = [
     "compmech-reference-pack[mechdsl]>=0.3.2,<0.4",
 ]
 all = [
-    "akms[orchestration,learn,failure-memory,nodes-gen,compmech]",
+    "akms[orchestration,multilang,learn,failure-memory,nodes-gen,compmech]",
     "akms-nodes-gen[llm]>=0.3.2,<0.4",
 ]
 
@@ -94,6 +112,9 @@ akms = "akms.cli.commands:main"
 # Declared unconditionally so the command exists in every install. Without the
 # `mcp` extra it exits with an install hint rather than a traceback.
 akms-mcp-stdio = "akms.orchestrator.mcp_stdio:main"
+# The repository wiki and code-mirror exporter. Kept under its original name so
+# mirror configs that invoke `repo-wiki export-akms` keep working.
+repo-wiki = "akms.repo_wiki.cli:main"
 
 [build-system]
 requires = ["setuptools>=68.0"]

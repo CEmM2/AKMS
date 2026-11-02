@@ -1,0 +1,536 @@
+"""Public, dependency-free contract for exporting repository-wiki mirrors to AKMS."""
+
+from __future__ import annotations
+
+import html
+import json
+import os
+import tempfile
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Final, Mapping
+
+from akms.repo_wiki.hashing import sha256_text
+from akms.repo_wiki.models import Language, ParsedModule, Symbol
+
+EXPORT_SCHEMA_VERSION: Final = 1
+"""Version of the repo-wiki-to-AKMS export and command-result schema."""
+
+AKMS_SCHEMA_VERSION: Final = "v2"
+"""Frozen AKMS frontmatter schema consumed by the export."""
+
+CODE_MIRROR_FRONTMATTER_FIELDS: Final = (
+    "id",
+    "title",
+    "domain",
+    "status",
+    "confidence",
+    "source",
+    "auto_update",
+    "content_ref",
+    "source_file",
+    "generated_at",
+    "generated_by_phase",
+    "akms_schema",
+)
+"""Exact fields accepted by AKMS v2 ``CodeMirrorNodeFrontmatter``."""
+
+_SUPPORTED_LANGUAGES: Final = frozenset(language.value for language in Language)
+
+
+def _language_value(language: Language | str) -> str:
+    value = language.value if isinstance(language, Language) else str(language)
+    if value not in _SUPPORTED_LANGUAGES:
+        supported = ", ".join(sorted(_SUPPORTED_LANGUAGES))
+        raise ValueError(
+            f"Unsupported AKMS mirror language {value!r}; expected one of: {supported}"
+        )
+    return value
+
+
+def normalize_source_path(source_path: str) -> str:
+    """Return a canonical repository-relative POSIX path; absolute and ``..`` paths are rejected.
+
+    Windows drive/UNC forms are rejected via ``PureWindowsPath`` even on POSIX hosts.
+    """
+
+    normalized = source_path.replace("\\", "/")
+    if not normalized or normalized.endswith("/"):
+        raise ValueError("source_path must name a repository-relative file")
+    # Reject Windows drive/root/UNC forms even on POSIX, where "C:/..." looks relative.
+    windows_path = PureWindowsPath(normalized)
+    if windows_path.drive or windows_path.root:
+        raise ValueError(
+            f"source_path must not be absolute or traverse parents: {source_path!r}"
+        )
+    path = PurePosixPath(normalized)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(
+            f"source_path must not be absolute or traverse parents: {source_path!r}"
+        )
+    canonical = path.as_posix()
+    if canonical in {"", "."}:
+        raise ValueError("source_path must name a repository-relative file")
+    return canonical
+
+
+def canonical_generated_at(generated_at: datetime | str) -> str:
+    """Validate and canonicalize an explicit ISO-8601 export timestamp."""
+
+    if isinstance(generated_at, datetime):
+        return generated_at.isoformat()
+    if not generated_at:
+        raise ValueError("generated_at must be an explicit ISO-8601 timestamp")
+    try:
+        parsed = datetime.fromisoformat(generated_at)
+    except ValueError as exc:
+        raise ValueError(
+            f"generated_at is not a valid ISO-8601 timestamp: {generated_at!r}"
+        ) from exc
+    return parsed.isoformat()
+
+
+def resolve_generated_at(
+    generated_at: datetime | str | None = None,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> str:
+    """Return ``generated_at`` or ``SOURCE_DATE_EPOCH`` (no wall clock); neither is an error."""
+
+    if generated_at is not None and generated_at != "":
+        return canonical_generated_at(generated_at)
+    env = os.environ if environ is None else environ
+    epoch_raw = env.get("SOURCE_DATE_EPOCH")
+    if epoch_raw is None or epoch_raw == "":
+        raise ValueError(
+            "deterministic export requires --generated-at or SOURCE_DATE_EPOCH"
+        )
+    try:
+        epoch = int(epoch_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"SOURCE_DATE_EPOCH must be an integer unix timestamp, got {epoch_raw!r}"
+        ) from exc
+    if epoch < 0:
+        raise ValueError(f"SOURCE_DATE_EPOCH must be non-negative, got {epoch}")
+    return (
+        datetime.fromtimestamp(epoch, tz=timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+    )
+
+
+def _validate_phase(phase: int) -> int:
+    if isinstance(phase, bool) or phase < 1:
+        raise ValueError(f"phase must be a positive integer, got {phase!r}")
+    return phase
+
+
+def _encode_non_python_id_path(source_path: str) -> str:
+    """Injectively encode a UTF-8 path using AKMS-friendly ID characters."""
+
+    encoded: list[str] = []
+    for byte in source_path.encode("utf-8"):
+        char = chr(byte)
+        if char.isascii() and (char.islower() or char.isdigit() or char == "-"):
+            encoded.append(char)
+        else:
+            encoded.append(f"_{byte:02x}")
+    return "".join(encoded)
+
+
+def mirror_node_id(source_path: str, language: Language | str) -> str:
+    """Build the stable AKMS node ID (Python: legacy algorithm; others: injective encoding)."""
+
+    path = normalize_source_path(source_path)
+    language_value = _language_value(language)
+    if language_value == Language.PYTHON.value:
+        return "mirror-" + path.replace("/", "-").replace(".py", "").replace(".", "-")
+    return f"mirror-{language_value}-{_encode_non_python_id_path(path)}"
+
+
+def mirror_content_ref(source_path: str, language: Language | str) -> str:
+    """Build the AKMS-relative ``content_ref`` for a generated document."""
+
+    path = normalize_source_path(source_path)
+    language_value = _language_value(language)
+    if language_value == Language.PYTHON.value:
+        return f"code-mirror/{path.replace('.py', '.md')}"
+    return f"code-mirror/{language_value}/{path}.md"
+
+
+def mirror_document_path(source_path: str, language: Language | str) -> str:
+    """Build the repository-relative generated path, distinct from source path."""
+
+    return f"knowledge/{mirror_content_ref(source_path, language)}"
+
+
+@dataclass(frozen=True, slots=True)
+class MirrorDocument:
+    """Complete deterministic producer contract for one source-file mirror."""
+
+    source_path: str
+    language: str
+    source_hash: str
+    phase: int
+    generated_at: str
+    node_id: str
+    content_ref: str
+    generated_path: str
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+def build_mirror_document(
+    *,
+    source_path: str,
+    language: Language | str,
+    source_hash: str,
+    phase: int,
+    generated_at: datetime | str,
+) -> MirrorDocument:
+    """Create a mirror contract record without reading or writing the filesystem."""
+
+    path = normalize_source_path(source_path)
+    language_value = _language_value(language)
+    if not source_hash:
+        raise ValueError("source_hash must be explicit and non-empty")
+    return MirrorDocument(
+        source_path=path,
+        language=language_value,
+        source_hash=source_hash,
+        phase=_validate_phase(phase),
+        generated_at=canonical_generated_at(generated_at),
+        node_id=mirror_node_id(path, language_value),
+        content_ref=mirror_content_ref(path, language_value),
+        generated_path=mirror_document_path(path, language_value),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class WrittenRecord:
+    """A mirror document atomically written by an export command."""
+
+    source_path: str
+    language: str
+    source_hash: str
+    node_id: str
+    content_ref: str
+    generated_path: str
+
+    @classmethod
+    def from_document(cls, document: MirrorDocument) -> WrittenRecord:
+        return cls(
+            source_path=document.source_path,
+            language=document.language,
+            source_hash=document.source_hash,
+            node_id=document.node_id,
+            content_ref=document.content_ref,
+            generated_path=document.generated_path,
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class RemovedRecord:
+    """A stale generated document removed after a completely successful export."""
+
+    source_path: str
+    language: str
+    node_id: str
+    content_ref: str
+    generated_path: str
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class SkippedRecord:
+    """A source intentionally not exported, with a machine-readable reason."""
+
+    source_path: str
+    language: str
+    source_hash: str
+    reason: str
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class ErrorRecord:
+    """A source-scoped export failure suitable for JSON reporting."""
+
+    source_path: str | None
+    language: str | None
+    stage: str
+    message: str
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class SelectedRecord:
+    """A source path selected for this export, with its content hash."""
+
+    source_path: str
+    language: str
+    source_hash: str
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+def _record_sort_key(record: object) -> tuple[str, ...]:
+    data = asdict(record)  # type: ignore[arg-type]
+    return tuple(
+        "" if value is None else str(value) for _, value in sorted(data.items())
+    )
+
+
+@dataclass(slots=True)
+class ExportResult:
+    """Stable command result with explicit context and per-outcome records."""
+
+    phase: int
+    generated_at: datetime | str
+    written: list[WrittenRecord] = field(default_factory=list)
+    removed: list[RemovedRecord] = field(default_factory=list)
+    skipped: list[SkippedRecord] = field(default_factory=list)
+    errors: list[ErrorRecord] = field(default_factory=list)
+    selected: list[SelectedRecord] = field(default_factory=list)
+    selection: dict[str, object] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a deterministic JSON-ready mapping."""
+
+        selection = dict(self.selection)
+        return {
+            "export_schema_version": EXPORT_SCHEMA_VERSION,
+            "phase": _validate_phase(self.phase),
+            "generated_at": canonical_generated_at(self.generated_at),
+            "selection": selection,
+            "selected": [
+                record.to_dict()
+                for record in sorted(self.selected, key=_record_sort_key)
+            ],
+            "written": [
+                record.to_dict()
+                for record in sorted(self.written, key=_record_sort_key)
+            ],
+            "removed": [
+                record.to_dict()
+                for record in sorted(self.removed, key=_record_sort_key)
+            ],
+            "skipped": [
+                record.to_dict()
+                for record in sorted(self.skipped, key=_record_sort_key)
+            ],
+            "errors": [
+                record.to_dict() for record in sorted(self.errors, key=_record_sort_key)
+            ],
+        }
+
+    def to_json(self) -> str:
+        """Serialize the command result to byte-deterministic compact JSON."""
+
+        return json.dumps(
+            self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
+
+
+def _validated_document(parsed: ParsedModule, document: MirrorDocument) -> None:
+    """Reject a document whose identity or source metadata does not match its parsed module."""
+
+    expected = build_mirror_document(
+        source_path=document.source_path,
+        language=document.language,
+        source_hash=document.source_hash,
+        phase=document.phase,
+        generated_at=document.generated_at,
+    )
+    if document != expected:
+        raise ValueError(
+            "MirrorDocument identity fields are inconsistent with the export contract"
+        )
+
+    source = parsed.source_file
+    if normalize_source_path(source.path) != document.source_path:
+        raise ValueError(
+            f"ParsedModule source path {source.path!r} does not match {document.source_path!r}"
+        )
+    if _language_value(source.language) != document.language:
+        raise ValueError(
+            f"ParsedModule language {source.language!r} does not match {document.language!r}"
+        )
+    if source.content_hash != document.source_hash:
+        raise ValueError(
+            "ParsedModule source hash does not match MirrorDocument source_hash"
+        )
+
+    for symbol in parsed.symbols:
+        if normalize_source_path(symbol.path) != document.source_path:
+            raise ValueError(
+                f"Symbol {symbol.symbol_id!r} belongs to {symbol.path!r}, "
+                f"not {document.source_path!r}"
+            )
+        if symbol.language.value != document.language:
+            raise ValueError(
+                f"Symbol {symbol.symbol_id!r} language {symbol.language.value!r} "
+                f"does not match {document.language!r}"
+            )
+
+
+def _frontmatter(document: MirrorDocument) -> dict[str, object]:
+    """Build only the frozen AKMS v2 code-mirror fields."""
+
+    return {
+        "id": document.node_id,
+        "title": f"Code Mirror: {document.source_path}",
+        "domain": "code-mirror",
+        "status": "established",
+        "confidence": 1.0,
+        "source": "generated",
+        "auto_update": True,
+        "content_ref": document.content_ref,
+        "source_file": document.source_path,
+        "generated_at": document.generated_at,
+        "generated_by_phase": document.phase,
+        "akms_schema": AKMS_SCHEMA_VERSION,
+    }
+
+
+def _dump_frontmatter(document: MirrorDocument) -> str:
+    """Serialize frozen scalar frontmatter as JSON-compatible YAML."""
+
+    return "".join(
+        f"{key}: {json.dumps(value, ensure_ascii=True, allow_nan=False)}\n"
+        for key, value in sorted(_frontmatter(document).items())
+    )
+
+
+def _markdown_path(source_path: str) -> str:
+    """Render a path as safe inline HTML with control characters made visible."""
+
+    visible = json.dumps(source_path, ensure_ascii=True)[1:-1]
+    return f"<code>{html.escape(visible)}</code>"
+
+
+def _symbol_metadata(symbol: Symbol) -> dict[str, object]:
+    """Project searchable symbol fields without copying source text."""
+
+    return {
+        "symbol_id": symbol.symbol_id,
+        "kind": symbol.kind,
+        "start_line": symbol.start_line,
+        "end_line": symbol.end_line,
+        "signature": symbol.signature,
+        "docstring": symbol.docstring,
+        "calls": symbol.calls,
+        "bases": symbol.bases,
+        "parent_id": symbol.parent_id,
+    }
+
+
+def _markdown_fence(text: str) -> str:
+    """Return a backtick fence longer than every run present in ``text``."""
+
+    longest = 0
+    current = 0
+    for character in text:
+        if character == "`":
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    return "`" * max(3, longest + 1)
+
+
+def render_mirror_markdown(
+    parsed: ParsedModule,
+    source_text: str,
+    document: MirrorDocument,
+) -> str:
+    """Render one deterministic AKMS file-level mirror without filesystem mutation."""
+
+    if sha256_text(source_text) != document.source_hash:
+        raise ValueError("source_text does not match MirrorDocument source_hash")
+    _validated_document(parsed, document)
+    symbol_index = [
+        _symbol_metadata(symbol)
+        for symbol in sorted(
+            parsed.symbols,
+            key=lambda item: (item.start_line, item.end_line, item.symbol_id),
+        )
+    ]
+    symbol_json = json.dumps(symbol_index, indent=2, ensure_ascii=False)
+    symbol_fence = _markdown_fence(symbol_json)
+    source_fence = _markdown_fence(source_text)
+    source_ending = "" if source_text.endswith("\n") else "\n"
+
+    frontmatter = _dump_frontmatter(document)
+    body = (
+        f"# {_markdown_path(document.source_path)}\n\n"
+        f"_Mirror generated: {document.generated_at} · phase {document.phase}_\n\n"
+        "## Symbol Index\n\n"
+        f"{symbol_fence}json\n{symbol_json}\n{symbol_fence}\n\n"
+        "## Complete Source\n\n"
+        f"{source_fence}{document.language}\n"
+        f"{source_text}{source_ending}{source_fence}\n"
+    )
+    return f"---\n{frontmatter}---\n{body}"
+
+
+def atomic_write_text(path: Path | str, content: str) -> None:
+    """Atomically replace ``path`` with UTF-8 ``content`` from a sibling temporary file."""
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=target.parent,
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary, 0o644)
+        os.replace(temporary, target)
+    except BaseException:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise
+
+
+def write_mirror_document(
+    *,
+    parsed: ParsedModule,
+    source_text: str,
+    output_root: Path | str,
+    phase: int,
+    generated_at: datetime | str,
+) -> WrittenRecord:
+    """Render and atomically write one mirror, returning its structured export record."""
+
+    document = build_mirror_document(
+        source_path=parsed.source_file.path,
+        language=parsed.source_file.language,
+        source_hash=parsed.source_file.content_hash,
+        phase=phase,
+        generated_at=generated_at,
+    )
+    markdown = render_mirror_markdown(parsed, source_text, document)
+    atomic_write_text(Path(output_root) / document.generated_path, markdown)
+    return WrittenRecord.from_document(document)

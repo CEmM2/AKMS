@@ -1,0 +1,68 @@
+{
+  "export_schema_version": 1,
+  "akms_schema_version": "v2",
+  "documents": [
+    {
+      "source_path": "src/tifem/fft/green.py",
+      "language": "python",
+      "source_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "phase": 2,
+      "generated_at": "2026-03-07T12:00:00+00:00",
+      "node_id": "mirror-src-tifem-fft-green",
+      "content_ref": "code-mirror/src/tifem/fft/green.md",
+      "generated_path": "knowledge/code-mirror/src/tifem/fft/green.md"
+    },
+    {
+      "source_path": "src/tifem/fft/green.cpp",
+      "language": "cpp",
+      "source_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "phase": 2,
+      "generated_at": "2026-03-07T12:00:00+00:00",
+      "node_id": "mirror-cpp-src_2ftifem_2ffft_2fgreen_2ecpp",
+      "content_ref": "code-mirror/cpp/src/tifem/fft/green.cpp.md",
+      "generated_path": "knowledge/code-mirror/cpp/src/tifem/fft/green.cpp.md"
+    }
+  ],
+  "result": {
+    "export_schema_version": 1,
+    "phase": 2,
+    "generated_at": "2026-03-07T12:00:00+00:00",
+    "selection": {},
+    "selected": [],
+    "written": [
+      {
+        "source_path": "src/tifem/fft/green.py",
+        "language": "python",
+        "source_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "node_id": "mirror-src-tifem-fft-green",
+        "content_ref": "code-mirror/src/tifem/fft/green.md",
+        "generated_path": "knowledge/code-mirror/src/tifem/fft/green.md"
+      }
+    ],
+    "removed": [
+      {
+        "source_path": "src/obsolete.rs",
+        "language": "rust",
+        "node_id": "mirror-rust-src_2fobsolete_2ers",
+        "content_ref": "code-mirror/rust/src/obsolete.rs.md",
+        "generated_path": "knowledge/code-mirror/rust/src/obsolete.rs.md"
+      }
+    ],
+    "skipped": [
+      {
+        "source_path": "README.md",
+        "language": "markdown",
+        "source_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "reason": "unsupported-language"
+      }
+    ],
+    "errors": [
+      {
+        "source_path": "src/broken.jl",
+        "language": "julia",
+        "stage": "render",
+        "message": "fixture render failure"
+      }
+    ]
+  }
+}
