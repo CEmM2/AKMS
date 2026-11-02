@@ -92,8 +92,8 @@ cannot derive.
 AKMS ships a validator. Point it at a file or a directory:
 
 ```bash
-python -m akms.tools.node_validator knowledge/local-nodes/my-node.md
-python -m akms.tools.node_validator knowledge/local-nodes/ --strict
+python -m akms.tools.node_validator .knowledge/local-nodes/my-node.md
+python -m akms.tools.node_validator .knowledge/local-nodes/ --strict
 ```
 
 Useful flags: `--strict` (warnings become errors, exit 1), `--json` (machine
@@ -106,7 +106,7 @@ From Python, the pieces are `parse_md_file`, `validate_frontmatter`, and
 from pathlib import Path
 from akms.tools.node_validator import parse_md_file, validate_frontmatter
 
-fm, body, issues = parse_md_file(Path("knowledge/local-nodes/my-node.md"))
+fm, body, issues = parse_md_file(Path(".knowledge/local-nodes/my-node.md"))
 if fm is not None:
     model, more = validate_frontmatter(fm, body)
     issues += more

@@ -14,13 +14,13 @@ by_path:
   src/solver.py:
     - node_id: solver-update-contract
       reason: Exact implementation constraints for the solver update path
-      provenance: knowledge/task-routes.yaml
+      provenance: .knowledge/task-routes.yaml
 by_symbol:
   Solver.step:
     - node_id: consistent-tangent-contract
       reason: Symbol-specific tangent requirements
       provenance:
-        source: knowledge/symbol-routes.yaml
+        source: .knowledge/symbol-routes.yaml
         generator: manual
 ```
 

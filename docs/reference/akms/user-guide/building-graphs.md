@@ -5,12 +5,12 @@
 `build_graph()` reads, in order:
 
 1. Global Markdown nodes from the resolved vault
-2. Local Markdown nodes from `knowledge/local-nodes/`
-3. Code-mirror Markdown nodes from `knowledge/code-mirror/`
-4. The optional overlay `knowledge/graph/local_state.yaml`
+2. Local Markdown nodes from `.knowledge/local-nodes/`
+3. Code-mirror Markdown nodes from `.knowledge/code-mirror/`
+4. The optional overlay `.knowledge/graph/local_state.yaml`
 
 It validates each artifact against the frozen v2 schemas and writes
-`knowledge/graph/graph.json` unless another output path is supplied.
+`.knowledge/graph/graph.json` unless another output path is supplied.
 
 ## Python API
 
@@ -22,12 +22,12 @@ root = Path(".")
 graph = build_graph(
     repo_root=root,
     global_vault=None,      # use documented precedence
-    output_path=None,       # knowledge/graph/graph.json
+    output_path=None,       # .knowledge/graph/graph.json
     config=None,
     strict=True,
 )
 
-same_graph = load_graph(root / "knowledge/graph/graph.json")
+same_graph = load_graph(root / ".knowledge/graph/graph.json")
 ```
 
 `strict=True` propagates frontmatter parse failures instead of collecting them

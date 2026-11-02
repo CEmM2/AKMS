@@ -52,6 +52,9 @@ development is intentionally not replayed.
   follow the same rule. When run from the akms package, the qmd scripts now
   search the repository they are run from; before, they looked inside the
   installed package and found no local nodes, mirror or sessions.
+- The documentation, the bundled skills, the CLAUDE.md kernel and
+  `examples/sample-project` now use the `.knowledge/` layout. The frozen v2
+  specification still names `knowledge/`.
 - A registry schema 2 source digest is SHA-256 over the registry files sorted
   by filename (name, NUL, raw bytes, NUL each, `_registry.json` included).
   Schema 1 digests are unchanged. Migrating a registry changes its lesson

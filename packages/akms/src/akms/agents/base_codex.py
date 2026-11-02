@@ -362,7 +362,7 @@ def _tool_search_mirror(
 def _tool_get_pitfalls(repo_root: Path | None, node_ids: list[str]) -> list[dict]:
     """Return pitfall edges whose ``from`` node is in ``node_ids``.
 
-    Reads ``knowledge/graph/local_state.yaml`` directly (no shell-out —
+    Reads ``.knowledge/graph/local_state.yaml`` directly (no shell-out —
     this is structural graph data). Mirrors the MCP tool of the same
     name so Codex and Claude agents return equivalent shapes.
     """

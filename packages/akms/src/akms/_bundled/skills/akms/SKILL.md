@@ -32,7 +32,7 @@ Two facts that govern everything below:
 AKMS serves a project from that project's own directory:
 
 ```text
-knowledge/
+.knowledge/
   local-nodes/      # project-owned knowledge nodes (markdown + v2 frontmatter)
   graph/graph.json  # compiled graph (generated)
   loadouts/         # generated per-task context files
@@ -43,7 +43,7 @@ knowledge/
 Create the minimum with:
 
 ```bash
-mkdir -p knowledge/local-nodes knowledge/graph
+mkdir -p .knowledge/local-nodes .knowledge/graph
 ```
 
 ## The loop
@@ -83,7 +83,7 @@ resolution against a route index, fail-closed:
 akms resolve-task \
   --repo . \
   --task-json dev/tasks/fix-constitutive-update.json \
-  --routes knowledge/task-routes.yaml \
+  --routes .knowledge/task-routes.yaml \
   --base main --head HEAD \
   --role implementer \
   --mode routing
@@ -116,7 +116,7 @@ akms loadout assembly-demo \
   what it needs.
 - `--mode full` inlines node content subject to a token budget.
 
-Default output: `knowledge/loadouts/<phase>-<task>-loadout.md`.
+Default output: `.knowledge/loadouts/<phase>-<task>-loadout.md`.
 
 ### 4. Update — do not skip this
 
@@ -159,7 +159,7 @@ edges: []
 load_with: []
 context_size: medium
 reading_priority: summary
-content_ref: knowledge/local-nodes/fem-assembly.md
+content_ref: .knowledge/local-nodes/fem-assembly.md
 akms_schema: v2
 ---
 

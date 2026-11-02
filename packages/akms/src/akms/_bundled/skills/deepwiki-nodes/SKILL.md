@@ -39,7 +39,7 @@ context.
 | `REPO` | GitHub `owner/name`, indexed by DeepWiki | *(required)* |
 | `NODE_PLAN` | Which nodes to create — see step 2 | *(required)* |
 | `QUERY_FILE` | Working file holding queries and responses | `Sources_Evals/DeepWiki/{repo}.md` |
-| `OUT_DIR` | Where YAML and markdown land | `knowledge/local-nodes/` |
+| `OUT_DIR` | Where YAML and markdown land | `.knowledge/local-nodes/` |
 
 ## Workflow
 
@@ -103,7 +103,7 @@ uv run python skills/node-gen/scripts/akms_node_clean.py {OUT_DIR}/{id}.md --val
 ### 5. Validate and compile
 
 ```bash
-python -m akms.tools.node_validator knowledge/local-nodes/ --strict
+python -m akms.tools.node_validator .knowledge/local-nodes/ --strict
 akms status --repo .
 ```
 

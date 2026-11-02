@@ -9,7 +9,7 @@ Two pure-Python deterministic helpers:
   passes in (files_modified + branch + plan_file + forward briefing).
 
 - ``write_handoff(pcd, repo_root)`` writes the PCD to
-  ``knowledge/sessions/handoff_phase_{N}.md`` using python-frontmatter so the
+  ``.knowledge/sessions/handoff_phase_{N}.md`` using python-frontmatter so the
   file round-trips cleanly through the existing validators.
 
 No LLM calls — all aggregation is pure field merging.

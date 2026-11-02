@@ -1,6 +1,6 @@
 # Code-mirror providers
 
-AKMS projects repository source into `knowledge/code-mirror/` for exact path
+AKMS projects repository source into `.knowledge/code-mirror/` for exact path
 resolution, search, and review context. Projection is pluggable; graph and
 loadout semantics remain in AKMS core.
 
@@ -63,6 +63,10 @@ without the binary present fails loudly rather than silently reverting to
 - Validates export schema, AKMS v2 frontmatter, output containment,
   content/source consistency, duplicate IDs, and completeness
 - Uses a pinned consumer contract under `packages/akms/release/`
+
+`repo-wiki` always writes its mirror to `<repo>/knowledge/code-mirror/`. A
+repository whose knowledge lives in `.knowledge/` does not load that mirror
+into its graph yet.
 
 ## CLI
 

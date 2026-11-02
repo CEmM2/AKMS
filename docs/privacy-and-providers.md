@@ -47,7 +47,8 @@ PATH hygiene applies.
 
 - The **global vault is read-only** by contract: no automated process modifies
   `~/.claude/akms/nodes/` (override the location with `AKMS_GLOBAL_VAULT`).
-  Project-local state lives in the project's `knowledge/` directory.
+  Project-local state lives in the project's `.knowledge/` directory (or an
+  older `knowledge/` directory, when that is the one the project has).
 - Generated artifacts are written under the project tree, and public artifact
   formats avoid embedding absolute home-directory paths.
 

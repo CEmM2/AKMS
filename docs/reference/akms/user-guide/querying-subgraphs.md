@@ -10,7 +10,7 @@ than a NetworkX subgraph.
 from akms.graph.build_graph import load_graph
 from akms.graph.query_subgraph import query_subgraph
 
-G = load_graph("knowledge/graph/graph.json")
+G = load_graph(".knowledge/graph/graph.json")
 ranked = query_subgraph(
     G,
     domain_tags=["plasticity", "return-mapping"],

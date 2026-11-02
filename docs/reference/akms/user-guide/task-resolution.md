@@ -36,12 +36,12 @@ by_path:
   src/constitutive/update.py:
     - node_id: consistent-tangent-contract
       reason: Required invariant for this update path
-      provenance: knowledge/task-routes.yaml
+      provenance: .knowledge/task-routes.yaml
 by_symbol:
   Material.update:
     - node_id: return-mapping-contract
       reason: Symbol-specific constitutive algorithm
-      provenance: knowledge/task-routes.yaml
+      provenance: .knowledge/task-routes.yaml
 ```
 
 ### Changed paths
@@ -60,7 +60,7 @@ A bare single path string is rejected. Do not provide both mechanisms.
 akms resolve-task \
   --repo . \
   --task-json dev/tasks/fix-constitutive-update.json \
-  --routes knowledge/task-routes.yaml \
+  --routes .knowledge/task-routes.yaml \
   --base main \
   --head HEAD \
   --role code_reviewer \
@@ -73,8 +73,8 @@ The command prints pure JSON on stdout and exits nonzero for a structured error.
 Default artifacts:
 
 ```text
-knowledge/loadouts/<phase>-<task>-<role>-loadout.md
-knowledge/resolution-manifests/<phase>-<task>-<role>-manifest.json
+.knowledge/loadouts/<phase>-<task>-<role>-loadout.md
+.knowledge/resolution-manifests/<phase>-<task>-<role>-manifest.json
 ```
 
 ## Result contract
@@ -94,7 +94,7 @@ from akms.task_context.resolve_task_service import resolve_task
 result = resolve_task(
     repo_root=".",
     task="dev/tasks/fix-constitutive-update.json",
-    route_index="knowledge/task-routes.yaml",
+    route_index=".knowledge/task-routes.yaml",
     agent_role="code_reviewer",
     base="main",
     head="HEAD",

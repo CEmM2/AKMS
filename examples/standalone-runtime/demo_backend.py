@@ -7,7 +7,7 @@ extension seam — and shows the two methods a custom backend implements:
   Return ``None`` when the backend can run, or a human-readable reason string
   when it cannot.
 * ``execute()``: do the work for one task and write a schema-valid
-  ``AgentMemory`` file to ``knowledge/sessions/{task_id}.md``. The sealed
+  ``AgentMemory`` file to ``.knowledge/sessions/{task_id}.md``. The sealed
   ``run()`` wrapper owns the protocol lifecycle around it.
 
 No network, no credentials, no LLM: every task "succeeds" with a canned

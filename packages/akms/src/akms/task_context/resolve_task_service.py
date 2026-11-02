@@ -435,7 +435,7 @@ def resolve_task(
         from ``git diff --name-only base...head`` (``head`` defaults to HEAD).
         Mutually exclusive with a non-empty ``changed_paths`` input.
     graph_path:
-        Optional compiled graph path (default ``knowledge/graph/graph.json``).
+        Optional compiled graph path (default ``.knowledge/graph/graph.json``).
     loadout_path, manifest_path:
         Optional output paths (relative paths resolve against ``repo_root``).
     mode:
