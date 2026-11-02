@@ -1,6 +1,6 @@
 {
   "count": 3,
-  "graph_path": "<repo>/knowledge/graph/graph.json",
+  "graph_path": "<repo>/.knowledge/graph/graph.json",
   "nodes": [
     {
       "confidence": 0.9,

@@ -133,7 +133,7 @@ def build_graph(
     """Compile the unified knowledge graph from all sources.
 
     Args:
-        repo_root: Path to the repository root (contains knowledge/).
+        repo_root: Path to the repository root (contains .knowledge/).
         global_vault: Override path to global vault. If None, resolved via
                       precedence: AKMS_GLOBAL_VAULT env var > ``config.global_vault``
                       (when ``config`` is supplied) > default ``~/.claude/akms/nodes``.

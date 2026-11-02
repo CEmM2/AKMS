@@ -8,12 +8,12 @@ an LLM, an MCP server, or the optional pipeline runner.
 From the project you want AKMS to serve:
 
 ```bash
-mkdir -p knowledge/local-nodes knowledge/graph
+mkdir -p .knowledge/local-nodes .knowledge/graph
 ```
 
 ## 2. Add a valid v2 local node
 
-Create `knowledge/local-nodes/fem-assembly.md`:
+Create `.knowledge/local-nodes/fem-assembly.md`:
 
 ```markdown
 ---
@@ -32,7 +32,7 @@ edges: []
 load_with: []
 context_size: medium
 reading_priority: summary
-content_ref: knowledge/local-nodes/fem-assembly.md
+content_ref: .knowledge/local-nodes/fem-assembly.md
 akms_schema: v2
 ---
 
@@ -60,7 +60,7 @@ akms query fem assembly --repo . --role implementer --max-depth 2
 When the default graph file is absent, the command compiles:
 
 ```text
-knowledge/graph/graph.json
+.knowledge/graph/graph.json
 ```
 
 The command prints machine-readable JSON with a ranked node list. The query
@@ -81,7 +81,7 @@ akms loadout assembly-demo \
 The default output is:
 
 ```text
-knowledge/loadouts/1-assembly-demo-loadout.md
+.knowledge/loadouts/1-assembly-demo-loadout.md
 ```
 
 Use `--mode full` to inline available node content subject to the ordinary

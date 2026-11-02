@@ -106,7 +106,7 @@ Thirteen tools, all bound to the `--repo-root` you launched with.
 | Tool | Arguments | Purpose |
 |---|---|---|
 | `akms_search_nodes` | `query`, `limit` | Search vault + local nodes. |
-| `akms_search_mirror` | `query`, `limit` | Search `knowledge/code-mirror/`. |
+| `akms_search_mirror` | `query`, `limit` | Search `.knowledge/code-mirror/`. |
 | `akms_search_sessions` | `query`, `limit` | Search AgentMemory / PCD markdown. |
 
 ### Code mirror

@@ -4,7 +4,7 @@ Self-contained, offline demonstrations. Nothing here needs an API key.
 
 - `minimal-vault/` — three demo knowledge nodes (a requires-chain with mixed
   status/confidence/source, so projections have something to rank).
-- `sample-project/` — an empty project skeleton with the `knowledge/` layout
+- `sample-project/` — an empty project skeleton with the `.knowledge/` layout
   AKMS expects.
 - `expected-output/` — committed outputs of the walkthrough below, compared in
   CI by `tests/docs_examples/`.

@@ -238,7 +238,7 @@ LOOPING_STAGES: set[Stage] = {Stage.EXECUTE, Stage.REVIEW}
 class PipelineState:
     """Persistent pipeline state for abort/resume support.
 
-    Saved as JSON to ``knowledge/graph/pipeline_state.json``.
+    Saved as JSON to ``.knowledge/graph/pipeline_state.json``.
     """
 
     def __init__(
@@ -382,7 +382,7 @@ class PipelineState:
         )
 
     def save(self, repo_root: Path) -> Path:
-        """Save pipeline state to knowledge/graph/pipeline_state.json."""
+        """Save pipeline state to .knowledge/graph/pipeline_state.json."""
         state_path = local_knowledge_dir(repo_root) / "graph" / "pipeline_state.json"
         state_path.parent.mkdir(parents=True, exist_ok=True)
         with open(state_path, "w") as f:
@@ -392,7 +392,7 @@ class PipelineState:
 
     @classmethod
     def load(cls, repo_root: Path) -> PipelineState | None:
-        """Load pipeline state from knowledge/graph/pipeline_state.json.
+        """Load pipeline state from .knowledge/graph/pipeline_state.json.
 
         Returns None if no state file exists.
         """

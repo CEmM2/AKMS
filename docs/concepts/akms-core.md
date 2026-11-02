@@ -19,13 +19,13 @@ A typed relation declared in node frontmatter. Supported values are:
 
 ## Experiential overlay
 
-`knowledge/graph/local_state.yaml` stores project-local confidence overrides,
+`.knowledge/graph/local_state.yaml` stores project-local confidence overrides,
 activation history, local edges, session nodes, and the replay ledger used by
 explicit update operations. It does not rewrite the global vault.
 
 ## Compiled graph
 
-`knowledge/graph/graph.json` is the generated NetworkX node-link projection of
+`.knowledge/graph/graph.json` is the generated NetworkX node-link projection of
 global nodes, local nodes, code mirrors, and the experiential overlay.
 Selection and ordering are deterministic for identical semantic inputs. The
 ordinary serializer includes a wall-clock `generated_at` field, so do not treat

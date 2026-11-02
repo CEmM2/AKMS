@@ -22,7 +22,7 @@ edges:
 load_with: [yield-surface-conventions]
 context_size: medium
 reading_priority: summary
-content_ref: knowledge/local-nodes/return-mapping.md
+content_ref: .knowledge/local-nodes/return-mapping.md
 akms_schema: v2
 ```
 
@@ -53,7 +53,7 @@ status: established
 confidence: 1.0
 source: generated
 auto_update: true
-content_ref: knowledge/code-mirror/code-src-solver-py.md
+content_ref: .knowledge/code-mirror/code-src-solver-py.md
 source_file: src/solver.py
 generated_at: 2026-08-16T00:00:00Z
 generated_by_phase: 1
@@ -69,7 +69,7 @@ tag derivation.
 Default path:
 
 ```text
-knowledge/graph/local_state.yaml
+.knowledge/graph/local_state.yaml
 ```
 
 The overlay can contain:

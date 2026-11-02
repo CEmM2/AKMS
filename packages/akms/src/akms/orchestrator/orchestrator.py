@@ -1009,12 +1009,12 @@ async def handle_review(
     route_index_path = _find_task_route_index(ctx.repo_root)
     if route_index_path is None:
         logger.info(
-            "No task route index under knowledge/; reviewer loadouts use "
+            "No task route index under .knowledge/ or knowledge/; reviewer loadouts use "
             "tag-based advisory resolution only"
         )
         warnings.append(
             "reviewer required-knowledge skipped: no task route index "
-            "(looked under knowledge/task-routes.{yaml,json} and friends)"
+            "(looked under .knowledge/task-routes.{yaml,json}, knowledge/ and friends)"
         )
         if diff_result.error:
             warnings.append(

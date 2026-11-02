@@ -10,7 +10,7 @@ exits 0 if the pipeline completes. Nothing leaves the machine.
 
 To use a real backend instead, drop ``agent_cls``/``checkpoint_handler`` and
 run ``akms orchestrate --goal "..." --backend claude`` in a real repository:
-gates are then answered through ``knowledge/checkpoints/`` response files.
+gates are then answered through ``.knowledge/checkpoints/`` response files.
 """
 
 from __future__ import annotations

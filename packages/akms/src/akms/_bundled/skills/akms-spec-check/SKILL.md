@@ -71,7 +71,7 @@ For each implemented component, verify these categories:
 - [ ] Malformed PCD rejected, not silently accepted (NFR-R01)
 - [ ] Missing `content_ref` produces warning, not crash (NFR-R02)
 - [ ] Graceful cold-start with empty global vault (NFR-R04)
-- [ ] No file modified outside `<repo>/knowledge/` without developer action (NFR-R03)
+- [ ] No file modified outside `<repo>/.knowledge/` (or the older `<repo>/knowledge/`) without developer action (NFR-R03)
 
 ### 4. Report findings
 

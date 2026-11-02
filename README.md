@@ -73,8 +73,8 @@ pip install akms
 Create a small vault and a project:
 
 ```bash
-mkdir -p vault/nodes project/knowledge/{graph,local-nodes,sessions,loadouts,code-mirror,qmd}
-printf 'akms_schema: v2\nnodes: {}\n' > project/knowledge/graph/local_state.yaml
+mkdir -p vault/nodes project/.knowledge/{graph,local-nodes,sessions,loadouts,code-mirror,qmd}
+printf 'akms_schema: v2\nnodes: {}\n' > project/.knowledge/graph/local_state.yaml
 
 cat > vault/nodes/demo-node.md <<'NODE'
 ---

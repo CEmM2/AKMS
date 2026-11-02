@@ -27,7 +27,7 @@ Edit the body until it clears the bar (implementable from the node alone), then
 validate and recompile:
 
 ```bash
-python -m akms.tools.node_validator knowledge/local-nodes/fem-assembly.md --strict
+python -m akms.tools.node_validator .knowledge/local-nodes/fem-assembly.md --strict
 akms status --repo .
 ```
 
@@ -50,7 +50,7 @@ akms loadout my-task --repo . --phase 1 \
   --tags fem assembly --role implementer --mode routing
 ```
 
-Written to `knowledge/loadouts/1-my-task-loadout.md`.
+Written to `.knowledge/loadouts/1-my-task-loadout.md`.
 
 Use `--mode full` to inline content instead of referencing it — subject to the
 loadout token budget (default max 8 nodes / 12000 tokens).
@@ -72,7 +72,7 @@ the nodes required for them.
 akms resolve-task \
   --repo . \
   --task-json dev/tasks/fix-constitutive-update.json \
-  --routes knowledge/task-routes.yaml \
+  --routes .knowledge/task-routes.yaml \
   --base main --head HEAD \
   --role implementer \
   --mode routing \
@@ -86,8 +86,8 @@ on purpose, so a single-path case cannot silently become a character sequence.
 Two artifacts land:
 
 ```text
-knowledge/loadouts/<phase>-<task>-<role>-loadout.md
-knowledge/resolution-manifests/<phase>-<task>-<role>-manifest.json
+.knowledge/loadouts/<phase>-<task>-<role>-loadout.md
+.knowledge/resolution-manifests/<phase>-<task>-<role>-manifest.json
 ```
 
 The manifest is the point. It records what was selected, the graph version, the
