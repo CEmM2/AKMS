@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from akms.repo_wiki.cli import main
@@ -130,3 +131,69 @@ def test_secret_files_are_skipped_and_never_reach_generated_docs(tmp_path: Path)
     assert matches_pattern("key.pem", "*.pem")
     assert matches_pattern("deploy.key", "*.key")
 
+
+def _seed_with_outside_link(tmp_path: Path) -> tuple[Path, Path]:
+    root = tmp_path / "repo"
+    outside = tmp_path / "outside"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "app.py").write_text("VALUE = 1\n")
+    outside.mkdir()
+    (outside / "data.py").write_text("SECRET = 2\n")
+    (root / "results").symlink_to(outside, target_is_directory=True)
+    return root, outside
+
+
+def test_scanner_skips_symlink_pointing_outside_root(tmp_path: Path):
+    root, _ = _seed_with_outside_link(tmp_path)
+
+    sources, skipped = scan_repository(root, default_config(root))
+
+    assert [source.path for source in sources] == ["src/app.py"]
+    assert {(item.path, item.reason) for item in skipped} >= {("results", "symlink")}
+
+
+def test_scanner_reports_ignored_outside_symlink_as_excluded(tmp_path: Path):
+    root, _ = _seed_with_outside_link(tmp_path)
+    (root / ".gitignore").write_text("results\n")
+
+    sources, skipped = scan_repository(root, default_config(root))
+
+    assert [source.path for source in sources] == ["src/app.py"]
+    assert ("results", "excluded") in {(item.path, item.reason) for item in skipped}
+
+
+def test_scanner_does_not_follow_symlinks_inside_root(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("VALUE = 1\n")
+    (tmp_path / "alias").symlink_to(tmp_path / "src", target_is_directory=True)
+    (tmp_path / "link.py").symlink_to(tmp_path / "src" / "app.py")
+
+    sources, skipped = scan_repository(tmp_path, default_config(tmp_path))
+
+    assert [source.path for source in sources] == ["src/app.py"]
+    reasons = {(item.path, item.reason) for item in skipped}
+    assert {("alias", "symlink"), ("link.py", "symlink")} <= reasons
+
+
+def test_scanner_skips_broken_symlink(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("VALUE = 1\n")
+    (tmp_path / "src" / "dangling.py").symlink_to(tmp_path / "missing.py")
+
+    sources, skipped = scan_repository(tmp_path, default_config(tmp_path))
+
+    assert [source.path for source in sources] == ["src/app.py"]
+    reasons = {(item.path, item.reason) for item in skipped}
+    assert ("src/dangling.py", "symlink") in reasons
+
+
+def test_export_akms_succeeds_beside_symlink_outside_root(tmp_path: Path, capsys):
+    root, _ = _seed_with_outside_link(tmp_path)
+    argv = ["--repo-root", str(root), "export-akms", "--output", "akms-output"]
+    argv += ["--phase", "1", "--generated-at", "2026-03-07T12:00:00+00:00"]
+
+    assert main([*argv, "--full", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["errors"] == []
+    assert [entry["source_path"] for entry in payload["written"]] == ["src/app.py"]

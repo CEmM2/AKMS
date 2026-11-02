@@ -36,7 +36,15 @@ def read_source(span: SourceSpan, repo_root: Path | str) -> str:
 
 
 def repo_relative(path: Path, root: Path) -> str:
-    return path.resolve().relative_to(root.resolve()).as_posix()
+    """Return ``path`` relative to ``root`` as POSIX text.
+
+    Computed lexically when ``path`` is spelled under ``root``, so a symlink keeps its own
+    name and one pointing outside the repository does not raise. Other paths are resolved.
+    """
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return path.resolve().relative_to(root.resolve()).as_posix()
 
 
 def safe_doc_name(value: str) -> str:
