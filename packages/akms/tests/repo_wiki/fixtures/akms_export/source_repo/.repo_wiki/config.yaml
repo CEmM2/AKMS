@@ -1,0 +1,7 @@
+languages:
+  cpp:
+    enabled: true
+    backend: doxygen
+scanner:
+  exclude:
+    - .repo_wiki/**

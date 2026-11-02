@@ -75,6 +75,9 @@ markers = [
 # diverge the shipped corpus from its authoring source, and the next
 # regeneration would silently revert it.
 include = ["*.py", "*.pyi"]
+# Sample repositories the repo-wiki tests scan. Their bytes are pinned by the
+# export fixture pack, so formatting them would break the pack.
+extend-exclude = ["packages/akms/tests/repo_wiki/fixtures"]
 target-version = "py312"
 
 [tool.ruff.lint]
