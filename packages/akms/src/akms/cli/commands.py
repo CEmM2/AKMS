@@ -102,7 +102,8 @@ def cmd_promote(args: argparse.Namespace) -> int:
 
     if node_path is None:
         print(
-            f"Local node '{args.node_id}' not found in {repo_root}/knowledge/local-nodes/",
+            f"Local node '{args.node_id}' not found in "
+            f"{local_knowledge_dir(repo_root) / 'local-nodes'}/",
             file=sys.stderr,
         )
         return 1
@@ -127,7 +128,8 @@ def cmd_suppress(args: argparse.Namespace) -> int:
 
     if node_path is None:
         print(
-            f"Local node '{args.node_id}' not found in {repo_root}/knowledge/local-nodes/",
+            f"Local node '{args.node_id}' not found in "
+            f"{local_knowledge_dir(repo_root) / 'local-nodes'}/",
             file=sys.stderr,
         )
         return 1
@@ -142,7 +144,8 @@ def cmd_deprecate(args: argparse.Namespace) -> int:
 
     if node_path is None:
         print(
-            f"Local node '{args.node_id}' not found in {repo_root}/knowledge/local-nodes/",
+            f"Local node '{args.node_id}' not found in "
+            f"{local_knowledge_dir(repo_root) / 'local-nodes'}/",
             file=sys.stderr,
         )
         return 1

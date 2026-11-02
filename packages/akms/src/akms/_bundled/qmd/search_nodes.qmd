@@ -6,7 +6,7 @@
 #
 # Scopes to BOTH:
 #   1. Global vault: akms-global-nodes collection (or $AKMS_GLOBAL_VAULT dir)
-#   2. Local nodes:  akms-<repo>-local-nodes collection (or knowledge/local-nodes/ dir)
+#   2. Local nodes:  akms-<repo>-local-nodes collection (or .knowledge/local-nodes/ dir)
 #
 # Usage: run_qmd.sh search_nodes "query string" [--semantic]
 
@@ -15,11 +15,28 @@ set -euo pipefail
 QUERY="${1:?Usage: search_nodes <query> [--semantic]}"
 SEMANTIC="${2:-}"
 
-# Resolve paths
 GLOBAL_VAULT="${AKMS_GLOBAL_VAULT:-$HOME/.claude/akms/nodes}"
+# Resolve the repo and its knowledge directory. A copy installed at
+# <repo>/.knowledge/qmd/ (or the older <repo>/knowledge/qmd/) uses the
+# directory it sits in. The copy bundled in the akms package is run with the
+# repo as its working directory, and picks .knowledge/ unless only the older
+# knowledge/ exists.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-LOCAL_NODES="$REPO_ROOT/knowledge/local-nodes"
+case "$(basename "$(dirname "$SCRIPT_DIR")")" in
+    .knowledge|knowledge)
+        KNOWLEDGE_DIR="$(dirname "$SCRIPT_DIR")"
+        REPO_ROOT="$(dirname "$KNOWLEDGE_DIR")"
+        ;;
+    *)
+        REPO_ROOT="$(pwd)"
+        if [ -d "$REPO_ROOT/.knowledge" ] || [ ! -d "$REPO_ROOT/knowledge" ]; then
+            KNOWLEDGE_DIR="$REPO_ROOT/.knowledge"
+        else
+            KNOWLEDGE_DIR="$REPO_ROOT/knowledge"
+        fi
+        ;;
+esac
+LOCAL_NODES="$KNOWLEDGE_DIR/local-nodes"
 REPO_NAME="$(basename "$REPO_ROOT")"
 
 # Detect qmd availability

@@ -3,7 +3,7 @@
 #
 # Uses QMD BM25 search when available, falls back to grep.
 #
-# Scopes to: <repo>/knowledge/sessions/
+# Scopes to: <repo>/.knowledge/sessions/
 #
 # Usage: run_qmd.sh search_sessions "query string" [--semantic]
 
@@ -12,9 +12,27 @@ set -euo pipefail
 QUERY="${1:?Usage: search_sessions <query> [--semantic]}"
 SEMANTIC="${2:-}"
 
+# Resolve the repo and its knowledge directory. A copy installed at
+# <repo>/.knowledge/qmd/ (or the older <repo>/knowledge/qmd/) uses the
+# directory it sits in. The copy bundled in the akms package is run with the
+# repo as its working directory, and picks .knowledge/ unless only the older
+# knowledge/ exists.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SESSIONS_DIR="$REPO_ROOT/knowledge/sessions"
+case "$(basename "$(dirname "$SCRIPT_DIR")")" in
+    .knowledge|knowledge)
+        KNOWLEDGE_DIR="$(dirname "$SCRIPT_DIR")"
+        REPO_ROOT="$(dirname "$KNOWLEDGE_DIR")"
+        ;;
+    *)
+        REPO_ROOT="$(pwd)"
+        if [ -d "$REPO_ROOT/.knowledge" ] || [ ! -d "$REPO_ROOT/knowledge" ]; then
+            KNOWLEDGE_DIR="$REPO_ROOT/.knowledge"
+        else
+            KNOWLEDGE_DIR="$REPO_ROOT/knowledge"
+        fi
+        ;;
+esac
+SESSIONS_DIR="$KNOWLEDGE_DIR/sessions"
 REPO_NAME="$(basename "$REPO_ROOT")"
 
 HAS_QMD=false

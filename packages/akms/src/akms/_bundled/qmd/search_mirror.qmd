@@ -4,7 +4,7 @@
 # Uses QMD BM25 search when available, falls back to grep.
 # Add --semantic flag for vector similarity search (requires qmd + embeddings).
 #
-# Scopes to: <repo>/knowledge/code-mirror/ (or akms-<repo>-code-mirror collection)
+# Scopes to: <repo>/.knowledge/code-mirror/ (or akms-<repo>-code-mirror collection)
 #
 # Usage: run_qmd.sh search_mirror "query string" [--semantic]
 
@@ -13,9 +13,27 @@ set -euo pipefail
 QUERY="${1:?Usage: search_mirror <query> [--semantic]}"
 SEMANTIC="${2:-}"
 
+# Resolve the repo and its knowledge directory. A copy installed at
+# <repo>/.knowledge/qmd/ (or the older <repo>/knowledge/qmd/) uses the
+# directory it sits in. The copy bundled in the akms package is run with the
+# repo as its working directory, and picks .knowledge/ unless only the older
+# knowledge/ exists.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-MIRROR_DIR="$REPO_ROOT/knowledge/code-mirror"
+case "$(basename "$(dirname "$SCRIPT_DIR")")" in
+    .knowledge|knowledge)
+        KNOWLEDGE_DIR="$(dirname "$SCRIPT_DIR")"
+        REPO_ROOT="$(dirname "$KNOWLEDGE_DIR")"
+        ;;
+    *)
+        REPO_ROOT="$(pwd)"
+        if [ -d "$REPO_ROOT/.knowledge" ] || [ ! -d "$REPO_ROOT/knowledge" ]; then
+            KNOWLEDGE_DIR="$REPO_ROOT/.knowledge"
+        else
+            KNOWLEDGE_DIR="$REPO_ROOT/knowledge"
+        fi
+        ;;
+esac
+MIRROR_DIR="$KNOWLEDGE_DIR/code-mirror"
 REPO_NAME="$(basename "$REPO_ROOT")"
 
 HAS_QMD=false
