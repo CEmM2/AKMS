@@ -51,7 +51,7 @@ def test_examples_walkthrough_matches_expected_output(tmp_path):
     )
 
     # Compiled graph, minus volatile header fields.
-    graph = json.loads((project / "knowledge" / "graph" / "graph.json").read_text())
+    graph = json.loads((project / ".knowledge" / "graph" / "graph.json").read_text())
     for key in VOLATILE_GRAPH_KEYS:
         graph["graph"].pop(key, None)
     expected_graph = json.loads(
@@ -65,7 +65,7 @@ def test_examples_walkthrough_matches_expected_output(tmp_path):
 
     # Query output, with the absolute graph_path normalized away.
     query = json.loads(_run([str(BIN / "akms"), "query", "demo"], cwd=project))
-    query["graph_path"] = "<repo>/knowledge/graph/graph.json"
+    query["graph_path"] = "<repo>/.knowledge/graph/graph.json"
     expected_query = json.loads(
         (EXAMPLES / "expected-output" / "query-demo.txt").read_text()
     )

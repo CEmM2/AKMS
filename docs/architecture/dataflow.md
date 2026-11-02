@@ -6,7 +6,7 @@
 global nodes
 + local nodes
 + code-mirror nodes
-+ knowledge/graph/local_state.yaml
++ .knowledge/graph/local_state.yaml
         │
         ▼
    validate v2 inputs
@@ -15,7 +15,7 @@ global nodes
  NetworkX DiGraph
         │
         ▼
-knowledge/graph/graph.json
+.knowledge/graph/graph.json
 ```
 
 Compilation is a merge, not a database synchronization process. Source Markdown
@@ -81,7 +81,7 @@ selected provider + repository paths/config
         ├─ provider projection
         ├─ path/schema/completeness validation
         ├─ optional explicit fallback policy
-        └─ write knowledge/code-mirror/
+        └─ write .knowledge/code-mirror/
         ▼
 subsequent graph build
 ```

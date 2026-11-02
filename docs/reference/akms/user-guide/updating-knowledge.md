@@ -10,9 +10,9 @@ does not mutate the graph.
 
 The update pipeline writes only:
 
-- `knowledge/graph/local_state.yaml`
-- `knowledge/local-nodes/*.md`
-- `knowledge/graph/graph.json` when recompilation is enabled
+- `.knowledge/graph/local_state.yaml`
+- `.knowledge/local-nodes/*.md`
+- `.knowledge/graph/graph.json` when recompilation is enabled
 
 It never writes global node files.
 

@@ -26,7 +26,7 @@ akms loadout task-17 \
 Default output:
 
 ```text
-knowledge/loadouts/2-task-17-loadout.md
+.knowledge/loadouts/2-task-17-loadout.md
 ```
 
 Use `--output` for an exact repository-relative path.
@@ -47,7 +47,7 @@ content = generate_loadout(
     mode="routing",
     available_context=32000,
     config=config,
-    output_path="knowledge/loadouts/2-task-17-loadout.md",
+    output_path=".knowledge/loadouts/2-task-17-loadout.md",
     repo_root=".",
 )
 ```

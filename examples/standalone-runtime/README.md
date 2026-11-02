@@ -31,7 +31,7 @@ and has no seed nodes — the pipeline proceeds regardless.)
   `akms.agents.base.AKMSAgent` and implements exactly two things —
   `preflight()` (cheap availability probe, run before any file is written)
   and `execute()` (do one task, write a schema-valid `AgentMemory` to
-  `knowledge/sessions/{task_id}.md`). The sealed `run()` wrapper owns the
+  `.knowledge/sessions/{task_id}.md`). The sealed `run()` wrapper owns the
   protocol lifecycle, including converting failures into
   `status: failed` memories.
 - **The checkpoint seam** (`run_demo.py`): a `CheckpointHandler` subclass

@@ -24,7 +24,7 @@ mandatory:
 akms resolve-task \
   --repo . \
   --task-json dev/tasks/fix-constitutive-update.json \
-  --routes knowledge/task-routes.yaml \
+  --routes .knowledge/task-routes.yaml \
   --base main \
   --head HEAD \
   --role code_reviewer

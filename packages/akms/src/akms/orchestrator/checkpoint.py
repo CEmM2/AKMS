@@ -15,8 +15,8 @@ The developer's response is one of:
 - ``abort`` → halt, preserve all state for resumption
 
 **File-based protocol:**
-- Orchestrator writes: ``knowledge/checkpoints/{stage}_{timestamp}.yaml``
-- Developer writes:   ``knowledge/checkpoints/{stage}_{timestamp}_response.yaml``
+- Orchestrator writes: ``.knowledge/checkpoints/{stage}_{timestamp}.yaml``
+- Developer writes:   ``.knowledge/checkpoints/{stage}_{timestamp}_response.yaml``
 """
 
 from __future__ import annotations

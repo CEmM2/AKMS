@@ -14,7 +14,7 @@ definition.
 Knowledge selected through a required/exact node's `load_with` hints.
 
 **Experiential overlay**  
-Project-local `knowledge/graph/local_state.yaml` containing confidence,
+Project-local `.knowledge/graph/local_state.yaml` containing confidence,
 activation, local-edge, session, and replay state.
 
 **Failure-memory registry**  

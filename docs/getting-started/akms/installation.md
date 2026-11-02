@@ -77,7 +77,7 @@ resolved in this order:
 
 1. Explicit Python argument
 2. `AKMS_GLOBAL_VAULT`
-3. `global_vault` in `knowledge/graph/propagation_config.yaml`
+3. `global_vault` in `.knowledge/graph/propagation_config.yaml`
 4. `~/.claude/akms/nodes/`
 
 **No vault ships inside the `akms` package.** A vault is content with its own
