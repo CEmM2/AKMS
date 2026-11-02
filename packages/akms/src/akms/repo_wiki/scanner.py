@@ -111,6 +111,20 @@ def iter_candidate_files(
         dirs: list[Path] = []
         for path in sorted(current.iterdir(), key=lambda item: item.name):
             rel = repo_relative(path, root)
+            # Symlinks are never followed: a link may leave the repository, loop, or
+            # duplicate a file that is already scanned under its real path.
+            if path.is_symlink():
+                if matches_any_dir(rel, prune_patterns):
+                    skipped.append(
+                        SkippedFile(
+                            rel, "excluded", "matched exclude or gitignore pattern"
+                        )
+                    )
+                else:
+                    skipped.append(
+                        SkippedFile(rel, "symlink", "symbolic links are not followed")
+                    )
+                continue
             if path.is_dir():
                 if matches_any_dir(rel, prune_patterns):
                     skipped.append(
