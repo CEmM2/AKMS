@@ -906,6 +906,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     register_vault_commands(subparsers)
 
+    #   # repo-wiki passthrough (separate module).
+    from akms.cli.wiki_commands import register_wiki_commands
+
+    register_wiki_commands(subparsers)
+
     return parser
 
 
