@@ -10,18 +10,20 @@ flowchart BT
     Core["akms"]
     Gen["akms-nodes-gen"]
     FM["akms-failure-memory"]
+    Rec["akms-records<br/>experimental"]
     Learn["akms-learn"]
     Comp["compmech-reference-pack"]
     Mech["MechDSL / algo2code<br/>optional sibling"]
 
     FM --> Core
+    Rec -. optional extra .-> Core
     Learn --> Core
     Comp --> Learn
     Comp -. optional extra .-> Mech
     Gen -. writes compatible artifacts .-> Core
 ```
 
-Core does not import failure memory or akms-learn. Node generation exchanges
+Core does not import failure memory, akms-records or akms-learn. Node generation exchanges
 files and schemas rather than becoming a mandatory runtime dependency.
 
 ## Core package map
