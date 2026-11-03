@@ -101,6 +101,18 @@ development is intentionally not replayed.
   removed. An explicit `--path` naming a deleted source removes its mirror;
   one naming no source and no mirror is an error, where `legacy` skipped
   it. Set `mirror.provider: legacy` to keep the old behaviour.
+- `repo-wiki export-akms` and the `builtin` mirror provider now skip a source
+  that does not parse (for example a Python file with a syntax error
+  mid-edit) and export the rest. Before, one such file failed the whole
+  export: nothing was written, `repo-wiki` exited 1, and the staged runner
+  blocked the post-phase graph rebuild. The skipped source appears in the
+  export JSON under `skipped` with reason `parse_error`, keeps its existing
+  mirror, and is not pruned; `akms generate-mirror` warns on stderr and the
+  staged runner records a warning. Render, decode, selection and write
+  errors still fail the export. `repo-wiki export-akms --strict-parse` and
+  the `mirror.strict_parse: true` option restore the old all-or-nothing
+  behaviour for the `builtin` provider. The external `repo2md` provider is
+  unaffected.
 - `akms-failure-memory` provider fingerprints no longer include the installed
   `akms` release version. The packages release in lockstep, so every patch
   release moved every fingerprint, marking existing resolutions stale and

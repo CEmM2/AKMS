@@ -102,23 +102,55 @@ def test_changed_only_skips_byte_identical_mirror(tmp_path: Path, capsys):
 
 
 @pytest.mark.integration
-def test_parse_failure_is_structured_and_prevents_pruning(tmp_path: Path, capsys):
+def test_strict_parse_failure_is_structured_and_prevents_pruning(
+    tmp_path: Path, capsys
+):
     (tmp_path / "pkg").mkdir()
     (tmp_path / "pkg" / "broken.py").write_text("def broken(:\n", encoding="utf-8")
     stale = tmp_path / "akms-output" / ".knowledge" / "code-mirror" / "stale.md"
     stale.parent.mkdir(parents=True)
     stale.write_text("prior mirror\n", encoding="utf-8")
 
-    assert main(_argv(tmp_path, "--full", "--prune", "--json")) == 1
+    assert main(_argv(tmp_path, "--full", "--prune", "--strict-parse", "--json")) == 1
 
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload["written"] == []
     assert payload["removed"] == []
+    assert payload["skipped"] == []
     assert payload["errors"][0]["source_path"] == "pkg/broken.py"
     assert payload["errors"][0]["stage"] == "parse"
     assert "broken.py" in captured.err
     assert stale.read_text(encoding="utf-8") == "prior mirror\n"
+
+
+@pytest.mark.integration
+def test_parse_failure_is_skipped_by_default_and_the_rest_exported(
+    tmp_path: Path, capsys
+):
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "broken.py").write_text("def broken(:\n", encoding="utf-8")
+    (tmp_path / "pkg" / "ok.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    assert main(_argv(tmp_path, "--full", "--prune", "--json")) == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["errors"] == []
+    assert [item["source_path"] for item in payload["written"]] == ["pkg/ok.py"]
+    assert [(s["source_path"], s["reason"]) for s in payload["skipped"]] == [
+        ("pkg/broken.py", "parse_error")
+    ]
+    assert "pkg/broken.py" in captured.err
+    assert "skipped" in captured.err
+
+
+@pytest.mark.integration
+def test_strict_parse_flag_is_parsed():
+    parser = build_parser()
+    base = ["--repo-root", ".", "export-akms", "--output", "o", "--phase", "1"]
+    assert parser.parse_args(base).strict_parse is False
+    assert parser.parse_args([*base, "--strict-parse"]).strict_parse is True
 
 
 @pytest.mark.integration
@@ -325,7 +357,7 @@ def test_json_stdout_has_stable_keys_and_diagnostics_stay_on_stderr(
     (tmp_path / "pkg").mkdir()
     (tmp_path / "pkg" / "broken.py").write_text("def broken(:\n", encoding="utf-8")
 
-    assert main(_argv(tmp_path, "--json")) == 1
+    assert main(_argv(tmp_path, "--strict-parse", "--json")) == 1
 
     captured = capsys.readouterr()
     assert set(json.loads(captured.out)) == {

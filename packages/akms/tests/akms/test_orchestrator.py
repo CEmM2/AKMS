@@ -963,6 +963,55 @@ class TestHandleExecute:
         #           # "phase-{phase_id}" rather than the raw phase.
         assert processed_sources == ["phase-2"]
 
+    def test_execute_warns_when_mirror_refresh_skipped_unparsable_sources(
+        self, tmp_vault, tmp_repo, monkeypatch
+    ):
+        """A parse-skipped source surfaces as a staged-runner warning, not a failure."""
+        build_graph(tmp_repo, global_vault=tmp_vault)
+
+        async def _mock_dispatch(
+            tasks, agent_cls, config, repo_root, model_override=None
+        ):
+            return []
+
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.dispatch_phase", _mock_dispatch
+        )
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.generate_mirror",
+            lambda *args, **kwargs: {
+                "files_processed": 1,
+                "drift_warnings": [],
+                "provider": "builtin",
+                "success": True,
+                "provider_metadata": {"parse_skipped": ["pkg/b.py", "pkg/c.py"]},
+            },
+        )
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.graph_status",
+            lambda *args, **kwargs: {
+                "summary": {},
+                "degraded_nodes": [],
+                "tentative_nodes": [],
+            },
+        )
+        monkeypatch.setattr(
+            "akms.orchestrator.orchestrator.format_report", lambda _: "ok"
+        )
+
+        from akms.agents.base import AKMSAgent
+
+        ctx = make_ctx(tmp_repo, tmp_vault, agent_cls=AKMSAgent)
+        state = make_state(goal="test", current_phase=1)
+        tasks = [{"task_id": "task-a", "akms_tags": ["test"], "phase": 1}]
+
+        _, _, warnings = asyncio.run(handle_execute(state, ctx, tasks=tasks))
+
+        assert any(
+            "skipped unparsable sources" in w and "pkg/b.py, pkg/c.py" in w
+            for w in warnings
+        )
+
     def test_task_breakdown_populates_phase_order_for_execute(
         self, tmp_vault, tmp_repo
     ):

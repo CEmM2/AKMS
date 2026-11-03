@@ -872,6 +872,11 @@ async def handle_execute(
                     "mirror refresh selected no files: "
                     f"{selection.get('reason', 'unknown reason')}"
                 )
+            if selection.get("parse_skipped"):
+                warnings.append(
+                    "mirror refresh skipped unparsable sources "
+                    f"(existing mirrors kept): {', '.join(selection['parse_skipped'])}"
+                )
             if mirror_result.get("fallback_used"):
                 warnings.append(
                     f"mirror provider fell back to legacy from "

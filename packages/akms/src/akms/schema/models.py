@@ -663,6 +663,9 @@ class MirrorConfig(BaseModel):
     selection_mode: str = "changed"
     prune: bool = False
     force_lock: bool = False
+    # builtin provider only: a source that fails to parse is an error (nothing
+    # is written) instead of being skipped with its existing mirror kept.
+    strict_parse: bool = False
     expected_export_schema_version: int = 1
     expected_akms_schema_version: str = "v2"
 

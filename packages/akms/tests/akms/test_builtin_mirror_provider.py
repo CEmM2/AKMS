@@ -19,6 +19,7 @@ from akms.graph.mirror_provider import (
 )
 from akms.graph.providers.repo2md import (
     BuiltinMirrorProvider,
+    Repo2mdMirrorProvider,
     build_repo2md_argv,
     validate_repo2md_export,
 )
@@ -90,6 +91,40 @@ class TestRegistration:
         )
         assert "--knowledge-dir" not in argv
 
+    def test_external_provider_never_passes_strict_parse(self, tmp_path: Path):
+        config = MirrorConfig(provider="repo2md", strict_parse=True)
+        argv = build_repo2md_argv(
+            config=config,
+            repo_root=tmp_path,
+            output_root=tmp_path,
+            phase=1,
+            generated_at=GENERATED_AT,
+            selection_mode="full",
+        )
+        assert "--strict-parse" not in argv
+        assert Repo2mdMirrorProvider().strict_parse(config) is False
+
+    def test_builtin_passes_strict_parse_only_when_configured(self, tmp_path: Path):
+        provider = BuiltinMirrorProvider()
+        assert provider.strict_parse(_config()) is False
+        assert provider.strict_parse(_config(strict_parse=True)) is True
+
+        def argv_for(config: MirrorConfig) -> list[str]:
+            return build_repo2md_argv(
+                config=config,
+                command=provider.command(config),
+                strict_parse=provider.strict_parse(config),
+                provider="builtin",
+                repo_root=tmp_path,
+                output_root=tmp_path,
+                phase=1,
+                generated_at=GENERATED_AT,
+                selection_mode="full",
+            )
+
+        assert "--strict-parse" not in argv_for(_config())
+        assert "--strict-parse" in argv_for(_config(strict_parse=True))
+
 
 @pytest.mark.integration
 class TestExport:
@@ -151,6 +186,85 @@ class TestExport:
             )
 
         assert error.value.provider == "builtin"
+
+
+def _repo_with_unparsable_source(tmp_path: Path) -> Path:
+    repo = _repo(tmp_path)
+    (repo / "pkg" / "broken.py").write_text("def broken(:\n", encoding="utf-8")
+    return repo
+
+
+@pytest.mark.integration
+class TestUnparsableSources:
+    def test_default_refresh_skips_the_unparsable_source(self, tmp_path: Path):
+        repo = _repo_with_unparsable_source(tmp_path)
+
+        result = refresh_mirror(repo, 1, config=_config(), drift_check=True)
+
+        assert result["success"] is True
+        assert [m["generated_path"] for m in result["mirrors"]] == [
+            ".knowledge/code-mirror/pkg/value.md"
+        ]
+        assert result["provider_metadata"]["parse_skipped"] == ["pkg/broken.py"]
+        assert result["provider_metadata"]["skipped_count"] == 1
+        assert _mirror_ids(repo, tmp_path) == ["mirror-pkg-value"]
+
+    def test_explicit_selection_drift_ignores_the_unparsable_source(
+        self, tmp_path: Path
+    ):
+        repo = _repo_with_unparsable_source(tmp_path)
+
+        result = refresh_mirror(
+            repo,
+            1,
+            config=_config(),
+            source_files=["pkg/value.py", "pkg/broken.py"],
+            drift_check=True,
+        )
+
+        assert result["success"] is True
+        assert result["provider_metadata"]["parse_skipped"] == ["pkg/broken.py"]
+
+    def test_clean_refresh_reports_no_parse_skipped(self, tmp_path: Path):
+        result = refresh_mirror(_repo(tmp_path), 1, config=_config())
+
+        assert result["provider_metadata"]["parse_skipped"] == []
+
+    def test_strict_parse_makes_the_unparsable_source_a_failure(self, tmp_path: Path):
+        repo = _repo_with_unparsable_source(tmp_path)
+
+        with pytest.raises(MirrorProviderError) as error:
+            refresh_mirror(repo, 1, config=_config(strict_parse=True))
+
+        assert error.value.provider == "builtin"
+        assert "pkg/broken.py" in str(error.value)
+        assert not (repo / ".knowledge" / "code-mirror").exists()
+
+    def test_generate_mirror_cli_warns_on_stderr(self, tmp_path: Path, capsys):
+        from akms.cli.commands import main
+
+        repo = _repo_with_unparsable_source(tmp_path)
+
+        assert (
+            main(
+                [
+                    "generate-mirror",
+                    "--repo",
+                    str(repo),
+                    "--path",
+                    "pkg/value.py",
+                    "--path",
+                    "pkg/broken.py",
+                    "--json",
+                ]
+            )
+            == 0
+        )
+
+        captured = capsys.readouterr()
+        assert "warning: skipped 1 unparsable source(s)" in captured.err
+        assert "pkg/broken.py" in captured.err
+        assert '"parse_skipped"' in captured.out
 
 
 class TestValidation:

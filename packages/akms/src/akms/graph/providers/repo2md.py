@@ -54,6 +54,10 @@ class Repo2mdMirrorProvider:
         """Knowledge directory to request, or None for the exporter's default."""
         return None
 
+    def strict_parse(self, config: MirrorConfig) -> bool:
+        """Whether to pass ``--strict-parse``; the external exporter lacks the flag."""
+        return False
+
     def generate(self, request: MirrorRequest, config: MirrorConfig) -> MirrorResult:
         repo_root = Path(request.repo_root).resolve()
         output_root = Path(request.output_root or repo_root).resolve()
@@ -64,6 +68,7 @@ class Repo2mdMirrorProvider:
             config=config,
             command=self.command(config),
             knowledge_dir=knowledge_dir,
+            strict_parse=self.strict_parse(config),
             provider=self.name,
             repo_root=repo_root,
             output_root=output_root,
@@ -88,12 +93,16 @@ class Repo2mdMirrorProvider:
             provider=self.name,
         )
 
+        parse_skipped = _parse_skipped_paths(export)
+
         # Optional drift on Python sources after successful export.
         drift_warnings: list[dict[str, Any]] = []
         if request.drift_check:
             drift_warnings = _run_python_drift(
                 repo_root=repo_root,
-                source_files=_python_sources_from_export(export, request.source_files),
+                source_files=_python_sources_from_export(
+                    export, request.source_files, parse_skipped=parse_skipped
+                ),
                 llm_fn=request.llm_fn,
             )
 
@@ -113,6 +122,7 @@ class Repo2mdMirrorProvider:
                 "removed_count": len(export.get("removed", []) or []),
                 "skipped_count": len(export.get("skipped", []) or []),
                 "error_count": len(export.get("errors", []) or []),
+                "parse_skipped": parse_skipped,
             },
             errors=[],
             success=True,
@@ -141,13 +151,15 @@ def build_repo2md_argv(
     force_lock: bool = False,
     command: list[str] | None = None,
     knowledge_dir: str | None = None,
+    strict_parse: bool = False,
     provider: str = "repo2md",
 ) -> list[str]:
     """Build a complete argv list for ``repo-wiki export-akms``.
 
     Never joins into a shell string. Rejects empty/malformed command prefixes.
     ``command`` overrides ``config.command``; ``knowledge_dir`` adds
-    ``--knowledge-dir``, which only the built-in exporter understands.
+    ``--knowledge-dir`` and ``strict_parse`` adds ``--strict-parse``; only the
+    built-in exporter understands either.
     """
     prefix = list(config.command) if command is None else command
     if not prefix or not all(isinstance(c, str) and c for c in prefix):
@@ -172,6 +184,7 @@ def build_repo2md_argv(
         "--output",
         str(output_root),
         *(["--knowledge-dir", knowledge_dir] if knowledge_dir else []),
+        *(["--strict-parse"] if strict_parse else []),
         "--phase",
         str(int(phase)),
         "--generated-at",
@@ -615,12 +628,26 @@ def _assert_mirror_path_safe(
         )
 
 
+def _parse_skipped_paths(export: dict[str, Any]) -> list[str]:
+    """Source paths the exporter skipped because they did not parse, sorted."""
+    paths: set[str] = set()
+    for entry in export.get("skipped") or []:
+        if not isinstance(entry, dict) or entry.get("reason") != "parse_error":
+            continue
+        sp = entry.get("source_path")
+        if isinstance(sp, str):
+            paths.add(sp)
+    return sorted(paths)
+
+
 def _python_sources_from_export(
     export: dict[str, Any],
     explicit: list[str] | None,
+    parse_skipped: list[str] | None = None,
 ) -> list[str]:
     if explicit is not None:
-        return [p for p in explicit if p.endswith(".py")]
+        skipped = set(parse_skipped or [])
+        return [p for p in explicit if p.endswith(".py") and p not in skipped]
     out: list[str] = []
     for entry in export.get("written") or []:
         if not isinstance(entry, dict):
@@ -677,6 +704,9 @@ class BuiltinMirrorProvider(Repo2mdMirrorProvider):
 
     def command(self, config: MirrorConfig) -> list[str]:
         return [sys.executable, "-m", "akms.repo_wiki"]
+
+    def strict_parse(self, config: MirrorConfig) -> bool:
+        return config.strict_parse
 
     def knowledge_dir(self, output_root: Path) -> str | None:
         return local_knowledge_dir(output_root).name

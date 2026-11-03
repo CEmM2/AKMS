@@ -99,6 +99,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     export.add_argument(
+        "--strict-parse",
+        action="store_true",
+        help=(
+            "Treat a source that fails to parse as an error and write nothing "
+            "(default: skip it, keep its existing mirror, export the rest)"
+        ),
+    )
+    export.add_argument(
         "--phase", required=True, type=int, help="Positive generating phase"
     )
     export.add_argument(
@@ -350,6 +358,7 @@ def main(argv: list[str] | None = None) -> int:
                 acquire_lock=True,
                 force_lock=args.force_lock,
                 knowledge_dir=args.knowledge_dir,
+                strict_parse=args.strict_parse,
             )
         except LockError as exc:
             print(f"export-akms lock error: {exc}", file=sys.stderr)
@@ -418,6 +427,13 @@ def emit_export_result(result: ExportResult, *, json_output: bool) -> None:
             print(f"removed: {record.generated_path}")
         for record in result.skipped:
             print(f"skipped ({record.reason}): {record.source_path}")
+    for record in result.skipped:
+        if record.reason == "parse_error":
+            print(
+                f"export-akms warning [{record.source_path}]: source did not parse; "
+                "skipped, existing mirror kept",
+                file=sys.stderr,
+            )
     for error in result.errors:
         source = error.source_path or "<export>"
         print(
