@@ -204,6 +204,13 @@ development is intentionally not replayed.
   failure-memory project's lessons with related lessons all appeared under
   **Orphaned Nodes**. Nodes with no edges and no `load_with` link are still
   listed. The section heading now reads "no edges or load_with".
+- Reviewer required-knowledge did not find the route index written by
+  `akms-failure-memory` at its default path,
+  `.knowledge/generated/failure_routes.json`, and fell back to tag-based
+  loadouts. `generated/failure_routes.json` under `.knowledge/` and
+  `knowledge/` is now searched after every earlier location, so repositories
+  that resolved to a route index before still resolve to the same one. The
+  search lives in `akms.task_context.routes.find_task_route_index`.
 - Loadouts: a node with `reading_priority: summary` and no `## Summary`
   section is now rendered in full, as FR-L10c specifies. It used to get its
   first five non-heading lines as a "summary", which for generated nodes is
