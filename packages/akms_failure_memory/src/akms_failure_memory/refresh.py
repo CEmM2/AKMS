@@ -31,6 +31,7 @@ from akms_failure_memory.config import (
     version_pin_matches,
 )
 from akms_failure_memory.errors import FailureMemoryError
+from akms_failure_memory.lesson_index import lesson_index_paths
 from akms_failure_memory.locks import ProjectLock
 
 _PUBLIC_SOURCE_PATHS = (
@@ -726,6 +727,11 @@ def _clean(config: ProjectConfig, root: Path) -> dict[str, Any]:
     candidates = []
     if config.generated["lessons"] == "disposable":
         candidates.append(config.resolve(root, "generated_nodes"))
+        if config.lesson_index_version is not None:
+            candidates.extend(
+                root.joinpath(*PurePosixPath(relative).parts)
+                for relative in lesson_index_paths(config)
+            )
     if config.generated["routes"] == "disposable":
         candidates.append(config.resolve(root, "routes"))
     if config.generated["graph"] == "disposable":

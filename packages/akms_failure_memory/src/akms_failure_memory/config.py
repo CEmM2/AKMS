@@ -83,6 +83,11 @@ _COMPATIBILITY_KEYS = frozenset(
         "source_hash_suffix",
     }
 )
+# `lesson_index_version` is optional so existing configs load unchanged and
+# keep their fingerprint. Absent means line-hint node titles and no lesson
+# index; `init` writes it for new projects.
+_COMPATIBILITY_ALLOWED = _COMPATIBILITY_KEYS | {"lesson_index_version"}
+LESSON_INDEX_VERSIONS = ("failure-lesson-index/v1",)
 _TOOLCHAIN_REQUIRED = frozenset(
     {
         "akms_version",
@@ -248,6 +253,17 @@ class ProjectConfig:
         """The configured mirror provider, ``repo2md`` when the key is absent."""
         return str(self.toolchain.get("mirror_provider", DEFAULT_MIRROR_PROVIDER))
 
+    @property
+    def lesson_index_version(self) -> str | None:
+        """The lesson-index contract, ``None`` when the key is absent.
+
+        When it is set, the compiler titles nodes from the record and writes
+        the lesson index beside the route index. ``None`` keeps line-hint
+        titles and writes no index.
+        """
+        value = self.compatibility.get("lesson_index_version")
+        return None if value is None else str(value)
+
     def resolve(self, repository_root: str | Path, key: str) -> Path:
         if key not in self.paths:
             raise FailureMemoryError(
@@ -363,12 +379,25 @@ def _validate_config(raw: dict[str, Any], source_path: Path) -> ProjectConfig:
         )
 
     compatibility = _closed_table(
-        top["compatibility"], name="compatibility", required=_COMPATIBILITY_KEYS
+        top["compatibility"],
+        name="compatibility",
+        required=_COMPATIBILITY_KEYS,
+        allowed=_COMPATIBILITY_ALLOWED,
     )
     for key in _COMPATIBILITY_KEYS - {"source_hash_prefix", "source_hash_suffix"}:
         _text(compatibility[key], f"compatibility.{key}")
     if compatibility["route_contract_version"] != "failure-route-index/v1":
         raise FailureMemoryError("unsupported route contract", code="schema_version")
+    if "lesson_index_version" in compatibility:
+        index_version = compatibility["lesson_index_version"]
+        if not isinstance(index_version, str) or (
+            index_version not in LESSON_INDEX_VERSIONS
+        ):
+            raise FailureMemoryError(
+                "compatibility.lesson_index_version must be one of "
+                + ", ".join(LESSON_INDEX_VERSIONS),
+                code="schema_version",
+            )
 
     raw_toolchain = top["toolchain"]
     provider = (
@@ -489,6 +518,7 @@ def load_project_config(path: str | Path) -> ProjectConfig:
 
 __all__ = [
     "DEFAULT_MIRROR_PROVIDER",
+    "LESSON_INDEX_VERSIONS",
     "MIRROR_PROVIDERS",
     "ProjectConfig",
     "SCHEMA_VERSION",
