@@ -65,11 +65,11 @@ knowledge nodes, and AKMS core does not depend on it.
    IDs and revisions it came from. Corrections invalidate affected summaries.
    Full history stays available unless an explicit retention or erasure policy
    removes it.
-5. **Knowledge promotion is explicit, and its policy is declared per schema.**
+5. **Knowledge promotion is explicit, and its policy is set per schema.**
    A reviewed record may be projected into a valid AKMS **project-local** node.
-   Each schema declares its promotion policy when it is registered (see
-   [Promotion](#promotion)); without one, promoted nodes are `source: agent`,
-   `status: tentative`. Agent-authored local nodes are never converted to
+   A person may set a promotion policy for any registered schema, and change it
+   later, without changing the schema (see [Promotion](#promotion)). Without
+   one, promoted nodes are `source: agent`, `status: tentative`. Agent-authored local nodes are never converted to
    `established`. Promotion to the curated global vault always requires a
    separate human-approved action outside this package.
 6. **Compatibility precedes refactoring.** `akms-failure-memory` keeps its CLI,
@@ -171,13 +171,9 @@ to local `$defs`. Remote `$ref` resolution and executable validation hooks are
 refused. A change requires a new schema version and an explicit, testable
 migration; historical records keep their original schema and meaning.
 
-A schema registration also declares, **declaratively**:
-
-- extraction rules for searchable text, display label, time fields, optional
-  relationships, and the recall summary;
-- its promotion policy (below).
-
-Registration may not run user-supplied Python or shell commands. Missing or
+A schema registration also declares, **declaratively**, extraction rules for
+searchable text, display label, time fields, optional relationships, and the
+recall summary. Registration may not run user-supplied Python or shell commands. Missing or
 invalid source references stay visible rather than being upgraded into
 verified evidence.
 
@@ -223,13 +219,20 @@ overlay. It never writes the global vault.
   evidence contract, `update_graph` with `NewKnowledge`. The node is created as
   `source: agent`, `status: tentative`, or a similar tentative node is extended
   by `update_graph`'s deduplication.
-- **Declared policy:** a schema may declare `source: human` with
-  `status: tentative` or `status: established` and a confidence value. Such a
-  node is written as a validated `LocalNodeFrontmatter` file, the same as a
-  person authoring it, and only when the record's review state is
-  human-confirmed and the promote command carries an explicit human approval.
-  The policy is part of the schema digest, so it cannot change without a new
-  schema version.
+- **Schema policy:** a person may give a registered schema a promotion policy
+  of `source: human` with `status: tentative` or `status: established` and a
+  confidence value. The policy is stored beside the schema, not inside it, so
+  setting or changing it never requires a new schema version and never
+  changes existing records. Every change is appended to a policy log with the
+  actor, time, and previous value. Under such a policy the node is written as
+  a validated `LocalNodeFrontmatter` file, the same as a person authoring it,
+  and only when the record's review state is human-confirmed and the promote
+  command carries an explicit human approval.
+- **Who may set a policy:** `schema policy set` is a human operation. It asks
+  for interactive confirmation and is not exposed through the agent-facing API
+  or the MCP adapter. As with scope isolation, this is a policy for cooperating
+  agents: a process that can run the CLI on a terminal could also run it, which
+  is why every change is logged.
 - **Never:** an agent-sourced node is never `established`; record creation alone
   never raises status or confidence; provenance is never synthesized.
 - The v2 node models have no field for a record ID, so the node body carries a
@@ -242,6 +245,7 @@ Proposed CLI (names provisional):
 
 ```bash
 akms-records schema register ./research-decision.schema.json
+akms-records schema policy set research-decision --source human --status established --confidence 0.8
 akms-records add --schema research-decision/v1 --scope project:example --file decision.json
 akms-records recall --scope project:example --query "surrogate" --limit 20
 akms-records wake --agent scout --task "review model directions" --budget-tokens 1200
@@ -297,7 +301,7 @@ tests, and a documented erasure procedure.
 | 1. Records MVP | Schema registry with digests, create/amend/supersede/retract, validators, stable IDs, export/import | Deterministic replay; no silent data loss; scope tests |
 | 2. Fast recall | Rebuildable SQLite FTS5 index, scoped recall, budgeted `wake` | Correct isolation, stable provenance, rebuild parity |
 | 3. Consolidation | Optional source-linked summaries, invalidation | No unsupported claim added by compaction; source trace intact |
-| 4. AKMS bridge | Project-local promotion (default and declared policy) and failure-memory importer | Installed-minimal-package integration; v2 schemas unchanged; no global write |
+| 4. AKMS bridge | Project-local promotion (default and per-schema policy) and failure-memory importer | Installed-minimal-package integration; v2 schemas unchanged; no global write |
 | 5. Evaluation | Comparative benchmark, usage docs, host-agent pilot | Meets baseline quality, latency, and token-budget criteria; no regressions |
 
 ### Acceptance tests and performance policy
@@ -324,8 +328,8 @@ tests, and a documented erasure procedure.
    `akms.orchestrator` or `akms.agents`; existing IDs and outputs are not
    transformed.
 6. **Promotion discipline:** agent-sourced local nodes cannot bypass
-   `tentative`; a declared human policy applies only to human-confirmed records
-   with explicit approval; no global-vault writes, no synthetic provenance, and
+   `tentative`; a human schema policy applies only to human-confirmed records
+   with explicit approval, and every policy change is in the policy log; no global-vault writes, no synthetic provenance, and
    no confidence inflation from record creation alone.
 7. **Deletion:** an erasure test verifies removal from canonical files, the
    index, and summaries, and checks that the report names what it could not
