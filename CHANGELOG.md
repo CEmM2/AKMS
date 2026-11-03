@@ -87,8 +87,14 @@ development is intentionally not replayed.
   Code Mirrors". A mirror is stale when its source file was committed after
   the mirror's `generated_at`, was edited after it and not yet committed, or
   no longer exists. The check reads the mirror files and git history, so it
-  needs no change to the frozen mirror schema, and it reports nothing
-  outside a git repository. Refreshing the mirror clears the entry.
+  needs no change to the frozen mirror schema. Refreshing the mirror clears
+  the entry. When the repository has code mirrors the section always
+  appears: `Stale Code Mirrors: 0` with the number checked when all are
+  current, and `Stale Code Mirrors: not checked` with the reason outside a
+  git repository or when git fails, so a clean run is told apart from a
+  skipped one. The JSON report carries the same facts under
+  `mirror_freshness` (`mirrors`, `checked`, `skipped`) beside the
+  `stale_mirrors` list.
 - `akms-failure-memory` can index lessons as cards. With
   `[compatibility].lesson_index_version = "failure-lesson-index/v1"`,
   `compile` writes `lesson_index.json` and `lesson_index.md` beside the route

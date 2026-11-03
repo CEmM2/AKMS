@@ -3,7 +3,8 @@
 A mirror is stale when its ``source_file`` was committed after the mirror's
 ``generated_at``, has uncommitted edits newer than it, or no longer exists.
 The check uses git history only; it adds nothing to the frozen mirror schema.
-Outside a git repository nothing is reported.
+Outside a git repository nothing is reported, and :func:`check_mirror_freshness`
+says the check was skipped rather than clean.
 
 ``generated_at`` must record when the mirror was refreshed. A deterministic
 timestamp older than the latest commit (a fixed ``SOURCE_DATE_EPOCH``, say)
@@ -32,13 +33,32 @@ def stale_mirrors(repo_root: str | Path) -> list[dict[str, Any]]:
     (``committed_after``, ``modified_after`` or ``source_missing``) and, where it
     applies, ``changed_at``.
     """
+    return check_mirror_freshness(repo_root)["stale"]
+
+
+def check_mirror_freshness(repo_root: str | Path) -> dict[str, Any]:
+    """Run the freshness check and say whether it ran.
+
+    Returns ``mirrors`` (code mirrors found), ``checked`` (False when git could
+    not be asked), ``skipped`` (why not, or None) and ``stale`` (the records
+    :func:`stale_mirrors` returns). An empty ``stale`` list means clean only
+    when ``checked`` is True.
+    """
     root = Path(repo_root).resolve()
     mirrors = _mirrors(local_knowledge_dir(root) / "code-mirror")
+    result: dict[str, Any] = {
+        "mirrors": len(mirrors),
+        "checked": False,
+        "skipped": None,
+        "stale": [],
+    }
     if not mirrors:
-        return []
+        result["skipped"] = "no code mirrors"
+        return result
     top = _git_toplevel(root)
     if top is None:
-        return []
+        result["skipped"] = "not a git repository"
+        return result
 
     located: list[tuple[dict[str, Any], str | None]] = []
     for mirror in mirrors:
@@ -47,6 +67,9 @@ def stale_mirrors(repo_root: str | Path) -> list[dict[str, Any]]:
     since = min(mirror["generated_at"] for mirror in mirrors)
     committed = _last_commit_times(top, tracked, since)
     dirty = _dirty(top, tracked)
+    if committed is None or dirty is None:
+        result["skipped"] = "git failed"
+        return result
 
     stale: list[dict[str, Any]] = []
     for mirror, path in located:
@@ -80,7 +103,9 @@ def stale_mirrors(repo_root: str | Path) -> list[dict[str, Any]]:
                         "changed_at": modified.isoformat(),
                     }
                 )
-    return sorted(stale, key=lambda item: item["source_file"])
+    result["checked"] = True
+    result["stale"] = sorted(stale, key=lambda item: item["source_file"])
+    return result
 
 
 def _mirrors(mirror_root: Path) -> list[dict[str, Any]]:
@@ -163,8 +188,8 @@ def _git_toplevel(root: Path) -> Path | None:
 
 def _last_commit_times(
     top: Path, paths: list[str], since: datetime
-) -> dict[str, datetime]:
-    """Latest commit time per path, among commits since ``since``."""
+) -> dict[str, datetime] | None:
+    """Latest commit time per path, among commits since ``since``; None if git failed."""
     if not paths:
         return {}
     # Each commit prints a marked date line, then the paths it touched.
@@ -177,9 +202,9 @@ def _last_commit_times(
         "--",
         *paths,
     )
+    if output is None:
+        return None
     latest: dict[str, datetime] = {}
-    if not output:
-        return latest
     wanted = set(paths)
     when: datetime | None = None
     for line in output.decode("utf-8", errors="replace").splitlines():
@@ -190,13 +215,13 @@ def _last_commit_times(
     return latest
 
 
-def _dirty(top: Path, paths: list[str]) -> set[str]:
-    """Paths with uncommitted changes in the worktree or index."""
+def _dirty(top: Path, paths: list[str]) -> set[str] | None:
+    """Paths with uncommitted changes in the worktree or index; None if git failed."""
     if not paths:
         return set()
     output = _git(top, "status", "--porcelain", "-z", "--", *paths)
-    if not output:
-        return set()
+    if output is None:
+        return None
     dirty: set[str] = set()
     entries = iter(output.decode("utf-8", errors="replace").split("\0"))
     for entry in entries:
