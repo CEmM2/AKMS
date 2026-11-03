@@ -97,10 +97,15 @@ development is intentionally not replayed.
   categories. The index has no timestamps and is byte-identical across
   rebuilds. Generated node titles then come from the record (the first
   clause of `root_cause`, else `symptom`) instead of the line hint; node IDs
-  and routes are unchanged. `failure-memory init` writes the key. A
-  configuration without it keeps line-hint titles and writes no index, so
-  existing projects, their config fingerprints and the frozen
-  consumer-contract packs are unchanged.
+  and routes are unchanged. Node bodies open with a `## Summary` holding the
+  first sentence of `root_cause` and of `prevention`, which AKMS loads for
+  coactivated lessons instead of the full body. Those sentences are not
+  repeated below: `### Root cause` and `### Prevention` keep only the rest,
+  and are omitted when nothing is left. The `## Identity` block is dropped.
+  `failure-memory init` writes the key. A configuration without it keeps
+  line-hint titles and the original body and writes no index, so existing
+  projects, their config fingerprints and the frozen consumer-contract packs
+  are unchanged.
 - `failure-memory index` browses the index read-only: with no selector it
   lists the groups, `--area`, `--package`, `--module` and `--grep` return
   cards, and `--expand <ID>` returns the full registry record. It rebuilds
