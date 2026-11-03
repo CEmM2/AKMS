@@ -83,6 +83,12 @@ development is intentionally not replayed.
   without the `repo2md_*` keys. Preflight results gain a `mirror` object
   naming the provider; the `repo2md` object is reported only for that
   provider.
+- `akms status` lists code mirrors older than their source under "Stale
+  Code Mirrors". A mirror is stale when its source file was committed after
+  the mirror's `generated_at`, was edited after it and not yet committed, or
+  no longer exists. The check reads the mirror files and git history, so it
+  needs no change to the frozen mirror schema, and it reports nothing
+  outside a git repository. Refreshing the mirror clears the entry.
 
 ### Changed
 - The default code-mirror provider (`mirror.provider`) is now `builtin`

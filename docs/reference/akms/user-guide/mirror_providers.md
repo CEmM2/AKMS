@@ -113,6 +113,25 @@ akms mirror-status --repo . --json
 akms generate-mirror --repo . --phase 1 --path src/foo.py --json
 ```
 
+## Freshness
+
+`akms status` lists, under **Stale Code Mirrors**, every mirror that is older
+than its source. It reads the mirror files themselves, not the compiled graph,
+and asks git. A mirror is stale when its `source_file`:
+
+- has a commit after the mirror's `generated_at`;
+- has uncommitted changes, and the file was modified after `generated_at`; or
+- no longer exists (deleted, or renamed away).
+
+Refreshing the mirror clears the entry. Outside a git repository nothing is
+reported. Sources are looked up relative to the repository root, then relative
+to the git top level, so an AKMS root below the repository (`dev/`, say) works.
+
+The check trusts `generated_at`, so it must record when the refresh ran. A
+fixed deterministic timestamp older than the latest commit (an old
+`SOURCE_DATE_EPOCH`, or a constant `failure-memory refresh --generated-at`)
+makes every changed source look stale.
+
 ## Provider independence
 
 After equivalent schema-valid mirrors exist on disk, provider choice must not

@@ -58,7 +58,9 @@ akms status --repo .
 
 Runs the graph health report using repository propagation configuration when
 present. It warns under **Knowledge Layout** when `.knowledge/` exists next to
-a non-empty `knowledge/`, whose contents are then ignored.
+a non-empty `knowledge/`, whose contents are then ignored. Under **Stale Code
+Mirrors** it lists mirrors older than their source; see
+[mirror freshness](mirror_providers.md#freshness).
 
 ### `migrate-layout`
 
