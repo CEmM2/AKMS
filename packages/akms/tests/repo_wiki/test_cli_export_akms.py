@@ -68,7 +68,7 @@ def test_export_akms_json_writes_every_artifact_under_repo_root(tmp_path: Path, 
     assert payload["written"] == [
         {
             "content_ref": "code-mirror/message.md",
-            "generated_path": "knowledge/code-mirror/message.md",
+            "generated_path": ".knowledge/code-mirror/message.md",
             "language": "python",
             "node_id": "mirror-message",
             "source_hash": payload["written"][0]["source_hash"],
@@ -105,7 +105,7 @@ def test_changed_only_skips_byte_identical_mirror(tmp_path: Path, capsys):
 def test_parse_failure_is_structured_and_prevents_pruning(tmp_path: Path, capsys):
     (tmp_path / "pkg").mkdir()
     (tmp_path / "pkg" / "broken.py").write_text("def broken(:\n", encoding="utf-8")
-    stale = tmp_path / "akms-output" / "knowledge" / "code-mirror" / "stale.md"
+    stale = tmp_path / "akms-output" / ".knowledge" / "code-mirror" / "stale.md"
     stale.parent.mkdir(parents=True)
     stale.write_text("prior mirror\n", encoding="utf-8")
 
@@ -187,7 +187,7 @@ def test_non_json_mode_is_human_readable(tmp_path: Path, capsys):
     assert main(_argv(tmp_path, "--full")) == 0
 
     captured = capsys.readouterr()
-    assert captured.out.startswith("written: knowledge/code-mirror/")
+    assert captured.out.startswith("written: .knowledge/code-mirror/")
     assert not captured.out.lstrip().startswith("{")
     assert captured.err == ""
 
@@ -340,3 +340,59 @@ def test_json_stdout_has_stable_keys_and_diagnostics_stay_on_stderr(
         "errors",
     }
     assert "pkg/broken.py" in captured.err
+
+
+@pytest.mark.integration
+def test_knowledge_dir_defaults_to_dot_knowledge(tmp_path: Path, capsys):
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "value.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    assert main(_argv(tmp_path, "--full", "--json")) == 0
+
+    [written] = json.loads(capsys.readouterr().out)["written"]
+    assert written["generated_path"] == ".knowledge/code-mirror/pkg/value.md"
+    # content_ref is relative to the knowledge directory, so it is unchanged.
+    assert written["content_ref"] == "code-mirror/pkg/value.md"
+    assert (tmp_path / "akms-output" / written["generated_path"]).is_file()
+    assert not (tmp_path / "akms-output" / "knowledge").exists()
+
+
+@pytest.mark.integration
+def test_knowledge_dir_option_writes_under_legacy_knowledge(tmp_path: Path, capsys):
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "value.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    argv = _argv(tmp_path, "--full", "--json", "--knowledge-dir", "knowledge")
+    assert main(argv) == 0
+
+    [written] = json.loads(capsys.readouterr().out)["written"]
+    assert written["generated_path"] == "knowledge/code-mirror/pkg/value.md"
+    assert written["content_ref"] == "code-mirror/pkg/value.md"
+    assert not (tmp_path / "akms-output" / ".knowledge").exists()
+
+
+@pytest.mark.integration
+def test_knowledge_dir_option_rejects_other_names(tmp_path: Path, capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        main(_argv(tmp_path, "--full", "--knowledge-dir", "../elsewhere"))
+
+    assert exit_info.value.code == 2
+    assert "--knowledge-dir" in capsys.readouterr().err
+
+
+@pytest.mark.integration
+def test_prune_only_touches_the_selected_knowledge_dir(tmp_path: Path, capsys):
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "value.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (tmp_path / "pkg" / "old.py").write_text("OLD = 1\n", encoding="utf-8")
+    argv = _argv(tmp_path, "--full", "--json", "--knowledge-dir", "knowledge")
+    assert main(argv) == 0
+    legacy_old = tmp_path / "akms-output" / "knowledge" / "code-mirror" / "pkg"
+    assert (legacy_old / "old.md").is_file()
+    (tmp_path / "pkg" / "old.py").unlink()
+    capsys.readouterr()
+
+    assert main(_argv(tmp_path, "--full", "--prune", "--json")) == 0
+
+    assert json.loads(capsys.readouterr().out)["removed"] == []
+    assert (legacy_old / "old.md").is_file()

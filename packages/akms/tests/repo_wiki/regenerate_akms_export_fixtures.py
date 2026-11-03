@@ -71,6 +71,8 @@ def _generate_snapshot(workspace: Path) -> dict[Path, bytes]:
         generated_at=FIXTURE_GENERATED_AT,
         changed_only=False,
         prune=False,
+        # The pack was frozen with mirrors under knowledge/; keep it byte-stable.
+        knowledge_dir="knowledge",
     )
     if result.errors or result.skipped or result.removed:
         raise RuntimeError(f"fixture export did not fully succeed: {result.to_json()}")
