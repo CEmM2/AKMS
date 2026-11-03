@@ -52,8 +52,40 @@ development is intentionally not replayed.
   that points outside the repository used to abort the scan. It is now
   listed as skipped, with the reason `symlink`, or `excluded` when an
   ignore or exclude pattern matches it.
+- A `builtin` code-mirror provider runs that exporter
+  (`python -m akms.repo_wiki export-akms`) in a subprocess, with the same
+  export contract, validation, timeout and lock as `repo2md`, and needs
+  nothing else installed. It writes mirrors into the knowledge directory the
+  graph reads, so a repository on `.knowledge/` now loads its mirror; an
+  external `repo-wiki` still always writes `knowledge/code-mirror/`.
+- `repo-wiki export-akms` gains `--knowledge-dir .knowledge|knowledge`, the
+  directory under `--output` that receives `code-mirror/`. It defaults to
+  `.knowledge`; pass `knowledge` for the older layout. The committed export
+  fixture pack keeps its `knowledge/` paths and its digest.
+- `akms-failure-memory` chooses its mirror exporter with
+  `[toolchain].mirror_provider`. `"builtin"` uses the exporter shipped in
+  akms and needs none of the `repo2md_*` keys, and preflight no longer looks
+  for an external `repo-wiki` or its checkout. `"repo2md"` keeps the external
+  tool and still requires those keys; it is what a configuration without the
+  key uses, so existing projects and the frozen consumer-contract packs are
+  unchanged. `failure-memory init` now writes `mirror_provider = "builtin"`
+  without the `repo2md_*` keys. Preflight results gain a `mirror` object
+  naming the provider; the `repo2md` object is reported only for that
+  provider.
 
 ### Changed
+- The default code-mirror provider (`mirror.provider`) is now `builtin`
+  instead of `legacy`. `akms generate-mirror`, the staged runner and the
+  `akms_generate_mirror` MCP tool use it unless a project configures
+  another provider. Its mirrors cover every language the exporter supports,
+  not only Python, and their Markdown layout differs from `legacy`'s; both
+  are valid v2 code-mirror nodes. With the default `changed` selection it
+  exports sources changed since the parent branch (`git diff <parent>`, so
+  uncommitted changes to tracked files count). In a directory that is not a
+  git repository, or that lacks the parent branch, it selects nothing and
+  logs a warning, as `legacy` did. An explicit `--path` that is not an
+  eligible source is an error, where `legacy` skipped it. Set
+  `mirror.provider: legacy` to keep the old behaviour.
 - `akms-failure-memory` provider fingerprints no longer include the installed
   `akms` release version. The packages release in lockstep, so every patch
   release moved every fingerprint, marking existing resolutions stale and
