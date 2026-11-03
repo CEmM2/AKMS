@@ -53,3 +53,6 @@ A repository that already has an older `<repo>/knowledge/` directory, and no
 3. Choose between a [ranked graph workflow](user-guide/querying-subgraphs.md)
    and [exact task resolution](user-guide/task-resolution.md).
 4. Add mirror or runtime integrations only when the project needs them.
+
+The [repo-wiki reference](repo-wiki/index.md) covers the `repo-wiki` command
+that the default `builtin` code-mirror provider runs.

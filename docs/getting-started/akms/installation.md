@@ -155,6 +155,8 @@ None of these are installed by AKMS, and none are required.
   `mirror.provider: repo2md`. Rust, C++ (tree-sitter) and Julia sources need
   `akms[multilang]`. See
   [Code-mirror providers](../../reference/akms/user-guide/mirror_providers.md).
+  The [repo-wiki reference](../../reference/akms/repo-wiki/index.md) lists the
+  extras per language.
 - **`nlm`** — an external NotebookLM CLI used by selected node-generation and
   learning-provider workflows.
 - **Claude / Codex CLI** — required only by their corresponding optional
