@@ -57,7 +57,20 @@ akms status --repo .
 ```
 
 Runs the graph health report using repository propagation configuration when
-present.
+present. It warns under **Knowledge Layout** when `.knowledge/` exists next to
+a non-empty `knowledge/`, whose contents are then ignored.
+
+### `migrate-layout`
+
+```bash
+akms migrate-layout --repo . [--check] [--json]
+```
+
+Moves `<repo>/knowledge/` to `<repo>/.knowledge/`, re-anchors `.gitignore` and
+`.gitattributes` lines on it, drops the compiled graph and qmd cache, and lists
+other tracked lines that still mention `knowledge/`. `--check` changes nothing.
+Projects using failure memory run `failure-memory migrate-layout` instead. See
+[Moving to `.knowledge/`](knowledge-layout.md).
 
 ### `query`
 

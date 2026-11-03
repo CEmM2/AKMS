@@ -162,6 +162,7 @@ nav:
         - Resolve Exact Task Context: reference/akms/user-guide/task-resolution.md
         - Update Local Knowledge: reference/akms/user-guide/updating-knowledge.md
         - Code-Mirror Providers: reference/akms/user-guide/mirror_providers.md
+        - Moving to .knowledge: reference/akms/user-guide/knowledge-layout.md
         - CLI Reference: reference/akms/user-guide/cli-commands.md
         - Optional Pipeline Runner: reference/akms/user-guide/orchestrator.md
         - Failure-Memory Public API Pin: reference/akms/user-guide/failure_memory_public_api.md

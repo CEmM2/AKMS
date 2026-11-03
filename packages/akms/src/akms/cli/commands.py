@@ -906,6 +906,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     register_vault_commands(subparsers)
 
+    #   # knowledge/ -> .knowledge/ migration (separate module).
+    from akms.cli.layout_commands import register_layout_commands
+
+    register_layout_commands(subparsers)
+
     #   # repo-wiki passthrough (separate module).
     from akms.cli.wiki_commands import register_wiki_commands
 

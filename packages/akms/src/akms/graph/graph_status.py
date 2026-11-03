@@ -28,7 +28,7 @@ import frontmatter
 import networkx as nx
 import yaml
 
-from akms.layout import local_knowledge_dir
+from akms.layout import ignored_legacy_dir, local_knowledge_dir
 from akms.graph.build_graph import build_graph, load_graph, resolve_global_vault
 from akms.schema.models import NodeStatus, PropagationConfig
 from akms.schema.validators import parse_propagation_config
@@ -379,6 +379,17 @@ def _check_blocked_tasks(
 # ═══════════════════════════════════════════════════════════════════════
 
 
+def _check_layout(repo_root: Path) -> list[str]:
+    """Warn when ``.knowledge/`` hides a non-empty ``knowledge/``."""
+    hidden = ignored_legacy_dir(repo_root)
+    if hidden is None:
+        return []
+    return [
+        f"{hidden.name}/ is ignored because .knowledge/ exists; nothing in it "
+        "is loaded. Move what it holds into .knowledge/ and delete it."
+    ]
+
+
 def format_report(report: dict[str, Any]) -> str:
     """Format a health report as human-readable text."""
     lines = ["═══ AKMS Graph Health Report ═══", ""]
@@ -485,7 +496,7 @@ def format_report(report: dict[str, Any]) -> str:
     if mp:
         lines.append("## Mirror Provider")
         lines.append(
-            f"  - provider: {mp.get('resolved_provider') or mp.get('provider', 'legacy')}"
+            f"  - provider: {mp.get('resolved_provider') or mp.get('provider', 'builtin')}"
         )
         if "success" in mp:
             lines.append(f"  - last_refresh_success: {mp.get('success')}")
@@ -498,6 +509,13 @@ def format_report(report: dict[str, Any]) -> str:
                 )
             else:
                 lines.append(f"  - error: {err}")
+        lines.append("")
+
+    # Knowledge directory layout problems
+    layout = report.get("layout_warnings", [])
+    if layout:
+        lines.append(f"## Knowledge Layout: {len(layout)}")
+        lines += [f"  - {warning}" for warning in layout]
         lines.append("")
 
     # Skipped files (malformed frontmatter surfaced by build_graph)
@@ -519,6 +537,7 @@ def format_report(report: dict[str, Any]) -> str:
         + len(dedup_events)
         + len(blocked_tasks)
         + len(drift)
+        + len(layout)
     )
     lines.append(f"## Summary: {total_issues} total issues")
     lines.append(f"  Nodes in graph: {report.get('total_nodes', 0)}")
@@ -639,6 +658,7 @@ def graph_status(
         "skipped_files": list(G.graph.get("skipped_files", [])),
         # Configured / last-refresh mirror provider identity (non-secret).
         "mirror_provider": mirror_provider,
+        "layout_warnings": _check_layout(repo_root),
     }
 
     logger.info(
