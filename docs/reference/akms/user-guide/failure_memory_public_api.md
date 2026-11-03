@@ -17,6 +17,8 @@ packages/akms/release/failure_memory_public_api_pin.json
 | Loadout rendering | `akms.graph.generate_loadout.generate_loadout` with optional task-knowledge/manifest inputs |
 | Mirror refresh | `akms.graph.generate_mirror.generate_mirror` |
 | Provider protocol | Documented symbols in `akms.graph.mirror_provider` |
+| Mirror export contract version | `akms.repo_wiki.export.akms.EXPORT_SCHEMA_VERSION` |
+| Knowledge directory | `akms.layout.local_knowledge_dir` |
 | Task-context models/routes/query/manifest | Exact symbols enumerated by the pin |
 | Schema | Frozen AKMS v2 public models and version constant |
 

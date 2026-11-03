@@ -85,6 +85,10 @@ _EXPECTED_ALLOWED_PYTHON = {
         "AgentRole",
         "LoadoutMode",
     ),
+    # The mirror exporter's contract version; the exporter ships in akms.
+    "akms.repo_wiki.export.akms": ("EXPORT_SCHEMA_VERSION",),
+    # Where a repository keeps its knowledge (.knowledge/ or a legacy knowledge/).
+    "akms.layout": ("local_knowledge_dir",),
     "akms": ("AKMS_SCHEMA_VERSION", "__version__"),
 }
 _PUBLIC_CLI_MCP_SOURCES = {

@@ -13,6 +13,7 @@ from typing import Any
 
 import yaml
 from akms.graph.build_graph import build_graph
+from akms.repo_wiki.export.akms import EXPORT_SCHEMA_VERSION
 from akms.task_context.resolve_task_service import resolve_task
 from akms.task_context.review import resolve_reviewer_context
 
@@ -278,24 +279,35 @@ def _input_fingerprints(config: ProjectConfig, root: Path) -> dict[str, str]:
     # table still counts through `config_sha256`. Resolution inputs are the
     # graph, the routes, and the config -- not the bytes or release number of
     # the resolver.
-    return {
+    fingerprints = {
         "config_sha256": config.fingerprint,
         "graph_sha256": _sha256_file(graph),
         "routes_sha256": _sha256_file(routes),
-        "repo2md_fixture_sha256": str(config.toolchain["repo2md_fixture_sha256"]),
-        "toolchain_sha256": hashlib.sha256(
-            _canonical_json(
-                {
-                    "akms_schema_version": akms.AKMS_SCHEMA_VERSION,
-                    "repo2md_version": config.toolchain["repo2md_version"],
-                    "repo2md_commit": config.toolchain["repo2md_commit"],
-                    "repo2md_export_schema_version": config.toolchain[
-                        "repo2md_export_schema_version"
-                    ],
-                }
-            )
-        ).hexdigest(),
     }
+    if config.mirror_provider == "builtin":
+        # The exporter ships in akms, so its identity is the export contract
+        # version; the AKMS version a project pins counts through the config.
+        toolchain: dict[str, Any] = {
+            "akms_schema_version": akms.AKMS_SCHEMA_VERSION,
+            "mirror_provider": "builtin",
+            "export_schema_version": EXPORT_SCHEMA_VERSION,
+        }
+    else:
+        fingerprints["repo2md_fixture_sha256"] = str(
+            config.toolchain["repo2md_fixture_sha256"]
+        )
+        toolchain = {
+            "akms_schema_version": akms.AKMS_SCHEMA_VERSION,
+            "repo2md_version": config.toolchain["repo2md_version"],
+            "repo2md_commit": config.toolchain["repo2md_commit"],
+            "repo2md_export_schema_version": config.toolchain[
+                "repo2md_export_schema_version"
+            ],
+        }
+    fingerprints["toolchain_sha256"] = hashlib.sha256(
+        _canonical_json(toolchain)
+    ).hexdigest()
+    return fingerprints
 
 
 def _atomic_write(path: Path, content: bytes) -> None:

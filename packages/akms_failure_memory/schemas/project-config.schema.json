@@ -111,11 +111,14 @@
     "toolchain": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["akms_version", "akms_schema_version", "akms_public_api_sha256", "repo2md_command", "repo2md_version", "repo2md_export_schema_version", "repo2md_fixture_sha256", "repo2md_commit", "repo2md_dirty_policy", "mirror_selection", "timeout_seconds"],
+      "required": ["akms_version", "akms_schema_version", "akms_public_api_sha256", "mirror_selection", "timeout_seconds"],
+      "if": {"properties": {"mirror_provider": {"const": "builtin"}}, "required": ["mirror_provider"]},
+      "else": {"required": ["repo2md_command", "repo2md_version", "repo2md_export_schema_version", "repo2md_fixture_sha256", "repo2md_commit", "repo2md_dirty_policy"]},
       "properties": {
         "akms_version": {"type": "string", "minLength": 1, "description": "Pinned AKMS version: a plain PEP 440 version (exact match) or a PEP 440 specifier set such as \">=0.3.2,<0.4\" (any of < > = ! ~ , makes it a specifier set)."},
         "akms_schema_version": {"const": "v2"},
         "akms_public_api_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "mirror_provider": {"enum": ["builtin", "repo2md"], "description": "Code-mirror exporter: builtin runs the copy shipped in akms; repo2md (the default when absent) runs an external repo-wiki and requires the repo2md_* keys."},
         "repo2md_command": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
         "repo2md_version": {"type": "string", "minLength": 1, "description": "Pinned repo2md version: a plain PEP 440 version (exact match) or a PEP 440 specifier set such as \">=0.2,<0.3\" (any of < > = ! ~ , makes it a specifier set)."},
         "repo2md_export_schema_version": {"type": "integer", "minimum": 1},

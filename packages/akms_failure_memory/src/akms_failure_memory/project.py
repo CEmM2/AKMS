@@ -21,10 +21,6 @@ from akms_failure_memory.errors import FailureMemoryError
 _AKMS_PUBLIC_API_SHA256 = (
     "3a79a11312376a5f203013c87d37b2a695fab895ffa6d47decd2c0ad95f7b828"
 )
-_REPO2MD_FIXTURE_SHA256 = (
-    "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b"
-)
-_REPO2MD_COMMIT = "478be35c76325ab1ccea48b69a5ea25b095952a6"
 
 
 def _atomic_create(
@@ -144,12 +140,7 @@ source_hash_suffix = " -->"
 akms_version = "{akms_range}"
 akms_schema_version = "v2"
 akms_public_api_sha256 = "{_AKMS_PUBLIC_API_SHA256}"
-repo2md_command = ["repo-wiki"]
-repo2md_version = "0.2.0"
-repo2md_export_schema_version = 1
-repo2md_fixture_sha256 = "{_REPO2MD_FIXTURE_SHA256}"
-repo2md_commit = "{_REPO2MD_COMMIT}"
-repo2md_dirty_policy = "require-clean"
+mirror_provider = "builtin"
 mirror_selection = "full"
 timeout_seconds = 120
 

@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
 import urllib.parse
@@ -19,6 +20,7 @@ from typing import Any
 from akms.layout import local_knowledge_dir
 from akms.graph.build_graph import build_graph
 from akms.graph.mirror_provider import MirrorRequest, run_mirror_provider
+from akms.repo_wiki.export.akms import EXPORT_SCHEMA_VERSION
 from akms.schema.models import MirrorConfig
 
 import akms
@@ -293,20 +295,76 @@ def preflight(*, config: ProjectConfig, repository_root: str | Path) -> dict[str
             expected=pinned_digest,
         )
 
-    # ── Blocking: repo2md must actually be callable ───────────────────────
-    command = _resolve_command(tuple(config.toolchain["repo2md_command"]))
+    # ── Blocking: the mirror exporter must actually be callable ───────────
+    if config.mirror_provider == "builtin":
+        command = _BUILTIN_COMMAND
+        _require_export_contract(
+            command, root, config, flags=_BUILTIN_CONTRACT_FLAGS, provider="builtin"
+        )
+        mirror: dict[str, Any] = {
+            "provider": "builtin",
+            "command": list(command),
+            "version": akms.__version__,
+            "export_schema_version": EXPORT_SCHEMA_VERSION,
+        }
+        repo2md = None
+    else:
+        repo2md = _repo2md_identity(config, root, note)
+        mirror = {
+            "provider": "repo2md",
+            "command": repo2md["command"],
+            "version": repo2md["version"],
+            "export_schema_version": repo2md["export_schema_version"],
+        }
+
+    identity: dict[str, Any] = {
+        "status": "ok",
+        "advisories": advisories,
+        "akms": {
+            "version": akms.__version__,
+            "schema": akms.AKMS_SCHEMA_VERSION,
+            "public_api_sha256": digest,
+        },
+        "mirror": mirror,
+    }
+    if repo2md is not None:
+        identity["repo2md"] = repo2md
+    return identity
+
+
+# The exporter shipped in akms, run with the interpreter that runs this package.
+_BUILTIN_COMMAND = (sys.executable, "-m", "akms.repo_wiki")
+_CONTRACT_FLAGS = ("--output", "--phase", "--json")
+_BUILTIN_CONTRACT_FLAGS = (*_CONTRACT_FLAGS, "--knowledge-dir")
+
+
+def _require_export_contract(
+    command: tuple[str, ...],
+    root: Path,
+    config: ProjectConfig,
+    *,
+    flags: tuple[str, ...],
+    provider: str,
+) -> None:
     contract = _run(
         [*command, "export-akms", "--help"],
         cwd=root,
         timeout=float(config.toolchain["timeout_seconds"]),
     )
     contract_text = contract.stdout + contract.stderr
-    if contract.returncode != 0 or any(
-        flag not in contract_text for flag in ("--output", "--phase", "--json")
-    ):
+    if contract.returncode != 0 or any(flag not in contract_text for flag in flags):
         raise FailureMemoryError(
-            "repo2md export-akms CLI contract is unavailable", code="repo2md_contract"
+            f"{provider} export-akms CLI contract is unavailable",
+            code="repo2md_contract",
         )
+
+
+def _repo2md_identity(config: ProjectConfig, root: Path, note: Any) -> dict[str, Any]:
+    """Check the external repo-wiki is callable; report its identity as advisories."""
+    command = _resolve_command(tuple(config.toolchain["repo2md_command"]))
+    _require_export_contract(
+        command, root, config, flags=_CONTRACT_FLAGS, provider="repo2md"
+    )
 
     # ── Advisory: repo2md identity, best effort ───────────────────────────
     distribution = _installed_distribution(command[0])
@@ -436,24 +494,15 @@ def preflight(*, config: ProjectConfig, repository_root: str | Path) -> dict[str
         metadata_status = "current"
 
     return {
-        "status": "ok",
-        "advisories": advisories,
-        "akms": {
-            "version": akms.__version__,
-            "schema": akms.AKMS_SCHEMA_VERSION,
-            "public_api_sha256": digest,
-        },
-        "repo2md": {
-            "command": list(command),
-            "checkout": str(tool_root) if tool_root is not None else "",
-            "version": checkout_version,
-            "distribution_version": metadata_version,
-            "distribution_metadata": metadata_status,
-            "export_schema_version": export_schema,
-            "fixture_sha256": fixture_sha,
-            "commit": observed_commit,
-            "dirty": observed_dirty,
-        },
+        "command": list(command),
+        "checkout": str(tool_root) if tool_root is not None else "",
+        "version": checkout_version,
+        "distribution_version": metadata_version,
+        "distribution_metadata": metadata_status,
+        "export_schema_version": export_schema,
+        "fixture_sha256": fixture_sha,
+        "commit": observed_commit,
+        "dirty": observed_dirty,
     }
 
 
@@ -484,9 +533,10 @@ def _mirror(
     generated_at: str | None,
     identity: dict[str, Any],
 ) -> dict[str, Any]:
-    command = identity["repo2md"]["command"]
+    provider = config.mirror_provider
+    command = identity["mirror"]["command"]
     mirror_config = MirrorConfig(
-        provider="repo2md",
+        provider=provider,
         command=command,
         timeout_seconds=float(config.toolchain["timeout_seconds"]),
         fallback_on_error=False,
@@ -494,8 +544,10 @@ def _mirror(
         generated_at_source="request",
         selection_mode=str(config.toolchain["mirror_selection"]),
         prune=True,
-        expected_export_schema_version=int(
-            config.toolchain["repo2md_export_schema_version"]
+        expected_export_schema_version=(
+            EXPORT_SCHEMA_VERSION
+            if provider == "builtin"
+            else int(config.toolchain["repo2md_export_schema_version"])
         ),
         expected_akms_schema_version=str(config.toolchain["akms_schema_version"]),
     )
@@ -509,9 +561,11 @@ def _mirror(
         llm_fn=None,
         prune=True,
     )
-    result = run_mirror_provider(request, mirror_config, provider_name="repo2md")
+    result = run_mirror_provider(request, mirror_config, provider_name=provider)
     if not result.success:
-        raise FailureMemoryError("repo2md mirror refresh failed", code="mirror_failure")
+        raise FailureMemoryError(
+            f"{provider} mirror refresh failed", code="mirror_failure"
+        )
     return {
         "status": "ok",
         "provider": result.provider,
@@ -680,7 +734,7 @@ def _clean(config: ProjectConfig, root: Path) -> dict[str, Any]:
     knowledge = local_knowledge_dir(akms_root)
     if config.generated["mirror"] == "disposable":
         candidates.append(knowledge / "code-mirror")
-        # repo-wiki still emits knowledge/code-mirror under akms_repo_root.
+        # The external repo-wiki always writes knowledge/code-mirror.
         repo2md_mirror = akms_root / "knowledge" / "code-mirror"
         if repo2md_mirror != knowledge / "code-mirror":
             candidates.append(repo2md_mirror)

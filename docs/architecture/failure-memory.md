@@ -8,7 +8,7 @@ project registry/config
         ▼
 akms-failure-memory
         ├── documented, pinned AKMS public API
-        └── pinned repo2md CLI contract (subprocess argv)
+        └── repo-wiki export-akms CLI contract (subprocess argv)
 ```
 
 AKMS core never imports failure memory. Failure memory never imports a consumer
@@ -22,7 +22,7 @@ repository or repo2md as a Python package.
 | Project configuration | Project | Canonical identity, paths, taxonomy, and toolchain policy |
 | Generated lesson nodes/routes | Project policy | Reproducible projection; committed or disposable |
 | Recorder/compiler/refresh/provider | Package | Reusable implementation |
-| Source mirrors | repo2md product | Invoked through pinned CLI contract |
+| Source mirrors | `repo-wiki` exporter | Built in, or an external pinned CLI |
 | Graph/query/loadouts | AKMS core | Invoked through public API pin |
 | Compatibility wrappers | Project | Thin forwarding only |
 | Global promotion | Human operator | Separate explicit action |
@@ -36,7 +36,9 @@ repository or repo2md as a Python package.
 - Generated-file policy
 - Validation and taxonomy rules
 - Compatibility renderer identifiers
-- AKMS and repo2md toolchain pins (an exact version or a PEP 440 range)
+- The mirror provider (`builtin` or `repo2md`)
+- AKMS and, for the `repo2md` provider, repo2md toolchain pins (an exact
+  version or a PEP 440 range)
 
 Paths are repository-relative POSIX paths and are containment-checked through
 symlink components before mutation.
