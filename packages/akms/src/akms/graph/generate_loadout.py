@@ -9,7 +9,8 @@ Two modes:
 
 Per-node reading_priority overrides mode selection:
   - full: include full content even in routing mode
-  - summary: include summary only even in full mode
+  - summary: include summary only even in full mode (full when the node
+    has no ``## Summary`` section)
   - pitfalls-only: include only pitfall warnings
 
 Loadout structure (fixed):
@@ -223,6 +224,21 @@ def _load_node_content(content_ref: str | None, repo_root: Path | None = None) -
                     pass
 
     return ""
+
+
+def _has_summary_section(content: str) -> bool:
+    """Return whether *content* has a non-empty ``## Summary`` section."""
+    in_summary = False
+    for line in content.split("\n"):
+        if line.strip().lower().startswith("## summary"):
+            in_summary = True
+            continue
+        if in_summary:
+            if line.startswith("## "):
+                return False
+            if line.strip():
+                return True
+    return False
 
 
 def _extract_summary(content: str, max_sentences: int = 5) -> str:
@@ -695,6 +711,14 @@ def generate_loadout(
         # reading_priority wins over the loadout-level mode_str per FR-L10c.
         # Precedence: reading_priority (if set) > mode_str.
         effective_mode = (reading_priority or mode_str) or "routing"
+        # FR-L10c: a summary-priority node without a `## Summary` section
+        # falls back to full; its first lines are not a summary.
+        if (
+            reading_priority == "summary"
+            and content
+            and not _has_summary_section(content)
+        ):
+            effective_mode = "full"
 
         if effective_mode == "pitfalls-only":
             pitfall_content = _extract_pitfall_sections(content)

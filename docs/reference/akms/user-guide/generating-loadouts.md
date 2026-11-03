@@ -8,7 +8,9 @@ A loadout is a Markdown knowledge artifact for one task, phase, and role.
 - **Full:** inline content up to the ordinary advisory token budget
 
 Per-node `reading_priority` can override the loadout-level mode with `full`,
-`summary`, or `pitfalls-only`.
+`summary`, or `pitfalls-only`. A `summary` node renders its `## Summary`
+section; a node without one is rendered in full instead, as the specification
+requires (FR-L10c).
 
 ## CLI
 
