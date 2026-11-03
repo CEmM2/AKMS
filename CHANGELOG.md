@@ -87,6 +87,11 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `failure-memory` preflight read the external repo2md integration pin from
+  `dev/plans/mirror_export/release/`, but repo2md keeps it under
+  `dev/plans/akms_mirror_export/release/`. The fixture identity check could
+  never pass against a real checkout and always reported
+  `repo2md_fixture_unreadable`.
 - `akms-failure-memory`'s project lock no longer sends console Ctrl-C events
   on Windows. Its owner-liveness probe used `os.kill(pid, 0)`, and on Windows
   signal 0 is `CTRL_C_EVENT`: every 20 ms of lock contention interrupted every
