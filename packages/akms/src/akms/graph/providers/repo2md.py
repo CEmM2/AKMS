@@ -685,10 +685,17 @@ class BuiltinMirrorProvider(Repo2mdMirrorProvider):
         # Changed-file selection needs the git base ref. Without one, match the
         # legacy provider (the previous default): warn and select nothing,
         # rather than failing every refresh in a repository without that ref.
+        # A caller that requires success gets a failure instead.
         mode = (request.selection_mode or "changed").strip().lower()
         if request.source_files is None and mode in ("changed", "git"):
             base = request.git_base or request.parent_branch or "main"
             reason = _missing_git_ref(Path(request.repo_root), base)
+            if reason is not None and config.require_success:
+                raise MirrorProviderError(
+                    f"changed-file selection is unavailable: {reason}",
+                    provider=self.name,
+                    code="selection_unavailable",
+                )
             if reason is not None:
                 logger.warning("builtin mirror provider selected no files: %s", reason)
                 return MirrorResult(

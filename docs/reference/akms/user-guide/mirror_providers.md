@@ -53,9 +53,14 @@ C++ (tree-sitter) and Julia need `akms[multilang]`.
 - `.repo_wiki/config.yaml` controls which sources and languages are exported
 - With `selection_mode: changed`, it exports sources changed since the parent
   branch, as `git diff <parent>` sees them (committed and uncommitted changes
-  to tracked files). In a directory that is not a git repository, or where the
-  parent branch does not exist, it selects nothing and logs a warning, as
-  `legacy` does
+  to tracked files), plus new files git does not ignore. Mirrors of sources
+  deleted or renamed away since the parent branch are removed
+- In a directory that is not a git repository, or where the parent branch
+  does not exist, `changed` selects nothing and logs a warning, as `legacy`
+  does; `generate-mirror` prints it on stderr and the staged runner records
+  it. With `require_success: true` it is a `selection_unavailable` failure
+- An explicit `--path` that names a deleted source removes that source's
+  mirror; one that names no source and no mirror is an error
 
 ## `legacy`
 
