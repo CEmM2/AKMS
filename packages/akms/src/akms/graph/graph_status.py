@@ -9,7 +9,7 @@ Reports:
   - Dedup events persisted in local overlay history
   - Blocked downstream tasks
   - Id collisions between global and local nodes
-  - Orphaned nodes (no edges)
+  - Orphaned nodes (no edges and no load_with hint either way)
   - Stale nodes (last_activated > N days)
   - Orphaned overlay entries
   - Docstring drift warnings (consumed from generate_mirror output)
@@ -185,13 +185,33 @@ def _check_id_collisions(
     return collisions
 
 
+def _load_with_ids(data: dict) -> list[str]:
+    """A node's ``load_with`` hints as a list of ids."""
+    hints = data.get("load_with", []) or []
+    if isinstance(hints, str):
+        hints = [hints]
+    return [str(target) for target in hints]
+
+
 def _check_orphaned_nodes(G: nx.DiGraph) -> list[dict]:
-    """Find nodes with no edges (neither in nor out)."""
+    """Find nodes nothing connects: no edges and no ``load_with`` hint.
+
+    ``load_with`` (FR-G10) is not a graph edge, but it does load a node: a
+    node that names others in ``load_with``, or that another node names, is
+    reached by coactivation and is not an orphan.
+    """
+    hinted: set[str] = set()
+    for node_id, data in G.nodes(data=True):
+        targets = {target for target in _load_with_ids(data) if target != node_id}
+        if targets:
+            hinted.add(node_id)
+            hinted.update(targets)
+
     orphaned = []
     for node_id in G.nodes():
         in_deg = G.in_degree(node_id)
         out_deg = G.out_degree(node_id)
-        if in_deg == 0 and out_deg == 0:
+        if in_deg == 0 and out_deg == 0 and node_id not in hinted:
             data = G.nodes[node_id]
             # Skip session nodes and code-mirror (expected to be orphaned)
             domain = data.get("domain", "")
@@ -434,7 +454,7 @@ def format_report(report: dict[str, Any]) -> str:
 
     # Orphaned nodes
     orphaned = report.get("orphaned_nodes", [])
-    lines.append(f"## Orphaned Nodes (no edges): {len(orphaned)}")
+    lines.append(f"## Orphaned Nodes (no edges or load_with): {len(orphaned)}")
     for o in orphaned:
         lines.append(f"  - {o['node_id']} ({o['domain']}, {o['origin']})")
     lines.append("")
