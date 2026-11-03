@@ -160,10 +160,35 @@ def mirror_content_ref(source_path: str, language: Language | str) -> str:
     return f"code-mirror/{language_value}/{path}.md"
 
 
-def mirror_document_path(source_path: str, language: Language | str) -> str:
-    """Build the repository-relative generated path, distinct from source path."""
+KNOWLEDGE_DIRS: Final = ("knowledge", ".knowledge")
+"""Knowledge directory names a mirror may be written under, relative to the output root."""
 
-    return f"knowledge/{mirror_content_ref(source_path, language)}"
+DEFAULT_KNOWLEDGE_DIR: Final = ".knowledge"
+
+
+def validate_knowledge_dir(knowledge_dir: str) -> str:
+    """Return ``knowledge_dir`` if it is one of :data:`KNOWLEDGE_DIRS`."""
+
+    if knowledge_dir not in KNOWLEDGE_DIRS:
+        raise ValueError(
+            f"knowledge_dir must be one of {', '.join(KNOWLEDGE_DIRS)}; "
+            f"got {knowledge_dir!r}"
+        )
+    return knowledge_dir
+
+
+def mirror_document_path(
+    source_path: str,
+    language: Language | str,
+    knowledge_dir: str = DEFAULT_KNOWLEDGE_DIR,
+) -> str:
+    """Build the output-relative generated path, distinct from source path.
+
+    ``content_ref`` is relative to the knowledge directory, so it does not
+    depend on ``knowledge_dir``; only the generated path does.
+    """
+
+    return f"{validate_knowledge_dir(knowledge_dir)}/{mirror_content_ref(source_path, language)}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,6 +215,7 @@ def build_mirror_document(
     source_hash: str,
     phase: int,
     generated_at: datetime | str,
+    knowledge_dir: str = DEFAULT_KNOWLEDGE_DIR,
 ) -> MirrorDocument:
     """Create a mirror contract record without reading or writing the filesystem."""
 
@@ -205,7 +231,7 @@ def build_mirror_document(
         generated_at=canonical_generated_at(generated_at),
         node_id=mirror_node_id(path, language_value),
         content_ref=mirror_content_ref(path, language_value),
-        generated_path=mirror_document_path(path, language_value),
+        generated_path=mirror_document_path(path, language_value, knowledge_dir),
     )
 
 
@@ -348,12 +374,18 @@ class ExportResult:
 def _validated_document(parsed: ParsedModule, document: MirrorDocument) -> None:
     """Reject a document whose identity or source metadata does not match its parsed module."""
 
+    # The knowledge directory is the generated path's first segment; any other
+    # value cannot rebuild the same path, so the comparison below rejects it.
+    knowledge_dir = document.generated_path.split("/", 1)[0]
     expected = build_mirror_document(
         source_path=document.source_path,
         language=document.language,
         source_hash=document.source_hash,
         phase=document.phase,
         generated_at=document.generated_at,
+        knowledge_dir=(
+            knowledge_dir if knowledge_dir in KNOWLEDGE_DIRS else DEFAULT_KNOWLEDGE_DIR
+        ),
     )
     if document != expected:
         raise ValueError(

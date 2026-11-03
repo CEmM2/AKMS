@@ -9,6 +9,7 @@ from pathlib import Path
 
 from akms.repo_wiki.config import load_config
 from akms.repo_wiki.export.akms import (
+    DEFAULT_KNOWLEDGE_DIR,
     ErrorRecord,
     ExportResult,
     RemovedRecord,
@@ -23,6 +24,7 @@ from akms.repo_wiki.export.akms import (
     mirror_node_id,
     normalize_source_path,
     render_mirror_markdown,
+    validate_knowledge_dir,
 )
 from akms.repo_wiki.extract.registry import extract_files
 from akms.repo_wiki.hashing import sha256_text
@@ -51,10 +53,12 @@ def export_akms(
     git_head: str | None = None,
     acquire_lock: bool = True,
     force_lock: bool = False,
+    knowledge_dir: str = DEFAULT_KNOWLEDGE_DIR,
 ) -> ExportResult:
     """Export eligible sources into an AKMS mirror tree; all rendering precedes the first write.
 
-    Pruning runs only after every write succeeds; ``force_lock`` never steals a live lock.
+    Mirrors go to ``<output_root>/<knowledge_dir>/code-mirror/``. Pruning runs only
+    after every write succeeds; ``force_lock`` never steals a live lock.
     """
 
     root = repo_root.resolve()
@@ -70,6 +74,7 @@ def export_akms(
         raise ValueError("source_paths and git_base selection are mutually exclusive")
     if git_head is not None and git_base is None:
         raise ValueError("git_head requires git_base")
+    validate_knowledge_dir(knowledge_dir)
 
     lock: RepoLocalLock | None = None
     if acquire_lock:
@@ -97,6 +102,7 @@ def export_akms(
             source_paths=source_paths,
             git_base=git_base,
             git_head=git_head,
+            knowledge_dir=knowledge_dir,
         )
     finally:
         if lock is not None:
@@ -114,6 +120,7 @@ def _export_akms_locked(
     source_paths: Sequence[str] | None,
     git_base: str | None,
     git_head: str | None,
+    knowledge_dir: str,
 ) -> ExportResult:
     result = ExportResult(phase=phase, generated_at=timestamp)
     selection_meta: dict[str, object]
@@ -143,7 +150,7 @@ def _export_akms_locked(
         result.errors.append(ErrorRecord(None, None, "validation", message))
         return result
 
-    config = _config_excluding_output(root, output)
+    config = _config_excluding_output(root, output, knowledge_dir)
     sources, scanner_skips = scan_repository(root, config)
     _record_undecodable_source_errors(root, scanner_skips, result)
 
@@ -251,6 +258,7 @@ def _export_akms_locked(
                 source_hash=source.content_hash,
                 phase=phase,
                 generated_at=timestamp,
+                knowledge_dir=knowledge_dir,
             )
             markdown = render_mirror_markdown(
                 parsed, source_text[source.path], document
@@ -311,7 +319,7 @@ def _export_akms_locked(
         )
 
     if prune and not result.errors:
-        _prune_stale_mirrors(output, expected_paths, result)
+        _prune_stale_mirrors(output, expected_paths, result, knowledge_dir)
     return result
 
 
@@ -499,7 +507,9 @@ def _read_source_text(path: Path) -> str:
         return handle.read()
 
 
-def _config_excluding_output(repo_root: Path, output_root: Path) -> dict[str, object]:
+def _config_excluding_output(
+    repo_root: Path, output_root: Path, knowledge_dir: str
+) -> dict[str, object]:
     config = deepcopy(load_config(repo_root))
     scanner = config.get("scanner")
     if isinstance(scanner, dict):
@@ -523,7 +533,7 @@ def _config_excluding_output(repo_root: Path, output_root: Path) -> dict[str, ob
         ]
         scanner["include"] = list(dict.fromkeys([*included, *root_forms]))
 
-    mirror_root = output_root / "knowledge" / "code-mirror"
+    mirror_root = output_root / knowledge_dir / "code-mirror"
     try:
         relative = mirror_root.relative_to(repo_root).as_posix()
     except ValueError:
@@ -567,15 +577,16 @@ def _prune_stale_mirrors(
     output_root: Path,
     expected_paths: set[str],
     result: ExportResult,
+    knowledge_dir: str,
 ) -> None:
-    mirror_root = output_root / "knowledge" / "code-mirror"
+    mirror_root = output_root / knowledge_dir / "code-mirror"
     if not mirror_root.is_dir():
         return
     for path in sorted(mirror_root.rglob("*.md")):
         generated_path = path.relative_to(output_root).as_posix()
         if generated_path in expected_paths:
             continue
-        record = _owned_removed_record(path, generated_path)
+        record = _owned_removed_record(path, generated_path, knowledge_dir)
         if record is None:
             continue
         try:
@@ -588,7 +599,9 @@ def _prune_stale_mirrors(
         result.removed.append(record)
 
 
-def _owned_removed_record(path: Path, generated_path: str) -> RemovedRecord | None:
+def _owned_removed_record(
+    path: Path, generated_path: str, knowledge_dir: str
+) -> RemovedRecord | None:
     try:
         markdown = _read_source_text(path)
         if not markdown.startswith("---\n"):
@@ -616,7 +629,8 @@ def _owned_removed_record(path: Path, generated_path: str) -> RemovedRecord | No
         matches = [
             language.value
             for language in Language
-            if mirror_document_path(source_path, language) == generated_path
+            if mirror_document_path(source_path, language, knowledge_dir)
+            == generated_path
             and mirror_node_id(source_path, language) == node_id
             and mirror_content_ref(source_path, language) == content_ref
         ]

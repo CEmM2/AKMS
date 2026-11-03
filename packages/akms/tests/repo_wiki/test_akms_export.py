@@ -74,7 +74,7 @@ def test_write_returns_record_whose_content_ref_is_the_written_file(tmp_path: Pa
     )
 
     written_path = tmp_path / record.generated_path
-    assert written_path == tmp_path / "knowledge" / record.content_ref
+    assert written_path == tmp_path / ".knowledge" / record.content_ref
     assert written_path.is_file()
     assert written_path.read_text(encoding="utf-8").count(source) == 1
     assert list(written_path.parent.glob(f".{written_path.name}.*.tmp")) == []

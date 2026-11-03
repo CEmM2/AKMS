@@ -31,7 +31,7 @@ def _seed(repo: Path) -> None:
 
 
 def _mirror_bytes(root: Path) -> dict[str, bytes]:
-    mirror = root / "knowledge" / "code-mirror"
+    mirror = root / ".knowledge" / "code-mirror"
     if not mirror.is_dir():
         return {}
     return {

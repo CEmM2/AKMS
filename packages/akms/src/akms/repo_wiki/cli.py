@@ -16,7 +16,13 @@ from akms.repo_wiki.answer import (
 )
 from akms.repo_wiki.config import init_repo_wiki, load_config
 from akms.repo_wiki.export import export_akms
-from akms.repo_wiki.export.akms import ErrorRecord, ExportResult, resolve_generated_at
+from akms.repo_wiki.export.akms import (
+    DEFAULT_KNOWLEDGE_DIR,
+    KNOWLEDGE_DIRS,
+    ErrorRecord,
+    ExportResult,
+    resolve_generated_at,
+)
 from akms.repo_wiki.graph_viewer import (
     DEFAULT_GRAPH_RELPATH,
     DEFAULT_HOST,
@@ -83,6 +89,15 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     export.add_argument("--output", required=True, help="AKMS output root")
+    export.add_argument(
+        "--knowledge-dir",
+        choices=KNOWLEDGE_DIRS,
+        default=DEFAULT_KNOWLEDGE_DIR,
+        help=(
+            "Knowledge directory under --output that receives code-mirror/ "
+            "(default: %(default)s)"
+        ),
+    )
     export.add_argument(
         "--phase", required=True, type=int, help="Positive generating phase"
     )
@@ -334,6 +349,7 @@ def main(argv: list[str] | None = None) -> int:
                 git_head=args.git_head,
                 acquire_lock=True,
                 force_lock=args.force_lock,
+                knowledge_dir=args.knowledge_dir,
             )
         except LockError as exc:
             print(f"export-akms lock error: {exc}", file=sys.stderr)

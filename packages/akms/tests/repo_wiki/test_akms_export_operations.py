@@ -414,8 +414,8 @@ def test_path_selection_exports_only_requested_sources(tmp_path: Path):
     assert result.selection["mode"] == "paths"
     assert result.selection["requested_paths"] == ["pkg/a.py"]
     assert [item.source_path for item in result.selected] == ["pkg/a.py"]
-    assert (out / "knowledge/code-mirror/pkg/a.md").is_file()
-    assert not (out / "knowledge/code-mirror/pkg/b.md").exists()
+    assert (out / ".knowledge/code-mirror/pkg/a.md").is_file()
+    assert not (out / ".knowledge/code-mirror/pkg/b.md").exists()
 
 
 @pytest.mark.integration

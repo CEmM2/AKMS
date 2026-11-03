@@ -37,7 +37,7 @@ def test_python_legacy_id_and_content_ref_compatibility():
 
     assert document.node_id == "mirror-src-tifem-fft-green"
     assert document.content_ref == "code-mirror/src/tifem/fft/green.md"
-    assert document.generated_path == "knowledge/code-mirror/src/tifem/fft/green.md"
+    assert document.generated_path == ".knowledge/code-mirror/src/tifem/fft/green.md"
     assert document.source_path == "src/tifem/fft/green.py"
     assert document.generated_at == "2026-03-07T12:00:00+00:00"
     assert document.phase == 2
@@ -74,7 +74,7 @@ def test_multilanguage_same_stem_sources_do_not_collide():
         "code-mirror/julia/src/solver/kernel.jl.md",
     }
     assert document_paths == {
-        f"knowledge/{content_ref}" for content_ref in content_refs
+        f".knowledge/{content_ref}" for content_ref in content_refs
     }
     assert all(source_path not in document_paths for source_path, _ in cases)
 
@@ -89,6 +89,8 @@ def test_contract_matches_golden_json_fixture():
         source_hash="sha256:" + "a" * 64,
         phase=2,
         generated_at=generated_at,
+        # The golden contract fixture is frozen with mirrors under knowledge/.
+        knowledge_dir="knowledge",
     )
     cpp_document = build_mirror_document(
         source_path="src/tifem/fft/green.cpp",
@@ -96,6 +98,7 @@ def test_contract_matches_golden_json_fixture():
         source_hash="sha256:" + "b" * 64,
         phase=2,
         generated_at=generated_at,
+        knowledge_dir="knowledge",
     )
     result = ExportResult(
         phase=2,
@@ -107,7 +110,9 @@ def test_contract_matches_golden_json_fixture():
                 language="rust",
                 node_id=mirror_node_id("src/obsolete.rs", "rust"),
                 content_ref=mirror_content_ref("src/obsolete.rs", "rust"),
-                generated_path=mirror_document_path("src/obsolete.rs", "rust"),
+                generated_path=mirror_document_path(
+                    "src/obsolete.rs", "rust", "knowledge"
+                ),
             )
         ],
         skipped=[
