@@ -13,12 +13,14 @@ Tests loadout generation:
 
 from __future__ import annotations
 
+import networkx as nx
 import yaml
 import pytest
 from types import SimpleNamespace
 
 from akms.graph.build_graph import build_graph
 from akms.graph.generate_loadout import (
+    _has_summary_section,
     generate_loadout,
     select_loadout_mode,
     _build_reading_order,
@@ -431,6 +433,67 @@ class TestSummaryExtraction:
         """Empty content returns placeholder."""
         summary = _extract_summary("")
         assert "no content" in summary.lower()
+
+
+class TestSummaryPriorityFallback:
+    """FR-L10c: ``reading_priority: summary`` without ``## Summary`` is full."""
+
+    def _render(self, tmp_path, monkeypatch, body: str, mode: LoadoutMode) -> str:
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        (tmp_path / "n1.md").write_text("---\nid: n1\n---\n" + body, encoding="utf-8")
+        node = {
+            "title": "N1",
+            "confidence": 0.9,
+            "reading_priority": "summary",
+            "content_ref": "n1.md",
+        }
+        G = nx.DiGraph()
+        G.add_node("n1", **node)
+        return generate_loadout(
+            G,
+            [("n1", node)],
+            task_id="TSK-001",
+            phase=1,
+            graph_version="abc123",
+            seed_tags=["x"],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=mode,
+            repo_root=tmp_path,
+        )
+
+    @pytest.mark.parametrize("mode", [LoadoutMode.ROUTING, LoadoutMode.FULL])
+    def test_no_summary_section_renders_full(self, tmp_path, monkeypatch, mode):
+        content = self._render(
+            tmp_path, monkeypatch, "# N1\n\nBODYMARKER line.\n", mode
+        )
+        assert "BODYMARKER" in content
+        assert "**Summary:**" not in content
+
+    @pytest.mark.parametrize("mode", [LoadoutMode.ROUTING, LoadoutMode.FULL])
+    def test_summary_section_renders_summary(self, tmp_path, monkeypatch, mode):
+        content = self._render(
+            tmp_path,
+            monkeypatch,
+            "# N1\n\n## Summary\n\nShort summary.\n\n## Details\n\nBODYMARKER\n",
+            mode,
+        )
+        assert "**Summary:** Short summary." in content
+        assert "BODYMARKER" not in content
+
+    def test_empty_summary_section_renders_full(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path,
+            monkeypatch,
+            "# N1\n\n## Summary\n\n## Details\n\nBODYMARKER\n",
+            LoadoutMode.ROUTING,
+        )
+        assert "BODYMARKER" in content
+        assert "**Summary:**" not in content
+
+    def test_has_summary_section(self):
+        assert _has_summary_section("## Summary\n\ntext\n")
+        assert not _has_summary_section("## Summary\n\n## Next\ntext\n")
+        assert not _has_summary_section("# Title\n\ntext\n")
 
 
 # ═══════════════════════════════════════════════════════════════════════
