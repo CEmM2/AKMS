@@ -1136,7 +1136,8 @@ The health reporter runs on demand or as part of the review cycle and reports:
 - Docstring drift warnings
 - Id collisions between global and local nodes
 - Orphaned nodes (no edges) and stale nodes (`last_activated` older than
-  `stale_node_days`)
+  `stale_node_days`) — as refined by
+  [Addendum 0001](addenda/0001-health-reporting-reachability.md)
 - Blocked downstream tasks awaiting tentative-node promotion
 - Orphaned overlay entries (overlay state for nodes no longer in any source)
 

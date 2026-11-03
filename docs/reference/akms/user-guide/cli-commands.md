@@ -67,7 +67,8 @@ are current or that the check was skipped; see
 `load_with` hint naming them or named by them, and no route to them in the task
 route index. A node loaded only through `load_with` (such as a failure-memory
 lesson with related lessons) or only through an exact route is not an orphan.
-Session nodes and code mirrors are never listed.
+Session nodes and code mirrors are never listed. The rule is set out in
+[Addendum 0001](../../../specification/addenda/0001-health-reporting-reachability.md).
 
 The section names the route index it used. Without `--routes`, `status` looks
 for one in the same places as reviewer required-knowledge, in this order:

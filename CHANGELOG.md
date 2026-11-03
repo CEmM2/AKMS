@@ -211,7 +211,10 @@ development is intentionally not replayed.
   now reads "no edges, load_with or route" and names the route index used. A
   route index that cannot be read or parsed is reported under **Route Index
   Warnings** instead of failing the report. The report adds `route_index`,
-  `route_indexes` and `route_index_warnings`; existing keys are unchanged. No schema field changes.
+  `route_indexes` and `route_index_warnings`; existing keys are unchanged.
+  [Addendum 0001](docs/specification/addenda/0001-health-reporting-reachability.md)
+  to §5.7 states the rule and [ADR 0003](docs/adr/0003-reachability-in-health-reporting.md)
+  records why. No schema field changes.
 - Reviewer required-knowledge did not find the route index written by
   `akms-failure-memory` at its default path,
   `.knowledge/generated/failure_routes.json`, and fell back to tag-based
