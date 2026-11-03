@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from copy import deepcopy
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from akms.repo_wiki.config import load_config
 from akms.repo_wiki.export.akms import (
@@ -28,7 +28,13 @@ from akms.repo_wiki.export.akms import (
 )
 from akms.repo_wiki.extract.registry import extract_files
 from akms.repo_wiki.hashing import sha256_text
-from akms.repo_wiki.locking import LockError, RepoLocalLock, output_lock_path
+from akms.repo_wiki.locking import (
+    OUTPUT_LOCK_FILENAME,
+    OUTPUT_LOCK_PREFIX,
+    LockError,
+    RepoLocalLock,
+    output_lock_path,
+)
 from akms.repo_wiki.models import Language, SkippedFile, SourceFile
 from akms.repo_wiki.scanner import (
     LANGUAGE_BY_SUFFIX,
@@ -127,11 +133,12 @@ def _export_akms_locked(
     path_filter: set[str] | None
 
     try:
-        path_filter, selection_meta = _resolve_selection(
+        path_filter, selection_meta, deleted = _resolve_selection(
             root,
             source_paths=source_paths,
             git_base=git_base,
             git_head=git_head,
+            exporter_owned=_exporter_owned_paths(root, output, knowledge_dir),
         )
     except (OSError, ValueError) as exc:
         result.selection = {
@@ -160,7 +167,17 @@ def _export_akms_locked(
         # Explicit --path lists fail closed on bad paths; git-diff selection ignores non-sources.
         if selection_mode == "paths":
             missing = sorted(path_filter - available)
-            for missing_path in missing:
+            # A selected path that is gone from disk is a deleted source: its
+            # mirror is removed below. Only a path that still exists, or never
+            # had a mirror, is an error.
+            gone = {
+                path
+                for path in missing
+                if not (root / path).exists()
+                and _owned_mirrors_of(output, path, knowledge_dir)
+            }
+            deleted |= gone
+            for missing_path in (path for path in missing if path not in gone):
                 result.errors.append(
                     ErrorRecord(
                         missing_path,
@@ -318,6 +335,8 @@ def _export_akms_locked(
             )
         )
 
+    if deleted and not result.errors:
+        _remove_deleted_source_mirrors(output, sorted(deleted), result, knowledge_dir)
     if prune and not result.errors:
         _prune_stale_mirrors(output, expected_paths, result, knowledge_dir)
     return result
@@ -329,8 +348,13 @@ def _resolve_selection(
     source_paths: Sequence[str] | None,
     git_base: str | None,
     git_head: str | None,
-) -> tuple[set[str] | None, dict[str, object]]:
-    """Return ``(path_filter, selection_metadata)``; a ``None`` filter means full export."""
+    exporter_owned: Callable[[str], bool] = lambda _path: False,
+) -> tuple[set[str] | None, dict[str, object], set[str]]:
+    """Return ``(path_filter, selection_metadata, deleted_sources)``.
+
+    A ``None`` filter means full export. ``deleted_sources`` are sources the
+    git selection saw deleted or renamed away; their mirrors are removed.
+    """
 
     if source_paths is not None:
         normalized: list[str] = []
@@ -342,25 +366,34 @@ def _resolve_selection(
                 normalized.append(path)
         if not normalized:
             raise ValueError("source_paths selection requires at least one path")
-        return set(normalized), {
-            "mode": "paths",
-            "requested_paths": normalized,
+        return (
+            set(normalized),
+            {
+                "mode": "paths",
+                "requested_paths": normalized,
+                "dirty_worktree": None,
+                "git_base": None,
+                "git_head": None,
+            },
+            set(),
+        )
+
+    if git_base is not None:
+        return _git_diff_paths(
+            repo_root, base=git_base, head=git_head, exporter_owned=exporter_owned
+        )
+
+    return (
+        None,
+        {
+            "mode": "full",
+            "requested_paths": None,
             "dirty_worktree": None,
             "git_base": None,
             "git_head": None,
-        }
-
-    if git_base is not None:
-        selected, meta = _git_diff_paths(repo_root, base=git_base, head=git_head)
-        return selected, meta
-
-    return None, {
-        "mode": "full",
-        "requested_paths": None,
-        "dirty_worktree": None,
-        "git_base": None,
-        "git_head": None,
-    }
+        },
+        set(),
+    )
 
 
 def _git_diff_paths(
@@ -368,8 +401,14 @@ def _git_diff_paths(
     *,
     base: str,
     head: str | None,
-) -> tuple[set[str], dict[str, object]]:
-    """Select repository-relative paths changed between git refs / worktree."""
+    exporter_owned: Callable[[str], bool] = lambda _path: False,
+) -> tuple[set[str], dict[str, object], set[str]]:
+    """Select repository-relative paths changed between git refs / worktree.
+
+    Against the worktree, untracked files that git does not ignore count as
+    changed: a new source is mirrored before it is added. Sources deleted or
+    renamed away are returned separately so their mirrors can be removed.
+    """
 
     _require_git_repo(repo_root)
     _require_git_ref(repo_root, base)
@@ -383,34 +422,71 @@ def _git_diff_paths(
                 "git two-ref selection refuses a dirty worktree; "
                 "commit, stash, or omit --git-head to diff against the worktree"
             )
-        argv = [
-            "git",
-            "-C",
-            str(repo_root),
-            "-c",
-            "core.quotepath=false",
-            "diff",
-            "-z",
-            "--name-only",
-            "--diff-filter=ACMR",
-            f"{base}...{head}",
-        ]
+        revisions = [f"{base}...{head}"]
         head_label: str | None = head
     else:
-        argv = [
-            "git",
-            "-C",
-            str(repo_root),
-            "-c",
-            "core.quotepath=false",
-            "diff",
-            "-z",
-            "--name-only",
-            "--diff-filter=ACMR",
-            base,
-        ]
+        revisions = [base]
         head_label = None
 
+    paths = _git_paths(
+        repo_root, ["diff", "-z", "--name-only", "--diff-filter=ACMR", *revisions]
+    )
+    deleted = _git_paths(
+        repo_root,
+        ["diff", "-z", "--name-only", "--no-renames", "--diff-filter=D", *revisions],
+    )
+    if head is None:
+        untracked = _git_paths(
+            repo_root, ["ls-files", "-z", "--others", "--exclude-standard"]
+        )
+        paths |= {path for path in untracked if not exporter_owned(path)}
+    deleted -= paths
+
+    return (
+        paths,
+        {
+            "mode": "git_diff",
+            "requested_paths": sorted(paths),
+            "dirty_worktree": dirty,
+            "git_base": base,
+            "git_head": head_label,
+        },
+        deleted,
+    )
+
+
+def _exporter_owned_paths(
+    repo_root: Path, output_root: Path, knowledge_dir: str
+) -> Callable[[str], bool]:
+    """Match the exporter's own lock files and mirror tree, as repo-relative paths."""
+
+    try:
+        mirror_root = (
+            (output_root / knowledge_dir / "code-mirror")
+            .relative_to(repo_root)
+            .as_posix()
+        )
+    except ValueError:
+        mirror_root = None
+
+    def owned(path: str) -> bool:
+        name = PurePosixPath(path).name
+        if name == OUTPUT_LOCK_FILENAME or (
+            name.startswith(OUTPUT_LOCK_PREFIX) and name.endswith(".lock")
+        ):
+            return True
+        return mirror_root is not None and (
+            path == mirror_root or path.startswith(f"{mirror_root}/")
+        )
+
+    return owned
+
+
+def _git_paths(repo_root: Path, arguments: list[str]) -> set[str]:
+    """Run a NUL-separated git path listing and normalize the result."""
+
+    # -z + core.quotepath=false: default git quoting mangles non-ASCII names (caf\303\251.py).
+    argv = ["git", "-C", str(repo_root), "-c", "core.quotepath=false", *arguments]
     completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
         argv,
         check=False,
@@ -418,7 +494,7 @@ def _git_diff_paths(
     )
     if completed.returncode != 0:
         detail = (
-            (completed.stderr or completed.stdout or b"git diff failed")
+            (completed.stderr or completed.stdout or b"git selection failed")
             .decode("utf-8", errors="replace")
             .strip()
         )
@@ -437,14 +513,7 @@ def _git_diff_paths(
             paths.add(normalize_source_path(raw))
         except ValueError:
             continue
-
-    return paths, {
-        "mode": "git_diff",
-        "requested_paths": sorted(paths),
-        "dirty_worktree": dirty,
-        "git_base": base,
-        "git_head": head_label,
-    }
+    return paths
 
 
 def _require_git_repo(repo_root: Path) -> None:
@@ -597,6 +666,43 @@ def _prune_stale_mirrors(
             )
             return
         result.removed.append(record)
+
+
+def _owned_mirrors_of(
+    output_root: Path, source_path: str, knowledge_dir: str
+) -> list[tuple[Path, RemovedRecord]]:
+    """Exporter-owned mirror documents for ``source_path``, one per language at most."""
+
+    owned: list[tuple[Path, RemovedRecord]] = []
+    for language in Language:
+        generated_path = mirror_document_path(source_path, language, knowledge_dir)
+        path = output_root / generated_path
+        if not path.is_file():
+            continue
+        record = _owned_removed_record(path, generated_path, knowledge_dir)
+        if record is not None and record.source_path == source_path:
+            owned.append((path, record))
+    return owned
+
+
+def _remove_deleted_source_mirrors(
+    output_root: Path,
+    source_paths: list[str],
+    result: ExportResult,
+    knowledge_dir: str,
+) -> None:
+    """Remove the owned mirrors of sources that no longer exist."""
+
+    for source_path in source_paths:
+        for path, record in _owned_mirrors_of(output_root, source_path, knowledge_dir):
+            try:
+                path.unlink()
+            except OSError as exc:
+                result.errors.append(
+                    ErrorRecord(record.source_path, record.language, "prune", str(exc))
+                )
+                return
+            result.removed.append(record)
 
 
 def _owned_removed_record(
