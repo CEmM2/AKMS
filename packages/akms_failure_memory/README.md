@@ -31,6 +31,13 @@ failure-memory init \
 failure-memory doctor --repo . --config .knowledge/failure-memory.toml
 ```
 
+To keep generated lessons and code mirrors current after checkouts, merges and
+rebases, install the git hooks once per clone:
+
+```bash
+failure-memory hooks install --repo . --global-vault /read-only/vault
+```
+
 Then follow `docs/adoption.md` or the unified site under
 `docs/failure-memory/`.
 

@@ -69,6 +69,19 @@ Mirror, graph, and full refresh require an explicit timezone-aware timestamp.
 Identical inputs and timestamp produce the deterministic publication target.
 Refresh never clones tools, invokes an LLM, or silently falls back.
 
+To keep the snapshot current without refreshing by hand, install the git hooks
+once per clone. After each checkout, merge, pull or rebase they run
+`refresh if-stale`, which recompiles lessons only when the registry changed and
+re-exports only the mirrors of sources that changed:
+
+```bash
+failure-memory hooks install --repo . \
+  --config .knowledge/failure-memory.toml \
+  --global-vault /read-only/vault
+```
+
+See [Git hooks](../reference/failure-memory/cli-reference.md#git-hooks).
+
 ## 5. Resolve provider context
 
 ```bash
