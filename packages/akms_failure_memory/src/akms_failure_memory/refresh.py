@@ -170,7 +170,7 @@ def _checkout_version(tool_root: Path) -> str:
 
 
 def _fixture_identity(tool_root: Path) -> tuple[str, int, str]:
-    pin_path = tool_root / "dev/plans/mirror_export/release/integration_pin.json"
+    pin_path = tool_root / "dev/plans/akms_mirror_export/release/integration_pin.json"
     try:
         pin = json.loads(pin_path.read_text(encoding="utf-8"))
         fixture_root = tool_root.joinpath(

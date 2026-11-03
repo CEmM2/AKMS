@@ -65,7 +65,7 @@ def _toolchain(tmp_path: Path, *, version: str = "0.2.0", valid_help: bool = Tru
             }
         ],
     }
-    pin_path = tool_root / "dev/plans/mirror_export/release/integration_pin.json"
+    pin_path = tool_root / "dev/plans/akms_mirror_export/release/integration_pin.json"
     pin_path.parent.mkdir(parents=True)
     pin_path.write_text(json.dumps(pin), encoding="utf-8")
     (tool_root / "pyproject.toml").write_text(
@@ -299,7 +299,7 @@ def test_commit_dirty_and_fixture_drift_are_advisory(tmp_path: Path) -> None:
     config_path.write_text(
         config_path.read_text().replace("require-clean", "allow-dirty")
     )
-    pin = tool_root / "dev/plans/mirror_export/release/integration_pin.json"
+    pin = tool_root / "dev/plans/akms_mirror_export/release/integration_pin.json"
     pin.write_text(
         pin.read_text().replace(
             '"export_schema_version": 1', '"export_schema_version": 2'
