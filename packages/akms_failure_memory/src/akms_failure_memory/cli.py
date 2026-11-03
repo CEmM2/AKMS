@@ -86,6 +86,23 @@ def _parser() -> argparse.ArgumentParser:
     migrate.add_argument("--check", action="store_true")
     migrate.add_argument("--config", type=Path, help=_CONFIG_HELP)
     migrate.add_argument("--repo", type=Path, default=Path.cwd())
+
+    layout = sub.add_parser(
+        "migrate-layout",
+        help="move the project's knowledge/ directory to .knowledge/",
+    )
+    layout.add_argument(
+        "--config",
+        type=Path,
+        help=_CONFIG_HELP + "; falls back to knowledge/failure-memory.toml",
+    )
+    layout.add_argument("--repo", type=Path, default=Path.cwd())
+    layout.add_argument("--check", action="store_true")
+    layout.add_argument(
+        "--global-vault",
+        type=Path,
+        help="recompile generated lessons after the move",
+    )
     return parser
 
 
@@ -153,6 +170,15 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
             config_path=args.config,
             repository_root=args.repo,
             to=args.to,
+            check=args.check,
+        )
+    if args.command == "migrate-layout":
+        from akms_failure_memory.layout_migrate import migrate_layout
+
+        return migrate_layout(
+            config_path=args.config,
+            repository_root=args.repo,
+            global_vault=args.global_vault,
             check=args.check,
         )
     raise FailureMemoryError(f"Unknown command {args.command!r}", code="usage")
