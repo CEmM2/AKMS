@@ -172,6 +172,48 @@ class TestOrphanedNodes:
         assert "parent" not in ids
         assert "child" not in ids
 
+    def test_load_with_source_and_target_not_orphaned(self, tmp_vault, tmp_repo):
+        # FR-G10 coactivation reaches both ends of a load_with hint, edges or not.
+        make_local_node(
+            tmp_repo,
+            id="lesson-a",
+            status="established",
+            source="human",
+            load_with=["lesson-b"],
+        )
+        make_local_node(tmp_repo, id="lesson-b", status="established", source="human")
+        make_local_node(tmp_repo, id="isolated", status="established", source="human")
+        G = build_graph(tmp_repo, global_vault=tmp_vault)
+        assert G.number_of_edges() == 0
+
+        ids = [o["node_id"] for o in _check_orphaned_nodes(G)]
+        assert "lesson-a" not in ids
+        assert "lesson-b" not in ids
+        assert ids == ["isolated"]
+
+    def test_load_with_only_itself_is_still_orphaned(self, tmp_vault, tmp_repo):
+        make_global_node(tmp_vault, id="selfish", load_with=["selfish"])
+        G = build_graph(tmp_repo, global_vault=tmp_vault)
+
+        ids = [o["node_id"] for o in _check_orphaned_nodes(G)]
+        assert ids == ["selfish"]
+
+    def test_report_counts_only_isolated_nodes(self, tmp_vault, tmp_repo):
+        make_local_node(
+            tmp_repo,
+            id="lesson-a",
+            status="established",
+            source="human",
+            load_with=["lesson-b"],
+        )
+        make_local_node(tmp_repo, id="lesson-b", status="established", source="human")
+        make_local_node(tmp_repo, id="isolated", status="established", source="human")
+
+        text = format_report(graph_status(tmp_repo, global_vault=tmp_vault))
+        assert "## Orphaned Nodes (no edges or load_with): 1" in text
+        assert "  - isolated (" in text
+        assert "lesson-a" not in text
+
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Stale Nodes

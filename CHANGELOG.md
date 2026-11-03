@@ -192,6 +192,12 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `akms status` no longer lists nodes reached through `load_with` as
+  orphans. A node that names others in `load_with`, or that another node
+  names there, is reached by coactivation even without edges; a
+  failure-memory project's lessons with related lessons all appeared under
+  **Orphaned Nodes**. Nodes with no edges and no `load_with` link are still
+  listed. The section heading now reads "no edges or load_with".
 - Loadouts: a node with `reading_priority: summary` and no `## Summary`
   section is now rendered in full, as FR-L10c specifies. It used to get its
   first five non-heading lines as a "summary", which for generated nodes is
