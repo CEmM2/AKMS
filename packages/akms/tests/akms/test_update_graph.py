@@ -1216,4 +1216,7 @@ class TestUpdateGraphIntegration:
         build_graph(tmp_repo, global_vault=tmp_vault)
         second = json.loads(graph_json.read_text())
 
+        # generated_at is wall-clock seconds; the two builds can straddle one.
+        first["graph"].pop("generated_at")
+        second["graph"].pop("generated_at")
         assert first == second
