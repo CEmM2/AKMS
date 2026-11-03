@@ -24,13 +24,16 @@ lesson_index_version = "failure-lesson-index/v1"
   capped at 96 characters, as `"<ID>: <title>"`. Node IDs, tags, edges,
   routes and every other front-matter field stay the same; only the
   `title` field and the body heading change;
+- the node body opens with a `## Summary` section (see
+  [Summarized lesson bodies](#summarized-lesson-bodies));
 - `compile` also writes `lesson_index.json` and `lesson_index.md` in the
   directory that holds the route index (`paths.routes`). They are not
   written beside the generated nodes, because AKMS reads every Markdown file
   under the local-nodes root as a node, and `compile` refuses a layout that
   would put them there.
 
-A configuration without the key keeps line-hint titles and writes no index.
+A configuration without the key keeps line-hint titles, the original node
+body and writes no index.
 Its config fingerprint does not change, and the frozen consumer-contract
 packs are such configurations. Adding the key to an existing project changes
 its fingerprint once and recompiles every node title. Removing it again
@@ -38,6 +41,39 @@ makes `check` report the index files as stale and `compile` delete them.
 
 `refresh clean` removes the two index files when the project marks
 `generated.lessons` as disposable.
+
+## Summarized lesson bodies
+
+AKMS loads a coactivated node (one reached through `load_with`) as a summary
+taken from its `## Summary` section, and loads a node without one in full.
+With the key set, every generated lesson body therefore starts:
+
+```markdown
+# L002: The scheduler iterated an unordered mapping
+
+## Summary
+
+- Mechanism: The scheduler iterated an unordered mapping.
+- Prevention: tests/engine/test_scheduler_order.py asserts a deterministic enqueue order.
+```
+
+- `Mechanism` and `Prevention` are the first sentences of `root_cause` and
+  `prevention`, by the same rule as the cards. A line whose field is empty is
+  left out. When both are empty the section holds `- Symptom:` and the
+  symptom's first sentence, or, with no symptom either, `- Lesson:` and the
+  heading, so it is never empty.
+- Those sentences are not repeated. `### Root cause` and `### Prevention`
+  hold only the text after the first sentence, and a subsection with nothing
+  left is omitted.
+- The `## Identity` block is dropped: the ID is in the heading and in the
+  front matter.
+- Everything else (generated-warning and source-hash lines, Location,
+  Discovery, Symptom, Fix, Timeline, References, Notes) is unchanged.
+
+A full read is therefore no longer than before for a lesson whose root
+cause or prevention is one sentence; a lesson where both run to several
+sentences grows by a few characters (the `## Summary` scaffolding is about
+eight characters more than the removed Identity block).
 
 ## `lesson_index.json`
 
