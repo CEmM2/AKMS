@@ -664,3 +664,132 @@ def test_unreadable_lock_reclaimed_after_short_grace(tmp_path: Path):
     assert ownership.pid == os.getpid()
     assert "unreadable" in (lock.reclaim_reason or "")
     lock.release()
+
+
+def _git_repo_with_mirrors(tmp_path: Path) -> tuple[Path, str]:
+    """A committed repo whose pkg/a.py and pkg/b.py already have mirrors."""
+
+    repo = tmp_path / "gitrepo"
+    repo.mkdir()
+    _init_git_repo(repo)
+    full = export_akms(repo_root=repo, output_root=repo, phase=1, generated_at=FIXED_TS)
+    assert full.errors == []
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "mirrors")
+    return repo, _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
+def _mirror(repo: Path, stem: str) -> Path:
+    return repo / ".knowledge" / "code-mirror" / "pkg" / f"{stem}.md"
+
+
+@pytest.mark.integration
+def test_git_diff_exports_untracked_sources(tmp_path: Path):
+    repo, base = _git_repo_with_mirrors(tmp_path)
+    _write(repo, "pkg/new.py", "NEW = 1\n")
+
+    result = export_akms(
+        repo_root=repo, output_root=repo, phase=1, generated_at=FIXED_TS, git_base=base
+    )
+
+    assert result.errors == []
+    assert [item.source_path for item in result.written] == ["pkg/new.py"]
+    assert _mirror(repo, "new").is_file()
+    # The exporter's own lock file is not a selected source.
+    assert all(".lock" not in path for path in result.selection["requested_paths"])
+
+
+@pytest.mark.integration
+def test_git_diff_ignores_untracked_files_git_ignores(tmp_path: Path):
+    repo, base = _git_repo_with_mirrors(tmp_path)
+    _write(repo, ".gitignore", "scratch.py\n")
+    _write(repo, "scratch.py", "SCRATCH = 1\n")
+
+    result = export_akms(
+        repo_root=repo, output_root=repo, phase=1, generated_at=FIXED_TS, git_base=base
+    )
+
+    assert "scratch.py" not in result.selection["requested_paths"]
+    assert [item.source_path for item in result.written] == []
+
+
+@pytest.mark.integration
+def test_git_diff_removes_mirrors_of_deleted_sources(tmp_path: Path):
+    repo, base = _git_repo_with_mirrors(tmp_path)
+    (repo / "pkg" / "b.py").unlink()
+
+    result = export_akms(
+        repo_root=repo, output_root=repo, phase=1, generated_at=FIXED_TS, git_base=base
+    )
+
+    assert result.errors == []
+    assert [item.source_path for item in result.removed] == ["pkg/b.py"]
+    assert not _mirror(repo, "b").exists()
+    assert _mirror(repo, "a").is_file()
+
+
+@pytest.mark.integration
+def test_git_diff_replaces_the_mirror_of_a_renamed_source(tmp_path: Path):
+    repo, base = _git_repo_with_mirrors(tmp_path)
+    _git(repo, "mv", "pkg/b.py", "pkg/c.py")
+
+    result = export_akms(
+        repo_root=repo, output_root=repo, phase=1, generated_at=FIXED_TS, git_base=base
+    )
+
+    assert result.errors == []
+    assert [item.source_path for item in result.written] == ["pkg/c.py"]
+    assert [item.source_path for item in result.removed] == ["pkg/b.py"]
+    assert not _mirror(repo, "b").exists()
+    assert _mirror(repo, "c").is_file()
+
+
+@pytest.mark.integration
+def test_git_diff_keeps_mirrors_it_does_not_own(tmp_path: Path):
+    repo, base = _git_repo_with_mirrors(tmp_path)
+    _mirror(repo, "b").write_text("hand-written notes\n", encoding="utf-8")
+    (repo / "pkg" / "b.py").unlink()
+
+    result = export_akms(
+        repo_root=repo, output_root=repo, phase=1, generated_at=FIXED_TS, git_base=base
+    )
+
+    assert result.removed == []
+    assert _mirror(repo, "b").read_text(encoding="utf-8") == "hand-written notes\n"
+
+
+@pytest.mark.integration
+def test_explicit_path_of_a_deleted_source_removes_its_mirror(tmp_path: Path):
+    repo, _ = _git_repo_with_mirrors(tmp_path)
+    (repo / "pkg" / "b.py").unlink()
+
+    result = export_akms(
+        repo_root=repo,
+        output_root=repo,
+        phase=1,
+        generated_at=FIXED_TS,
+        source_paths=["pkg/a.py", "pkg/b.py"],
+    )
+
+    assert result.errors == []
+    assert [item.source_path for item in result.written] == ["pkg/a.py"]
+    assert [item.source_path for item in result.removed] == ["pkg/b.py"]
+    assert not _mirror(repo, "b").exists()
+
+
+@pytest.mark.integration
+def test_explicit_path_that_never_existed_is_still_an_error(tmp_path: Path):
+    repo, _ = _git_repo_with_mirrors(tmp_path)
+
+    result = export_akms(
+        repo_root=repo,
+        output_root=repo,
+        phase=1,
+        generated_at=FIXED_TS,
+        source_paths=["pkg/typo.py"],
+    )
+
+    assert [(e.source_path, e.stage) for e in result.errors] == [
+        ("pkg/typo.py", "selection")
+    ]
+    assert result.removed == []
