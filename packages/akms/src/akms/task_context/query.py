@@ -190,8 +190,10 @@ def query_task_knowledge(
 
     Required nodes are validated and inserted independently of ordinary role,
     status, confidence, ranking, and loadout-cap filters. One-hop ``load_with``
-    targets are classified separately as coactivated. Remaining ordinary
-    ``query_subgraph`` results retain their existing order and node data.
+    targets of required nodes (and of advisory nodes when
+    ``loadout.coactivate_from_advisory`` is set) are classified separately as
+    coactivated. Remaining ordinary ``query_subgraph`` results retain their
+    existing order and node data.
     """
 
     if not isinstance(seeds, ResolvedSeeds):
@@ -213,9 +215,10 @@ def query_task_knowledge(
         node_id for node_id, node_data in ordinary if not node_data.get("_coactivated")
     )
     required_set = frozenset(required_node_ids)
+    from_advisory = (config or PropagationConfig()).loadout.coactivate_from_advisory
     coactivation_reasons = _load_with_targets(
         graph,
-        required_node_ids + ordinary_base_ids,
+        required_node_ids + ordinary_base_ids if from_advisory else required_node_ids,
         required_set,
     )
     coactivated_node_ids = tuple(sorted(coactivation_reasons))
@@ -253,6 +256,9 @@ def query_task_knowledge(
     )
     for node_id, node_data in ordinary:
         if node_id in required_set or node_id in coactivated_set:
+            continue
+        # query_subgraph's own load_with hop starts from advisory nodes.
+        if not from_advisory and node_data.get("_coactivated"):
             continue
         selections.append(
             NodeSelection(
