@@ -13,13 +13,19 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import networkx as nx
 import pytest
 import yaml
 
 from akms.graph.build_graph import build_graph
 from akms.graph.generate_loadout import generate_loadout
 from akms.graph.query_subgraph import query_subgraph
-from akms.schema.models import AgentRole, LoadoutMode, PropagationConfig
+from akms.schema.models import (
+    AgentRole,
+    LoadoutMode,
+    PropagationConfig,
+    ReadingPriority,
+)
 from akms.task_context.manifest import create_resolution_manifest
 from akms.task_context.query import (
     NodeSelection,
@@ -339,6 +345,70 @@ class TestRequiredAwareLoadout:
 # ═══════════════════════════════════════════════════════════════════════
 #  Structural pitfall warnings without qmd
 # ═══════════════════════════════════════════════════════════════════════
+
+
+class TestCoactivatedReadingPriority:
+    """Coactivated nodes render as ``loadout.coactivated_reading_priority``."""
+
+    def _render(self, tmp_path, monkeypatch, co_body, config=None) -> str:
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        bodies = {"req-a": "# Required\n\nREQBODY\n", "co-a": co_body}
+        G = nx.DiGraph()
+        for node_id, body in bodies.items():
+            (tmp_path / f"{node_id}.md").write_text(
+                f"---\nid: {node_id}\n---\n{body}", encoding="utf-8"
+            )
+            G.add_node(
+                node_id,
+                title=node_id,
+                confidence=0.9,
+                reading_priority="full",
+                content_ref=f"{node_id}.md",
+            )
+        tk = _task_knowledge(
+            ("req-a", SelectionClass.REQUIRED, ("route",), dict(G.nodes["req-a"])),
+            (
+                "co-a",
+                SelectionClass.COACTIVATED,
+                ("load_with from required node 'req-a'",),
+                dict(G.nodes["co-a"]),
+            ),
+        )
+        return generate_loadout(
+            G,
+            [],
+            task_id="TSK-CO",
+            phase=1,
+            graph_version="graph-v1",
+            seed_tags=[],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=LoadoutMode.FULL,
+            config=config,
+            task_knowledge=tk,
+            repo_root=tmp_path,
+        )
+
+    _WITH_SUMMARY = "# Co\n\n## Summary\n\nCompanion gist.\n\n## Body\n\nCOBODY\n"
+
+    def test_default_renders_coactivated_summary(self, tmp_path, monkeypatch):
+        content = self._render(tmp_path, monkeypatch, self._WITH_SUMMARY)
+        assert "REQBODY" in content
+        assert "**Summary:** Companion gist." in content
+        assert "COBODY" not in content
+
+    def test_coactivated_without_summary_section_renders_full(
+        self, tmp_path, monkeypatch
+    ):
+        content = self._render(tmp_path, monkeypatch, "# Co\n\nCOBODY\n")
+        assert "COBODY" in content
+
+    def test_full_setting_restores_full_coactivated_content(
+        self, tmp_path, monkeypatch
+    ):
+        config = PropagationConfig()
+        config.loadout.coactivated_reading_priority = ReadingPriority.FULL
+        content = self._render(tmp_path, monkeypatch, self._WITH_SUMMARY, config)
+        assert "COBODY" in content
 
 
 class TestStructuralPitfallWarnings:

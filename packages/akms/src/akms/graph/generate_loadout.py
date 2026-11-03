@@ -9,8 +9,11 @@ Two modes:
 
 Per-node reading_priority overrides mode selection:
   - full: include full content even in routing mode
-  - summary: include summary only even in full mode
+  - summary: include summary only even in full mode (full when the node
+    has no ``## Summary`` section)
   - pitfalls-only: include only pitfall warnings
+Coactivated (load_with) nodes use ``loadout.coactivated_reading_priority``
+(default summary) instead of their own reading_priority.
 
 Loadout structure (fixed):
   1. Header (YAML frontmatter)
@@ -223,6 +226,21 @@ def _load_node_content(content_ref: str | None, repo_root: Path | None = None) -
                     pass
 
     return ""
+
+
+def _has_summary_section(content: str) -> bool:
+    """Return whether *content* has a non-empty ``## Summary`` section."""
+    in_summary = False
+    for line in content.split("\n"):
+        if line.strip().lower().startswith("## summary"):
+            in_summary = True
+            continue
+        if in_summary:
+            if line.startswith("## "):
+                return False
+            if line.strip():
+                return True
+    return False
 
 
 def _extract_summary(content: str, max_sentences: int = 5) -> str:
@@ -676,9 +694,17 @@ def generate_loadout(
         reading_priority = node_data.get("reading_priority")
 
         # Determine effective read mode for this node
+        if isinstance(reading_priority, ReadingPriority):
+            reading_priority = reading_priority.value
+        coactivated = (
+            selection_class == _CLASS_COACTIVATED
+            if selection_class is not None
+            else bool(node_data.get("_coactivated"))
+        )
+        if coactivated:
+            # Coactivated nodes take the loadout's coactivated priority.
+            reading_priority = loadout_config.coactivated_reading_priority.value
         if reading_priority:
-            if isinstance(reading_priority, ReadingPriority):
-                reading_priority = reading_priority.value
             entry["reading_priority"] = str(reading_priority)
         else:
             entry["reading_priority"] = mode_str
@@ -695,6 +721,14 @@ def generate_loadout(
         # reading_priority wins over the loadout-level mode_str per FR-L10c.
         # Precedence: reading_priority (if set) > mode_str.
         effective_mode = (reading_priority or mode_str) or "routing"
+        # FR-L10c: a summary-priority node without a `## Summary` section
+        # falls back to full; its first lines are not a summary.
+        if (
+            reading_priority == "summary"
+            and content
+            and not _has_summary_section(content)
+        ):
+            effective_mode = "full"
 
         if effective_mode == "pitfalls-only":
             pitfall_content = _extract_pitfall_sections(content)

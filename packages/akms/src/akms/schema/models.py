@@ -589,6 +589,13 @@ class LoadoutConfig(BaseModel):
     context_size_tokens: ContextSizeTokens = Field(default_factory=ContextSizeTokens)
     routing_tokens_per_node: int = 200
     mode_selection: LoadoutModeSelection = Field(default_factory=LoadoutModeSelection)
+    # FR-G10 coactivated (load_with) nodes: rendered as this reading
+    # priority, overriding the node's own; a node without `## Summary`
+    # still falls back to full (FR-L10c).
+    coactivated_reading_priority: ReadingPriority = ReadingPriority.SUMMARY
+    # Task-context resolution follows load_with from required nodes only,
+    # unless this also admits advisory nodes as sources.
+    coactivate_from_advisory: bool = False
 
 
 class GraphConfig(BaseModel):

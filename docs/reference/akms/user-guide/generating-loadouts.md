@@ -8,7 +8,9 @@ A loadout is a Markdown knowledge artifact for one task, phase, and role.
 - **Full:** inline content up to the ordinary advisory token budget
 
 Per-node `reading_priority` can override the loadout-level mode with `full`,
-`summary`, or `pitfalls-only`.
+`summary`, or `pitfalls-only`. A `summary` node renders its `## Summary`
+section; a node without one is rendered in full instead, as the specification
+requires (FR-L10c).
 
 ## CLI
 
@@ -66,6 +68,23 @@ resolver, the generator renders:
 
 Required and coactivated selections are not truncated by the ordinary advisory
 budget. The manifest fingerprint is recorded in the header.
+
+Coactivated nodes, the one-hop `load_with` companions, are rendered at
+`loadout.coactivated_reading_priority`, which defaults to `summary` and
+overrides the node's own `reading_priority`: the entry shows its `## Summary`
+section and path, and the full node is read on demand. A coactivated node
+without a `## Summary` section is still rendered in full. Set the priority to
+`full` for the earlier behaviour.
+
+The exact resolver follows `load_with` from required nodes only. Set
+`loadout.coactivate_from_advisory: true` to follow it from advisory nodes
+too.
+
+```yaml
+loadout:
+  coactivated_reading_priority: summary   # full | summary | pitfalls-only
+  coactivate_from_advisory: false
+```
 
 ## Retrieval and timestamps
 
