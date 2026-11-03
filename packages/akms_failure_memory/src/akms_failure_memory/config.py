@@ -87,20 +87,34 @@ _TOOLCHAIN_REQUIRED = frozenset(
     {
         "akms_version",
         "akms_schema_version",
+        "mirror_selection",
+        "timeout_seconds",
+    }
+)
+# Required only when the mirror provider is the external `repo2md`: they pin
+# and locate a separately installed `repo-wiki`. The `builtin` provider runs
+# the exporter shipped in akms, which the AKMS pins already cover.
+_REPO2MD_REQUIRED = frozenset(
+    {
         "repo2md_command",
         "repo2md_version",
         "repo2md_export_schema_version",
         "repo2md_fixture_sha256",
         "repo2md_commit",
         "repo2md_dirty_policy",
-        "mirror_selection",
-        "timeout_seconds",
     }
 )
 # `akms_public_api_sha256` is still written by `init` and still reported by
 # preflight, but it is no longer required: it stopped gating anything when the
 # public-API digest became an advisory rather than a hard failure.
-_TOOLCHAIN_ALLOWED = _TOOLCHAIN_REQUIRED | {"repo2md_root", "akms_public_api_sha256"}
+_TOOLCHAIN_ALLOWED = (
+    _TOOLCHAIN_REQUIRED
+    | _REPO2MD_REQUIRED
+    | {"mirror_provider", "repo2md_root", "akms_public_api_sha256"}
+)
+MIRROR_PROVIDERS = ("builtin", "repo2md")
+# Configurations written before `mirror_provider` existed all used repo2md.
+DEFAULT_MIRROR_PROVIDER = "repo2md"
 _PROMOTION_KEYS = frozenset({"mode", "owner"})
 
 
@@ -229,6 +243,11 @@ class ProjectConfig:
     canonical_data: Mapping[str, Any]
     fingerprint: str
 
+    @property
+    def mirror_provider(self) -> str:
+        """The configured mirror provider, ``repo2md`` when the key is absent."""
+        return str(self.toolchain.get("mirror_provider", DEFAULT_MIRROR_PROVIDER))
+
     def resolve(self, repository_root: str | Path, key: str) -> Path:
         if key not in self.paths:
             raise FailureMemoryError(
@@ -351,17 +370,33 @@ def _validate_config(raw: dict[str, Any], source_path: Path) -> ProjectConfig:
     if compatibility["route_contract_version"] != "failure-route-index/v1":
         raise FailureMemoryError("unsupported route contract", code="schema_version")
 
+    raw_toolchain = top["toolchain"]
+    provider = (
+        raw_toolchain.get("mirror_provider", DEFAULT_MIRROR_PROVIDER)
+        if isinstance(raw_toolchain, dict)
+        else DEFAULT_MIRROR_PROVIDER
+    )
+    if provider not in MIRROR_PROVIDERS:
+        raise FailureMemoryError(
+            f"toolchain.mirror_provider must be one of {', '.join(MIRROR_PROVIDERS)}",
+            code="invalid_config",
+        )
     toolchain = _closed_table(
-        top["toolchain"],
+        raw_toolchain,
         name="toolchain",
-        required=_TOOLCHAIN_REQUIRED,
+        required=_TOOLCHAIN_REQUIRED
+        | (_REPO2MD_REQUIRED if provider == "repo2md" else frozenset()),
         allowed=_TOOLCHAIN_ALLOWED,
     )
     for pin_key in ("akms_version", "repo2md_version"):
-        toolchain[pin_key] = _version_pin(toolchain[pin_key], f"toolchain.{pin_key}")
-    toolchain["repo2md_command"] = _string_list(
-        toolchain["repo2md_command"], "toolchain.repo2md_command", nonempty=True
-    )
+        if pin_key in toolchain:
+            toolchain[pin_key] = _version_pin(
+                toolchain[pin_key], f"toolchain.{pin_key}"
+            )
+    if "repo2md_command" in toolchain:
+        toolchain["repo2md_command"] = _string_list(
+            toolchain["repo2md_command"], "toolchain.repo2md_command", nonempty=True
+        )
     if "repo2md_root" in toolchain:
         toolchain["repo2md_root"] = _relative_path(
             toolchain["repo2md_root"], "toolchain.repo2md_root"
@@ -373,13 +408,18 @@ def _validate_config(raw: dict[str, Any], source_path: Path) -> ProjectConfig:
             raise FailureMemoryError(
                 f"toolchain.{digest_key} is not SHA-256", code="invalid_config"
             )
-    if re.fullmatch(r"[0-9a-f]{40}", str(toolchain["repo2md_commit"])) is None:
+    if (
+        "repo2md_commit" in toolchain
+        and re.fullmatch(r"[0-9a-f]{40}", str(toolchain["repo2md_commit"])) is None
+    ):
         raise FailureMemoryError(
             "toolchain.repo2md_commit is not a commit SHA", code="invalid_config"
         )
     if toolchain["akms_schema_version"] != "v2":
         raise FailureMemoryError("AKMS schema must remain v2", code="schema_version")
-    if toolchain["repo2md_dirty_policy"] not in {"require-clean", "allow-dirty"}:
+    if "repo2md_dirty_policy" in toolchain and toolchain[
+        "repo2md_dirty_policy"
+    ] not in {"require-clean", "allow-dirty"}:
         raise FailureMemoryError("invalid repo2md_dirty_policy", code="invalid_config")
     if toolchain["mirror_selection"] not in {"full", "changed", "paths"}:
         raise FailureMemoryError("invalid mirror_selection", code="invalid_config")
@@ -448,6 +488,8 @@ def load_project_config(path: str | Path) -> ProjectConfig:
 
 
 __all__ = [
+    "DEFAULT_MIRROR_PROVIDER",
+    "MIRROR_PROVIDERS",
     "ProjectConfig",
     "SCHEMA_VERSION",
     "is_version_specifier",

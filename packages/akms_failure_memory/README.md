@@ -13,7 +13,8 @@ AKMS core does not depend on this package.
 - Python `>=3.12,<3.13`
 - `akms>=0.1.0,<0.2.0` as declared by distribution metadata
 - A read-only global-vault path for compile/refresh operations that need it
-- The pinned repo2md CLI checkout for mirror preflight/refresh workflows
+- For mirror refresh, nothing more with `mirror_provider = "builtin"` (the
+  default for new projects); a pinned repo2md checkout with `"repo2md"`
 
 ## First commands
 

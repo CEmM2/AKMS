@@ -9,7 +9,8 @@ It is deliberately separate from the ordinary graph overlay:
 - The **project registry** is canonical history.
 - Generated lesson nodes and route indexes are reproducible projections.
 - AKMS core retains graph, exact-resolution, and loadout semantics.
-- repo2md retains source-projection responsibility.
+- The `repo-wiki` exporter (built into akms, or an external install) retains
+  source-projection responsibility.
 - No workflow automatically promotes a lesson to the global vault.
 
 ## Capabilities

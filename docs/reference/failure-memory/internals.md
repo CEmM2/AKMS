@@ -4,13 +4,14 @@
 owns its canonical lesson registry and configuration; this package owns
 validation, recording, deterministic projection, refresh orchestration, and
 the neutral provider protocol.  AKMS continues to own graph, exact-resolution,
-and loadout semantics.  repo2md continues to own source projection.
+and loadout semantics.  Source projection belongs to the `repo-wiki` exporter,
+either the one shipped in akms or a separately installed one.
 
 ## Dependency direction
 
 ```text
 project data/config -> akms-failure-memory -> documented AKMS public API
-                                          -> repo2md CLI (subprocess argv)
+                                          -> repo-wiki export-akms (subprocess argv)
 ```
 
 AKMS core never imports or depends on this package.  This package never
@@ -25,7 +26,7 @@ paths perform no LLM or network calls.
 | Project configuration | Project | Canonical policy and paths |
 | Generated lesson nodes/routes | Project policy | Committed or disposable |
 | Compiler/recorder/refresh/provider | This package | Reusable implementation |
-| Source mirrors | repo2md product | Invoked through its pinned CLI contract |
+| Source mirrors | `repo-wiki` exporter | Invoked through its CLI contract: built in (`python -m akms.repo_wiki`) or an external, pinned `repo-wiki` |
 | Graph/query/loadouts | AKMS | Invoked through the documented, pinned AKMS public API |
 | Compatibility wrappers | Project | Thin CLI forwarding only |
 | Promotion to global memory | Human operator | Separate, explicit action only |
@@ -38,9 +39,11 @@ global vault is an explicit read-only collision/input boundary.
 The machine contract lives in
 `schemas/project-config.schema.json`.  It binds repository identity and node
 namespace, canonical and generated paths, generated-file policy, validation
-and taxonomy rules, compatibility renderer identifiers, and AKMS / repo2md
-toolchain pins (`akms_version` and `repo2md_version` are each a plain version
-matched exactly or a PEP 440 specifier set matched as a range).  All configured paths are repository-relative POSIX
+and taxonomy rules, compatibility renderer identifiers, the mirror provider
+(`mirror_provider`, `builtin` or `repo2md`), and AKMS / repo2md toolchain pins
+(`akms_version` and `repo2md_version` are each a plain version matched exactly
+or a PEP 440 specifier set matched as a range; the `repo2md_*` keys are
+required only for the `repo2md` provider).  All configured paths are repository-relative POSIX
 paths and are resolved component-by-component with symlink containment checks before mutation. Compiler publication of nodes and routes is transactional, deterministic graph publication validates all AKMS inputs before atomically replacing the prior artifact, and compile, record, refresh, and provider operations coordinate through the same project lock. Graph refresh never synthesizes experiential state: an absent `local_state.yaml` remains absent, while pre-existing state and graph bytes survive validation failures unchanged. Explicit refresh timestamps are preserved as graph metadata rather than replaced by wall-clock time.
 
 Repository identity has one authority: `repository_id` in the validated project

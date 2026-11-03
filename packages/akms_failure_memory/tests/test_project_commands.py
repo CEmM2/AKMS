@@ -215,5 +215,6 @@ def test_init_pins_the_installed_akms_minor_series(
     config = load_project_config(repo / "config.toml")
     assert config.toolchain["akms_version"] == expected
     assert version_pin_matches(expected, installed)
-    # The other toolchain pins keep their template values.
-    assert config.toolchain["repo2md_version"] == "0.2.0"
+    # New projects use the exporter shipped in akms, so there is no repo2md pin.
+    assert config.mirror_provider == "builtin"
+    assert "repo2md_version" not in config.toolchain

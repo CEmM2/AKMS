@@ -6,9 +6,10 @@
    manifests, or provider results.
 3. Treat the global AKMS vault as read-only. Promotion is a separate human
    decision and is not implemented by failure memory.
-4. Keep `repo2md_command` as an argv array. Preflight must verify executable
-   source identity, required flags, version, commit/dirty policy, fixture pack,
-   AKMS schema, and public-source digest.
+4. Prefer `mirror_provider = "builtin"`. With `repo2md`, keep
+   `repo2md_command` as an argv array; preflight verifies the executable's
+   required flags and reports its version, commit/dirty policy, fixture pack,
+   AKMS schema and public-source digest.
 5. Run explicit refresh before dispatch when current state is required.
    `require-current` verifies freshness under the lock; it does not refresh in a
    read path.
