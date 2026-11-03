@@ -1,0 +1,58 @@
+[project]
+name = "akms-records"
+version = "0.3.2"
+description = "Experimental schema-driven, provenance-aware record store for AKMS"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Shmuel Osovski" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+requires-python = ">=3.12,<3.13"
+# jsonschema 4.18 introduced the `referencing` registry API this package
+# relies on to refuse every remote reference.
+dependencies = [
+    "jsonschema>=4.18,<5",
+    "referencing>=0.28.4,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/CEmM2/AKMS"
+Documentation = "https://cemm2.github.io/AKMS/reference/records/index.html"
+Source = "https://github.com/CEmM2/AKMS/tree/main/packages/akms_records"
+Issues = "https://github.com/CEmM2/AKMS/issues"
+Changelog = "https://github.com/CEmM2/AKMS/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+# Reserved for the promotion bridge into AKMS project-local nodes. Nothing in
+# this release imports akms.
+akms = ["akms>=0.3.2,<0.4"]
+dev = ["pytest>=9.0.2"]
+
+[project.scripts]
+akms-records = "akms_records.cli:main"
+
+[build-system]
+requires = ["setuptools==84.1.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+akms_records = ["py.typed", "templates/*.schema.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+markers = [
+    "unit: fast unit-level tests",
+    "integration: cross-module/integration tests",
+    "e2e: end-to-end tests",
+    "slow: intentionally expensive tests excluded from default CI",
+    "live_provider: tests requiring credentials or network providers",
+]

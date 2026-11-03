@@ -1,0 +1,60 @@
+# akms-records
+
+> **Experimental.** The storage format, Python API and CLI may change before
+> a stable release. Do not rely on them for data you cannot re-create.
+
+A schema-driven, provenance-aware record store for AKMS. It keeps typed
+experiences and observations (decisions, research findings, failed and
+successful approaches, preferences, ideas, workflow lessons) as an append-only
+history of plain files.
+
+- **Open payload, fixed envelope.** You register JSON Schemas (Draft 2020-12)
+  for your payloads. A fixed envelope carries identity, schema reference and
+  digest, scope, time, origin, source references, summary, tags, sensitivity,
+  review state and lifecycle. Payloads cannot shadow envelope fields.
+- **Git-mergeable history.** One directory per record and one immutable file
+  per revision, hash-chained and sealed. Work on different records merges
+  without conflicts; a conflict on the same record is detected, never resolved
+  silently.
+- **No lock, no network, no LLM.** Writes use an exclusive hard link, schema
+  references never leave the schema, and nothing calls a provider.
+- **Host-neutral.** It does not import `akms`. The `[akms]` extra is reserved
+  for a later promotion bridge into AKMS project-local nodes.
+
+A record is not a fact: records stay records unless a person promotes them.
+
+## Requirements
+
+- Python `>=3.12,<3.13`
+- `jsonschema` and `referencing`
+- A filesystem with hard links (any local disk on Linux, macOS and Windows)
+
+## First commands
+
+```bash
+pip install akms-records
+
+akms-records schema register --template decision --scope project:example
+akms-records add --scope project:example --schema decision/v1 --file decision.json
+akms-records list --scope project:example
+akms-records show rec-20261103-k3f9m2xa --scope project:example
+akms-records doctor --scope project:example
+```
+
+`decision.json`:
+
+```json
+{
+  "payload": {
+    "decision": "Keep the existing surrogate model",
+    "rationale": "Its validation error is within budget"
+  },
+  "tags": ["surrogate"]
+}
+```
+
+Project-scope records live in `<repo>/.knowledge/records/` and are meant to be
+committed. Agent and shared scopes live under `~/.knowledge/records/`
+(override with `AKMS_RECORDS_HOME`).
+
+Documentation: <https://cemm2.github.io/AKMS/reference/records/index.html>

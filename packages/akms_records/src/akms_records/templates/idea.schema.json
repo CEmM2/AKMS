@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Idea",
+  "description": "An idea worth keeping, with what would move it forward.",
+  "type": "object",
+  "required": [
+    "idea"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "idea": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The idea."
+    },
+    "motivation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why it might matter."
+    },
+    "next_step": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The smallest next step."
+    },
+    "related": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Related records, issues or documents."
+    },
+    "noted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When it was noted (RFC 3339; format is an annotation only)"
+    }
+  },
+  "x-akms-records": {
+    "name": "idea",
+    "version": 1,
+    "title": "Idea",
+    "description": "An idea worth keeping, with what would move it forward.",
+    "rules": {
+      "search_text": [
+        "/idea",
+        "/motivation",
+        "/next_step"
+      ],
+      "label": "/idea",
+      "time_field": "/noted_at",
+      "summary_template": "Idea: {idea}"
+    }
+  }
+}
