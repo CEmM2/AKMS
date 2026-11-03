@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 import json
 import os
-import tempfile
+import secrets
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -488,25 +488,28 @@ def render_mirror_markdown(
 
 
 def atomic_write_text(path: Path | str, content: str) -> None:
-    """Atomically replace ``path`` with UTF-8 ``content`` from a sibling temporary file."""
+    """Atomically replace ``path`` with UTF-8 ``content`` from a sibling temporary file.
+
+    The temporary file is created like any ordinary file, so the mirror gets the
+    permissions the process umask gives, not a fixed mode.
+    """
 
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary: Path | None = None
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=target.parent,
-            prefix=f".{target.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temporary = Path(handle.name)
+        while True:
+            candidate = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
+            try:
+                handle = open(candidate, "x", encoding="utf-8")
+            except FileExistsError:
+                continue
+            temporary = candidate
+            break
+        with handle:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temporary, 0o644)
         os.replace(temporary, target)
     except BaseException:
         if temporary is not None:
