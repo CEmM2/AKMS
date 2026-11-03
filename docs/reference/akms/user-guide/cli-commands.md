@@ -53,7 +53,7 @@ command exits 1 and tells you which file to remove.
 ### `status`
 
 ```bash
-akms status --repo .
+akms status --repo . [--routes PATH ...]
 ```
 
 Runs the graph health report using repository propagation configuration when
@@ -63,10 +63,22 @@ Mirrors** it lists mirrors older than their source, or says that all of them
 are current or that the check was skipped; see
 [mirror freshness](mirror_providers.md#freshness).
 
-**Orphaned Nodes** lists nodes nothing reaches: no edge in or out, and no
-`load_with` hint naming them or named by them. A node loaded only through
-`load_with` (such as a failure-memory lesson with related lessons) is not an
-orphan. Session nodes and code mirrors are never listed.
+**Orphaned Nodes** lists nodes nothing reaches: no edge in or out, no
+`load_with` hint naming them or named by them, and no route to them in the task
+route index. A node loaded only through `load_with` (such as a failure-memory
+lesson with related lessons) or only through an exact route is not an orphan.
+Session nodes and code mirrors are never listed.
+
+The section names the route index it used. Without `--routes`, `status` looks
+for one in the same places as reviewer required-knowledge, in this order:
+`task-routes.{yaml,yml,json}`, `graph/task-routes.{yaml,yml,json}`,
+`routes/task-routes.{yaml,json}` and `failure-routes.{yaml,json}` under
+`.knowledge/`, then the same under `knowledge/`, then
+`generated/failure_routes.json` (the `akms-failure-memory` default) under
+`.knowledge/` and then `knowledge/`. The first file found is used.
+`--routes PATH` uses the given route index instead, relative to `--repo`; repeat
+it to combine several. A route index that cannot be read or parsed is listed
+under **Route Index Warnings** and ignored; the report still runs.
 
 ### `migrate-layout`
 
