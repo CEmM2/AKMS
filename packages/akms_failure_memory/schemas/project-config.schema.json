@@ -105,7 +105,8 @@
         "route_adapter_version": {"type": "string", "minLength": 1},
         "generated_warning": {"type": "string", "minLength": 1},
         "source_hash_prefix": {"type": "string"},
-        "source_hash_suffix": {"type": "string"}
+        "source_hash_suffix": {"type": "string"},
+        "lesson_index_version": {"const": "failure-lesson-index/v1", "description": "Lesson-index contract. When set, generated nodes are titled from the record (first clause of root_cause, else symptom) and compile writes lesson_index.json and lesson_index.md beside the route index. Absent keeps line-hint titles and writes no index; failure-memory init writes it for new projects."}
       }
     },
     "toolchain": {

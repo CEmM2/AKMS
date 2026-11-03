@@ -9,6 +9,11 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from akms_failure_memory.annotations import (
+    DIRECTORY_ANNOTATIONS_NAME,
+    annotations_path,
+    load_annotations,
+)
 from akms_failure_memory.compiler import (
     Compilation,
     assert_migrated_outputs_match,
@@ -152,6 +157,18 @@ def _rewrite_config_text(text: str, *, old_registry: str, new_registry: str) -> 
     return "".join(body + ending for body, ending in zip(bodies, endings, strict=True))
 
 
+def _annotations_to_carry(
+    config: ProjectConfig, registry_path: Path, before: Compilation, new_rel: str
+) -> str | None:
+    """Validate the schema 1 annotations sidecar and name its schema 2 copy."""
+    annotations = load_annotations(
+        config, registry_path, [node.lesson_id for node in before.nodes]
+    )
+    if annotations.sha256 is None:
+        return None
+    return (PurePosixPath(new_rel) / DIRECTORY_ANNOTATIONS_NAME).as_posix()
+
+
 def _compare_staged(
     config: ProjectConfig,
     root: Path,
@@ -217,6 +234,7 @@ def migrate_registry(
         )
     if check:
         before = compile_registry(config, root)
+        carried = _annotations_to_carry(config, registry_path, before, new_rel)
         raw = _read_v1(registry_path, config)
         digest = _compare_staged(
             config,
@@ -234,12 +252,14 @@ def migrate_registry(
             "migrated_source_sha256": digest,
             "lesson_count": len(before.nodes),
             "previous_registry": old_rel,
+            "annotations": carried,
         }
     lock_path = config.resolve(root, "lock")
     with ProjectLock(
         lock_path, timeout_seconds=float(config.toolchain["timeout_seconds"])
     ):
         before = compile_registry(config, root)
+        carried = _annotations_to_carry(config, registry_path, before, new_rel)
         raw = _read_v1(registry_path, config)
         prior_registry = registry_path.read_bytes()
         _compare_staged(
@@ -274,6 +294,13 @@ def migrate_registry(
                 field_spec=raw["_field_spec"],
                 lessons=list(raw["lessons"]),
             )
+            if carried is not None:
+                # Copied, not moved: like the registry file, the schema 1
+                # sidecar stays where it was.
+                _atomic_replace(
+                    staged / DIRECTORY_ANNOTATIONS_NAME,
+                    annotations_path(config, registry_path).read_bytes(),
+                )
             if destination.exists() or destination.is_symlink():
                 raise FailureMemoryError(
                     f"Migration destination already exists: {new_rel}",
@@ -313,6 +340,7 @@ def migrate_registry(
         "source_sha256": after.source_sha256,
         "previous_source_sha256": before.source_sha256,
         "lesson_count": len(after.nodes),
+        "annotations": carried,
     }
 
 
