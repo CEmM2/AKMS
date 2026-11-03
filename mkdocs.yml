@@ -215,6 +215,7 @@ nav:
     - Failure Memory:
       - reference/failure-memory/index.md
       - CLI Reference: reference/failure-memory/cli-reference.md
+      - Lesson Index: reference/failure-memory/lesson-index.md
       - API Reference: reference/failure-memory/api-reference.md
       - Operator Policy: reference/failure-memory/operator-policy.md
       - Adoption Guide: reference/failure-memory/adoption.md

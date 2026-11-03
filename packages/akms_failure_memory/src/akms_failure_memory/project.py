@@ -135,6 +135,7 @@ route_adapter_version = "failure-memory-to-akms-task-route/v1"
 generated_warning = "<!-- GENERATED: edit .knowledge/lessons.json -->"
 source_hash_prefix = "<!-- source_sha256: "
 source_hash_suffix = " -->"
+lesson_index_version = "failure-lesson-index/v1"
 
 [toolchain]
 akms_version = "{akms_range}"

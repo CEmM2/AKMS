@@ -73,6 +73,22 @@ def _parser() -> argparse.ArgumentParser:
     resolve.add_argument("--repo", type=Path, default=Path.cwd())
     resolve.add_argument("--request", type=Path, required=True)
 
+    index = sub.add_parser(
+        "index",
+        help="browse lesson cards by area, package and module (read-only)",
+    )
+    index.add_argument("--config", type=Path, help=_CONFIG_HELP)
+    index.add_argument("--repo", type=Path, default=Path.cwd())
+    index.add_argument("--area", help="cards in this location.area")
+    index.add_argument("--package", help="cards in this location.package")
+    index.add_argument("--module", help="cards in this location.module")
+    index.add_argument(
+        "--grep", help="cards matching this case-insensitive regular expression"
+    )
+    index.add_argument(
+        "--expand", metavar="ID", help="the full record and annotations of one lesson"
+    )
+
     stale = sub.add_parser("validate-fingerprint")
     stale.add_argument("--config", type=Path, help=_CONFIG_HELP)
     stale.add_argument("--repo", type=Path, default=Path.cwd())
@@ -154,6 +170,18 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         from akms_failure_memory.provider import run_provider_command
 
         return run_provider_command(args.command, args)
+    if args.command == "index":
+        from akms_failure_memory.index_query import query_lesson_index
+
+        return query_lesson_index(
+            config_path=args.config,
+            repository_root=args.repo,
+            area=args.area,
+            package=args.package,
+            module=args.module,
+            grep=args.grep,
+            expand=args.expand,
+        )
     if args.command == "ci-check":
         from akms_failure_memory.ci import ci_check
 

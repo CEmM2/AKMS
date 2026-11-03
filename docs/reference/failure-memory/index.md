@@ -18,6 +18,7 @@ It is deliberately separate from the ordinary graph overlay:
 - Initialize and diagnose a project configuration
 - Record lessons interactively or from canonical JSON
 - Validate, compile, or check generated lesson projections
+- Browse lessons as grouped cards and expand one to its full record
 - Refresh lessons, mirrors, graph, or the complete snapshot
 - Resolve pre-task or post-diff provider context
 - Validate provider fingerprints against a request

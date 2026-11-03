@@ -24,7 +24,8 @@ paths perform no LLM or network calls.
 |---|---|---|
 | Lesson registry | Project | Canonical, append-only IDs |
 | Project configuration | Project | Canonical policy and paths |
-| Generated lesson nodes/routes | Project policy | Committed or disposable |
+| Lesson annotations sidecar | Project | Canonical, reviewed; never changes nodes or routes |
+| Generated lesson nodes/routes/index | Project policy | Committed or disposable |
 | Compiler/recorder/refresh/provider | This package | Reusable implementation |
 | Source mirrors | `repo-wiki` exporter | Invoked through its CLI contract: built in (`python -m akms.repo_wiki`) or an external, pinned `repo-wiki` |
 | Graph/query/loadouts | AKMS | Invoked through the documented, pinned AKMS public API |
@@ -40,7 +41,9 @@ The machine contract lives in
 `schemas/project-config.schema.json`.  It binds repository identity and node
 namespace, canonical and generated paths, generated-file policy, validation
 and taxonomy rules, compatibility renderer identifiers, the mirror provider
-(`mirror_provider`, `builtin` or `repo2md`), and AKMS / repo2md toolchain pins
+(`mirror_provider`, `builtin` or `repo2md`), the optional lesson-index contract
+(`lesson_index_version`; absent keeps line-hint node titles and writes no
+index), and AKMS / repo2md toolchain pins
 (`akms_version` and `repo2md_version` are each a plain version matched exactly
 or a PEP 440 specifier set matched as a range; the `repo2md_*` keys are
 required only for the `repo2md` provider).  All configured paths are repository-relative POSIX
