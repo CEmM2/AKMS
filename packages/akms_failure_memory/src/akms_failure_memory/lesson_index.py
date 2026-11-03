@@ -41,9 +41,22 @@ def _normalize(text: str) -> str:
     return " ".join(text.split())
 
 
+def split_first_sentence(text: str) -> tuple[str, str]:
+    """Split ``text`` into its first sentence and the rest.
+
+    The first sentence has its whitespace collapsed; the rest keeps the
+    original line breaks, without surrounding whitespace.
+    """
+    stripped = text.strip()
+    end = _SENTENCE_END.search(stripped)
+    if end is None:
+        return _normalize(stripped), ""
+    return _normalize(stripped[: end.start()]), stripped[end.end() :]
+
+
 def first_sentence(text: str) -> str:
     """Return the first sentence of ``text`` with whitespace collapsed."""
-    return _SENTENCE_END.split(_normalize(text), maxsplit=1)[0]
+    return split_first_sentence(text)[0]
 
 
 def _first_clause(text: str) -> str:
@@ -273,4 +286,5 @@ __all__ = [
     "record_title",
     "render_lesson_index_markdown",
     "serialize_lesson_index",
+    "split_first_sentence",
 ]
