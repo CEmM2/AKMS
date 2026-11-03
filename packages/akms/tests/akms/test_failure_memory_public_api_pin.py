@@ -87,8 +87,16 @@ _EXPECTED_ALLOWED_PYTHON = {
     ),
     # The mirror exporter's contract version; the exporter ships in akms.
     "akms.repo_wiki.export.akms": ("EXPORT_SCHEMA_VERSION",),
-    # Where a repository keeps its knowledge (.knowledge/ or a legacy knowledge/).
-    "akms.layout": ("local_knowledge_dir",),
+    # Where a repository keeps its knowledge (.knowledge/ or a legacy
+    # knowledge/), and the migration from one to the other.
+    "akms.layout": (
+        "DEFAULT_KNOWLEDGE_DIRNAME",
+        "LEGACY_KNOWLEDGE_DIRNAME",
+        "local_knowledge_dir",
+        "KnowledgeLayoutError",
+        "plan_knowledge_migration",
+        "migrate_knowledge_layout",
+    ),
     "akms": ("AKMS_SCHEMA_VERSION", "__version__"),
 }
 _PUBLIC_CLI_MCP_SOURCES = {

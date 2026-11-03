@@ -51,6 +51,17 @@ failure-memory refresh all --repo . --config .knowledge/failure-memory.toml \
 
 Compile, record, refresh, and provider resolution share one reentrant project-local lock. Compiler publication is transactional across generated nodes and routes and rejects symlink components before writing. Refresh runs lessons, mirror, then graph. Mirror, graph, and all refreshes require an explicit timezone-aware `--generated-at`; that value governs atomically published graph metadata, so identical inputs and timestamps produce byte-identical graphs. Graph refresh validates AKMS inputs before publication, preserves any existing graph and state bytes on failure, and does not create an empty `local_state.yaml`; experiential state remains owned by AKMS update operations. The project configuration's `repository_id` is the canonical serialized graph identity and overrides both the AKMS runtime-root basename and any conflicting informational `local_state.yaml` `repo_id`, without rewriting the state file. Refresh never clones, installs, invokes an LLM, or silently falls back. `clean` removes only paths explicitly marked disposable.
 
+## Move an existing project to `.knowledge/`
+
+A project created with a `knowledge/` directory keeps working there. To move it:
+
+```bash
+failure-memory migrate-layout --repo . --check
+failure-memory migrate-layout --repo . --global-vault /read-only/vault
+```
+
+The directory moves (with `git mv` when tracked), `[paths]` and `generated_warning` follow it, the configuration moves too when it lives inside it, and generated lessons are recompiled. The configuration fingerprint changes once. See [Moving to `.knowledge/`](../akms/user-guide/knowledge-layout.md).
+
 ## Resolve provider context
 
 Prepare a `failure-memory-provider-request/v1` JSON request, then run:
