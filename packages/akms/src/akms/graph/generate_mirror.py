@@ -459,8 +459,9 @@ def generate_mirror(
 ) -> dict[str, Any]:
     """Generate code mirror files via the configured mirror provider.
 
-    Default provider is ``legacy`` (Python AST), preserving historical behavior
-    for callers that omit *config* / *provider_name*.
+    The default provider is ``builtin`` (the ``repo-wiki`` exporter shipped in
+    akms). Pass ``provider_name="legacy"`` for the in-process Python AST
+    generator.
 
     Args:
         repo_root: Path to the repository root.
@@ -470,7 +471,7 @@ def generate_mirror(
         drift_check: Whether to run drift detection.
         llm_fn: Optional LLM callable for semantic drift check.
         config: Optional ``PropagationConfig`` or ``MirrorConfig``.
-        provider_name: Override provider name (default from config / legacy).
+        provider_name: Override provider name (default from config / builtin).
 
     Returns:
         Dict with keys:
@@ -497,19 +498,6 @@ def generate_mirror(
     )
 
     mirror_cfg = resolve_mirror_config(config)
-    # Fast path: pure legacy with no config override keeps the historical
-    # call shape and avoids registry overhead for the default case.
-    name = (provider_name or mirror_cfg.provider or "legacy").strip().lower()
-    if name == "legacy" and config is None and provider_name is None:
-        return generate_mirror_legacy(
-            repo_root=repo_root,
-            phase=phase,
-            parent_branch=parent_branch,
-            source_files=source_files,
-            drift_check=drift_check,
-            llm_fn=llm_fn,
-        )
-
     request = MirrorRequest(
         repo_root=Path(repo_root),
         phase=phase,

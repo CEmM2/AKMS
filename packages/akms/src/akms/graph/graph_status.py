@@ -613,7 +613,7 @@ def graph_status(
 
             mirror_provider = public_provider_identity(resolve_mirror_config(config))
         except Exception:
-            mirror_provider = {"provider": "legacy"}
+            mirror_provider = {"provider": "builtin"}
 
     report = {
         "total_nodes": G.number_of_nodes(),

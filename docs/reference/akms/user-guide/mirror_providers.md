@@ -14,7 +14,7 @@ from.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `mirror.provider` | `legacy` | In-process Python AST generator |
+| `mirror.provider` | `builtin` | The `repo-wiki` exporter shipped in akms |
 | `mirror.fallback_on_error` | `false` | No silent provider substitution |
 | `mirror.require_success` | `false` | When true, the caller blocks graph rebuild after failure |
 | `mirror.selection_mode` | `changed` | Select changes against the parent branch |
@@ -24,8 +24,7 @@ from.
 ```yaml
 akms_schema: v2
 mirror:
-  provider: repo2md
-  command: [repo-wiki]
+  provider: builtin
   timeout_seconds: 120
   fallback_on_error: false
   require_success: true
@@ -37,12 +36,31 @@ mirror:
   expected_akms_schema_version: v2
 ```
 
-The command is an argv prefix, not a shell string.
+For `repo2md`, add `command: [repo-wiki]`: an argv prefix, not a shell string.
+`builtin` ignores `command`.
+
+## `builtin`
+
+The default. Runs the `repo-wiki` exporter that ships in `akms`, as
+`python -m akms.repo_wiki export-akms`, in a subprocess. Nothing else needs to
+be installed for Python sources; C++ uses an installed `doxygen`, and Rust,
+C++ (tree-sitter) and Julia need `akms[multilang]`.
+
+- Writes mirrors into the knowledge directory the graph reads:
+  `.knowledge/code-mirror/`, or `knowledge/code-mirror/` in a repository that
+  only has the older `knowledge/` directory
+- Same export contract, validation, timeout and output lock as `repo2md`
+- `.repo_wiki/config.yaml` controls which sources and languages are exported
+- With `selection_mode: changed`, it exports sources changed since the parent
+  branch, as `git diff <parent>` sees them (committed and uncommitted changes
+  to tracked files). In a directory that is not a git repository, or where the
+  parent branch does not exist, it selects nothing and logs a warning, as
+  `legacy` does
 
 ## `legacy`
 
-The default, and the only provider that works out of the box — it is
-in-process and needs nothing installed beyond `akms` itself.
+The in-process Python AST generator, and the default before `builtin`. It
+needs nothing installed beyond `akms` itself.
 
 - Python-only AST projection
 - In-process implementation
@@ -51,7 +69,8 @@ in-process and needs nothing installed beyond `akms` itself.
 
 ## `repo2md`
 
-Requires the external `repo-wiki` executable, which **AKMS does not install**.
+Requires a separately installed `repo-wiki` executable, which **AKMS does not
+install**.
 It is registered lazily and invoked only when you configure
 `mirror.provider: repo2md`, so its absence costs nothing until then. Because
 `mirror.fallback_on_error` defaults to `false`, configuring this provider
@@ -62,11 +81,10 @@ without the binary present fails loudly rather than silently reverting to
 - Does not import repo2md as a Python package
 - Validates export schema, AKMS v2 frontmatter, output containment,
   content/source consistency, duplicate IDs, and completeness
-- Uses a pinned consumer contract under `packages/akms/release/`
 
-`repo-wiki` always writes its mirror to `<repo>/knowledge/code-mirror/`. A
-repository whose knowledge lives in `.knowledge/` does not load that mirror
-into its graph yet.
+An external `repo-wiki` always writes its mirror to
+`<repo>/knowledge/code-mirror/`, so a repository whose knowledge lives in
+`.knowledge/` does not load that mirror into its graph. Use `builtin` there.
 
 ## CLI
 

@@ -68,9 +68,9 @@ def repo(tmp_path: Path) -> Path:
 
 
 class TestMirrorConfig:
-    def test_defaults_are_legacy(self):
+    def test_default_provider_is_builtin(self):
         cfg = MirrorConfig()
-        assert cfg.provider == "legacy"
+        assert cfg.provider == "builtin"
         assert cfg.fallback_on_error is False
         assert cfg.require_success is False
         assert cfg.command == ["repo-wiki"]
@@ -80,7 +80,7 @@ class TestMirrorConfig:
     def test_propagation_config_includes_mirror(self):
         pc = PropagationConfig()
         assert isinstance(pc.mirror, MirrorConfig)
-        assert pc.mirror.provider == "legacy"
+        assert pc.mirror.provider == "builtin"
 
     def test_parse_propagation_without_mirror_block(self, tmp_path: Path):
         path = tmp_path / "propagation_config.yaml"
@@ -91,7 +91,7 @@ class TestMirrorConfig:
             encoding="utf-8",
         )
         pc = parse_propagation_config(path)
-        assert pc.mirror.provider == "legacy"
+        assert pc.mirror.provider == "builtin"
 
     def test_parse_propagation_with_repo2md_block(self, tmp_path: Path):
         path = tmp_path / "propagation_config.yaml"
@@ -185,11 +185,14 @@ class TestProviderRegistry:
 
 
 class TestLegacyRegression:
-    def test_generate_mirror_default_writes_legacy_mirror(self, repo: Path):
+    def test_generate_mirror_with_legacy_provider_writes_legacy_mirror(
+        self, repo: Path
+    ):
         result = generate_mirror(
             repo,
             phase=1,
             source_files=["src/mod.py"],
+            provider_name="legacy",
         )
         assert result["success"] is True
         assert result["provider"] == "legacy"

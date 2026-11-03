@@ -400,7 +400,7 @@ class TestDriftLLM:
 
 
 class TestGenerateMirror:
-    """End-to-end tests for generate_mirror()."""
+    """End-to-end tests for generate_mirror() with the legacy provider."""
 
     def test_full_pipeline_with_explicit_files(self, tmp_repo):
         """Processes explicit source files, writes mirrors, returns summary."""
@@ -425,6 +425,7 @@ class TestGenerateMirror:
             phase=1,
             source_files=["src/module.py"],
             drift_check=True,
+            provider_name="legacy",
         )
 
         assert result["files_processed"] == 1
@@ -440,6 +441,7 @@ class TestGenerateMirror:
             tmp_repo,
             phase=1,
             source_files=["nonexistent.py"],
+            provider_name="legacy",
         )
         assert result["files_processed"] == 1
         assert len(result["mirrors"]) == 0
@@ -450,6 +452,7 @@ class TestGenerateMirror:
             tmp_repo,
             phase=1,
             source_files=["readme.md"],
+            provider_name="legacy",
         )
         assert len(result["mirrors"]) == 0
 
@@ -469,6 +472,7 @@ class TestGenerateMirror:
             phase=1,
             source_files=["src/drifty.py"],
             drift_check=True,
+            provider_name="legacy",
         )
 
         # alpha_factor and beta_range not mentioned in docstring
@@ -491,6 +495,7 @@ class TestGenerateMirror:
             phase=1,
             source_files=["src/module.py"],
             drift_check=False,
+            provider_name="legacy",
         )
 
         assert len(result["drift_warnings"]) == 0
@@ -505,6 +510,7 @@ class TestGenerateMirror:
             tmp_repo,
             phase=1,
             source_files=["src/a.py", "src/b.py"],
+            provider_name="legacy",
         )
 
         assert len(result["mirrors"]) == 2

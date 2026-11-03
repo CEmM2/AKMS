@@ -33,8 +33,8 @@ learning request.
 Task/phase/role-specific Markdown knowledge artifact.
 
 **Mirror provider**  
-Source projector that emits validated code-mirror nodes; currently `legacy` or
-`repo2md`.
+Source projector that emits validated code-mirror nodes: `legacy`, `builtin`
+or `repo2md`.
 
 **PCD**  
 Phase completion document containing task outcomes and a persistent knowledge

@@ -1,7 +1,9 @@
-"""repo2md subprocess mirror provider.
+"""Subprocess mirror providers for ``repo-wiki export-akms``.
 
-Invokes the pinned ``repo-wiki export-akms`` CLI via argv list only
-(``shell=False``). Never imports the ``repo2md`` Python package.
+``repo2md`` runs a configured external ``repo-wiki`` command; ``builtin`` runs
+the copy that ships in akms (``python -m akms.repo_wiki``). Both invoke the
+exporter via an argv list only (``shell=False``) and never import it, so the
+export contract, JSON result, timeout and lock behaviour are the same for both.
 
 All failures (timeout, nonzero exit, malformed JSON, schema mismatch,
 path escape, partial/incomplete output) raise ``MirrorProviderError``
@@ -14,6 +16,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -25,28 +28,43 @@ from akms.graph.mirror_provider import (
     MirrorRequest,
     MirrorResult,
 )
+from akms.layout import local_knowledge_dir
 from akms.schema.errors import SchemaValidationError, SchemaVersionError
 from akms.schema.models import MirrorConfig
 from akms.schema.validators import parse_node_frontmatter_from_dict
 
 logger = logging.getLogger(__name__)
 
-# Code-mirror output must stay under this repo-relative prefix.
-_MIRROR_PREFIX = "knowledge/code-mirror"
+# The knowledge directory the external exporter writes under the output root.
+# Code-mirror output must stay under ``<knowledge dir>/code-mirror``.
+_DEFAULT_KNOWLEDGE_DIR = "knowledge"
 
 
 class Repo2mdMirrorProvider:
     """External repo2md CLI provider — argv only, no Python import."""
 
     name = "repo2md"
+    cli = "repo-wiki export-akms"
+
+    def command(self, config: MirrorConfig) -> list[str]:
+        """Argv prefix that runs the exporter."""
+        return list(config.command)
+
+    def knowledge_dir(self, output_root: Path) -> str | None:
+        """Knowledge directory to request, or None for the exporter's default."""
+        return None
 
     def generate(self, request: MirrorRequest, config: MirrorConfig) -> MirrorResult:
         repo_root = Path(request.repo_root).resolve()
         output_root = Path(request.output_root or repo_root).resolve()
         generated_at = request.generated_at or datetime.now(tz=timezone.utc)
+        knowledge_dir = self.knowledge_dir(output_root)
 
         argv = build_repo2md_argv(
             config=config,
+            command=self.command(config),
+            knowledge_dir=knowledge_dir,
+            provider=self.name,
             repo_root=repo_root,
             output_root=output_root,
             phase=request.phase,
@@ -59,13 +77,15 @@ class Repo2mdMirrorProvider:
             prune=request.prune,
             force_lock=request.force_lock,
         )
-        raw = _run_subprocess(argv, config=config, cwd=repo_root)
-        export = _parse_export_json(raw, config=config)
+        raw = _run_subprocess(argv, config=config, cwd=repo_root, provider=self.name)
+        export = _parse_export_json(raw, config=config, provider=self.name)
         mirrors = validate_repo2md_export(
             export,
             repo_root=repo_root,
             output_root=output_root,
             config=config,
+            knowledge_dir=knowledge_dir or _DEFAULT_KNOWLEDGE_DIR,
+            provider=self.name,
         )
 
         # Optional drift on Python sources after successful export.
@@ -85,7 +105,7 @@ class Repo2mdMirrorProvider:
             provider=self.name,
             provider_metadata={
                 "kind": "subprocess",
-                "cli": "repo-wiki export-akms",
+                "cli": self.cli,
                 "command_basename": Path(argv[0]).name if argv else "",
                 "export_schema_version": export.get("export_schema_version"),
                 "phase": export.get("phase"),
@@ -119,32 +139,39 @@ def build_repo2md_argv(
     git_head: str | None = None,
     prune: bool = False,
     force_lock: bool = False,
+    command: list[str] | None = None,
+    knowledge_dir: str | None = None,
+    provider: str = "repo2md",
 ) -> list[str]:
     """Build a complete argv list for ``repo-wiki export-akms``.
 
     Never joins into a shell string. Rejects empty/malformed command prefixes.
+    ``command`` overrides ``config.command``; ``knowledge_dir`` adds
+    ``--knowledge-dir``, which only the built-in exporter understands.
     """
-    if not config.command or not all(isinstance(c, str) and c for c in config.command):
+    prefix = list(config.command) if command is None else command
+    if not prefix or not all(isinstance(c, str) and c for c in prefix):
         raise MirrorProviderError(
-            "repo2md provider requires MirrorConfig.command as a non-empty argv list",
-            provider="repo2md",
+            f"{provider} provider requires MirrorConfig.command as a non-empty argv list",
+            provider=provider,
             code="invalid_command",
         )
     if phase < 1:
         raise MirrorProviderError(
             f"phase must be a positive integer, got {phase!r}",
-            provider="repo2md",
+            provider=provider,
             code="invalid_phase",
         )
 
     ts = _format_generated_at(generated_at)
     argv: list[str] = [
-        *config.command,
+        *prefix,
         "--repo-root",
         str(repo_root),
         "export-akms",
         "--output",
         str(output_root),
+        *(["--knowledge-dir", knowledge_dir] if knowledge_dir else []),
         "--phase",
         str(int(phase)),
         "--generated-at",
@@ -162,14 +189,14 @@ def build_repo2md_argv(
             if not isinstance(p, str) or not p.strip():
                 raise MirrorProviderError(
                     f"Invalid source path in selection: {p!r}",
-                    provider="repo2md",
+                    provider=provider,
                     code="invalid_path_selection",
                 )
             # Reject shell metacharacters / absolute escapes early.
             if p.startswith("/") or (len(p) > 1 and p[1] == ":"):
                 raise MirrorProviderError(
                     f"Source path must be repository-relative: {p!r}",
-                    provider="repo2md",
+                    provider=provider,
                     code="absolute_path_selection",
                 )
             argv.extend(["--path", p])
@@ -183,13 +210,13 @@ def build_repo2md_argv(
     elif mode == "paths":
         raise MirrorProviderError(
             "selection_mode='paths' requires source_files",
-            provider="repo2md",
+            provider=provider,
             code="missing_path_selection",
         )
     else:
         raise MirrorProviderError(
             f"Unknown selection_mode {mode!r}",
-            provider="repo2md",
+            provider=provider,
             code="invalid_selection_mode",
         )
 
@@ -218,6 +245,7 @@ def _run_subprocess(
     *,
     config: MirrorConfig,
     cwd: Path,
+    provider: str = "repo2md",
 ) -> str:
     """Run *argv* with shell=False; return stdout text or raise."""
     timeout = float(config.timeout_seconds)
@@ -236,22 +264,22 @@ def _run_subprocess(
         )
     except FileNotFoundError as exc:
         raise MirrorProviderError(
-            f"repo2md executable not found: {argv[0]!r}",
-            provider="repo2md",
+            f"{provider} executable not found: {argv[0]!r}",
+            provider=provider,
             code="executable_not_found",
             details={"command_basename": Path(argv[0]).name},
         ) from exc
     except subprocess.TimeoutExpired as exc:
         raise MirrorProviderError(
-            f"repo2md timed out after {timeout}s",
-            provider="repo2md",
+            f"{provider} timed out after {timeout}s",
+            provider=provider,
             code="timeout",
             details={"timeout_seconds": timeout},
         ) from exc
     except OSError as exc:
         raise MirrorProviderError(
-            f"repo2md subprocess OS error: {exc}",
-            provider="repo2md",
+            f"{provider} subprocess OS error: {exc}",
+            provider=provider,
             code="os_error",
             details={"exception_type": type(exc).__name__},
         ) from exc
@@ -262,9 +290,9 @@ def _run_subprocess(
         if len(stderr) > 800:
             stderr = stderr[:800] + "…"
         raise MirrorProviderError(
-            f"repo2md exited with code {completed.returncode}"
+            f"{provider} exited with code {completed.returncode}"
             + (f": {stderr}" if stderr else ""),
-            provider="repo2md",
+            provider=provider,
             code="nonzero_exit",
             details={"returncode": completed.returncode},
         )
@@ -277,26 +305,28 @@ def _run_subprocess(
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def _parse_export_json(raw: str, *, config: MirrorConfig) -> dict[str, Any]:
+def _parse_export_json(
+    raw: str, *, config: MirrorConfig, provider: str = "repo2md"
+) -> dict[str, Any]:
     text = (raw or "").strip()
     if not text:
         raise MirrorProviderError(
-            "repo2md produced empty stdout (expected versioned export JSON)",
-            provider="repo2md",
+            f"{provider} produced empty stdout (expected versioned export JSON)",
+            provider=provider,
             code="empty_stdout",
         )
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise MirrorProviderError(
-            f"repo2md stdout is not valid JSON: {exc}",
-            provider="repo2md",
+            f"{provider} stdout is not valid JSON: {exc}",
+            provider=provider,
             code="malformed_json",
         ) from exc
     if not isinstance(data, dict):
         raise MirrorProviderError(
-            "repo2md export JSON must be an object",
-            provider="repo2md",
+            f"{provider} export JSON must be an object",
+            provider=provider,
             code="malformed_json",
         )
 
@@ -305,7 +335,7 @@ def _parse_export_json(raw: str, *, config: MirrorConfig) -> dict[str, Any]:
         raise MirrorProviderError(
             f"export_schema_version mismatch: got {schema_ver!r}, "
             f"expected {config.expected_export_schema_version!r}",
-            provider="repo2md",
+            provider=provider,
             code="schema_mismatch",
             details={
                 "got": schema_ver,
@@ -321,16 +351,16 @@ def _parse_export_json(raw: str, *, config: MirrorConfig) -> dict[str, Any]:
         )
         msg = first.get("message") or first.get("stage") or "export reported errors"
         raise MirrorProviderError(
-            f"repo2md export reported errors: {msg}",
-            provider="repo2md",
+            f"{provider} export reported errors: {msg}",
+            provider=provider,
             code="export_errors",
             details={"error_count": len(errors)},
         )
 
     if "written" not in data or not isinstance(data.get("written"), list):
         raise MirrorProviderError(
-            "repo2md export JSON missing 'written' list",
-            provider="repo2md",
+            f"{provider} export JSON missing 'written' list",
+            provider=provider,
             code="malformed_json",
         )
     return data
@@ -342,13 +372,17 @@ def validate_repo2md_export(
     repo_root: Path,
     output_root: Path,
     config: MirrorConfig,
+    knowledge_dir: str = _DEFAULT_KNOWLEDGE_DIR,
+    provider: str = "repo2md",
 ) -> list[dict[str, Any]]:
     """Validate written mirrors on disk against frozen AKMS v2 schema.
 
+    Mirrors must lie under ``<output_root>/<knowledge_dir>/code-mirror``.
     Rejects path escape, missing files (partial output), frontmatter
     schema mismatch, content_ref/source_file inconsistency, and
     duplicate node IDs.
     """
+    knowledge_prefix = f"{knowledge_dir}/"
     written = export.get("written") or []
     mirrors: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
@@ -358,7 +392,7 @@ def validate_repo2md_export(
         if not isinstance(entry, dict):
             raise MirrorProviderError(
                 "written entry must be an object",
-                provider="repo2md",
+                provider=provider,
                 code="malformed_json",
             )
         generated_path = entry.get("generated_path")
@@ -369,50 +403,54 @@ def validate_repo2md_export(
         if not generated_path or not isinstance(generated_path, str):
             raise MirrorProviderError(
                 "written entry missing generated_path",
-                provider="repo2md",
+                provider=provider,
                 code="incomplete_output",
             )
         if not content_ref or not isinstance(content_ref, str):
             raise MirrorProviderError(
                 f"written entry missing content_ref for {generated_path!r}",
-                provider="repo2md",
+                provider=provider,
                 code="incomplete_output",
             )
         if not source_path or not isinstance(source_path, str):
             raise MirrorProviderError(
                 f"written entry missing source_path for {generated_path!r}",
-                provider="repo2md",
+                provider=provider,
                 code="incomplete_output",
             )
         if not node_id or not isinstance(node_id, str):
             raise MirrorProviderError(
                 f"written entry missing node_id for {generated_path!r}",
-                provider="repo2md",
+                provider=provider,
                 code="incomplete_output",
             )
 
-        # Containment: generated_path must be under knowledge/code-mirror
+        # Containment: generated_path must be under <knowledge dir>/code-mirror
         # and must not escape via .. components.
-        _assert_mirror_path_safe(generated_path)
+        _assert_mirror_path_safe(
+            generated_path, knowledge_dir=knowledge_dir, provider=provider
+        )
         _assert_mirror_path_safe(
             content_ref
-            if content_ref.startswith("knowledge/")
-            else f"knowledge/{content_ref}"
+            if content_ref.startswith(knowledge_prefix)
+            else f"{knowledge_prefix}{content_ref}",
+            knowledge_dir=knowledge_dir,
+            provider=provider,
         )
 
         # content_ref is typically "code-mirror/..." while generated_path is
-        # "knowledge/code-mirror/...".
+        # "<knowledge dir>/code-mirror/...".
         expected_ref_from_gen = generated_path
-        if expected_ref_from_gen.startswith("knowledge/"):
-            expected_ref_suffix = expected_ref_from_gen[len("knowledge/") :]
+        if expected_ref_from_gen.startswith(knowledge_prefix):
+            expected_ref_suffix = expected_ref_from_gen[len(knowledge_prefix) :]
         else:
             expected_ref_suffix = expected_ref_from_gen
         if content_ref not in (expected_ref_suffix, expected_ref_from_gen):
-            # Allow content_ref without knowledge/ prefix (repo2md contract).
+            # Allow content_ref without the knowledge-dir prefix (export contract).
             if content_ref.lstrip("/") != expected_ref_suffix.lstrip("/"):
                 raise MirrorProviderError(
                     f"content_ref/generated_path mismatch: {content_ref!r} vs {generated_path!r}",
-                    provider="repo2md",
+                    provider=provider,
                     code="content_ref_mismatch",
                 )
 
@@ -422,14 +460,14 @@ def validate_repo2md_export(
         except ValueError as exc:
             raise MirrorProviderError(
                 f"path escape: generated file outside output root: {generated_path!r}",
-                provider="repo2md",
+                provider=provider,
                 code="path_escape",
             ) from exc
 
         if not abs_path.is_file():
             raise MirrorProviderError(
                 f"partial output: written file missing on disk: {generated_path!r}",
-                provider="repo2md",
+                provider=provider,
                 code="partial_output",
             )
 
@@ -439,7 +477,7 @@ def validate_repo2md_export(
         except Exception as exc:
             raise MirrorProviderError(
                 f"failed to read mirror file {generated_path!r}: {exc}",
-                provider="repo2md",
+                provider=provider,
                 code="unreadable_mirror",
             ) from exc
 
@@ -453,7 +491,7 @@ def validate_repo2md_export(
         except (SchemaValidationError, SchemaVersionError) as exc:
             raise MirrorProviderError(
                 f"mirror frontmatter invalid for {generated_path!r}: {exc}",
-                provider="repo2md",
+                provider=provider,
                 code="frontmatter_invalid",
             ) from exc
 
@@ -463,7 +501,7 @@ def validate_repo2md_export(
             raise MirrorProviderError(
                 f"akms_schema mismatch in {generated_path!r}: "
                 f"got {akms_schema!r}, expected {config.expected_akms_schema_version!r}",
-                provider="repo2md",
+                provider=provider,
                 code="schema_mismatch",
             )
 
@@ -475,32 +513,32 @@ def validate_repo2md_export(
             raise MirrorProviderError(
                 f"source_file mismatch in {generated_path!r}: "
                 f"frontmatter={fm_source!r} export={source_path!r}",
-                provider="repo2md",
+                provider=provider,
                 code="source_file_mismatch",
             )
         if fm_content_ref not in (content_ref, expected_ref_suffix, generated_path):
-            # Normalize both sides without knowledge/ for comparison.
-            a = str(fm_content_ref).removeprefix("knowledge/")
-            b = str(content_ref).removeprefix("knowledge/")
+            # Normalize both sides without the knowledge-dir prefix.
+            a = str(fm_content_ref).removeprefix(knowledge_prefix)
+            b = str(content_ref).removeprefix(knowledge_prefix)
             if a != b:
                 raise MirrorProviderError(
                     f"content_ref mismatch in {generated_path!r}: "
                     f"frontmatter={fm_content_ref!r} export={content_ref!r}",
-                    provider="repo2md",
+                    provider=provider,
                     code="content_ref_mismatch",
                 )
         if fm_id != node_id:
             raise MirrorProviderError(
                 f"node_id mismatch in {generated_path!r}: "
                 f"frontmatter={fm_id!r} export={node_id!r}",
-                provider="repo2md",
+                provider=provider,
                 code="node_id_mismatch",
             )
 
         if node_id in seen_ids:
             raise MirrorProviderError(
                 f"duplicate node_id in export: {node_id!r}",
-                provider="repo2md",
+                provider=provider,
                 code="duplicate_id",
             )
         seen_ids.add(node_id)
@@ -508,7 +546,7 @@ def validate_repo2md_export(
         if generated_path in seen_paths:
             raise MirrorProviderError(
                 f"duplicate generated_path in export: {generated_path!r}",
-                provider="repo2md",
+                provider=provider,
                 code="duplicate_path",
             )
         seen_paths.add(generated_path)
@@ -528,45 +566,51 @@ def validate_repo2md_export(
     return mirrors
 
 
-def _assert_mirror_path_safe(path_str: str) -> None:
+def _assert_mirror_path_safe(
+    path_str: str,
+    *,
+    knowledge_dir: str = _DEFAULT_KNOWLEDGE_DIR,
+    provider: str = "repo2md",
+) -> None:
     """Reject absolute, drive-qualified, UNC, and `..` escape paths."""
     if not path_str or not isinstance(path_str, str):
         raise MirrorProviderError(
             f"Invalid mirror path: {path_str!r}",
-            provider="repo2md",
+            provider=provider,
             code="path_escape",
         )
     # Drive-qualified / UNC / absolute.
     if path_str.startswith(("/", "\\")) or (len(path_str) > 1 and path_str[1] == ":"):
         raise MirrorProviderError(
             f"path escape: absolute or drive-qualified path rejected: {path_str!r}",
-            provider="repo2md",
+            provider=provider,
             code="path_escape",
         )
     if path_str.startswith("\\\\") or path_str.startswith("//"):
         raise MirrorProviderError(
             f"path escape: UNC path rejected: {path_str!r}",
-            provider="repo2md",
+            provider=provider,
             code="path_escape",
         )
     pure = PurePosixPath(path_str.replace("\\", "/"))
     if ".." in pure.parts:
         raise MirrorProviderError(
             f"path escape: '..' component rejected: {path_str!r}",
-            provider="repo2md",
+            provider=provider,
             code="path_escape",
         )
-    # Must live under knowledge/code-mirror (or code-mirror/ for content_ref).
+    # Must live under <knowledge dir>/code-mirror (or code-mirror/ for content_ref).
+    mirror_prefix = f"{knowledge_dir}/code-mirror"
     posix = pure.as_posix()
     if not (
-        posix == _MIRROR_PREFIX
-        or posix.startswith(_MIRROR_PREFIX + "/")
+        posix == mirror_prefix
+        or posix.startswith(mirror_prefix + "/")
         or posix == "code-mirror"
         or posix.startswith("code-mirror/")
     ):
         raise MirrorProviderError(
-            f"path escape: mirror path outside {_MIRROR_PREFIX}: {path_str!r}",
-            provider="repo2md",
+            f"path escape: mirror path outside {mirror_prefix}: {path_str!r}",
+            provider=provider,
             code="path_escape",
         )
 
@@ -618,3 +662,61 @@ def _run_python_drift(
             w["file"] = source_file
         warnings.extend(file_warnings)
     return warnings
+
+
+class BuiltinMirrorProvider(Repo2mdMirrorProvider):
+    """The exporter shipped in akms, run as ``python -m akms.repo_wiki``.
+
+    It needs no separate install and writes mirrors into the knowledge
+    directory ``build_graph`` reads (``.knowledge/`` or a legacy
+    ``knowledge/``). ``MirrorConfig.command`` is ignored.
+    """
+
+    name = "builtin"
+    cli = "python -m akms.repo_wiki export-akms"
+
+    def command(self, config: MirrorConfig) -> list[str]:
+        return [sys.executable, "-m", "akms.repo_wiki"]
+
+    def knowledge_dir(self, output_root: Path) -> str | None:
+        return local_knowledge_dir(output_root).name
+
+    def generate(self, request: MirrorRequest, config: MirrorConfig) -> MirrorResult:
+        # Changed-file selection needs the git base ref. Without one, match the
+        # legacy provider (the previous default): warn and select nothing,
+        # rather than failing every refresh in a repository without that ref.
+        mode = (request.selection_mode or "changed").strip().lower()
+        if request.source_files is None and mode in ("changed", "git"):
+            base = request.git_base or request.parent_branch or "main"
+            reason = _missing_git_ref(Path(request.repo_root), base)
+            if reason is not None:
+                logger.warning("builtin mirror provider selected no files: %s", reason)
+                return MirrorResult(
+                    provider=self.name,
+                    provider_metadata={
+                        "kind": "subprocess",
+                        "cli": self.cli,
+                        "selection": "skipped",
+                        "reason": reason,
+                    },
+                )
+        return super().generate(request, config)
+
+
+def _missing_git_ref(repo_root: Path, ref: str) -> str | None:
+    """Why ``ref`` cannot serve as a git diff base in ``repo_root``, or None."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet"]
+            + [f"{ref}^{{commit}}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            shell=False,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"git is unavailable: {exc}"
+    if completed.returncode != 0:
+        return f"git ref {ref!r} is not available in {repo_root.name!r}"
+    return None

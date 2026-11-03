@@ -17,7 +17,6 @@ Error matrix:
 from __future__ import annotations
 
 import json
-import os
 import stat
 import textwrap
 from datetime import datetime, timezone
@@ -671,23 +670,25 @@ class TestValidateExport:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-_REPO2MD_ROOT = Path(
-    os.environ.get(
-        "AKMS_REPO2MD_ROOT",
-        "/opt/example/repo2md",
-    )
+# The exporter's committed fixture pack ships with its tests in this tree.
+_FIXTURE_ROOT = (
+    Path(__file__).resolve().parents[1] / "repo_wiki" / "fixtures" / "akms_export"
 )
-_FIXTURE_ROOT = _REPO2MD_ROOT / "tests" / "fixtures" / "akms_export"
 _PINNED_PACK_SHA = "5d2e398b7baab7045615ccb0e935c2baeae154d21fb4a29ba5498f06687d2d6b"
+# The files the pack digest covers, in their pinned order.
+_PINNED_PACK_FILES = (
+    "export_result.json",
+    "fixture_manifest.json",
+    "contract_v1.json",
+    "expected/knowledge/code-mirror/cpp/cpp/vector.cpp.md",
+    "expected/knowledge/code-mirror/cpp/cpp/vector.hpp.md",
+    "expected/knowledge/code-mirror/src/legacy/no_symbols.md",
+    "expected/knowledge/code-mirror/src/legacy/vector.md",
+    "expected/knowledge/code-mirror/src/unsafe/a\x85b.md",
+    "expected/knowledge/code-mirror/src/unsafe/name&unsafe.md",
+)
 
 
-def _fixture_available() -> bool:
-    return (_FIXTURE_ROOT / "export_result.json").is_file() and (
-        _FIXTURE_ROOT / "expected" / "knowledge" / "code-mirror"
-    ).is_dir()
-
-
-@pytest.mark.skipif(not _fixture_available(), reason="repo2md fixture pack not present")
 class TestRealFixtureValidation:
     def test_export_result_validates_against_expected_mirrors(self, tmp_path: Path):
         export = json.loads(
@@ -714,21 +715,13 @@ class TestRealFixtureValidation:
     def test_fixture_pack_sha256_matches_pin(self):
         import hashlib
 
-        pin_path = (
-            _REPO2MD_ROOT
-            / "dev"
-            / "plans"
-            / "akms_mirror_export"
-            / "release"
-            / "integration_pin.json"
-        )
-        pin = json.loads(pin_path.read_text(encoding="utf-8"))
-        root = _REPO2MD_ROOT / pin["fixture_root"]
         h = hashlib.sha256()
-        for entry in pin["files"]:
-            data = (root / entry["path"]).read_bytes()
-            h.update(entry["path"].encode("utf-8") + b"\0" + data + b"\0")
+        for relative in _PINNED_PACK_FILES:
+            data = (_FIXTURE_ROOT / relative).read_bytes()
+            h.update(relative.encode("utf-8") + b"\0" + data + b"\0")
         assert h.hexdigest() == _PINNED_PACK_SHA
-        assert pin["fixture_pack_sha256"] == _PINNED_PACK_SHA
-        assert pin["export_schema_version"] == 1
-        assert pin["akms_schema_version"] == "v2"
+        manifest = json.loads(
+            (_FIXTURE_ROOT / "fixture_manifest.json").read_text(encoding="utf-8")
+        )
+        assert manifest["export_schema_version"] == 1
+        assert manifest["akms_schema_version"] == "v2"

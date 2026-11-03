@@ -22,7 +22,7 @@
 ## Docstring Drift Warnings: 0
 
 ## Mirror Provider
-  - provider: legacy
+  - provider: builtin
 
 ## Skipped Files: 0
 

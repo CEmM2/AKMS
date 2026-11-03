@@ -272,9 +272,10 @@ def build_fastmcp_app(
     ) -> dict:
         """Generate code mirror files via the configured mirror provider.
 
-        Default provider is the legacy Python AST generator. When
-        ``propagation_config.mirror.provider`` is ``repo2md``, invokes the
-        pinned external CLI (argv only; never imports repo2md).
+        The default provider is ``builtin``, the ``repo-wiki`` exporter shipped
+        in akms, run as a subprocess. ``propagation_config.mirror.provider``
+        selects ``legacy`` (in-process Python AST) or ``repo2md`` (an external
+        ``repo-wiki``) instead.
 
         Args:
             phase: Current phase number.

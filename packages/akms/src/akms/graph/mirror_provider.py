@@ -1,9 +1,9 @@
 """mirror_provider.py — Pluggable code-mirror source projection.
 
-Separates mirror *orchestration* from the legacy Python AST generator.
-Default provider remains ``legacy`` for backward compatibility. External
-providers (e.g. repo2md) are registered by name and invoked only when
-configured. Fallback to legacy is never silent: it requires
+Separates mirror *orchestration* from the projectors. The default provider
+is ``builtin``, which runs the ``repo-wiki`` exporter shipped in akms in a
+subprocess. ``legacy`` (the in-process Python AST generator) and ``repo2md``
+(an external ``repo-wiki``) are registered by name and used when configured. Fallback to legacy is never silent: it requires
 ``MirrorConfig.fallback_on_error=True`` and is always recorded in the
 result metadata.
 """
@@ -190,7 +190,7 @@ def get_provider(name: str) -> MirrorProvider:
 
 
 def _ensure_builtin_providers() -> None:
-    """Lazily register built-in providers (legacy + repo2md)."""
+    """Lazily register built-in providers (legacy, builtin, repo2md)."""
     if "legacy" not in _PROVIDER_REGISTRY:
         from akms.graph.providers.legacy import LegacyMirrorProvider
 
@@ -199,6 +199,10 @@ def _ensure_builtin_providers() -> None:
         from akms.graph.providers.repo2md import Repo2mdMirrorProvider
 
         register_provider("repo2md", Repo2mdMirrorProvider)
+    if "builtin" not in _PROVIDER_REGISTRY:
+        from akms.graph.providers.repo2md import BuiltinMirrorProvider
+
+        register_provider("builtin", BuiltinMirrorProvider)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -291,7 +295,7 @@ def run_mirror_provider(
     """Dispatch *request* to the configured provider with explicit fallback policy.
 
     Fallback rules:
-      - Primary provider is ``provider_name`` or ``config.provider`` (default legacy).
+      - Primary provider is ``provider_name`` or ``config.provider`` (default builtin).
       - On primary failure, if provider is not legacy and
         ``fallback_on_error`` is True, run legacy and mark ``fallback_used``.
       - On primary failure with ``fallback_on_error`` False, raise

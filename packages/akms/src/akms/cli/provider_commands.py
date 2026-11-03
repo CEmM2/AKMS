@@ -163,7 +163,7 @@ def register_provider_commands(subparsers: argparse._SubParsersAction) -> None:
     gen.add_argument(
         "--provider",
         default=None,
-        help="Override provider name (default: from config / legacy)",
+        help="Override provider name (default: from config / builtin)",
     )
     gen.add_argument(
         "--json",
