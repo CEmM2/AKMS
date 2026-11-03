@@ -26,11 +26,13 @@ from akms_failure_memory.errors import FailureMemoryError
 from akms_failure_memory.lesson_ids import lesson_id_sort_key
 from akms_failure_memory.lesson_index import (
     build_lesson_index,
+    first_sentence,
     is_generated_index,
     lesson_index_paths,
     record_title,
     render_lesson_index_markdown,
     serialize_lesson_index,
+    split_first_sentence,
 )
 from akms_failure_memory.locks import ProjectLock
 
@@ -429,18 +431,53 @@ def _bullet(label: str, value: str) -> str:
     return f"- {label}: {value}" if value else f"- {label}:"
 
 
+def _summary(lesson: dict[str, Any], config: ProjectConfig) -> list[str]:
+    bullets = [
+        _bullet(label, sentence)
+        for label, sentence in (
+            ("Mechanism", first_sentence(lesson["root_cause"])),
+            ("Prevention", first_sentence(lesson["prevention"])),
+        )
+        if sentence
+    ]
+    if not bullets:
+        symptom = first_sentence(lesson["symptom"])
+        bullets = [
+            _bullet("Symptom", symptom)
+            if symptom
+            else _bullet("Lesson", _title(lesson, config))
+        ]
+    return ["## Summary", "", *bullets, ""]
+
+
+def _detail(heading: str, text: str, *, summarized: bool) -> list[str]:
+    # A summarized body states the first sentence once, in ## Summary. A
+    # subsection with nothing after that sentence is left out so a full read
+    # is no longer than before the summary existed.
+    if not summarized:
+        return [heading, "", text, ""]
+    rest = split_first_sentence(text)[1]
+    return [heading, "", rest, ""] if rest else []
+
+
 def _content(lesson: dict[str, Any], source_sha256: str, config: ProjectConfig) -> str:
     compatibility = config.compatibility
+    # With a lesson-index contract the body opens with a ## Summary, which
+    # AKMS loads in place of the full body for coactivated nodes. The Identity
+    # block goes: the ID is in the heading and the front matter.
+    summarized = config.lesson_index_version is not None
+    opening = (
+        _summary(lesson, config)
+        if summarized
+        else ["## Identity", "", _bullet("Registry ID", lesson["id"]), ""]
+    )
     lines = [
         compatibility["generated_warning"],
         f"{compatibility['source_hash_prefix']}{source_sha256}{compatibility['source_hash_suffix']}",
         "",
         f"# {_title(lesson, config)}",
         "",
-        "## Identity",
-        "",
-        _bullet("Registry ID", lesson["id"]),
-        "",
+        *opening,
         "## Location",
         "",
         _bullet("Area", lesson["location"]["area"]),
@@ -461,18 +498,12 @@ def _content(lesson: dict[str, Any], source_sha256: str, config: ProjectConfig) 
         "",
         lesson["symptom"],
         "",
-        "### Root cause",
-        "",
-        lesson["root_cause"],
-        "",
+        *_detail("### Root cause", lesson["root_cause"], summarized=summarized),
         "### Fix",
         "",
         lesson["fix"],
         "",
-        "### Prevention",
-        "",
-        lesson["prevention"],
-        "",
+        *_detail("### Prevention", lesson["prevention"], summarized=summarized),
         "## Timeline",
         "",
         f"- Found: {lesson['date_found']} ({lesson['date_found_precision']})",
