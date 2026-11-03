@@ -89,6 +89,13 @@ def cmd_generate_mirror(args: argparse.Namespace) -> int:
             f"warning: no files selected: {metadata.get('reason', 'unknown reason')}",
             file=sys.stderr,
         )
+    parse_skipped = metadata.get("parse_skipped") or []
+    if parse_skipped:
+        print(
+            f"warning: skipped {len(parse_skipped)} unparsable source(s), "
+            f"existing mirrors kept: {', '.join(parse_skipped)}",
+            file=sys.stderr,
+        )
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True, default=str))
     else:

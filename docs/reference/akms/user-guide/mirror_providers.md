@@ -32,6 +32,7 @@ mirror:
   selection_mode: full
   prune: false
   force_lock: false
+  strict_parse: false
   expected_export_schema_version: 1
   expected_akms_schema_version: v2
 ```
@@ -61,6 +62,20 @@ C++ (tree-sitter) and Julia need `akms[multilang]`.
   it. With `require_success: true` it is a `selection_unavailable` failure
 - An explicit `--path` that names a deleted source removes that source's
   mirror; one that names no source and no mirror is an error
+- A source that does not parse, such as a Python file with a syntax error
+  mid-edit, is skipped rather than failing the export: the other sources are
+  still exported, the skipped one is listed in the export JSON under
+  `skipped` with reason `parse_error`, and its existing mirror is kept, also
+  under `prune`. `generate-mirror` prints a warning on stderr naming the
+  skipped paths, the staged runner records one, and the paths are in
+  `provider_metadata["parse_skipped"]`. Decode, render, selection and write
+  errors still fail the export
+- Set `strict_parse: true` to make a parse failure an error instead: nothing
+  is written and the provider raises `MirrorProviderError`, which blocks the
+  staged runner's graph rebuild. `repo-wiki export-akms --strict-parse` is
+  the same switch. `strict_parse` applies to `builtin` only; the external
+  `repo2md` tool does not take the flag, and `legacy` has always skipped
+  files it cannot parse
 
 ## `legacy`
 

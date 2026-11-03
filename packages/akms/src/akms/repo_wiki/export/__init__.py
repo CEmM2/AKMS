@@ -60,11 +60,17 @@ def export_akms(
     acquire_lock: bool = True,
     force_lock: bool = False,
     knowledge_dir: str = DEFAULT_KNOWLEDGE_DIR,
+    strict_parse: bool = False,
 ) -> ExportResult:
     """Export eligible sources into an AKMS mirror tree; all rendering precedes the first write.
 
     Mirrors go to ``<output_root>/<knowledge_dir>/code-mirror/``. Pruning runs only
     after every write succeeds; ``force_lock`` never steals a live lock.
+
+    A source that fails to parse is recorded in ``skipped`` with reason
+    ``parse_error``; its existing mirror is kept (and never pruned) and the
+    remaining sources are exported. With ``strict_parse`` a parse failure is an
+    error instead, and nothing is written.
     """
 
     root = repo_root.resolve()
@@ -109,6 +115,7 @@ def export_akms(
             git_base=git_base,
             git_head=git_head,
             knowledge_dir=knowledge_dir,
+            strict_parse=strict_parse,
         )
     finally:
         if lock is not None:
@@ -127,6 +134,7 @@ def _export_akms_locked(
     git_base: str | None,
     git_head: str | None,
     knowledge_dir: str,
+    strict_parse: bool = False,
 ) -> ExportResult:
     result = ExportResult(phase=phase, generated_at=timestamp)
     selection_meta: dict[str, object]
@@ -243,6 +251,11 @@ def _export_akms_locked(
     for source in supported:
         parsed = extraction.parsed_modules.get(source.path)
         if parsed is None:
+            if not strict_parse:
+                _skip_unparsable(
+                    result, source, expected_paths, knowledge_dir=knowledge_dir
+                )
+                continue
             result.errors.append(
                 ErrorRecord(
                     source.path,
@@ -256,6 +269,13 @@ def _export_akms_locked(
         # Project backends may return placeholder file metadata; the scanner record is canonical.
         parsed.source_file = source
         if parsed.errors:
+            if not strict_parse and all(
+                error.stage == "parse" for error in parsed.errors
+            ):
+                _skip_unparsable(
+                    result, source, expected_paths, knowledge_dir=knowledge_dir
+                )
+                continue
             for error in parsed.errors:
                 location = f" at line {error.line}" if error.line is not None else ""
                 result.errors.append(
@@ -340,6 +360,28 @@ def _export_akms_locked(
     if prune and not result.errors:
         _prune_stale_mirrors(output, expected_paths, result, knowledge_dir)
     return result
+
+
+def _skip_unparsable(
+    result: ExportResult,
+    source: SourceFile,
+    expected_paths: set[str],
+    *,
+    knowledge_dir: str,
+) -> None:
+    """Record a source that did not parse; keep its existing mirror and exempt it from pruning."""
+
+    result.skipped.append(
+        SkippedRecord(
+            source_path=source.path,
+            language=source.language,
+            source_hash=source.content_hash,
+            reason="parse_error",
+        )
+    )
+    expected_paths.add(
+        mirror_document_path(source.path, source.language, knowledge_dir)
+    )
 
 
 def _resolve_selection(
