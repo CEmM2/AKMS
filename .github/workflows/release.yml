@@ -59,6 +59,7 @@ jobs:
           uv build --package akms-learn --out-dir dist/packages
           uv build --package akms-nodes-gen --out-dir dist/packages
           uv build --package akms-failure-memory --out-dir dist/packages
+          uv build --package akms-records --out-dir dist/packages
           uv build --package compmech-reference-pack --out-dir dist/packages
           uv run --with twine twine check dist/packages/*
           sha256sum dist/packages/* > dist/SHA256SUMS
@@ -87,9 +88,11 @@ jobs:
             dist/packages/akms_learn-*.whl \
             dist/packages/akms_nodes_gen-*.whl \
             dist/packages/akms_failure_memory-*.whl \
+            dist/packages/akms_records-*.whl \
             pytest
           .venv-release/bin/python -c \
             "from akms.orchestrator import run_pipeline; print('embedded runtime import: OK')"
+          .venv-release/bin/akms-records --help
           .venv-release/bin/python -m pytest tests/public_smoke/runtime -q
 
       - name: Hand the verified distributions to the publish jobs
@@ -132,6 +135,10 @@ jobs:
             prefix: "akms_nodes_gen-"
           - package: akms-failure-memory
             prefix: "akms_failure_memory-"
+          # Needs its own trusted publisher (environment pypi-akms-records)
+          # registered on PyPI before the first release that includes it.
+          - package: akms-records
+            prefix: "akms_records-"
           - package: compmech-reference-pack
             prefix: "compmech_reference_pack-"
     steps:
