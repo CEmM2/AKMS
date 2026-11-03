@@ -141,8 +141,8 @@ class TestCLIProviderCommands:
         rc = main(["mirror-status", "--repo", str(repo), "--json"])
         assert rc == 0
         out = json.loads(capsys.readouterr().out)
-        assert out["provider"] == "legacy"
-        assert "legacy" in out["known_providers"]
+        assert out["provider"] == "builtin"
+        assert {"builtin", "legacy", "repo2md"} <= set(out["known_providers"])
 
     def test_generate_mirror_cli(self, repo: Path, capsys):
         rc = main(
@@ -159,7 +159,7 @@ class TestCLIProviderCommands:
         )
         assert rc == 0
         out = json.loads(capsys.readouterr().out)
-        assert out["provider"] == "legacy"
+        assert out["provider"] == "builtin"
         assert out["success"] is True
 
     def test_parser_registers_commands(self):

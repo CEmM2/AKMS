@@ -41,8 +41,9 @@ akms mirror-status --repo . --json
 akms generate-mirror --repo . --phase 2 --parent-branch main --json
 ```
 
-Select `legacy` for Python-only in-process projection or configure `repo2md` for
-the pinned external provider contract.
+Select `legacy` for Python-only in-process projection, `builtin` for the
+`repo-wiki` exporter shipped in akms (Python, C++ and, with `akms[multilang]`,
+Rust and Julia), or `repo2md` for a separately installed `repo-wiki`.
 
 ## 4. Explicit learning from task outcomes
 

@@ -58,7 +58,7 @@ flowchart LR
     Sources["Papers, docs, human notes,<br/>agent observations"] --> Gen["Node generation<br/>or project recording"]
     Gen --> Nodes["Validated Markdown nodes<br/>and project-owned registries"]
     Nodes --> Core["AKMS core<br/>graph + task context"]
-    Mirrors["Source mirrors<br/>legacy or repo2md"] --> Core
+    Mirrors["Source mirrors<br/>legacy, builtin or repo2md"] --> Core
     Routes["Path/symbol route indexes"] --> Core
     Core --> Loadout["Loadout + resolution manifest"]
     Core --> Learn["akms-learn"]

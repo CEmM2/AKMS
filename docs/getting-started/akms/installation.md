@@ -149,10 +149,11 @@ None of these are installed by AKMS, and none are required.
 
 - **`qmd`** — an external search binary used to rank node and mirror content.
   The wrappers detect it and fall back to `grep` when it is absent.
-- **`repo-wiki`** — required only by the `repo2md` mirror provider. Code mirrors
-  default to the `legacy` provider, an in-process Python AST projection that
-  needs nothing external, so this matters only if you explicitly configure
-  `mirror.provider: repo2md`. See
+- **A separate `repo-wiki`** — required only by the `repo2md` mirror provider.
+  `akms` ships its own `repo-wiki` command, which the default `builtin`
+  provider runs, so this matters only if you explicitly configure
+  `mirror.provider: repo2md`. Rust, C++ (tree-sitter) and Julia sources need
+  `akms[multilang]`. See
   [Code-mirror providers](../../reference/akms/user-guide/mirror_providers.md).
 - **`nlm`** — an external NotebookLM CLI used by selected node-generation and
   learning-provider workflows.

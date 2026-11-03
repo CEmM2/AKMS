@@ -26,7 +26,7 @@ test stops complaining.
 
 ## Forbidden dependencies
 
-- Importing `repo2md` as a Python package
+- Importing a standalone `repo2md` package (mirror exporters run as subprocesses)
 - Importing private orchestrator handlers or context builders
 - Depending on private MCP closures
 - Treating private provider validators as stable API

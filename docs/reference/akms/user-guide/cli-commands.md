@@ -128,7 +128,7 @@ akms generate-mirror \
   [--phase 1] \
   [--parent-branch main] \
   [--path <path> ...] \
-  [--provider legacy|repo2md] \
+  [--provider legacy|builtin|repo2md] \
   [--json]
 ```
 

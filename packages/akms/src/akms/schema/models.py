@@ -641,14 +641,15 @@ class ModelRoutingConfig(BaseModel):
 class MirrorConfig(BaseModel):
     """Optional code-mirror provider configuration.
 
-    Additive on :class:`PropagationConfig`. Defaults preserve the legacy
-    in-process Python AST generator. External providers (repo2md) are
-    selected by name; fallback to legacy is never silent.
+    Additive on :class:`PropagationConfig`. The default provider is
+    ``builtin``, the ``repo-wiki`` exporter shipped in akms. ``legacy`` (the
+    in-process Python AST generator) and ``repo2md`` (an external
+    ``repo-wiki``) are selected by name; fallback to legacy is never silent.
     """
 
-    # Provider registry name: "legacy" (default) or "repo2md".
-    provider: str = "legacy"
-    # Argv prefix for external providers (never shell-interpolated).
+    # Provider registry name: "builtin" (default), "legacy" or "repo2md".
+    provider: str = "builtin"
+    # Argv prefix for the external repo2md provider (never shell-interpolated).
     command: list[str] = Field(default_factory=lambda: ["repo-wiki"])
     timeout_seconds: float = 120.0
     # When True, a failed non-legacy provider falls back to legacy and records

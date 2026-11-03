@@ -67,7 +67,8 @@ required, coactivated, and advisory sections separately.
 ## Mirror provider
 
 A pluggable source projection boundary that writes validated code-mirror nodes.
-The built-in providers are `legacy` (Python AST) and `repo2md` (external CLI).
+The providers are `legacy` (in-process Python AST), `builtin` (the `repo-wiki`
+exporter shipped in akms) and `repo2md` (an external `repo-wiki`).
 Provider choice must not change task-route semantics after equivalent validated
 mirrors are on disk.
 
