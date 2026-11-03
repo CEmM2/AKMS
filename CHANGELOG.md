@@ -89,6 +89,32 @@ development is intentionally not replayed.
   no longer exists. The check reads the mirror files and git history, so it
   needs no change to the frozen mirror schema, and it reports nothing
   outside a git repository. Refreshing the mirror clears the entry.
+- `akms-failure-memory` can index lessons as cards. With
+  `[compatibility].lesson_index_version = "failure-lesson-index/v1"`,
+  `compile` writes `lesson_index.json` and `lesson_index.md` beside the route
+  index: lessons grouped by area, package and module, each as a card with
+  its ID, title, trigger, mechanism, prevention, reference IDs and reviewed
+  categories. The index has no timestamps and is byte-identical across
+  rebuilds. Generated node titles then come from the record (the first
+  clause of `root_cause`, else `symptom`) instead of the line hint; node IDs
+  and routes are unchanged. `failure-memory init` writes the key. A
+  configuration without it keeps line-hint titles and writes no index, so
+  existing projects, their config fingerprints and the frozen
+  consumer-contract packs are unchanged.
+- `failure-memory index` browses the index read-only: with no selector it
+  lists the groups, `--area`, `--package`, `--module` and `--grep` return
+  cards, and `--expand <ID>` returns the full registry record. It rebuilds
+  the index from the registry, so it is current before the next `compile`,
+  and reports whether the published index is `current`, `stale`, `absent`
+  or `disabled`.
+- A versioned annotations sidecar (`failure-lesson-annotations/v1`) holds
+  reviewed failure-mechanism categories, contradictions, exceptions,
+  supersession and applicability without changing the lesson schema:
+  `lessons.annotations.json` next to a schema 1 file, `_annotations.json`
+  inside a schema 2 directory. It is validated on every compile; an unknown
+  lesson ID fails with `annotation_id`. It does not change generated nodes,
+  routes or the registry digest. `registry migrate --to 2` copies it into the
+  new directory.
 
 ### Changed
 - The default code-mirror provider (`mirror.provider`) is now `builtin`
