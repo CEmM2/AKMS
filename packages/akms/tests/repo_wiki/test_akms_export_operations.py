@@ -793,3 +793,152 @@ def test_explicit_path_that_never_existed_is_still_an_error(tmp_path: Path):
         ("pkg/typo.py", "selection")
     ]
     assert result.removed == []
+
+
+def _repo_with_unparsable_source(tmp_path: Path) -> Path:
+    """pkg/a.py and pkg/b.py are mirrored; pkg/b.py then stops parsing."""
+
+    repo, _ = _git_repo_with_mirrors(tmp_path)
+    _write(repo, "pkg/b.py", "def broken(:\n")
+    _write(repo, "pkg/c.py", "C = 1\n")
+    return repo
+
+
+@pytest.mark.integration
+def test_unparsable_source_is_skipped_and_the_rest_exported(tmp_path: Path):
+    repo = _repo_with_unparsable_source(tmp_path)
+
+    result = export_akms(
+        repo_root=repo, output_root=repo, phase=1, generated_at=FIXED_TS
+    )
+
+    assert result.errors == []
+    assert [item.source_path for item in result.written] == ["pkg/a.py", "pkg/c.py"]
+    assert [(s.source_path, s.reason) for s in result.skipped] == [
+        ("pkg/b.py", "parse_error")
+    ]
+    assert _mirror(repo, "c").is_file()
+    # The record shape is part of the frozen export contract.
+    assert set(result.skipped[0].to_dict()) == {
+        "source_path",
+        "language",
+        "source_hash",
+        "reason",
+    }
+
+
+@pytest.mark.integration
+def test_unparsable_source_keeps_its_existing_mirror(tmp_path: Path):
+    repo = _repo_with_unparsable_source(tmp_path)
+    before = _mirror(repo, "b").read_bytes()
+
+    result = export_akms(
+        repo_root=repo,
+        output_root=repo,
+        phase=1,
+        generated_at=FIXED_TS,
+        source_paths=["pkg/b.py"],
+    )
+
+    assert result.errors == []
+    assert result.written == []
+    assert result.removed == []
+    assert _mirror(repo, "b").read_bytes() == before
+
+
+@pytest.mark.integration
+def test_prune_does_not_remove_the_mirror_of_an_unparsable_source(tmp_path: Path):
+    repo = _repo_with_unparsable_source(tmp_path)
+    stale = _mirror(repo, "gone")
+    stale.write_text(_mirror(repo, "a").read_text(encoding="utf-8"), encoding="utf-8")
+    (repo / "pkg" / "a.py").unlink()
+
+    result = export_akms(
+        repo_root=repo, output_root=repo, phase=1, generated_at=FIXED_TS, prune=True
+    )
+
+    assert result.errors == []
+    # a.py's mirror is stale and removed; b.py (unparsable) keeps its mirror.
+    assert [item.source_path for item in result.removed] == ["pkg/a.py"]
+    assert _mirror(repo, "b").is_file()
+    assert _mirror(repo, "c").is_file()
+
+
+@pytest.mark.integration
+def test_strict_parse_restores_all_or_nothing(tmp_path: Path):
+    repo = _repo_with_unparsable_source(tmp_path)
+    before = _mirror(repo, "b").read_bytes()
+
+    result = export_akms(
+        repo_root=repo,
+        output_root=repo,
+        phase=1,
+        generated_at=FIXED_TS,
+        prune=True,
+        strict_parse=True,
+    )
+
+    assert [(e.source_path, e.stage) for e in result.errors] == [("pkg/b.py", "parse")]
+    assert result.written == []
+    assert result.removed == []
+    assert result.skipped == []
+    assert not _mirror(repo, "c").exists()
+    assert _mirror(repo, "b").read_bytes() == before
+
+
+@pytest.mark.integration
+def test_missing_extractor_output_is_skipped_unless_strict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from akms.repo_wiki import export as export_package
+    from akms.repo_wiki.extract.registry import ExtractionResult
+
+    repo = _repo_with_unparsable_source(tmp_path)
+    (repo / "pkg" / "b.py").write_text("B = 2\n", encoding="utf-8")
+    real = export_package.extract_files
+
+    def drop_b(sources, config):
+        extraction = real(sources, config)
+        modules = {
+            path: module
+            for path, module in extraction.parsed_modules.items()
+            if path != "pkg/b.py"
+        }
+        return ExtractionResult(
+            parsed_modules=modules,
+            notes=extraction.notes,
+            handled_languages=extraction.handled_languages,
+        )
+
+    monkeypatch.setattr(export_package, "extract_files", drop_b)
+
+    lenient = export_akms(
+        repo_root=repo, output_root=repo, phase=1, generated_at=FIXED_TS
+    )
+    assert lenient.errors == []
+    assert [(s.source_path, s.reason) for s in lenient.skipped] == [
+        ("pkg/b.py", "parse_error")
+    ]
+
+    strict = export_akms(
+        repo_root=repo,
+        output_root=repo,
+        phase=1,
+        generated_at=FIXED_TS,
+        strict_parse=True,
+    )
+    assert [(e.source_path, e.stage) for e in strict.errors] == [("pkg/b.py", "parse")]
+    assert strict.written == []
+
+
+@pytest.mark.integration
+def test_decode_error_still_fails_the_export_by_default(tmp_path: Path):
+    repo = _repo_with_unparsable_source(tmp_path)
+    (repo / "pkg" / "d.py").write_bytes(b"VALUE = '\xff'\n")
+
+    result = export_akms(
+        repo_root=repo, output_root=repo, phase=1, generated_at=FIXED_TS
+    )
+
+    assert [(e.source_path, e.stage) for e in result.errors] == [("pkg/d.py", "decode")]
+    assert result.written == []
