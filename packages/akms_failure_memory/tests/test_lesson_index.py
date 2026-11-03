@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from akms.graph.generate_loadout import _extract_summary
 
 from akms_failure_memory.annotations import validate_annotations
 from akms_failure_memory.cli import main
@@ -18,7 +19,11 @@ from akms_failure_memory.compiler import compile_registry, run_compiler
 from akms_failure_memory.config import load_project_config
 from akms_failure_memory.errors import FailureMemoryError
 from akms_failure_memory.index_query import query_lesson_index
-from akms_failure_memory.lesson_index import first_sentence, record_title
+from akms_failure_memory.lesson_index import (
+    first_sentence,
+    record_title,
+    split_first_sentence,
+)
 from akms_failure_memory.project import render_project_config
 from akms_failure_memory.refresh import refresh_project
 from akms_failure_memory.registry_migrate import migrate_registry
@@ -364,6 +369,164 @@ def test_refresh_clean_removes_a_disposable_index(tmp_path: Path) -> None:
         action="clean", config_path=config, repository_root=repo, global_vault=vault
     )
     assert INDEX_JSON in result["removed"] and INDEX_MARKDOWN in result["removed"]
+
+
+# -- summarized lesson body --------------------------------------------------
+
+
+NUMERIX = PACKAGE_ROOT / "tests/fixtures/numerixweave_phase1/source_registry.json"
+
+
+def _realistic_lessons() -> list[dict[str, Any]]:
+    """The pack's lessons, the compatibility fixture's prose, and two lessons
+    whose root cause and prevention run to several sentences."""
+    lessons = _pack_lessons()
+    template = lessons[0]
+    prose = json.loads(NUMERIX.read_text(encoding="utf-8"))["lessons"]
+    extra = [
+        {key: item[key] for key in ("symptom", "root_cause", "fix", "prevention")}
+        for item in prose
+    ] + [
+        {
+            "symptom": "Restarted runs diverged from uninterrupted ones.",
+            "root_cause": "The checkpoint stored the step counter but not the RNG "
+            "state. A resumed run therefore drew a fresh stream. The divergence "
+            "only showed after the first stochastic update.",
+            "fix": "Store and restore the RNG state with the checkpoint.",
+            "prevention": "tests/storage/test_resume.py compares a resumed run "
+            "with an uninterrupted one. It fails on the first differing step.",
+        },
+        {
+            "symptom": "The nightly export truncated large reports.",
+            "root_cause": "The writer flushed on a fixed byte budget; anything "
+            "past it was dropped. Small fixtures never reached the budget.",
+            "fix": "Flush until the payload is exhausted.",
+            "prevention": "tools/report/test_render.py renders a report above the "
+            "budget.",
+        },
+    ]
+    for number, fields in enumerate(extra, start=100):
+        lesson = copy.deepcopy(template)
+        lesson.update(fields, id=f"L{number}")
+        lessons.append(lesson)
+    return lessons
+
+
+def _sentences(text: str) -> list[str]:
+    sentences = []
+    while text.strip():
+        sentence, text = split_first_sentence(text)
+        sentences.append(sentence)
+    return sentences
+
+
+def _gated_and_legacy(tmp_path: Path, lessons: list[dict[str, Any]]):
+    repo, config, _ = _project(tmp_path / "gated", lessons=lessons)
+    legacy_repo, legacy_config, _ = _project(
+        tmp_path / "legacy", gate=False, lessons=lessons
+    )
+    return (
+        compile_registry(load_project_config(config), repo),
+        compile_registry(load_project_config(legacy_config), legacy_repo),
+    )
+
+
+def test_gated_bodies_open_with_the_summary_akms_reads(tmp_path: Path) -> None:
+    lessons = _realistic_lessons()
+    gated, _ = _gated_and_legacy(tmp_path, lessons)
+
+    for lesson, node in zip(lessons, gated.nodes, strict=True):
+        mechanism = first_sentence(lesson["root_cause"])
+        prevention = first_sentence(lesson["prevention"])
+        assert _extract_summary(node.content) == (
+            f"- Mechanism: {mechanism} - Prevention: {prevention}"
+        )
+        heading = f"# {node.frontmatter['title']}\n\n## Summary\n\n"
+        assert heading in node.content
+        assert "## Identity" not in node.content
+        assert "- Registry ID:" not in node.content
+
+
+def test_no_root_cause_or_prevention_sentence_repeats(tmp_path: Path) -> None:
+    lessons = _realistic_lessons()
+    gated, _ = _gated_and_legacy(tmp_path, lessons)
+
+    for lesson, node in zip(lessons, gated.nodes, strict=True):
+        # The heading is the title, a clause of the first sentence by design.
+        body = node.content.replace(f"# {node.frontmatter['title']}\n", "", 1)
+        for field in ("root_cause", "prevention"):
+            for sentence in _sentences(lesson[field]):
+                assert body.count(sentence) == 1, (lesson["id"], sentence)
+
+
+def test_summarized_bodies_are_no_longer_than_before(tmp_path: Path) -> None:
+    lessons = _realistic_lessons()
+    gated, legacy = _gated_and_legacy(tmp_path, lessons)
+
+    # Before the summary, a gated body was the ungated body with the record
+    # title as its heading.
+    before = sum(
+        len(
+            old.content.replace(
+                f"# {old.frontmatter['title']}\n",
+                f"# {new.frontmatter['title']}\n",
+                1,
+            )
+        )
+        for old, new in zip(legacy.nodes, gated.nodes, strict=True)
+    )
+    after = sum(len(node.content) for node in gated.nodes)
+    assert after <= before
+
+
+def test_ungated_bodies_keep_identity_and_full_sections(tmp_path: Path) -> None:
+    lessons = _realistic_lessons()
+    _, legacy = _gated_and_legacy(tmp_path, lessons)
+
+    for lesson, node in zip(lessons, legacy.nodes, strict=True):
+        assert "## Summary" not in node.content
+        assert f"## Identity\n\n- Registry ID: {lesson['id']}\n" in node.content
+        assert f"### Root cause\n\n{lesson['root_cause']}\n" in node.content
+        assert f"### Prevention\n\n{lesson['prevention']}\n" in node.content
+
+
+def test_summary_keeps_only_what_follows_the_first_sentence(tmp_path: Path) -> None:
+    lessons = _realistic_lessons()
+    gated, _ = _gated_and_legacy(tmp_path, lessons)
+    nodes = {node.lesson_id: node.content for node in gated.nodes}
+
+    assert "### Root cause\n\nA resumed run therefore drew" in nodes["L102"]
+    assert (
+        "### Prevention\n\nIt fails on the first differing step.\n" in (nodes["L102"])
+    )
+    # Nothing follows a one-sentence field, so its subsection is left out.
+    assert "### Root cause" not in nodes["L001"]
+    assert "### Prevention" not in nodes["L001"]
+    assert "### Symptom\n\n" in nodes["L001"] and "### Fix\n\n" in nodes["L001"]
+
+
+@pytest.mark.parametrize(
+    ("fields", "summary"),
+    [
+        ({"root_cause": "", "prevention": "Pin it. Twice."}, "- Prevention: Pin it."),
+        (
+            {"root_cause": "", "prevention": "", "symptom": "It broke. Badly."},
+            "- Symptom: It broke.",
+        ),
+        (
+            {"root_cause": "", "prevention": "", "symptom": ""},
+            "- Lesson: L001: exact route conformance",
+        ),
+    ],
+)
+def test_summary_is_never_empty(
+    tmp_path: Path, fields: dict[str, str], summary: str
+) -> None:
+    lessons = _pack_lessons()[:1]
+    lessons[0].update(fields)
+    gated, _ = _gated_and_legacy(tmp_path, lessons)
+
+    assert _extract_summary(gated.nodes[0].content) == summary
 
 
 # -- annotations sidecar -----------------------------------------------------
