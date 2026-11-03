@@ -83,6 +83,12 @@ def cmd_generate_mirror(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True), file=sys.stderr)
         return 1
 
+    metadata = result.get("provider_metadata") or {}
+    if metadata.get("selection") == "skipped":
+        print(
+            f"warning: no files selected: {metadata.get('reason', 'unknown reason')}",
+            file=sys.stderr,
+        )
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True, default=str))
     else:

@@ -866,6 +866,12 @@ async def handle_execute(
                 llm_fn=None,
             )
             phase_drift_warnings = list(mirror_result.get("drift_warnings", []) or [])
+            selection = mirror_result.get("provider_metadata") or {}
+            if selection.get("selection") == "skipped":
+                warnings.append(
+                    "mirror refresh selected no files: "
+                    f"{selection.get('reason', 'unknown reason')}"
+                )
             if mirror_result.get("fallback_used"):
                 warnings.append(
                     f"mirror provider fell back to legacy from "

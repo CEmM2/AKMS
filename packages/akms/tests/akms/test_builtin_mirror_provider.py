@@ -250,3 +250,32 @@ class TestDefault:
             "pkg/other.py",
             "pkg/value.py",
         ]
+
+
+@pytest.mark.integration
+class TestSkippedSelection:
+    def test_require_success_turns_a_skipped_selection_into_a_failure(
+        self, tmp_path: Path
+    ):
+        repo = _repo(tmp_path)
+
+        with pytest.raises(MirrorProviderError) as error:
+            refresh_mirror(
+                repo,
+                1,
+                config=MirrorConfig(provider="builtin", require_success=True),
+            )
+
+        assert error.value.code == "selection_unavailable"
+        assert error.value.provider == "builtin"
+
+    def test_generate_mirror_cli_warns_on_stderr(self, tmp_path: Path, capsys):
+        from akms.cli.commands import main
+
+        repo = _repo(tmp_path)
+
+        assert main(["generate-mirror", "--repo", str(repo), "--json"]) == 0
+
+        captured = capsys.readouterr()
+        assert captured.err.startswith("warning: no files selected: ")
+        assert '"selection": "skipped"' in captured.out
