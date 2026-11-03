@@ -62,6 +62,17 @@ development is intentionally not replayed.
   directory under `--output` that receives `code-mirror/`. It defaults to
   `.knowledge`; pass `knowledge` for the older layout. The committed export
   fixture pack keeps its `knowledge/` paths and its digest.
+- `akms migrate-layout` moves an existing `<repo>/knowledge/` to
+  `<repo>/.knowledge/`: with `git mv` when tracked, re-anchoring
+  `.gitignore` and `.gitattributes` lines on it, dropping the compiled graph
+  and qmd cache, and listing other tracked lines that still mention
+  `knowledge/`. `--check` changes nothing; a failure part-way restores the
+  directory and the edited files. `failure-memory migrate-layout` does the
+  same for the directory under `akms_repo_root` and also moves the
+  configured paths, `generated_warning` and a configuration stored inside
+  the directory, then recompiles lessons when given `--global-vault`. The
+  configuration fingerprint changes once. `akms status` warns when
+  `.knowledge/` hides a non-empty `knowledge/`.
 - `akms-failure-memory` chooses its mirror exporter with
   `[toolchain].mirror_provider`. `"builtin"` uses the exporter shipped in
   akms and needs none of the `repo2md_*` keys, and preflight no longer looks
@@ -83,9 +94,13 @@ development is intentionally not replayed.
   exports sources changed since the parent branch (`git diff <parent>`, so
   uncommitted changes to tracked files count). In a directory that is not a
   git repository, or that lacks the parent branch, it selects nothing and
-  logs a warning, as `legacy` did. An explicit `--path` that is not an
-  eligible source is an error, where `legacy` skipped it. Set
-  `mirror.provider: legacy` to keep the old behaviour.
+  logs a warning, as `legacy` did; `generate-mirror` prints the warning on
+  stderr, the staged runner records it, and with `mirror.require_success`
+  it is a `selection_unavailable` failure. New files git does not ignore
+  are selected too, and mirrors of sources deleted or renamed away are
+  removed. An explicit `--path` naming a deleted source removes its mirror;
+  one naming no source and no mirror is an error, where `legacy` skipped
+  it. Set `mirror.provider: legacy` to keep the old behaviour.
 - `akms-failure-memory` provider fingerprints no longer include the installed
   `akms` release version. The packages release in lockstep, so every patch
   release moved every fingerprint, marking existing resolutions stale and
