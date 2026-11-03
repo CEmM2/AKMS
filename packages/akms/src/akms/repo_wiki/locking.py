@@ -396,12 +396,14 @@ class RepoLocalLock:
             + "\n"
         ).encode("utf-8")
 
+        # Exclusive create with the umask's ordinary file mode: other accounts
+        # that share the checkout must be able to read the owner to judge liveness.
         try:
-            fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            handle = open(self.path, "xb")
         except FileExistsError:
             return self._acquire_existing(ownership, payload)
         try:
-            with os.fdopen(fd, "wb") as handle:
+            with handle:
                 handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())
@@ -482,7 +484,7 @@ class RepoLocalLock:
         except OSError as exc:
             raise LockError(f"failed to remove stale lock {self.path}: {exc}") from exc
         try:
-            fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            handle = open(self.path, "xb")
         except FileExistsError as exc:
             competitor = _parse_ownership(self.path)
             detail = (
@@ -492,7 +494,7 @@ class RepoLocalLock:
                 f"lost race reclaiming export lock ({detail}); original reason: {diagnostic}"
             ) from exc
         try:
-            with os.fdopen(fd, "wb") as handle:
+            with handle:
                 handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())
