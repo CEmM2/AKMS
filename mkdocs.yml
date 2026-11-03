@@ -166,6 +166,13 @@ nav:
         - CLI Reference: reference/akms/user-guide/cli-commands.md
         - Optional Pipeline Runner: reference/akms/user-guide/orchestrator.md
         - Failure-Memory Public API Pin: reference/akms/user-guide/failure_memory_public_api.md
+      - Repo Wiki:
+        - Overview: reference/akms/repo-wiki/index.md
+        - Quickstart: reference/akms/repo-wiki/quickstart.md
+        - Configuration: reference/akms/repo-wiki/configuration.md
+        - Generated Files: reference/akms/repo-wiki/generated-files.md
+        - Privacy and Security: reference/akms/repo-wiki/privacy-security.md
+        - AKMS Export: reference/akms/repo-wiki/akms-export.md
       - API Reference:
         - Schema:
           - Models: reference/akms/api/schema/models.md
