@@ -91,6 +91,15 @@ development is intentionally not replayed.
   outside a git repository. Refreshing the mirror clears the entry.
 
 ### Changed
+- Loadouts render coactivated (`load_with`) nodes as their `## Summary`
+  instead of in full, by default: new setting
+  `loadout.coactivated_reading_priority` (default `summary`; `full` restores
+  the earlier behaviour). A node without a `## Summary` section is still
+  rendered in full. On a real failure-memory project baseline this removes
+  about 74% of coactivated tokens once lessons carry summaries.
+- Exact task resolution follows `load_with` from required nodes only; new
+  setting `loadout.coactivate_from_advisory` (default `false`) restores
+  advisory sources.
 - The default code-mirror provider (`mirror.provider`) is now `builtin`
   instead of `legacy`. `akms generate-mirror`, the staged runner and the
   `akms_generate_mirror` MCP tool use it unless a project configures

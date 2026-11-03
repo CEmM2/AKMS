@@ -42,11 +42,15 @@ symbols or non-documentation paths provide code evidence.
 
 1. **Required:** exact mirror and route-bound nodes; unavailable required nodes
    fail the operation.
-2. **Coactivated:** nodes pulled by `load_with` from exact selections.
+2. **Coactivated:** nodes pulled by `load_with` from required selections.
+   `loadout.coactivate_from_advisory: true` also follows `load_with` from
+   advisory selections, the earlier behaviour.
 3. **Advisory:** role-aware tag/query matches.
 
 Required and coactivated content is rendered before advisory content and is not
-hidden by the ordinary advisory token cap.
+hidden by the ordinary advisory token cap. Coactivated nodes render as their
+`## Summary` by default (`loadout.coactivated_reading_priority`); see
+[Generate loadouts](../reference/akms/user-guide/generating-loadouts.md).
 
 ## Manifest boundary
 

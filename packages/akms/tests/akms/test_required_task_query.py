@@ -157,6 +157,42 @@ def test_load_with_nodes_classified_coactivated_not_required():
 
 
 @pytest.mark.unit
+def test_load_with_from_advisory_nodes_not_followed_by_default():
+    graph = nx.DiGraph()
+    _add_node(graph, "advisory", tags=("topic",), load_with=("companion",))
+    _add_node(graph, "companion")
+
+    result = query_task_knowledge(
+        graph,
+        _resolved(advisory_tags=("topic",)),
+        AgentRole.IMPLEMENTER,
+    )
+
+    assert result.coactivated_node_ids == ()
+    assert result.advisory_node_ids == ("advisory",)
+
+
+@pytest.mark.unit
+def test_coactivate_from_advisory_follows_advisory_load_with():
+    graph = nx.DiGraph()
+    _add_node(graph, "advisory", tags=("topic",), load_with=("companion",))
+    _add_node(graph, "companion")
+    config = PropagationConfig()
+    config.loadout.coactivate_from_advisory = True
+
+    result = query_task_knowledge(
+        graph,
+        _resolved(advisory_tags=("topic",)),
+        AgentRole.IMPLEMENTER,
+        config=config,
+    )
+
+    assert result.coactivated_node_ids == ("companion",)
+    assert result.advisory_node_ids == ("advisory",)
+    assert result.selections[0].reasons == ("load_with from advisory node 'advisory'",)
+
+
+@pytest.mark.unit
 def test_missing_or_unloadable_required_nodes_fail_closed():
     graph = nx.DiGraph()
     _add_node(graph, "draft", status=NodeStatus.DRAFT)

@@ -12,6 +12,8 @@ Per-node reading_priority overrides mode selection:
   - summary: include summary only even in full mode (full when the node
     has no ``## Summary`` section)
   - pitfalls-only: include only pitfall warnings
+Coactivated (load_with) nodes use ``loadout.coactivated_reading_priority``
+(default summary) instead of their own reading_priority.
 
 Loadout structure (fixed):
   1. Header (YAML frontmatter)
@@ -692,9 +694,17 @@ def generate_loadout(
         reading_priority = node_data.get("reading_priority")
 
         # Determine effective read mode for this node
+        if isinstance(reading_priority, ReadingPriority):
+            reading_priority = reading_priority.value
+        coactivated = (
+            selection_class == _CLASS_COACTIVATED
+            if selection_class is not None
+            else bool(node_data.get("_coactivated"))
+        )
+        if coactivated:
+            # Coactivated nodes take the loadout's coactivated priority.
+            reading_priority = loadout_config.coactivated_reading_priority.value
         if reading_priority:
-            if isinstance(reading_priority, ReadingPriority):
-                reading_priority = reading_priority.value
             entry["reading_priority"] = str(reading_priority)
         else:
             entry["reading_priority"] = mode_str
