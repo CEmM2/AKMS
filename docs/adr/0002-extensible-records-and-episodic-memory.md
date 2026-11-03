@@ -108,11 +108,19 @@ or state: memory preserves sourced observations and decision history, but does
 not supersede ADRs, task trackers, or other source systems.
 
 **Storage.** Canonical records are plain files with one directory per record
-and one immutable event file per revision, written atomically under a lock.
-Parallel work on separate records therefore merges in git without textual
-conflicts, and a conflict appears only when the same record is changed on two
-branches. A derived SQLite database (FTS5 plus indexed metadata) is the query
-layer. It is never committed and can always be rebuilt from the event files.
+and one immutable event file per revision, chained by the hash of the previous
+revision. A revision is written to a temporary file and then linked into
+place, and the link fails if that revision already exists. That exclusive step
+is the concurrency check, so writers need no shared lock, and readers never see
+a partial event. Record IDs carry enough randomness (eight base32 characters
+after the date) that separate clones do not collide, and a retried create with
+the same event ID is a no-op. Event files are marked binary-safe for git (no
+line-ending conversion), and the erasure log merges by union. Parallel work on
+separate records therefore merges in git without textual conflicts, and a
+conflict appears only when the same record is changed on two branches. A derived SQLite database (FTS5 plus indexed metadata) is the query
+layer. It is never committed, can always be rebuilt from the event files, and
+belongs to one working tree: after a checkout or merge it is reconciled with
+the files on disk.
 A portable JSONL export and import is mandatory. Embeddings are opt-in, and
 only after evidence that structured and lexical recall are inadequate. A cloud
 sync folder or shared document is not a transactional store.
@@ -141,7 +149,7 @@ Illustrative contract, **not an implemented API**:
 
 ```json
 {
-  "record_id": "rec-20261102-k3f9",
+  "record_id": "rec-20261102-k3f9m2xa",
   "revision": 1,
   "schema_ref": "research-decision/v1",
   "schema_sha256": "<digest recorded at registration>",
@@ -164,11 +172,14 @@ Illustrative contract, **not an implemented API**:
 ```
 
 `schema_ref` names a locally registered JSON Schema (Draft 2020-12). The
-registry stores the schema's content digest at registration, every record
-carries that digest, and a schema whose bytes no longer match is refused.
+registry stores the digest of the schema's canonical JSON at registration,
+every record carries that digest, and a schema whose content no longer matches
+is refused (formatting-only edits keep the digest).
 Schemas support required fields, types, enums, nested objects, and references
-to local `$defs`. Remote `$ref` resolution and executable validation hooks are
-refused. A change requires a new schema version and an explicit, testable
+to local `$defs`. Remote `$ref` resolution (including `file:` references) and
+executable validation hooks are refused, checked by a static scan at
+registration as well as at validation time. The `format` keyword is an
+annotation only, so a record validates the same way on every machine. A change requires a new schema version and an explicit, testable
 migration; historical records keep their original schema and meaning.
 
 A schema registration also declares, **declaratively**, extraction rules for
@@ -208,7 +219,10 @@ examples, not privileged types.
   from the canonical files, the index, summaries, and exports under the
   package's control, and reports what it cannot reach. For project-scope records
   already committed and pushed, erasure from git history needs a history
-  rewrite outside AKMS; the erasure report says so.
+  rewrite outside AKMS. Other clones and unmerged branches may still hold the
+  record, and a later merge can bring back an amendment made before the
+  erasure; the store's consistency check re-applies logged erasures. The
+  erasure report names what it could not reach.
 
 ### Promotion
 
@@ -250,7 +264,7 @@ akms-records add --schema research-decision/v1 --scope project:example --file de
 akms-records recall --scope project:example --query "surrogate" --limit 20
 akms-records wake --agent scout --task "review model directions" --budget-tokens 1200
 akms-records consolidate --scope project:example
-akms-records promote rec-20261102-k3f9 --review approved
+akms-records promote rec-20261102-k3f9m2xa --review approved
 ```
 
 ## Relationship to `akms-failure-memory`
