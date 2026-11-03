@@ -30,6 +30,7 @@ import yaml
 
 from akms.layout import ignored_legacy_dir, local_knowledge_dir
 from akms.graph.build_graph import build_graph, load_graph, resolve_global_vault
+from akms.graph.mirror_freshness import stale_mirrors
 from akms.schema.models import NodeStatus, PropagationConfig
 from akms.schema.validators import parse_propagation_config
 from akms.telemetry import traced
@@ -511,6 +512,22 @@ def format_report(report: dict[str, Any]) -> str:
                 lines.append(f"  - error: {err}")
         lines.append("")
 
+    # Code mirrors older than their source
+    stale_mirror_records = report.get("stale_mirrors", [])
+    if stale_mirror_records:
+        lines.append(f"## Stale Code Mirrors: {len(stale_mirror_records)}")
+        for m in stale_mirror_records:
+            reason = {
+                "committed_after": f"committed {m.get('changed_at')}",
+                "modified_after": f"edited {m.get('changed_at')} (uncommitted)",
+                "source_missing": "source file no longer exists",
+            }.get(m.get("reason", ""), m.get("reason", ""))
+            lines.append(
+                f"  - {m['source_file']}: mirror {m['generated_at']}, {reason}"
+            )
+        lines.append("  Refresh with: akms generate-mirror (or failure-memory refresh)")
+        lines.append("")
+
     # Knowledge directory layout problems
     layout = report.get("layout_warnings", [])
     if layout:
@@ -538,6 +555,7 @@ def format_report(report: dict[str, Any]) -> str:
         + len(blocked_tasks)
         + len(drift)
         + len(layout)
+        + len(stale_mirror_records)
     )
     lines.append(f"## Summary: {total_issues} total issues")
     lines.append(f"  Nodes in graph: {report.get('total_nodes', 0)}")
@@ -659,6 +677,7 @@ def graph_status(
         # Configured / last-refresh mirror provider identity (non-secret).
         "mirror_provider": mirror_provider,
         "layout_warnings": _check_layout(repo_root),
+        "stale_mirrors": stale_mirrors(repo_root),
     }
 
     logger.info(
