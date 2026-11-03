@@ -8,7 +8,7 @@ import os
 import re
 import tempfile
 import unicodedata
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
@@ -16,9 +16,22 @@ from typing import Any
 import yaml
 from akms.task_context.routes import parse_route_index
 
+from akms_failure_memory.annotations import (
+    DIRECTORY_ANNOTATIONS_NAME,
+    LessonAnnotations,
+    load_annotations,
+)
 from akms_failure_memory.config import ProjectConfig, load_project_config
 from akms_failure_memory.errors import FailureMemoryError
 from akms_failure_memory.lesson_ids import lesson_id_sort_key
+from akms_failure_memory.lesson_index import (
+    build_lesson_index,
+    is_generated_index,
+    lesson_index_paths,
+    record_title,
+    render_lesson_index_markdown,
+    serialize_lesson_index,
+)
 from akms_failure_memory.locks import ProjectLock
 
 
@@ -69,6 +82,7 @@ class Compilation:
     canonical_routes: dict[str, Any]
     adapted_routes: dict[str, Any]
     warnings: tuple[dict[str, str], ...]
+    lessons: tuple[dict[str, Any], ...] = field(default=())
 
 
 def _decode_registry(
@@ -165,6 +179,10 @@ def load_directory_registry(
             )
         if name == _V2_META_NAME:
             accepted.append(entry)
+            continue
+        if name == DIRECTORY_ANNOTATIONS_NAME:
+            # The review sidecar is not a lesson and not part of the digest:
+            # annotating a lesson must not move its generated node.
             continue
         if not name.endswith(".json"):
             raise FailureMemoryError(
@@ -360,6 +378,15 @@ def _tag(source: str, prefix: str, config: ProjectConfig) -> str | None:
     return f"{raw[:keep].rstrip('-')}-{digest}"
 
 
+def _title(lesson: dict[str, Any], config: ProjectConfig) -> str:
+    # Without a lesson-index contract the title stays the line hint, which is
+    # what every compiled pack and committed node was built with.
+    if config.lesson_index_version is None:
+        return f"{lesson['id']}: {lesson['location']['line_hint']}"
+    title = record_title(lesson)
+    return f"{lesson['id']}: {title}" if title else lesson["id"]
+
+
 def _frontmatter(lesson: dict[str, Any], config: ProjectConfig) -> dict[str, Any]:
     taxonomy = config.taxonomy
     sources = (
@@ -376,7 +403,7 @@ def _frontmatter(lesson: dict[str, Any], config: ProjectConfig) -> dict[str, Any
     node_id = _node_id(config, lesson["id"])
     return {
         "id": node_id,
-        "title": f"{lesson['id']}: {lesson['location']['line_hint']}",
+        "title": _title(lesson, config),
         "domain": config.domain,
         "subdomain": config.subdomain,
         "tags": sorted(tags, key=lambda value: value.encode("utf-8")),
@@ -408,7 +435,7 @@ def _content(lesson: dict[str, Any], source_sha256: str, config: ProjectConfig) 
         compatibility["generated_warning"],
         f"{compatibility['source_hash_prefix']}{source_sha256}{compatibility['source_hash_suffix']}",
         "",
-        f"# {lesson['id']}: {lesson['location']['line_hint']}",
+        f"# {_title(lesson, config)}",
         "",
         "## Identity",
         "",
@@ -709,6 +736,7 @@ def compilation_from_lessons(
     )
     effective = _config_for_schema(config, version)
     root = Path(repository_root).resolve(strict=True)
+    ordered = tuple(sorted(lessons, key=lambda item: lesson_id_sort_key(item["id"])))
     nodes = tuple(
         CompiledNode(
             lesson_id=lesson["id"],
@@ -716,7 +744,7 @@ def compilation_from_lessons(
             frontmatter=_frontmatter(lesson, effective),
             content=_content(lesson, source_sha256, effective),
         )
-        for lesson in sorted(lessons, key=lambda item: lesson_id_sort_key(item["id"]))
+        for lesson in ordered
     )
     canonical, warnings = _compile_routes(lessons, source_sha256, effective, root)
     if effective.validation["missing_path_policy"] == "error" and warnings:
@@ -732,6 +760,7 @@ def compilation_from_lessons(
         canonical_routes=canonical,
         adapted_routes=adapt_routes(canonical, effective),
         warnings=warnings,
+        lessons=ordered,
     )
 
 
@@ -776,6 +805,24 @@ def compile_registry(config: ProjectConfig, repository_root: str | Path) -> Comp
     registry_path = config.resolve(root, "registry")
     lessons, source_sha256 = _load_registry(config, registry_path)
     return compilation_from_lessons(config, root, lessons, source_sha256)
+
+
+def compile_lesson_index(
+    lessons: tuple[dict[str, Any], ...],
+    config: ProjectConfig,
+    *,
+    source_sha256: str,
+    annotations: LessonAnnotations,
+) -> dict[str, Any]:
+    """Build the lesson index for validated lessons and annotations."""
+    return build_lesson_index(
+        lessons,
+        config,
+        node_ids={lesson["id"]: _node_id(config, lesson["id"]) for lesson in lessons},
+        source_sha256=source_sha256,
+        source_schema_version=int(config.validation["registry_schema_version"]),
+        annotations=annotations,
+    )
 
 
 def _route_signature(routes: dict[str, Any], *, adapted: bool) -> dict[str, Any]:
@@ -1106,6 +1153,13 @@ def run_compiler(
         create_parent_directories=(mode == "write"),
     ):
         compilation = compile_registry(config, repo)
+        # The sidecar is validated in every mode, also without an index, so a
+        # bad annotation fails `validate` rather than a later index read.
+        annotations = load_annotations(
+            config,
+            config.resolve(repo, "registry"),
+            [node.lesson_id for node in compilation.nodes],
+        )
         if mode == "validate":
             return {
                 "status": "valid",
@@ -1135,6 +1189,38 @@ def run_compiler(
             for node in compilation.nodes
         }
         expected[routes] = serialize_routes(compilation.adapted_routes)
+        index_paths = [
+            _target(destination_root, relative)
+            for relative in lesson_index_paths(config)
+        ]
+        stale_index: list[Path] = []
+        if config.lesson_index_version is not None:
+            if routes in index_paths or any(
+                path.is_relative_to(local_nodes) for path in index_paths
+            ):
+                raise FailureMemoryError(
+                    "The lesson index must not replace the route index or live "
+                    "under the local-nodes root",
+                    code="path_escape",
+                )
+            index = compile_lesson_index(
+                compilation.lessons,
+                config,
+                source_sha256=compilation.source_sha256,
+                annotations=annotations,
+            )
+            index_json, index_markdown = index_paths
+            expected[index_json] = serialize_lesson_index(index)
+            expected[index_markdown] = render_lesson_index_markdown(index, config)
+        else:
+            # A project that turned the index off keeps no stale copy of it.
+            stale_index = [
+                path
+                for path in index_paths
+                if path.is_file()
+                and not path.is_symlink()
+                and is_generated_index(path.name, path.read_bytes(), config)
+            ]
         added, changed = [], []
         for path, content in expected.items():
             if not path.exists():
@@ -1153,7 +1239,7 @@ def run_compiler(
             ]
             if generated.is_dir()
             else []
-        )
+        ) + stale_index
 
         def key(path: Path) -> bytes:
             return path.as_posix().encode("utf-8")
@@ -1205,6 +1291,7 @@ __all__ = [
     "assert_migrated_outputs_match",
     "canonical_json_bytes",
     "compilation_from_lessons",
+    "compile_lesson_index",
     "compile_registry",
     "load_directory_registry",
     "run_compiler",
