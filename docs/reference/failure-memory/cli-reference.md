@@ -55,6 +55,9 @@ registry file into a sibling directory (`lessons.json` becomes `lessons`) of
 not delete the original file. `previous_registry` in the result is that file.
 `--check` compiles both forms in a temporary directory outside the repository
 and writes nothing. There is no `--global-vault`. This is not `migrate-check`.
+A schema 1 annotations sidecar (`lessons.annotations.json`) is copied into
+the directory as `_annotations.json`; `annotations` in the result names the
+copy, or is `null`.
 
 ### `add`
 
@@ -79,12 +82,27 @@ failure-memory compile [--config <path>] --global-vault <path> \
   [--repo .] [--output-root <path>]
 ```
 
+With `[compatibility].lesson_index_version` set, `compile` also writes
+`lesson_index.json` and `lesson_index.md` beside the route index.
+
 ### `check`
 
 ```bash
 failure-memory check [--config <path>] --global-vault <path> \
   [--repo .] [--output-root <path>]
 ```
+
+### `index`
+
+```bash
+failure-memory index [--area <area>] [--package <package>] \
+  [--module <module>] [--grep <regex>] [--config <path>] [--repo .]
+failure-memory index --expand <ID> [--config <path>] [--repo .]
+```
+
+Read-only. With no selector it lists the area, package and module groups;
+with a selector it returns the matching lesson cards; `--expand` returns one
+lesson's full record and annotations. See [Lesson index](lesson-index.md).
 
 ### `ci-check`
 
