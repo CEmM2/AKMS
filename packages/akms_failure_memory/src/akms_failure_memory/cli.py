@@ -59,7 +59,16 @@ def _parser() -> argparse.ArgumentParser:
     refresh = sub.add_parser("refresh")
     refresh.add_argument(
         "action",
-        choices=("preflight", "status", "lessons", "mirror", "graph", "all", "clean"),
+        choices=(
+            "preflight",
+            "status",
+            "lessons",
+            "mirror",
+            "graph",
+            "all",
+            "clean",
+            "if-stale",
+        ),
     )
     refresh.add_argument("--config", type=Path, help=_CONFIG_HELP)
     refresh.add_argument("--repo", type=Path, default=Path.cwd())
@@ -67,6 +76,34 @@ def _parser() -> argparse.ArgumentParser:
     refresh.add_argument("--phase", type=int, default=1)
     refresh.add_argument("--generated-at", required=False)
     refresh.add_argument("--force-lock", action="store_true")
+    refresh.add_argument(
+        "--since",
+        metavar="REF",
+        help=(
+            "if-stale only: the commit the code mirrors last matched; sources "
+            "changed since it are re-exported"
+        ),
+    )
+
+    hooks = sub.add_parser(
+        "hooks", help="git hooks that run `refresh if-stale` after checkouts"
+    )
+    hooks_commands = hooks.add_subparsers(dest="hooks_command", required=True)
+    for name in ("install", "uninstall", "status"):
+        command = hooks_commands.add_parser(name)
+        command.add_argument("--repo", type=Path, default=Path.cwd())
+        if name == "install":
+            command.add_argument("--config", type=Path, help=_CONFIG_HELP)
+            command.add_argument(
+                "--global-vault",
+                type=Path,
+                help="read-only global vault; required the first time",
+            )
+    run = hooks_commands.add_parser(
+        "run", help="what the installed hooks call; always exits 0"
+    )
+    run.add_argument("hook", choices=("post-checkout", "post-merge", "post-rewrite"))
+    run.add_argument("hook_args", nargs=argparse.REMAINDER)
 
     resolve = sub.add_parser("resolve")
     resolve.add_argument("--config", type=Path, help=_CONFIG_HELP)
@@ -165,6 +202,23 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
             phase=args.phase,
             generated_at=args.generated_at,
             force_lock=args.force_lock,
+            since=args.since,
+        )
+    if args.command == "hooks":
+        from akms_failure_memory import hooks
+
+        if args.hooks_command == "install":
+            return hooks.install_hooks(
+                repository_root=args.repo,
+                config_path=args.config,
+                global_vault=args.global_vault,
+            )
+        if args.hooks_command == "uninstall":
+            return hooks.uninstall_hooks(repository_root=args.repo)
+        if args.hooks_command == "status":
+            return hooks.hooks_status(repository_root=args.repo)
+        raise FailureMemoryError(
+            f"Unknown hooks command {args.hooks_command!r}", code="usage"
         )
     if args.command in {"resolve", "validate-fingerprint"}:
         from akms_failure_memory.provider import run_provider_command
@@ -215,6 +269,11 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
+    if args.command == "hooks" and args.hooks_command == "run":
+        # Prints at most one line and never fails the git command.
+        from akms_failure_memory.hooks import run_hook
+
+        return run_hook(args.hook, list(args.hook_args))
     if getattr(args, "config", "unset") is None:
         args.config = Path(args.repo) / DEFAULT_CONFIG
     try:
