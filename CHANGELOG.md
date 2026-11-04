@@ -16,6 +16,32 @@ development is intentionally not replayed.
   lock-only change; `uv audit` reports no known vulnerabilities.
 
 ### Added
+- `failure-memory hooks install|uninstall|status` installs `post-checkout`,
+  `post-commit`, `post-merge` and `post-rewrite` git hooks, so a checkout or
+  a plain `git commit` no longer leaves generated lessons or code mirrors
+  missing or stale. The hooks go where git
+  runs them (`git rev-parse --git-path hooks`, so `core.hooksPath` and linked
+  worktrees are respected). A missing hook is created owner-only (`0700`;
+  widen it yourself where other users' commits must run it); an existing
+  shell hook keeps its mode and gets a marked block after its `#!` line and
+  is otherwise kept byte for byte;
+  hooks in other languages, symlinked, non-executable or tracked hooks are
+  refused, not edited. Install is idempotent and uninstall removes only the
+  block. The global vault, project root and config path are kept in git
+  config under `akms-failure-memory.*`. The hooks call `failure-memory hooks
+  run`, which skips file checkouts and the steps of a rebase (refreshing once
+  at its end), refreshes a multi-commit cherry-pick or revert once after its
+  last commit and an amend once, honours `AKMS_FAILURE_MEMORY_HOOKS=0`, skips
+  with a warning when the project lock is busy, and always exits 0. Running
+  install again over an install without `post-commit` adds it.
+- `failure-memory refresh if-stale [--since <ref>]` refreshes only what is
+  stale: lessons recompile when `check` reports drift, mirrors are exported
+  through the exporter's git selection for the sources that changed since
+  `--since` or the last recorded `if-stale` run (a full export, with the
+  reason in the result, when there is no usable base), and the graph is
+  rebuilt when either changed. It always stamps the current UTC time and
+  never rewrites outputs marked `committed`. Projects that do not use it or
+  the hooks see no change.
 - `akms-failure-memory` can allocate collision-free lesson IDs:
   `validation.id_style = "dated"` gives `L<YYYYMMDD>-<4 Crockford base32>`
   IDs, so lessons added on two branches no longer collide. `"sequential"`

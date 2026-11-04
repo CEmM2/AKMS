@@ -13,7 +13,7 @@ import sys
 import tempfile
 import tomllib
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -533,9 +533,20 @@ def _mirror(
     phase: int,
     generated_at: str | None,
     identity: dict[str, Any],
+    git_base: str | None = None,
 ) -> dict[str, Any]:
+    """Run the configured exporter.
+
+    Without ``git_base`` this is the configured selection with pruning, as
+    ``refresh mirror`` has always run it. With ``git_base`` the exporter's own
+    git selection picks the sources that differ between that commit and the
+    worktree (deleted sources lose their mirrors); nothing else is pruned,
+    because the exporter refuses to prune a partial selection.
+    """
     provider = config.mirror_provider
     command = identity["mirror"]["command"]
+    selection = str(config.toolchain["mirror_selection"]) if git_base is None else "git"
+    prune = git_base is None
     mirror_config = MirrorConfig(
         provider=provider,
         command=command,
@@ -543,8 +554,8 @@ def _mirror(
         fallback_on_error=False,
         require_success=True,
         generated_at_source="request",
-        selection_mode=str(config.toolchain["mirror_selection"]),
-        prune=True,
+        selection_mode=selection,
+        prune=prune,
         expected_export_schema_version=(
             EXPORT_SCHEMA_VERSION
             if provider == "builtin"
@@ -557,10 +568,11 @@ def _mirror(
         output_root=config.resolve(root, "akms_repo_root"),
         phase=phase,
         generated_at=_timestamp(generated_at),
-        selection_mode=str(config.toolchain["mirror_selection"]),
+        selection_mode=selection,
         drift_check=True,
         llm_fn=None,
-        prune=True,
+        prune=prune,
+        git_base=git_base,
     )
     result = run_mirror_provider(request, mirror_config, provider_name=provider)
     if not result.success:
@@ -768,6 +780,397 @@ def _clean(config: ProjectConfig, root: Path) -> dict[str, Any]:
     return {"status": "cleaned", "removed": sorted(removed)}
 
 
+# ── refresh if-stale ──────────────────────────────────────────────────────
+# Where `refresh if-stale` records the commit its mirrors last matched. It is
+# per worktree (`git rev-parse --git-path` puts it in the worktree's own git
+# directory), untracked by construction, and only `if-stale` reads or writes it.
+_STATE_GIT_PATH = "akms-failure-memory/refresh-state.json"
+_STATE_VERSION = 1
+# The exporter reads these to decide which files are sources, so a change to
+# either can add or drop sources anywhere in the tree.
+_SELECTION_INPUTS = frozenset({".gitignore", ".repo_wiki/config.yaml"})
+
+
+def _current_utc() -> str:
+    """The real current time, UTC, to the second.
+
+    ``akms status`` reports a mirror stale when its source was committed or
+    modified after the mirror's ``generated_at``, so the stamp must be "now".
+    """
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _git_bytes(root: Path, *arguments: str) -> bytes | None:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "-c", "core.quotepath=false", *arguments],
+            capture_output=True,
+            check=False,
+            shell=False,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return completed.stdout if completed.returncode == 0 else None
+
+
+def _git_text(root: Path, *arguments: str) -> str | None:
+    output = _git_bytes(root, *arguments)
+    if output is None:
+        return None
+    return output.decode("utf-8", errors="replace").strip() or None
+
+
+def _commit(root: Path, ref: str | None) -> str | None:
+    """The commit ``ref`` names, or None (unset, the all-zero ref, or unknown)."""
+    if not ref or set(ref) == {"0"}:
+        return None
+    return _git_text(root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
+
+
+def _git_names(root: Path, command: str, *arguments: str) -> set[str] | None:
+    """A NUL-separated git path listing as a set, or None when git fails."""
+    output = _git_bytes(root, command, "-z", *arguments)
+    if output is None:
+        return None
+    return {
+        item.decode("utf-8", errors="replace") for item in output.split(b"\0") if item
+    }
+
+
+def _mirror_identity(config: ProjectConfig) -> dict[str, str]:
+    """What, besides the sources, decides the mirror bytes."""
+    return {
+        "provider": config.mirror_provider,
+        "akms_repo_root": str(config.paths["akms_repo_root"]),
+        "akms_version": akms.__version__,
+    }
+
+
+def _state_path(root: Path) -> Path | None:
+    output = _git_text(root, "rev-parse", "--git-path", _STATE_GIT_PATH)
+    if output is None:
+        return None
+    path = Path(output)
+    return path if path.is_absolute() else root / path
+
+
+def _read_state(root: Path) -> dict[str, Any] | None:
+    path = _state_path(root)
+    if path is None or not path.is_file():
+        return None
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(state, dict) or state.get("version") != _STATE_VERSION:
+        return None
+    return state
+
+
+def _write_state(root: Path, state: dict[str, Any]) -> str | None:
+    """Record the refreshed commit; returns a warning instead of failing."""
+    path = _state_path(root)
+    if path is None:  # not a git worktree: there is nothing to diff against later
+        return None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        temporary.write_text(
+            json.dumps(state, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+        )
+        os.replace(temporary, path)
+    except OSError as exc:
+        return f"cannot record the refreshed commit: {exc}"
+    return None
+
+
+def _mirror_plan(
+    config: ProjectConfig, root: Path, since: str | None
+) -> dict[str, Any]:
+    """Decide between no mirror work, a changed-source export and a full one.
+
+    Candidate bases are ``since`` and the commit the last ``if-stale`` refresh
+    recorded, each with its merge base with HEAD: a rebase or an amend gives
+    the commits it rewrote a new commit time, and ``akms status`` compares
+    commit times, so the files those commits touch are refreshed too. The
+    fewest bases that cover every changed path are exported.
+    """
+    head = _commit(root, "HEAD")
+
+    def full(reason: str) -> dict[str, Any]:
+        return {"selection": "full", "reason": reason, "bases": [], "head": head}
+
+    top = _git_text(root, "rev-parse", "--show-toplevel")
+    if top is None:
+        return full("not a git worktree, so changed sources are unknown")
+    if Path(top).resolve() != root:
+        return full("the project root is not the git top level")
+    knowledge = local_knowledge_dir(config.resolve(root, "akms_repo_root"))
+    if not (knowledge / "code-mirror").is_dir():
+        return full("there are no code mirrors yet")
+    state = _read_state(root)
+    recorded: str | None = None
+    if state is not None and state.get("head"):
+        if state.get("mirror") != _mirror_identity(config):
+            return full(
+                "the mirror provider, AKMS version or akms_repo_root changed "
+                "since the last refresh"
+            )
+        recorded = _commit(root, state.get("head"))
+    candidates = [commit for commit in (_commit(root, since), recorded) if commit]
+    if not candidates:
+        if since is not None and set(since) != {"0"}:
+            return full(f"{since!r} is not a commit")
+        return full("no base commit: neither --since nor a recorded refresh")
+    if head is not None:
+        for commit in list(candidates):
+            merge_base = _git_text(root, "merge-base", commit, head)
+            if merge_base:
+                candidates.append(merge_base)
+    candidates = list(dict.fromkeys(candidates))
+    # What the exporter's `--git-base` selection considers: paths that differ
+    # between the base and the worktree, plus untracked files outside its own
+    # output. The exporter still decides which of them are sources.
+    untracked = _git_names(root, "ls-files", "--others", "--exclude-standard")
+    if untracked is None:
+        return full("git cannot list untracked files")
+    try:
+        output = knowledge.relative_to(root).as_posix() + "/"
+        untracked = {name for name in untracked if not name.startswith(output)}
+    except ValueError:
+        pass
+    names: dict[str, set[str]] = {}
+    for commit in candidates:
+        changed = _git_names(root, "diff", "--name-only", "--no-renames", commit)
+        if changed is None:
+            return full(f"git cannot diff the worktree against {commit[:12]}")
+        names[commit] = changed
+    every = set().union(untracked, *names.values())
+    if every & _SELECTION_INPUTS:
+        return full(".gitignore or .repo_wiki/config.yaml changed")
+    if not every:
+        return {
+            "selection": "none",
+            "reason": "no file changed",
+            "bases": [],
+            "head": head,
+        }
+    bases: list[str] = []
+    covered: set[str] = set()
+    for commit in sorted(candidates, key=lambda item: -len(names[item])):
+        if names[commit] - covered:
+            bases.append(commit)
+            covered |= names[commit]
+    # Only untracked files changed: any one base selects them.
+    bases = bases or candidates[:1]
+    return {
+        "selection": "changed",
+        "reason": f"{len(every)} path(s) changed",
+        "bases": bases,
+        "head": head,
+    }
+
+
+def _refresh_lessons_if_stale(
+    config: ProjectConfig, config_path: str | Path, root: Path, vault: Path
+) -> dict[str, Any]:
+    if (
+        config.generated["lessons"] == "committed"
+        and config.generated["routes"] == "committed"
+    ):
+        return {"status": "skipped", "reason": "generated lessons are committed"}
+    # The same comparison `failure-memory check` makes: every expected output
+    # byte, including the registry digest each node and the route index embed.
+    checked = run_compiler(
+        config_path=config_path,
+        repository_root=root,
+        global_vault=vault,
+        mode="check",
+    )
+    if checked["status"] == "clean":
+        return {"status": "current", "source_sha256": checked["source_sha256"]}
+    written = run_compiler(
+        config_path=config_path,
+        repository_root=root,
+        global_vault=vault,
+        mode="write",
+    )
+    return {
+        "status": "recompiled",
+        "source_sha256": written["source_sha256"],
+        "counts": written["counts"],
+        "written": written["written"],
+        "removed": written["stale"],
+    }
+
+
+def _refresh_mirror_if_stale(
+    config: ProjectConfig,
+    root: Path,
+    *,
+    since: str | None,
+    phase: int,
+    generated_at: str,
+) -> dict[str, Any]:
+    if config.generated["mirror"] == "committed":
+        return {"status": "skipped", "reason": "code mirrors are committed"}
+    plan = _mirror_plan(config, root, since)
+    stage: dict[str, Any] = {
+        "selection": plan["selection"],
+        "reason": plan["reason"],
+        "bases": plan["bases"],
+        "written": 0,
+        "removed": 0,
+    }
+    if plan["selection"] == "none":
+        stage["status"] = "current"
+    else:
+        identity = preflight(config=config, repository_root=root)
+        runs = (
+            [
+                _mirror(
+                    config,
+                    root,
+                    phase=phase,
+                    generated_at=generated_at,
+                    identity=identity,
+                )
+            ]
+            if plan["selection"] == "full"
+            else [
+                _mirror(
+                    config,
+                    root,
+                    phase=phase,
+                    generated_at=generated_at,
+                    identity=identity,
+                    git_base=base,
+                )
+                for base in plan["bases"]
+            ]
+        )
+        for run in runs:
+            metadata = run.get("provider_metadata") or {}
+            stage["written"] += int(metadata.get("written_count", 0) or 0)
+            stage["removed"] += int(metadata.get("removed_count", 0) or 0)
+        stage["status"] = "refreshed"
+        stage["provider"] = runs[0]["provider"] if runs else config.mirror_provider
+    stage["head"] = plan["head"]
+    return stage
+
+
+def refresh_if_stale(
+    *,
+    config_path: str | Path,
+    repository_root: str | Path,
+    global_vault: str | Path,
+    since: str | None = None,
+    phase: int = 1,
+    force_lock: bool = False,
+    lock_timeout_seconds: float | None = None,
+) -> dict[str, Any]:
+    """Refresh only what is stale: lessons, then mirrors, then the graph.
+
+    * Lessons recompile only when ``check`` finds drift (a changed registry
+      digest, a missing node, a changed compiler).
+    * Mirrors are exported only for sources that changed since ``since`` or
+      the last recorded ``if-stale`` refresh, through the exporter's own git
+      selection. Without a usable base, or when the inputs that decide which
+      files are sources changed, it is the full configured refresh, and the
+      result says why.
+    * The graph is rebuilt when either changed, or when it is missing.
+
+    Outputs the project marks ``committed`` are never rewritten. Everything is
+    stamped with the current UTC time and runs under the project lock;
+    ``lock_timeout_seconds=0`` gives up at once if another writer holds it.
+    """
+    config = load_project_config(config_path)
+    root = Path(repository_root).resolve(strict=True)
+    vault = Path(global_vault).resolve(strict=True)
+    generated_at = _current_utc()
+    timeout = (
+        float(config.toolchain["timeout_seconds"])
+        if lock_timeout_seconds is None
+        else float(lock_timeout_seconds)
+    )
+    with ProjectLock(
+        config.resolve(root, "lock"), timeout_seconds=timeout, force_stale=force_lock
+    ):
+        previous = _read_state(root) or {}
+        warnings: list[str] = []
+
+        def record(
+            *, graph_pending: bool, head: Any, mirror: dict[str, Any] | None
+        ) -> None:
+            warning = _write_state(
+                root,
+                {
+                    "version": _STATE_VERSION,
+                    "head": head,
+                    "generated_at": generated_at,
+                    "mirror": mirror,
+                    "graph_pending": graph_pending,
+                },
+            )
+            if warning and warning not in warnings:
+                warnings.append(warning)
+
+        stages: dict[str, Any] = {
+            "lessons": _refresh_lessons_if_stale(config, config_path, root, vault)
+        }
+        if stages["lessons"]["status"] == "recompiled":
+            # Until the graph is rebuilt it lags the lessons, even if the
+            # mirror stage below fails; the next run must still rebuild it.
+            record(
+                graph_pending=True,
+                head=previous.get("head"),
+                mirror=previous.get("mirror"),
+            )
+        stages["mirror"] = _refresh_mirror_if_stale(
+            config, root, since=since, phase=phase, generated_at=generated_at
+        )
+        mirror = stages["mirror"]
+        if mirror["status"] == "skipped":
+            head, identity = previous.get("head"), previous.get("mirror")
+        else:
+            head, identity = mirror.pop("head", None), _mirror_identity(config)
+
+        changed = stages["lessons"]["status"] == "recompiled" or (
+            mirror["status"] == "refreshed"
+            and (
+                mirror["selection"] == "full"
+                or mirror["written"] + mirror["removed"] > 0
+            )
+        )
+        if config.generated["graph"] == "committed":
+            stages["graph"] = {"status": "skipped", "reason": "the graph is committed"}
+        elif (
+            changed
+            or previous.get("graph_pending") is True
+            or not config.resolve(root, "graph").is_file()
+        ):
+            # Recorded first, so a graph build that fails is retried next time
+            # even though the lessons and mirrors it needs are already current.
+            record(graph_pending=True, head=head, mirror=identity)
+            stages["graph"] = {
+                **_graph(config, root, vault, generated_at=generated_at),
+                "status": "rebuilt",
+            }
+        else:
+            stages["graph"] = {"status": "current"}
+        record(graph_pending=False, head=head, mirror=identity)
+        return {
+            "status": "ok",
+            "action": "if-stale",
+            "generated_at": generated_at,
+            "since": since,
+            "stages": stages,
+            "warnings": warnings,
+            "config_fingerprint": config.fingerprint,
+        }
+
+
 def refresh_project(
     *,
     action: str,
@@ -777,8 +1180,28 @@ def refresh_project(
     phase: int = 1,
     generated_at: str | None = None,
     force_lock: bool = False,
+    since: str | None = None,
 ) -> dict[str, Any]:
     """Run one refresh stage or the ordered lessons→mirror→graph chain."""
+    if action == "if-stale":
+        if generated_at is not None:
+            raise FailureMemoryError(
+                "refresh if-stale always stamps the current UTC time; "
+                "drop --generated-at",
+                code="usage",
+            )
+        return refresh_if_stale(
+            config_path=config_path,
+            repository_root=repository_root,
+            global_vault=global_vault,
+            since=since,
+            phase=phase,
+            force_lock=force_lock,
+        )
+    if since is not None:
+        raise FailureMemoryError(
+            "--since applies only to refresh if-stale", code="usage"
+        )
     config = load_project_config(config_path)
     root = Path(repository_root).resolve(strict=True)
     vault = Path(global_vault).resolve(strict=True)
@@ -819,4 +1242,4 @@ def refresh_project(
         }
 
 
-__all__ = ["preflight", "refresh_project", "status"]
+__all__ = ["preflight", "refresh_if_stale", "refresh_project", "status"]
