@@ -22,7 +22,12 @@ from akms_records.canonical import loads_strict
 from akms_records.envelope import ORIGIN_KINDS, REVIEW_STATES, SENSITIVITY_LEVELS
 from akms_records.errors import RecordsError
 from akms_records.policy import POLICY_SOURCES, POLICY_STATUSES
-from akms_records.schemas import load_template, template_names
+from akms_records.schemas import (
+    RULE_KEYS,
+    RegisteredSchema,
+    load_template,
+    template_names,
+)
 from akms_records.scope import Scope
 from akms_records.store import RecordStore
 
@@ -79,6 +84,47 @@ def _record_fields(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _rule_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--search-text",
+        action="append",
+        metavar="POINTER",
+        help="payload field to index as text, as a JSON pointer (repeatable)",
+    )
+    parser.add_argument("--label", metavar="POINTER", help="display-label field")
+    parser.add_argument("--time-field", metavar="POINTER", help="the record's own time")
+    parser.add_argument(
+        "--summary-template", help="summary text with {field} placeholders"
+    )
+
+
+def _rules_from_args(
+    args: argparse.Namespace, base: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """Rules from --rules/--file and the rule flags; None when none are given."""
+    rules: dict[str, Any] | None = None
+    if getattr(args, "rules_file", None):
+        loaded = _read_json(str(args.rules_file))
+        if not isinstance(loaded, dict):
+            raise RecordsError("rules must be a JSON object", code="invalid_rules")
+        rules = dict(loaded)
+    flags = {
+        "search_text": args.search_text,
+        "label": args.label,
+        "time_field": args.time_field,
+        "summary_template": args.summary_template,
+    }
+    given = {key: value for key, value in flags.items() if value is not None}
+    unset = getattr(args, "unset", [])
+    if rules is None and (given or unset):
+        rules = dict(base or {})
+    if rules is not None:
+        rules.update(given)
+        for key in unset:
+            rules.pop(key, None)
+    return rules
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="akms-records",
@@ -105,12 +151,42 @@ def _parser() -> argparse.ArgumentParser:
     register.add_argument(
         "--version", type=int, dest="schema_version", help="schema version number"
     )
+    register.add_argument(
+        "--rules", type=Path, dest="rules_file", help="extraction rules (JSON file)"
+    )
+    _rule_flags(register)
     listing = schema_sub.add_parser("list", help="registered schemas")
     _store_options(listing)
     show = schema_sub.add_parser("show", help="one registered schema")
     _store_options(show)
     show.add_argument("ref", help="<name>/v<N>, or <name> for the newest version")
     schema_sub.add_parser("templates", help="the built-in templates")
+    rules = schema_sub.add_parser(
+        "rules", help="a schema's extraction rules (kept beside the schema)"
+    )
+    rules_sub = rules.add_subparsers(dest="rules_command", required=True)
+    rules_set = rules_sub.add_parser(
+        "set", help="change the rules; the schema and its digest stay the same"
+    )
+    _store_options(rules_set)
+    rules_set.add_argument("ref", help="<name>/v<N>, or <name> for the newest version")
+    rules_set.add_argument(
+        "--file",
+        type=Path,
+        dest="rules_file",
+        help="replace the rules with this JSON object",
+    )
+    _rule_flags(rules_set)
+    rules_set.add_argument(
+        "--unset",
+        action="append",
+        choices=RULE_KEYS,
+        default=[],
+        help="remove one rule (repeatable)",
+    )
+    rules_show = rules_sub.add_parser("show", help="the rules and their change log")
+    _store_options(rules_show)
+    rules_show.add_argument("ref", help="<name>/v<N>, or <name> for the newest version")
     policy = schema_sub.add_parser("policy", help="per-schema promotion policy")
     policy_sub = policy.add_subparsers(dest="policy_command", required=True)
     policy_set = policy_sub.add_parser(
@@ -272,6 +348,20 @@ def _confirm_policy(args: argparse.Namespace) -> None:
         raise RecordsError("not confirmed; nothing changed", code="not_confirmed")
 
 
+def _describe(
+    store: RecordStore, schema: RegisteredSchema, *, include_schema: bool = False
+) -> dict[str, Any]:
+    out = schema.to_json(include_schema=include_schema)
+    try:
+        record = store.schemas.rules_record(schema.ref)
+    except RecordsError as exc:
+        out["rules_error"] = {"code": exc.code, "message": str(exc)}
+        return out
+    out["rules"] = record["rules"] if record else {}
+    out["rules_sha256"] = record["rules_sha256"] if record else None
+    return out
+
+
 def _schema_command(args: argparse.Namespace) -> dict[str, Any]:
     if args.schema_command == "templates":
         return {"status": "ok", "templates": template_names()}
@@ -282,10 +372,19 @@ def _schema_command(args: argparse.Namespace) -> dict[str, Any]:
             document = load_template(args.template)
         else:
             document = _read_json(str(args.path))
-        registered, new = store.register_schema(
-            document, actor=actor, name=args.name, version=args.schema_version
+        outcome = store.register_schema(
+            document,
+            actor=actor,
+            name=args.name,
+            version=args.schema_version,
+            rules=_rules_from_args(args, None),
         )
-        return {"status": "ok", "registered": new, "schema": registered.to_json()}
+        return {
+            "status": "ok",
+            "registered": outcome.new,
+            "rules": outcome.rules,
+            "schema": _describe(store, outcome.schema),
+        }
     if args.schema_command == "list":
         rows = []
         for ref, loaded in store.schemas.iter_checked():
@@ -297,12 +396,29 @@ def _schema_command(args: argparse.Namespace) -> dict[str, Any]:
                     }
                 )
             else:
-                rows.append(loaded.to_json())
+                rows.append(_describe(store, loaded))
         failed = any("error" in row for row in rows)
         return {"status": "error" if failed else "ok", "schemas": rows}
     if args.schema_command == "show":
         found = store.schemas.get(store.schemas.resolve_ref(args.ref))
-        return {"status": "ok", "schema": found.to_json(include_schema=True)}
+        return {"status": "ok", "schema": _describe(store, found, include_schema=True)}
+    if args.schema_command == "rules":
+        ref = store.schemas.resolve_ref(args.ref)
+        if args.rules_command == "show":
+            record = store.schemas.rules_record(ref)
+            return {
+                "status": "ok",
+                "schema_ref": ref,
+                "rules": record["rules"] if record else {},
+                "rules_sha256": record["rules_sha256"] if record else None,
+                "set_at": record["set_at"] if record else None,
+                "set_by": record["set_by"] if record else None,
+                "log": store.schemas.rules_log(ref),
+            }
+        rules = _rules_from_args(args, store.schemas.rules(ref))
+        if rules is None:
+            raise RecordsError("give --file, a rule option, or --unset", code="usage")
+        return {"status": "ok", **store.set_rules(ref, rules, actor=_actor(args))}
     if args.schema_command == "policy":
         if args.policy_command == "show":
             return {"status": "ok", **store.policies.show(args.name)}

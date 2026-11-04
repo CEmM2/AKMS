@@ -44,11 +44,13 @@ def test_builtin_templates_are_plain_schema_files(make_store):
     assert template_names() == TEMPLATES
     store = make_store()
     for name in TEMPLATES:
-        registered, new = store.register_schema(load_template(name), actor="t")
-        assert new and registered.ref == f"{name}/v1"
-        assert registered.rules["summary_template"]
-    again, new = store.register_schema(load_template("decision"), actor="t")
-    assert not new and again.ref == "decision/v1"
+        outcome = store.register_schema(load_template(name), actor="t")
+        assert outcome.new and outcome.schema.ref == f"{name}/v1"
+        assert outcome.rules == "set"
+        assert store.schemas.rules(f"{name}/v1")["summary_template"]
+        assert "rules" not in outcome.schema.extension  # stored beside, not inside
+    again = store.register_schema(load_template("decision"), actor="t")
+    assert not again.new and again.rules == "unchanged"
 
 
 @pytest.mark.parametrize(
@@ -170,8 +172,8 @@ def test_changed_content_needs_a_new_version(store):
         store.register_schema(changed, actor="t")
     assert caught.value.code == "schema_exists"
     changed["x-akms-records"]["version"] = 2
-    registered, new = store.register_schema(changed, actor="t")
-    assert new and registered.ref == "decision/v2"
+    outcome = store.register_schema(changed, actor="t")
+    assert outcome.new and outcome.schema.ref == "decision/v2"
     assert store.schemas.resolve_ref("decision") == "decision/v2"
 
 
@@ -219,7 +221,7 @@ def test_name_and_version_can_come_from_the_command(make_store):
         "properties": {"t": {"type": "string"}},
     }
     store = make_store()
-    registered, _ = store.register_schema(schema, actor="t", name="plain", version=3)
-    assert registered.ref == "plain/v3"
+    outcome = store.register_schema(schema, actor="t", name="plain", version=3)
+    assert outcome.schema.ref == "plain/v3"
     with pytest.raises(RecordsError):
         store.register_schema(schema, actor="t")  # no name anywhere

@@ -78,7 +78,13 @@ from akms_records.ids import (
 )
 from akms_records.policy import PolicyStore
 from akms_records.procs import pid_alive
-from akms_records.schemas import REGISTRY_DIRNAME, RegisteredSchema, SchemaRegistry
+from akms_records.schemas import (
+    REGISTRY_DIRNAME,
+    RegisteredSchema,
+    Registration,
+    SchemaRegistry,
+    render_summary,
+)
 from akms_records.scope import Scope, store_root
 
 EVENT_FORMAT = "akms-records-event/v1"
@@ -104,6 +110,7 @@ GITATTRIBUTES_LINES = (
     "* -text",
     f"{ERASURE_LOG} merge=union",
     f"{REGISTRY_DIRNAME}/*/_policy_log.jsonl merge=union",
+    f"{REGISTRY_DIRNAME}/*/*/_rules_log.jsonl merge=union",
 )
 GITIGNORE_LINES = (".index/", "*.tmp")
 ROOT_ENTRIES = frozenset(
@@ -486,12 +493,24 @@ class RecordStore:
         actor: str,
         name: str | None = None,
         version: int | None = None,
-    ) -> tuple[RegisteredSchema, bool]:
-        """Register a schema in this store root; see :class:`SchemaRegistry`."""
+        rules: Any = None,
+    ) -> Registration:
+        """Register a schema (and its rules) in this store root.
+
+        See :meth:`akms_records.schemas.SchemaRegistry.register`.
+        """
         check_actor(actor)
         self.ensure_root()
         return self.schemas.register(
-            schema, actor=actor, at=self.now(), name=name, version=version
+            schema, actor=actor, at=self.now(), name=name, version=version, rules=rules
+        )
+
+    def set_rules(self, ref: str, rules: Any, *, actor: str) -> dict[str, Any]:
+        """Replace a schema's extraction rules; the change is logged."""
+        check_actor(actor)
+        self.ensure_root()
+        return self.schemas.set_rules(
+            self.schemas.resolve_ref(ref), rules, actor=actor, at=self.now()
         )
 
     # ---------------------------------------------------------------- reads
@@ -552,7 +571,9 @@ class RecordStore:
         fields = parse_record_document(document, scope=self.scope, partial=False)
         schema = self._schema(fields["schema_ref"])
         schema.validate_payload(fields["payload"])
-        summary = fields.get("summary") or schema.render_summary(fields["payload"])
+        summary = fields.get("summary") or render_summary(
+            self.schemas.rules(schema.ref), fields["payload"]
+        )
         if not summary:
             raise RecordsError(
                 f"a summary is required: {schema.ref} declares no summary_template",

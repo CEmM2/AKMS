@@ -289,3 +289,64 @@ def test_module_entry_point_help():
         "import",
     ):
         assert command in result.stdout
+
+
+def test_rules_commands(cli, tmp_path):
+    code, shown, _ = cli("schema", "rules", "show", "decision")
+    assert code == 0 and shown["schema_ref"] == "decision/v1"
+    assert shown["rules"]["label"] == "/decision" and len(shown["log"]) == 1
+    code, out, _ = cli(
+        "schema",
+        "rules",
+        "set",
+        "decision",
+        "--label",
+        "/rationale",
+        "--unset",
+        "time_field",
+    )
+    assert code == 0 and out["rules"]["label"] == "/rationale"
+    assert "time_field" not in out["rules"] and out["previous"]["label"] == "/decision"
+    rules_file = tmp_path / "rules.json"
+    rules_file.write_text(json.dumps({"search_text": ["/decision"]}), encoding="utf-8")
+    code, out, _ = cli(
+        "schema", "rules", "set", "decision/v1", "--file", str(rules_file)
+    )
+    assert code == 0 and out["rules"] == {"search_text": ["/decision"]}
+    code, _, err = cli("schema", "rules", "set", "decision", "--label", "/missing")
+    assert code == 2 and "error[invalid_rules]" in err
+    code, _, err = cli("schema", "rules", "set", "decision")
+    assert code == 2 and "error[usage]" in err
+    code, shown, _ = cli("schema", "show", "decision")
+    assert shown["schema"]["rules"] == {"search_text": ["/decision"]}
+    assert shown["schema"]["rules_sha256"]
+    code, shown, _ = cli("schema", "rules", "show", "decision")
+    assert len(shown["log"]) == 3 and shown["set_by"] == "tester"
+
+
+def test_register_takes_rules_from_options(cli, tmp_path):
+    schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"note": {"type": "string"}},
+    }
+    path = tmp_path / "note.schema.json"
+    path.write_text(json.dumps(schema), encoding="utf-8")
+    code, out, _ = cli(
+        "schema",
+        "register",
+        str(path),
+        "--name",
+        "note",
+        "--version",
+        "1",
+        "--summary-template",
+        "Note: {note}",
+        "--search-text",
+        "/note",
+    )
+    assert code == 0 and out["rules"] == "set"
+    assert out["schema"]["rules"] == {
+        "search_text": ["/note"],
+        "summary_template": "Note: {note}",
+    }

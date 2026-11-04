@@ -133,3 +133,20 @@ def test_reads_do_not_create_the_store(make_store):
     assert list(store.iter_records()) == []
     assert store.doctor()["status"] == "ok"
     assert not store.root.exists()
+
+
+def test_store_gitattributes_union_merge_the_logs(store):
+    lines = (store.root / ".gitattributes").read_text(encoding="utf-8").splitlines()
+    for wanted in (
+        "* -text",
+        "_erasures.jsonl merge=union",
+        "_schemas/*/_policy_log.jsonl merge=union",
+        "_schemas/*/*/_rules_log.jsonl merge=union",
+    ):
+        assert wanted in lines
+    # An older store missing a line gets it added on the next write.
+    (store.root / ".gitattributes").write_text("* -text\n", encoding="utf-8")
+    store.ensure_root()
+    lines = (store.root / ".gitattributes").read_text(encoding="utf-8").splitlines()
+    assert lines.count("* -text") == 1
+    assert "_schemas/*/*/_rules_log.jsonl merge=union" in lines

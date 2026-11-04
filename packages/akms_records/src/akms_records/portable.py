@@ -3,7 +3,8 @@
 An export is one JSON object per line:
 
 1. ``header``: format ``akms-records-export/v1``, the scope, the time;
-2. one ``schema`` line per registered schema, with its digest;
+2. one ``schema`` line per registered schema, with its digest and its
+   extraction rules (or ``null``) with their digest;
 3. one ``erasure`` line per logged erasure in the scope (content-free);
 4. one ``event`` line per event, record by record, oldest revision first;
 5. ``footer``: counts, and the SHA-256 of every preceding line.
@@ -32,7 +33,13 @@ from akms_records.canonical import canonical_bytes, compact_line, digest, loads_
 from akms_records.errors import NotFound, RecordsError, ReplayError
 from akms_records.fsio import append_line, fsync_dir, write_exclusive
 from akms_records.ids import parse_record_id
-from akms_records.schemas import check_schema_document, parse_ref, validate_instance
+from akms_records.schemas import (
+    check_rules,
+    check_schema_document,
+    parse_ref,
+    split_rules,
+    validate_instance,
+)
 from akms_records.scope import Scope
 from akms_records.store import (
     ERASURE_LOG,
@@ -66,12 +73,15 @@ def _export_lines(
         if isinstance(loaded, RecordsError):
             raise loaded
         summary["schemas"] += 1
+        rules = store.schemas.rules_record(ref)
         yield compact_line(
             {
                 "type": "schema",
                 "schema_ref": ref,
                 "schema_sha256": loaded.schema_sha256,
                 "schema": loaded.schema,
+                "rules": rules["rules"] if rules else None,
+                "rules_sha256": rules["rules_sha256"] if rules else None,
             }
         )
     entries, _ = store.erasure_entries()
@@ -206,6 +216,8 @@ def import_records(
     report: dict[str, Any] = {
         "schemas_registered": [],
         "schemas_present": [],
+        "rules_set": [],
+        "rules_differ": [],
         "records_written": [],
         "records_unchanged": [],
         "events_written": 0,
@@ -216,7 +228,8 @@ def import_records(
     }
     # 1. Schemas: digest-checked and statically checked now, registered at the end.
     schemas: dict[str, dict[str, Any]] = {}
-    pending: list[tuple[str, dict[str, Any], str, int]] = []
+    pending: list[tuple[str, dict[str, Any], str, int, Any]] = []
+    rules_to_set: list[tuple[str, dict[str, Any]]] = []
     for item in (i for i in body if i["type"] == "schema"):
         ref, claimed, schema = (
             item.get("schema_ref"),
@@ -224,18 +237,33 @@ def import_records(
             item.get("schema"),
         )
         name, version = parse_ref(str(ref))
+        if not isinstance(schema, dict) or split_rules(schema)[1] is not None:
+            raise _corrupt(f"schema {ref}: rules belong on the line, not in the schema")
         if digest(schema) != claimed:
             raise RecordsError(
                 f"schema {ref}: content does not match its digest",
                 code="digest_mismatch",
             )
-        assert isinstance(schema, dict)
         check_schema_document(schema, name=name, version=version)
+        rules = item.get("rules")
+        if rules is not None:
+            if digest(rules) != item.get("rules_sha256"):
+                raise RecordsError(
+                    f"schema {ref}: rules do not match their digest",
+                    code="digest_mismatch",
+                )
+            check_rules(schema, rules)
         try:
             local = store.schemas.get(str(ref))
         except NotFound:
-            pending.append((str(ref), schema, name, version))
+            pending.append((str(ref), schema, name, version, rules))
         else:
+            if rules is not None:
+                current = store.schemas.rules_record(str(ref))
+                if current is None:
+                    rules_to_set.append((str(ref), rules))
+                elif current["rules_sha256"] != digest(rules):
+                    report["rules_differ"].append(ref)  # local rules are kept
             if local.schema_sha256 != claimed:
                 raise RecordsError(
                     f"schema {ref} is registered here with a different digest",
@@ -321,9 +349,17 @@ def import_records(
             continue
         plans.append((record_id, events, start))
     # Every check has passed; nothing was written before this point.
-    for ref, schema, name, version in pending:
-        _, new = store.register_schema(schema, actor=actor, name=name, version=version)
-        (report["schemas_registered"] if new else report["schemas_present"]).append(ref)
+    for ref, schema, name, version, rules in pending:
+        outcome = store.register_schema(
+            schema, actor=actor, name=name, version=version, rules=rules
+        )
+        target = "schemas_registered" if outcome.new else "schemas_present"
+        report[target].append(ref)
+        if outcome.rules == "set":
+            report["rules_set"].append(ref)
+    for ref, rules in rules_to_set:
+        store.set_rules(ref, rules, actor=actor)
+        report["rules_set"].append(ref)
     if new_entries:
         store.ensure_root()
         for entry in new_entries:

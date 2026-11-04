@@ -4,11 +4,20 @@ Schemas live inside the store root::
 
     <root>/_schemas/<name>/v<N>/schema.json        the schema, canonical JSON
     <root>/_schemas/<name>/v<N>/registration.json  ref, digest, who and when
+    <root>/_schemas/<name>/v<N>/_rules.json        extraction rules (optional)
+    <root>/_schemas/<name>/v<N>/_rules_log.jsonl   every rules change
 
 A schema is JSON Schema Draft 2020-12 describing a record's ``payload``. Its
 digest is the SHA-256 of its canonical JSON, recorded at registration and
 copied into every record written against it. Loading a schema recomputes the
 digest; a schema whose content no longer matches is refused.
+
+**Digest boundary.** The digest covers the whole schema document, including
+the ``name``, ``version``, ``title`` and ``description`` of its
+``x-akms-records`` block, *except* ``x-akms-records.rules``. Rules only steer
+derived artifacts (search text, label, time field, summary template), so they
+are stored beside the schema with their own digest and change log, and
+changing them never needs a new schema version or touches existing records.
 
 Reference resolution never leaves the schema. Every validator is built with an
 explicit :class:`referencing.Registry` whose retrieve hook refuses every URI,
@@ -19,7 +28,8 @@ checker runs, so a record validates the same way on every machine.
 
 A schema may carry an ``x-akms-records`` block with its name, version and
 declarative extraction rules (search-text fields, label, time field and
-summary template). The rules are data: nothing in a schema is executed.
+summary template). Registration moves the rules out of the stored schema and
+beside it. The rules are data: nothing in a schema or its rules is executed.
 """
 
 from __future__ import annotations
@@ -32,20 +42,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import jsonschema_specifications  # a dependency of jsonschema: bundled metaschemas
+import jsonschema_specifications  # the bundled Draft 2020-12 metaschemas
 from jsonschema import Draft202012Validator
 from referencing import Registry
 from referencing.exceptions import NoSuchResource, Unresolvable
 
-from akms_records.canonical import canonical_bytes, digest, loads_strict
+from akms_records.canonical import canonical_bytes, compact_line, digest, loads_strict
 from akms_records.envelope import ENVELOPE_KEYS, MAX_SUMMARY
 from akms_records.errors import NotFound, RecordsError
-from akms_records.fsio import write_exclusive
+from akms_records.fsio import append_line, replace_file, write_exclusive
 
 DIALECT = "https://json-schema.org/draft/2020-12/schema"
 REGISTRY_DIRNAME = "_schemas"
 EXTENSION_KEY = "x-akms-records"
 REGISTRATION_FORMAT = "akms-records-schema-registration/v1"
+RULES_FORMAT = "akms-records-rules/v1"
+RULES_FILE = "_rules.json"
+RULES_LOG = "_rules_log.jsonl"
 NAME_RE = re.compile(r"[a-z][a-z0-9-]{0,63}")
 REF_RE = re.compile(r"([a-z][a-z0-9-]{0,63})/v([1-9][0-9]{0,5})")
 RULE_KEYS = ("search_text", "label", "time_field", "summary_template")
@@ -311,9 +324,41 @@ def render_template(template: str, payload: dict[str, Any]) -> str:
     return text[:MAX_SUMMARY]
 
 
+def split_rules(schema: Any) -> tuple[Any, Any]:
+    """Return ``schema`` without ``x-akms-records.rules``, and those rules.
+
+    The rules are ``None`` when the schema declares none. An extension block
+    that only held rules is dropped entirely, so the digest is the same as
+    for the schema written without it.
+    """
+    if not isinstance(schema, dict):
+        return schema, None
+    block = schema.get(EXTENSION_KEY)
+    if not isinstance(block, dict) or "rules" not in block:
+        return schema, None
+    rest = {key: value for key, value in block.items() if key != "rules"}
+    stripped = {key: value for key, value in schema.items() if key != EXTENSION_KEY}
+    if rest:
+        stripped[EXTENSION_KEY] = rest
+    return stripped, block["rules"]
+
+
+def schema_digest(schema: Any) -> str:
+    """The schema digest: canonical JSON without ``x-akms-records.rules``."""
+    return digest(split_rules(schema)[0])
+
+
+def render_summary(rules: dict[str, Any], payload: dict[str, Any]) -> str | None:
+    """The summary that ``rules``' template gives ``payload``, if any."""
+    template = rules.get("summary_template")
+    if not isinstance(template, str):
+        return None
+    return render_template(template, payload) or None
+
+
 @dataclass(frozen=True)
 class RegisteredSchema:
-    """A schema as registered in one store."""
+    """A schema as registered in one store (without its extraction rules)."""
 
     name: str
     version: int
@@ -331,19 +376,8 @@ class RegisteredSchema:
         block = self.schema.get(EXTENSION_KEY)
         return block if isinstance(block, dict) else {}
 
-    @property
-    def rules(self) -> dict[str, Any]:
-        rules = self.extension.get("rules")
-        return rules if isinstance(rules, dict) else {}
-
     def validate_payload(self, payload: Any) -> None:
         validate_instance(self.schema, payload, ref=self.ref)
-
-    def render_summary(self, payload: dict[str, Any]) -> str | None:
-        template = self.rules.get("summary_template")
-        if not isinstance(template, str):
-            return None
-        return render_template(template, payload) or None
 
     def to_json(self, *, include_schema: bool = False) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -352,11 +386,25 @@ class RegisteredSchema:
             "registered_at": self.registered_at,
             "registered_by": self.registered_by,
             "title": self.extension.get("title", self.schema.get("title")),
-            "rules": self.rules,
         }
         if include_schema:
             out["schema"] = self.schema
         return out
+
+
+@dataclass(frozen=True)
+class Registration:
+    """The outcome of :meth:`SchemaRegistry.register`.
+
+    ``rules`` is ``"set"`` (rules were offered and stored), ``"unchanged"``
+    (the same rules were already stored), ``"kept"`` (different rules were
+    already stored and were left alone; use ``schema rules set``) or
+    ``"none"`` (no rules offered).
+    """
+
+    schema: RegisteredSchema
+    new: bool
+    rules: str
 
 
 def validate_instance(schema: dict[str, Any], instance: Any, *, ref: str) -> None:
@@ -460,7 +508,7 @@ def check_schema_document(
 
 
 class SchemaRegistry:
-    """Schemas registered in one store root."""
+    """Schemas registered in one store root, with their extraction rules."""
 
     def __init__(self, store_root: str | Path) -> None:
         self.root = Path(store_root) / REGISTRY_DIRNAME
@@ -476,62 +524,88 @@ class SchemaRegistry:
         at: str,
         name: str | None = None,
         version: int | None = None,
-    ) -> tuple[RegisteredSchema, bool]:
-        """Register ``schema``; return it and whether it was newly written.
+        rules: Any = None,
+    ) -> Registration:
+        """Register ``schema`` and, if offered, its extraction rules.
 
-        Registering the same content again is a no-op. Registering different
-        content under an existing ``name/vN`` is refused: publish a new version.
+        Rules come from the schema's ``x-akms-records.rules`` or from
+        ``rules``, not both. Registering the same schema content again is a
+        no-op; different content under an existing ``name/vN`` is refused, so
+        publish a new version. Rules never take part in that comparison.
         """
-        final_name, final_version = check_schema_document(
-            schema, name=name, version=version
-        )
-        sha = digest(schema)
-        target = self._dir(final_name, final_version)
-        if (target / "registration.json").exists():
-            existing = self.get(f"{final_name}/v{final_version}")
-            if existing.schema_sha256 == sha:
-                return existing, False
-            raise RecordsError(
-                f"{existing.ref} is already registered with a different digest; "
-                "register the change as a new version",
-                code="schema_exists",
-                details={
-                    "schema_ref": existing.ref,
-                    "registered_sha256": existing.schema_sha256,
-                    "offered_sha256": sha,
-                },
+        stripped, block_rules = split_rules(schema)
+        if rules is not None and block_rules is not None:
+            raise _schema_error(
+                "give extraction rules either in the schema's x-akms-records "
+                "block or as options, not both",
+                code="invalid_rules",
             )
-        target.mkdir(parents=True, exist_ok=True)
-        try:
-            write_exclusive(target, "schema.json", canonical_bytes(schema))
-        except FileExistsError:
-            # A registration interrupted between its two files, or a racing one.
-            present = loads_strict((target / "schema.json").read_bytes())
-            if digest(present) != sha:
+        offered = rules if rules is not None else block_rules
+        final_name, final_version = check_schema_document(
+            stripped, name=name, version=version
+        )
+        if offered is not None:
+            check_rules(stripped, offered)
+        ref = f"{final_name}/v{final_version}"
+        sha = digest(stripped)
+        target = self._dir(final_name, final_version)
+        wrote = False
+        if (target / "registration.json").exists():
+            existing = self.get(ref)
+            if existing.schema_sha256 != sha:
                 raise RecordsError(
-                    f"{final_name}/v{final_version}: a different schema file is "
-                    "already present",
+                    f"{existing.ref} is already registered with a different digest; "
+                    "register the change as a new version",
                     code="schema_exists",
-                ) from None
-        registration = {
-            "format": REGISTRATION_FORMAT,
-            "schema_ref": f"{final_name}/v{final_version}",
-            "schema_sha256": sha,
-            "registered_at": at,
-            "registered_by": actor,
-        }
-        wrote = True
-        try:
-            write_exclusive(target, "registration.json", canonical_bytes(registration))
-        except FileExistsError:
-            wrote = False  # a concurrent registration of the same ref won
-        found = self.get(f"{final_name}/v{final_version}")
+                    details={
+                        "schema_ref": existing.ref,
+                        "registered_sha256": existing.schema_sha256,
+                        "offered_sha256": sha,
+                    },
+                )
+        else:
+            target.mkdir(parents=True, exist_ok=True)
+            try:
+                write_exclusive(target, "schema.json", canonical_bytes(stripped))
+            except FileExistsError:
+                # A registration interrupted between its two files, or a racing one.
+                present = loads_strict((target / "schema.json").read_bytes())
+                if digest(present) != sha:
+                    raise RecordsError(
+                        f"{ref}: a different schema file is already present",
+                        code="schema_exists",
+                    ) from None
+            registration = {
+                "format": REGISTRATION_FORMAT,
+                "schema_ref": ref,
+                "schema_sha256": sha,
+                "registered_at": at,
+                "registered_by": actor,
+            }
+            wrote = True
+            try:
+                write_exclusive(
+                    target, "registration.json", canonical_bytes(registration)
+                )
+            except FileExistsError:
+                wrote = False  # a concurrent registration of the same ref won
+        found = self.get(ref)
         if found.schema_sha256 != sha:
             raise RecordsError(
                 f"{found.ref} is already registered with a different digest",
                 code="schema_exists",
             )
-        return found, wrote
+        status = "none"
+        if offered is not None:
+            current = self.rules_record(ref)
+            if current is None:
+                self.set_rules(ref, offered, actor=actor, at=at)
+                status = "set"
+            elif current["rules_sha256"] == digest(offered):
+                status = "unchanged"
+            else:
+                status = "kept"
+        return Registration(schema=found, new=wrote, rules=status)
 
     def resolve_ref(self, ref_or_name: str) -> str:
         """``name/vN`` as given, or the newest registered version of ``name``."""
@@ -603,9 +677,14 @@ class SchemaRegistry:
                     "actual_sha256": actual,
                 },
             )
-        if not isinstance(schema, dict) or static_scan(schema):
+        if (
+            not isinstance(schema, dict)
+            or static_scan(schema)
+            or split_rules(schema)[1] is not None
+        ):
             raise RecordsError(
-                f"schema {ref} contains references that are not allowed",
+                f"schema {ref} contains references or rules that are not allowed "
+                "in a stored schema",
                 code="schema_tampered",
             )
         return RegisteredSchema(
@@ -631,6 +710,114 @@ class SchemaRegistry:
                 yield ref, self.get(ref)
             except RecordsError as exc:
                 yield ref, exc
+
+    # ------------------------------------------------------------ rules
+    def _rules_dir(self, ref: str) -> Path:
+        name, version = parse_ref(ref)
+        target = self._dir(name, version)
+        if not (target / "registration.json").is_file():
+            raise NotFound(f"schema {ref} is not registered", code="schema_not_found")
+        return target
+
+    def rules_record(self, ref: str) -> dict[str, Any] | None:
+        """The stored rules file of ``ref``, checked against its digest."""
+        path = self._rules_dir(ref) / RULES_FILE
+        if not path.is_file():
+            return None
+        try:
+            record = loads_strict(path.read_bytes())
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise RecordsError(
+                f"rules of {ref} are unreadable: {exc}", code="rules_invalid"
+            ) from None
+        if (
+            not isinstance(record, dict)
+            or record.get("format") != RULES_FORMAT
+            or record.get("schema_ref") != ref
+            or not isinstance(record.get("rules"), dict)
+        ):
+            raise RecordsError(f"rules of {ref} are malformed", code="rules_invalid")
+        if record.get("rules_sha256") != digest(record["rules"]):
+            raise RecordsError(
+                f"rules of {ref} no longer match their digest", code="rules_invalid"
+            )
+        return record
+
+    def rules(self, ref: str) -> dict[str, Any]:
+        """The extraction rules of ``ref`` (empty when none are set)."""
+        record = self.rules_record(ref)
+        return dict(record["rules"]) if record else {}
+
+    def rules_log(self, ref: str) -> list[dict[str, Any]]:
+        path = self._rules_dir(ref) / RULES_LOG
+        if not path.is_file():
+            return []
+        entries = []
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                entries.append(loads_strict(line))
+            except ValueError as exc:
+                raise RecordsError(
+                    f"rules log of {ref}, line {number}: {exc}", code="rules_invalid"
+                ) from None
+        return entries
+
+    def set_rules(self, ref: str, rules: Any, *, actor: str, at: str) -> dict[str, Any]:
+        """Validate and store new rules for ``ref``, logging the change.
+
+        Every pointer must name a property the schema declares. The log entry
+        is written before the rules file.
+        """
+        schema = self.get(ref)
+        value = check_rules(schema.schema, rules)
+        try:
+            current = self.rules_record(ref)
+            previous = current["rules"] if current else None
+        except RecordsError:
+            previous = None  # an unreadable rules file is being replaced
+        sha = digest(value)
+        folder = self._rules_dir(ref)
+        entry = {
+            "schema_ref": ref,
+            "at": at,
+            "actor": actor,
+            "previous": previous,
+            "value": value,
+            "rules_sha256": sha,
+        }
+        append_line(folder / RULES_LOG, compact_line(entry))
+        record = {
+            "format": RULES_FORMAT,
+            "schema_ref": ref,
+            "rules": value,
+            "rules_sha256": sha,
+            "set_at": at,
+            "set_by": actor,
+        }
+        replace_file(folder / RULES_FILE, canonical_bytes(record))
+        return {
+            "schema_ref": ref,
+            "rules": value,
+            "rules_sha256": sha,
+            "previous": previous,
+            "logged": entry,
+        }
+
+    def rules_problem(self, ref: str) -> str | None:
+        """A problem description when the rules file is bad or disagrees with its log."""
+        try:
+            record = self.rules_record(ref)
+            log = self.rules_log(ref)
+        except RecordsError as exc:
+            return str(exc)
+        if not log:
+            return None if record is None else "rules set without a log entry"
+        latest = max(log, key=lambda entry: str(entry.get("at", "")))
+        if record is None or latest.get("value") != record["rules"]:
+            return "the newest rules log entry differs from the current rules"
+        return None
 
 
 def template_names() -> list[str]:
@@ -660,6 +847,10 @@ __all__ = [
     "EXTENSION_KEY",
     "REFUSING_REGISTRY",
     "RegisteredSchema",
+    "Registration",
+    "render_summary",
+    "schema_digest",
+    "split_rules",
     "SchemaRegistry",
     "check_rules",
     "check_schema_document",

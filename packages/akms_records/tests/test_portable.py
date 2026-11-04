@@ -192,3 +192,34 @@ def test_schemas_travel_with_the_export(make_store, doc, tmp_path):
     target = RecordStore.open(Scope("project", "example"), repo=tmp_path / "other")
     report = import_records(target, write(tmp_path, export_text(source)), actor="i")
     assert report["schemas_registered"] == ["idea/v1"]
+
+
+def test_rules_travel_with_the_export_and_local_rules_win(make_store, tmp_path):
+    source = make_store()
+    source.register_schema(load_template("idea"), actor="t")
+    source.create({"schema_ref": "idea/v1", "payload": {"idea": "cache it"}}, actor="t")
+    target = RecordStore.open(Scope("project", "example"), repo=tmp_path / "other")
+    report = import_records(target, write(tmp_path, export_text(source)), actor="i")
+    assert report["rules_set"] == ["idea/v1"]
+    assert target.schemas.rules("idea/v1") == source.schemas.rules("idea/v1")
+    target.set_rules("idea/v1", {"label": "/idea"}, actor="local")
+    again = import_records(target, write(tmp_path, export_text(source)), actor="i")
+    assert again["rules_differ"] == ["idea/v1"] and again["status"] == "ok"
+    assert target.schemas.rules("idea/v1") == {"label": "/idea"}
+
+
+def test_tampered_rules_in_an_export_are_refused(make_store, tmp_path):
+    source = make_store()
+    source.register_schema(load_template("idea"), actor="t")
+    lines = export_text(source).splitlines()
+    index = next(i for i, line in enumerate(lines) if '"type":"schema"' in line)
+    item = json.loads(lines[index])
+    item["rules"]["label"] = "/motivation"
+    lines[index] = json.dumps(item, sort_keys=True, separators=(",", ":"))
+    target = RecordStore.open(Scope("project", "example"), repo=tmp_path / "other")
+    with pytest.raises(RecordsError) as caught:
+        import_records(
+            target, write(tmp_path, "\n".join(_refooter(lines)) + "\n"), actor="i"
+        )
+    assert caught.value.code == "digest_mismatch"
+    assert not target.root.exists()
