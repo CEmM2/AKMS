@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from akms_records.citations import is_consolidation
 from akms_records.errors import RecordsError, ScopeViolation
 from akms_records.index import REVIEW_RANK, normalize_time
 from akms_records.render import (
@@ -168,6 +169,7 @@ class RecallHit:
     snippet: str | None
     bm25: float | None
     record: dict[str, Any] | None = None
+    consolidation: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -189,6 +191,7 @@ class RecallHit:
             "supersedes": list(self.supersedes),
             "snippet": self.snippet,
             "bm25": self.bm25,
+            "consolidation": self.consolidation,
         }
         if self.record is not None:
             out["record"] = self.record
@@ -236,6 +239,8 @@ class RecallResult:
             )
             parts.append(f"- review_state: {hit.review_state}\n")
             parts.append(f"- lifecycle: {hit.lifecycle}\n")
+            if hit.consolidation is not None:
+                parts.append(f"- consolidation: {hit.consolidation['status']}\n")
             parts.append(f"- recorded_at: {hit.recorded_at}\n")
             parts.append(f"- tags: {tag_list(hit.tags)}\n")
             parts.append(f"- source_refs: {literal(list(hit.source_refs))}\n")
@@ -262,6 +267,7 @@ def recall(
     agent: str | None = None,
     limit: int = DEFAULT_LIMIT,
     full: bool = False,
+    with_status: bool = True,
 ) -> RecallResult:
     """Recall records of ``store``'s scope from the index.
 
@@ -271,6 +277,11 @@ def recall(
     ``until`` (exclusive) apply to the schema's time field where the record
     has one, and to ``recorded_at`` otherwise. By default only active records
     (chain heads) are returned, never rejected ones, and no sensitive ones.
+
+    Summaries (schema ``consolidation``) are returned like other records, with
+    their validity in ``consolidation`` (see
+    :func:`akms_records.consolidate.consolidation_status`), which reads their
+    sources; ``with_status=False`` skips that.
     """
     check_visibility(store.scope, agent)
     if type(limit) is not int or not 1 <= limit <= MAX_LIMIT:
@@ -371,6 +382,11 @@ def recall(
                 record = store.get(row[0]).envelope_json()
             except RecordsError:
                 record = None  # erased or changed since the index was read
+        consolidation = (
+            _summary_status(store, row[0])
+            if with_status and is_consolidation(row[3])
+            else None
+        )
         hits.append(
             RecallHit(
                 record_id=row[0],
@@ -392,6 +408,7 @@ def recall(
                 snippet=snippet,
                 bm25=row[18],
                 record=record,
+                consolidation=consolidation,
             )
         )
     filters = {
@@ -408,6 +425,23 @@ def recall(
         "full": full,
     }
     return RecallResult(str(store.scope), query, filters, tuple(hits))
+
+
+def _summary_status(store: RecordStore, record_id: str) -> dict[str, Any]:
+    """A summary's validity for a recall hit: status, method, counts and reasons."""
+    from akms_records.consolidate import consolidation_status
+
+    try:
+        status = consolidation_status(store, record_id)
+    except RecordsError as exc:
+        return {"status": "invalid", "problems": [{"code": exc.code}]}
+    return {
+        "status": status["status"],
+        "method": status["method"],
+        "sources": len(status["sources"]),
+        "reasons": status["reasons"],
+        "problems": status["problems"],
+    }
 
 
 # -------------------------------------------------------------------- wake

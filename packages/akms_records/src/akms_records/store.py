@@ -35,6 +35,7 @@ import shutil
 import sqlite3
 import time
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -45,6 +46,11 @@ from akms_records.canonical import (
     digest,
     loads_strict,
     utc_now,
+)
+from akms_records.citations import (
+    CONSOLIDATION_NAME,
+    cited_ids,
+    is_consolidation,
 )
 from akms_records.envelope import (
     DEFAULT_ORIGIN_KIND,
@@ -128,6 +134,9 @@ RETRY_LOOKBACK_ATTEMPTS = 4
 TMP_MAX_AGE_SECONDS = 3600.0
 EMPTY_DIR_GRACE_SECONDS = 60.0
 MAX_REASON = 1000
+CASCADE_REASON = "cascade: a summary that cites an erased record"
+# What a plain amend may change on a summary; the rest is consolidate's job.
+SUMMARY_AMENDABLE = frozenset({"review_state", "tags", "sensitivity"})
 NOT_REACHED = (
     "git history: commits, packs and remotes that already contain the record",
     "other clones and unmerged branches (run doctor --fix after a merge to re-apply)",
@@ -271,6 +280,19 @@ def _envelope_from_body(record_id: str, name: str, body: Any) -> dict[str, Any]:
     return envelope
 
 
+def history_citations(events: list[dict[str, Any]]) -> set[str]:
+    """Every record ID any revision of a summary cited (empty for other records)."""
+    out: set[str] = set()
+    for event in events:
+        body = event.get("body")
+        if event.get("kind") not in ("create", "amend") or not isinstance(body, dict):
+            continue
+        envelope = body.get("envelope")
+        if isinstance(envelope, dict) and is_consolidation(envelope.get("schema_ref")):
+            out |= cited_ids(envelope.get("source_refs"), body.get("payload"))
+    return out
+
+
 def fold_events(record_id: str, events: list[dict[str, Any]]) -> Record:
     """Replay verified events into the record's current state."""
     fields: dict[str, Any] = {}
@@ -387,6 +409,7 @@ class RecordStore:
         self._index_writes = index
         self._index: RecordIndex | None = None
         self._index_broken = False
+        self._summary_writer = False
         if self.root.is_symlink():
             raise RecordsError(
                 f"refusing a symlinked store root: {self.root}", code="store_path"
@@ -508,6 +531,26 @@ class RecordStore:
 
     def _schema(self, ref: str) -> RegisteredSchema:
         return self.schemas.get(self.schemas.resolve_ref(ref))
+
+    @contextmanager
+    def summary_writes(self) -> Iterator[None]:
+        """Allow writes of ``consolidation`` summaries (for the consolidate module).
+
+        Outside this block ``create`` refuses a summary and ``amend`` changes
+        only a summary's review state, tags and sensitivity, so a summary is
+        always written through the citation validator.
+        """
+        previous, self._summary_writer = self._summary_writer, True
+        try:
+            yield
+        finally:
+            self._summary_writer = previous
+
+    def _refuse_summary_write(self, what: str) -> RecordsError:
+        return RecordsError(
+            f"{what}: summaries are written only by consolidate create and refresh",
+            code="consolidation_write",
+        )
 
     # ---------------------------------------------------------------- index
     @property
@@ -682,6 +725,8 @@ class RecordStore:
         check_actor(actor)
         fields = parse_record_document(document, scope=self.scope, partial=False)
         schema = self._schema(fields["schema_ref"])
+        if is_consolidation(schema.ref) and not self._summary_writer:
+            raise self._refuse_summary_write("create")
         schema.validate_payload(fields["payload"])
         summary = fields.get("summary") or render_summary(
             self.schemas.rules(schema.ref), fields["payload"]
@@ -876,6 +921,16 @@ class RecordStore:
         def build(record: Record) -> dict[str, Any]:
             merged = {**record.writer_fields(), **fields}
             schema = self._schema(merged["schema_ref"])
+            summary_record = is_consolidation(record.schema_ref)
+            if (summary_record or is_consolidation(schema.ref)) and not (
+                self._summary_writer
+                or (
+                    summary_record
+                    and schema.ref == record.schema_ref
+                    and set(fields) - {"schema_ref"} <= SUMMARY_AMENDABLE
+                )
+            ):
+                raise self._refuse_summary_write("amend")
             schema.validate_payload(merged["payload"])
             return {
                 "envelope": {
@@ -980,6 +1035,8 @@ class RecordStore:
                 "a record cannot supersede itself", code="invalid_record"
             )
         successor_record = self.get(by)  # exists and is in this scope
+        if is_consolidation(successor_record.schema_ref):
+            raise self._refuse_summary_write("supersede by a summary")
         if successor_record.lifecycle != "active" and done is None:
             raise RecordsError(f"successor {by} is not active", code="not_active")
         result = self._append(
@@ -1044,6 +1101,8 @@ class RecordStore:
                 ) from None
         if scope is not None and scope != self.scope:
             raise ScopeViolation(f"record {record_id} is not in scope {self.scope}")
+        # Found before the log line: the index drops summaries citing it then.
+        citing = self.citing_summaries(record_id)
         entry = {
             "record_id": record_id,
             "scope": str(self.scope),
@@ -1057,12 +1116,86 @@ class RecordStore:
         removed = self._remove_record_dir(directory)
         not_reached: list[str] = list(NOT_REACHED)
         index_report = self._purge_index(record_id, not_reached)
+        cascade = [
+            self._erase_cascaded(
+                summary_id, of=record_id, actor=actor, not_reached=not_reached
+            )
+            for summary_id in citing
+        ]
         return {
             "record_id": record_id,
             "files_removed": removed,
             "index": index_report,
             "logged": entry,
+            "cascade": cascade,
             "not_reached": not_reached,
+        }
+
+    def _summary_ids(self) -> list[str]:
+        """Every summary record in the root, of any scope: from the index, or a scan."""
+        try:
+            index = self.index_for_read()
+            if index is None:
+                return []
+            return [
+                row[0]
+                for row in index.db.execute(
+                    "SELECT record_id FROM records WHERE schema_name=? "
+                    "ORDER BY record_id",
+                    (CONSOLIDATION_NAME,),
+                )
+            ]
+        except (IndexUnavailable, sqlite3.Error, OSError):
+            out = []
+            for record_id in self.record_ids():
+                try:
+                    if is_consolidation(self._replay_any(record_id).schema_ref):
+                        out.append(record_id)
+                except (NotFound, ReplayError):
+                    continue
+            return out
+
+    def citing_summaries(self, record_id: str) -> list[str]:
+        """Summaries in this root whose history cites ``record_id``, any scope.
+
+        Uses the index to list summaries (a scan without one); ``doctor``
+        reads every record and finds any this misses.
+        """
+        out = []
+        for summary_id in self._summary_ids():
+            if summary_id == record_id:
+                continue
+            try:
+                pairs = read_event_files(self.record_dir(summary_id), summary_id)
+            except (NotFound, ReplayError):
+                continue
+            if record_id in history_citations([event for event, _ in pairs]):
+                out.append(summary_id)
+        return out
+
+    def _erase_cascaded(
+        self, summary_id: str, *, of: str, actor: str, not_reached: list[str]
+    ) -> dict[str, Any]:
+        """Erase a summary that cites an erased record; the log line names both IDs."""
+        directory = self.record_dir(summary_id)
+        scope = self._probe_scope(summary_id) or self.scope
+        entry = {
+            "record_id": summary_id,
+            "scope": str(scope),
+            "at": self.now(),
+            "actor": actor,
+            "reason": CASCADE_REASON,
+            "cascade_of": of,
+        }
+        self.ensure_root()
+        append_line(self.root / ERASURE_LOG, compact_line(entry))
+        removed = self._remove_record_dir(directory) if directory.is_dir() else 0
+        return {
+            "record_id": summary_id,
+            "scope": str(scope),
+            "cascade_of": of,
+            "files_removed": removed,
+            "index": self._purge_index(summary_id, not_reached),
         }
 
     def _purge_index(self, record_id: str, not_reached: list[str]) -> dict[str, Any]:
@@ -1106,14 +1239,22 @@ class RecordStore:
         return count
 
     # --------------------------------------------------------------- doctor
-    def doctor(self, *, fix: bool = False, force_tmp: bool = False) -> dict[str, Any]:
+    def doctor(
+        self,
+        *,
+        fix: bool = False,
+        force_tmp: bool = False,
+        actor: str = "akms-records doctor",
+    ) -> dict[str, Any]:
         """Check the whole store root; with ``fix``, also repair what is safe.
 
         Without ``fix`` nothing changes. ``fix`` removes temp files whose
         writer has exited (every temp file with ``force_tmp``, which is safe
         only when no writer is running), removes empty record and month
         directories, and re-applies logged erasures, for example after a merge
-        brought an erased record back. Never repaired, only reported: replay
+        brought an erased record back. It also erases summaries whose history
+        cites an erased record (``summaries_citing_erased``), logging each as
+        a cascade by ``actor``. Never repaired, only reported: replay
         errors, git conflicts, schema digest problems, and rules or policy
         files that disagree with their logs.
 
@@ -1129,11 +1270,13 @@ class RecordStore:
         """
         if force_tmp and not fix:
             raise RecordsError("force_tmp needs fix", code="usage")
+        check_actor(actor)
         found: dict[str, list[Any]] = {name: [] for name in DOCTOR_CHECKS}
         repairs: dict[str, list[str]] = {
             "tmp_removed": [],
             "empty_dirs_removed": [],
             "erasures_reapplied": [],
+            "summaries_erased": [],
             "index_reconciled": [],
         }
         state = {"records_checked": 0}
@@ -1142,6 +1285,7 @@ class RecordStore:
             self._doctor_scan(
                 found, repairs, state, replayed, fix=fix, force_tmp=force_tmp
             )
+            self._doctor_cascade(found, repairs, replayed, fix=fix, actor=actor)
             self._doctor_index(found, repairs, replayed, fix=fix)
         checks = []
         for name, (severity, repairable) in DOCTOR_CHECKS.items():
@@ -1209,6 +1353,30 @@ class RecordStore:
                 {"record_id": record_id, "problem": problem}
                 for record_id in report[problem]
             )
+
+    def _doctor_cascade(
+        self,
+        found: dict[str, list[Any]],
+        repairs: dict[str, list[str]],
+        replayed: dict[str, Record | None],
+        *,
+        fix: bool,
+        actor: str,
+    ) -> None:
+        """Erase (with ``fix``) the summaries the scan found citing erased records."""
+        if not fix:
+            return
+        not_reached: list[str] = []
+        for item in found["summaries_citing_erased"]:
+            self._erase_cascaded(
+                item["record_id"],
+                of=item["erased"][0],
+                actor=actor,
+                not_reached=not_reached,
+            )
+            replayed.pop(item["record_id"], None)
+            repairs["summaries_erased"].append(item["record_id"])
+        found["summaries_citing_erased"] = []
 
     def _report_index(self) -> RecordIndex:
         """Open the index for a report, changing nothing (not cached)."""
@@ -1322,6 +1490,7 @@ class RecordStore:
                     state,
                     replayed,
                     schema_digests,
+                    set(erased),
                     fix=fix,
                     force_tmp=force_tmp,
                 )
@@ -1341,6 +1510,7 @@ class RecordStore:
         state: dict[str, int],
         replayed: dict[str, Record | None],
         schema_digests: dict[str, str],
+        erased: set[str],
         *,
         fix: bool,
         force_tmp: bool,
@@ -1377,6 +1547,16 @@ class RecordStore:
                 found["conflicts"].append(record_id)
             return
         replayed[record_id] = record
+        if is_consolidation(record.schema_ref):
+            cited = history_citations([event for event, _ in pairs]) & erased
+            if cited:
+                found["summaries_citing_erased"].append(
+                    {
+                        "record_id": record_id,
+                        "scope": str(record.scope),
+                        "erased": sorted(cited),
+                    }
+                )
         for event, raw in pairs:
             if raw != canonical_bytes(event):
                 found["noncanonical"].append(
@@ -1392,6 +1572,7 @@ DOCTOR_CHECKS: dict[str, tuple[str, bool]] = {
     "stale_tmp_files": ("error", True),
     "empty_dirs": ("error", True),
     "erased_but_present": ("error", True),
+    "summaries_citing_erased": ("error", True),
     "replay_errors": ("error", False),
     "conflicts": ("error", False),
     "schema_errors": ("error", False),
