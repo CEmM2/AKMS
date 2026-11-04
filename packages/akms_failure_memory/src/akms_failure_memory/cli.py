@@ -86,7 +86,7 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     hooks = sub.add_parser(
-        "hooks", help="git hooks that run `refresh if-stale` after checkouts"
+        "hooks", help="git hooks that run `refresh if-stale` after git changes HEAD"
     )
     hooks_commands = hooks.add_subparsers(dest="hooks_command", required=True)
     for name in ("install", "uninstall", "status"):
@@ -102,7 +102,10 @@ def _parser() -> argparse.ArgumentParser:
     run = hooks_commands.add_parser(
         "run", help="what the installed hooks call; always exits 0"
     )
-    run.add_argument("hook", choices=("post-checkout", "post-merge", "post-rewrite"))
+    run.add_argument(
+        "hook",
+        choices=("post-checkout", "post-commit", "post-merge", "post-rewrite"),
+    )
     run.add_argument("hook_args", nargs=argparse.REMAINDER)
 
     resolve = sub.add_parser("resolve")

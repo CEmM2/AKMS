@@ -1,11 +1,11 @@
 """Git hooks that keep a project's generated lessons and code mirrors current.
 
 ``failure-memory hooks install`` adds one marked block to each of the
-``post-checkout``, ``post-merge`` and ``post-rewrite`` hooks in the directory
-git actually runs hooks from (``git rev-parse --git-path hooks``, so
-``core.hooksPath`` and linked worktrees are respected). The block calls
-``failure-memory hooks run <hook>``, which turns the hook's arguments into a
-base commit and runs ``refresh if-stale``.
+``post-checkout``, ``post-commit``, ``post-merge`` and ``post-rewrite`` hooks
+in the directory git actually runs hooks from (``git rev-parse --git-path
+hooks``, so ``core.hooksPath`` and linked worktrees are respected). The block
+calls ``failure-memory hooks run <hook>``, which turns the hook's arguments
+into a base commit and runs ``refresh if-stale``.
 
 Composition: a hook that does not exist is created holding only the block. An
 existing POSIX shell hook gets the block inserted right after its ``#!`` line,
@@ -37,7 +37,7 @@ from akms_failure_memory.config import load_project_config
 from akms_failure_memory.errors import FailureMemoryError
 
 
-HOOK_NAMES = ("post-checkout", "post-merge", "post-rewrite")
+HOOK_NAMES = ("post-checkout", "post-commit", "post-merge", "post-rewrite")
 OPT_OUT_ENV = "AKMS_FAILURE_MEMORY_HOOKS"
 GIT_CONFIG_SECTION = "akms-failure-memory"
 _KEYS = ("globalVault", "root", "config")
@@ -132,12 +132,72 @@ def _is_tracked(top: Path, path: Path) -> bool:
     return completed.returncode == 0
 
 
+def _git_path(top: Path, name: str) -> Path | None:
+    """``name`` inside this worktree's git directory, or None."""
+    raw = _git(top, "rev-parse", "--git-path", name, check=False).stdout.strip()
+    if not raw:
+        return None
+    return Path(raw) if Path(raw).is_absolute() else top / raw
+
+
 def _in_progress_rebase(top: Path) -> bool:
+    """A rebase (either backend) or a ``git am`` is in progress."""
     for name in ("rebase-merge", "rebase-apply"):
-        raw = _git(top, "rev-parse", "--git-path", name, check=False).stdout.strip()
-        if raw and (Path(raw) if Path(raw).is_absolute() else top / raw).is_dir():
+        path = _git_path(top, name)
+        if path is not None and path.is_dir():
             return True
     return False
+
+
+def _commit_base(top: Path) -> tuple[bool, str | None]:
+    """(run?, base ref) for ``post-commit``, which git passes no arguments.
+
+    Measured with git 2.54, post-commit runs for:
+
+    * every commit a rebase makes, with ``rebase-merge/`` present; post-rewrite
+      refreshes once at the end, so these are skipped (as is a ``git commit``
+      while a rebase or ``git am`` is paused);
+    * an amend, which post-rewrite(amend) follows; the reflog entry
+      ``commit (amend)`` tells them apart, and the amend is left to it;
+    * every commit a multi-commit cherry-pick or revert makes, with
+      ``sequencer/`` present and the command being committed still listed in
+      ``sequencer/todo``. No post-rewrite follows these, so all but the last
+      are skipped and the last (one command left) refreshes from where the
+      sequence started (``sequencer/head``). When the last command stopped on
+      a conflict, git has already removed ``sequencer/`` by the time its
+      commit is made, and the recorded refresh covers the earlier picks.
+      ``CHERRY_PICK_HEAD`` is present for single picks too, so it says
+      nothing about a sequence;
+    * a commit that concludes a conflicted merge, cherry-pick or revert, after
+      git removed ``MERGE_HEAD``/``CHERRY_PICK_HEAD``/``REVERT_HEAD``: a plain
+      commit, refreshed from its first parent.
+
+    A root commit has no parent: like a checkout after a clone, there is no
+    base, so it is the recorded refresh's commit or a full export.
+    """
+    if _in_progress_rebase(top):
+        return False, None
+    action = _git(top, "reflog", "-1", "--format=%gs", "HEAD", check=False)
+    if action.returncode == 0 and action.stdout.startswith("commit (amend)"):
+        return False, None
+    sequencer = _git_path(top, "sequencer")
+    if sequencer is not None and sequencer.is_dir():
+        try:
+            todo = (sequencer / "todo").read_text(encoding="utf-8", errors="replace")
+            start = (sequencer / "head").read_text(encoding="utf-8").strip()
+        except OSError:
+            todo, start = "", ""
+        remaining = [
+            line
+            for line in todo.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        if len(remaining) > 1:
+            return False, None
+        if start:
+            return True, start
+    parent = _git(top, "rev-parse", "--verify", "--quiet", "HEAD^", check=False)
+    return True, parent.stdout.strip() or None
 
 
 # ── the hook block ────────────────────────────────────────────────────────
@@ -307,7 +367,7 @@ def install_hooks(
     config_path: str | Path,
     global_vault: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Install the three hooks idempotently and record the vault in git config."""
+    """Install the hooks idempotently and record the vault in git config."""
     top = _toplevel(Path(repository_root))
     root, root_setting = _project_root(top, repository_root)
     config_file, config_setting = _config_setting(root, config_path)
@@ -464,6 +524,8 @@ def _hook_base(top: Path, hook: str, arguments: list[str]) -> tuple[bool, str | 
         if _in_progress_rebase(top):
             return False, None
         return True, arguments[0]
+    if hook == "post-commit":
+        return _commit_base(top)
     if hook == "post-merge":
         return True, "ORIG_HEAD"
     if hook == "post-rewrite":
