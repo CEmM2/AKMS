@@ -17,8 +17,9 @@ development is intentionally not replayed.
 
 ### Added
 - `failure-memory hooks install|uninstall|status` installs `post-checkout`,
-  `post-merge` and `post-rewrite` git hooks, so a checkout no longer leaves
-  generated lessons or code mirrors missing or stale. The hooks go where git
+  `post-commit`, `post-merge` and `post-rewrite` git hooks, so a checkout or
+  a plain `git commit` no longer leaves generated lessons or code mirrors
+  missing or stale. The hooks go where git
   runs them (`git rev-parse --git-path hooks`, so `core.hooksPath` and linked
   worktrees are respected). A missing hook is created owner-only (`0700`;
   widen it yourself where other users' commits must run it); an existing
@@ -29,8 +30,10 @@ development is intentionally not replayed.
   block. The global vault, project root and config path are kept in git
   config under `akms-failure-memory.*`. The hooks call `failure-memory hooks
   run`, which skips file checkouts and the steps of a rebase (refreshing once
-  at its end), honours `AKMS_FAILURE_MEMORY_HOOKS=0`, skips with a warning
-  when the project lock is busy, and always exits 0.
+  at its end), refreshes a multi-commit cherry-pick or revert once after its
+  last commit and an amend once, honours `AKMS_FAILURE_MEMORY_HOOKS=0`, skips
+  with a warning when the project lock is busy, and always exits 0. Running
+  install again over an install without `post-commit` adds it.
 - `failure-memory refresh if-stale [--since <ref>]` refreshes only what is
   stale: lessons recompile when `check` reports drift, mirrors are exported
   through the exporter's git selection for the sources that changed since

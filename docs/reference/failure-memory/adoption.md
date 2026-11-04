@@ -56,7 +56,7 @@ Compile, record, refresh, and provider resolution share one reentrant project-lo
 ## Keep generated outputs current with git hooks
 
 Generated lesson nodes, routes and code mirrors describe the checked-out tree,
-so a checkout, merge or rebase can leave them missing or stale. Install the
+so a checkout, commit, merge or rebase can leave them missing or stale. Install the
 hooks once per clone:
 
 ```bash
@@ -65,11 +65,13 @@ failure-memory hooks install --repo . --config .knowledge/failure-memory.toml \
 failure-memory hooks status --repo .
 ```
 
-After every branch checkout, merge, pull and rebase the hooks run
+After every branch checkout, commit, merge, pull and rebase the hooks run
 `failure-memory refresh if-stale`: lessons recompile only when the registry
 digest changed, mirrors are re-exported only for the sources that changed
 between the old and the new `HEAD`, and the graph is rebuilt only when either
-changed. A rebase refreshes once, after its last commit. Every output is
+changed. A commit refreshes the sources it committed right away. A rebase,
+or a multi-commit cherry-pick or revert, refreshes once, after its last
+commit, and an amend refreshes once. Every output is
 stamped with the current UTC time, so `akms status` does not list the
 refreshed mirrors as stale. The hooks never fail the git command: on any
 problem they print one warning line and exit 0. Set

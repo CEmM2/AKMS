@@ -170,14 +170,16 @@ failure-memory hooks status [--repo .]
 failure-memory hooks uninstall [--repo .]
 ```
 
-`install` adds a managed block to the `post-checkout`, `post-merge` and
-`post-rewrite` hooks in the directory git runs hooks from
+`install` adds a managed block to the `post-checkout`, `post-commit`,
+`post-merge` and `post-rewrite` hooks in the directory git runs hooks from
 (`git rev-parse --git-path hooks`, which follows `core.hooksPath` and is shared
 by linked worktrees). The block calls `failure-memory hooks run <hook> "$@"`
 with the Python that ran `install`; run `install` again after moving that
 environment. `--global-vault` is required the first time and remembered after
 that. `install` is idempotent: it reports each hook as `created`, `inserted`,
-`updated` or `unchanged`.
+`updated` or `unchanged`. Running it again over an install that predates the
+`post-commit` hook adds that hook and leaves the other three unchanged;
+`status` reports such an install as `partial`.
 
 - A hook that does not exist is created holding only the block, with mode
   `0700` (only its owner can read or run it). A shared repository whose hooks
@@ -211,7 +213,7 @@ The hooks never write to the global vault.
 ### `hooks run`
 
 ```bash
-failure-memory hooks run post-checkout|post-merge|post-rewrite [<hook arguments>...]
+failure-memory hooks run post-checkout|post-commit|post-merge|post-rewrite [<hook arguments>...]
 ```
 
 What the installed hooks call; it runs `refresh if-stale` from the hook's
@@ -222,8 +224,14 @@ not (a broken config, a missing vault, a busy project lock).
 | Hook | Runs when | Base for mirrors |
 | --- | --- | --- |
 | `post-checkout` | a branch checkout (flag `1`); a file checkout (flag `0`) and the checkout that starts a rebase are skipped | the previous `HEAD`; after a clone or `worktree add` there is none, so a full export |
-| `post-merge` | after `merge` and `pull` | `ORIG_HEAD` |
+| `post-commit` | after `git commit`, including the commit that concludes a conflicted merge, and a single `cherry-pick` or `revert`; skipped while a rebase or `git am` is in progress and for an amend (`post-rewrite` covers both), and for every commit of a multi-commit `cherry-pick` or `revert` but the last | the commit's first parent; for the last commit of a `cherry-pick`/`revert` sequence, the commit the sequence started from; a root commit has none, so the recorded commit or a full export |
+| `post-merge` | after `merge` and `pull` (a merge that stops on a conflict runs no hook; the `git commit` that concludes it runs `post-commit`) | `ORIG_HEAD` |
 | `post-rewrite` | once at the end of a rebase; an `amend` outside a rebase | `ORIG_HEAD` for a rebase, `HEAD@{1}` for an amend |
+
+Each git command therefore refreshes at most once: a rebase runs
+`post-commit` for every commit it makes, but those runs are skipped and its
+`post-rewrite` refreshes once at the end; an amend runs `post-commit` and then
+`post-rewrite amend`, and only the second refreshes.
 
 The hook does not wait for the project lock: if another failure-memory command
 holds it, the hook warns and skips, and the next run catches up from the
