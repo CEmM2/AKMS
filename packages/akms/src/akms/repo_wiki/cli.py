@@ -31,7 +31,8 @@ from akms.repo_wiki.graph_viewer import (
 )
 from akms.repo_wiki.index import SearchResult, search_index, update_index
 from akms.repo_wiki.intel_cli import INTEL_COMMANDS, add_intel_parsers, run_intel
-from akms.repo_wiki.locking import LockError
+from akms.repo_wiki.locking import LockError, acquire_build_lock
+from akms.repo_wiki import refresh as refresh_module
 from akms.repo_wiki.manifest import build_repo, get_backend_notes, load_manifest
 from akms.repo_wiki.models import SourceFile
 from akms.repo_wiki.extract.python_ast import parse_python_file, parsed_module_to_json
@@ -231,13 +232,28 @@ def main(argv: list[str] | None = None) -> int:
                 )
         return 0 if not parsed.errors else 1
     if args.command == "build":
-        summary = build_repo(
-            repo_root,
-            changed_only=args.changed_only,
-            force=args.force,
-            no_summaries=args.no_summaries,
-            no_index=args.no_index,
-        )
+        try:
+            lock = acquire_build_lock(
+                repo_root,
+                wait_seconds=refresh_module.REFRESH_WAIT_SECONDS,
+                on_wait=lambda who: print(
+                    f"repo-wiki build: waiting for a running build ({who})",
+                    file=sys.stderr,
+                ),
+            )
+        except LockError as exc:
+            print(f"repo-wiki build: {exc}", file=sys.stderr)
+            return 1
+        try:
+            summary = build_repo(
+                repo_root,
+                changed_only=args.changed_only,
+                force=args.force,
+                no_summaries=args.no_summaries,
+                no_index=args.no_index,
+            )
+        finally:
+            lock.release()
         if args.json:
             print(json.dumps(summary.to_dict(), indent=2, sort_keys=True))
         else:

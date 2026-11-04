@@ -283,3 +283,66 @@ def test_disabled_flows_leave_the_other_commands_unchanged(
     assert "flows" not in payload
     code, payload, _ = run(repo, capsys, "flows")
     assert code == 0 and payload["summary"]["total"] == 7  # computed on demand
+
+
+# ----------------------------------------------------------- changes --refresh
+
+
+def test_changes_without_refresh_keeps_its_shape(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _, payload, _ = run(repo, capsys, "changes")
+    assert "flows_before" not in payload and "flows_after" not in payload
+    assert "refresh" not in payload
+    assert "flows_touched_after" not in payload["summary"]
+
+
+def test_changes_refresh_reports_flows_before_and_after(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    core = repo / "pkg" / "core.py"
+    core.write_text(
+        core.read_text("utf-8") + "\n\ndef added():\n    return middle(5)\n",
+        encoding="utf-8",
+    )
+    # Without a refresh the new function is in no flow: the stored graph predates it.
+    _, plain, _ = run(repo, capsys, "changes", "--allow-stale")
+    assert plain["summary"]["flows_touched"] == 0
+    code, payload, _ = run(repo, capsys, "changes", "--refresh")
+    assert code == 0
+    assert payload["refresh"]["parsed"] == 1 and payload["refresh"]["errors"] == 0
+    assert payload["flows_before"]["count"] == 0
+    assert [f["entry"] for f in payload["flows_after"]["flows"]] == [CORE + "added"]
+    assert payload["flows"] == payload["flows_after"]
+    summary = payload["summary"]
+    assert (
+        summary["flows_touched"],
+        summary["flows_touched_before"],
+        summary["flows_touched_after"],
+        summary["flows_only_before"],
+        summary["flows_only_after"],
+    ) == (1, 0, 1, 0, 1)
+    assert payload["graph"]["stale"] is False  # the refresh made it current
+    _, out = text(repo, capsys, "changes", "--refresh")
+    assert out.startswith("Refreshed the graph first: 0 file(s) re-parsed")
+    assert "Flows touched: 1 in the refreshed graph (before the refresh: 1;" in out
+
+
+def test_changes_refresh_waits_for_and_reports_a_held_build_lock(
+    repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from akms.repo_wiki import refresh
+    from akms.repo_wiki.locking import acquire_build_lock
+
+    monkeypatch.setattr(refresh, "REFRESH_WAIT_SECONDS", 0.3)
+    lock = acquire_build_lock(repo)
+    try:
+        code, payload, err = run(repo, capsys, "changes", "--refresh")
+        assert code == 1 and payload["error"]["code"] == "build_lock"
+        assert "waiting for a running build" in err
+        code = main(["--repo-root", str(repo), "build", "--no-summaries", "--no-index"])
+        assert code == 1
+        assert "another repo-wiki build is running" in capsys.readouterr().err
+    finally:
+        lock.release()
+    assert run(repo, capsys, "changes", "--refresh")[0] == 0

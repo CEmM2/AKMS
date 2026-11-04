@@ -26,6 +26,8 @@ from akms.repo_wiki.flows import (
     load_flows,
     participation,
 )
+from akms.repo_wiki.locking import LockError
+from akms.repo_wiki.refresh import refresh_graph
 from akms.repo_wiki.impact import (
     DEFAULT_DEPTH,
     SymbolLookupError,
@@ -136,6 +138,14 @@ def add_intel_parsers(sub: argparse._SubParsersAction) -> None:  # type: ignore[
     )
     changes.add_argument("--json", action="store_true")
     changes.add_argument("--allow-stale", action="store_true", help=stale_help)
+    changes.add_argument(
+        "--refresh",
+        action="store_true",
+        help=(
+            "Run the incremental build first (under the build lock), then report the "
+            "flows of the graph both before and after it"
+        ),
+    )
 
     flows = sub.add_parser(
         "flows",
@@ -190,6 +200,17 @@ def run_intel(args: argparse.Namespace, repo_root: Path) -> int:
         config = load_config(repo_root)
         if args.command == "changes":
             mode = "base" if args.base else ("staged" if args.staged else "worktree")
+            before: FlowIndex | None = None
+            refreshed: dict[str, object] | None = None
+            if args.refresh:
+                before = _stored_flows(repo_root, config)
+                refreshed = refresh_graph(
+                    repo_root,
+                    on_wait=lambda who: print(
+                        f"repo-wiki changes: waiting for a running build ({who})",
+                        file=sys.stderr,
+                    ),
+                )
             used: list[LoadedGraph] = []
             payload = detect_changes(
                 repo_root,
@@ -199,7 +220,11 @@ def run_intel(args: argparse.Namespace, repo_root: Path) -> int:
                 allow_stale=args.allow_stale,
                 loaded_out=used,
             )
-            _attach_change_flows(repo_root, config, payload, used)
+            after = _attach_change_flows(repo_root, config, payload, used)
+            if refreshed is not None:
+                payload["refresh"] = refreshed
+                if after is not None:
+                    _attach_refreshed_flows(payload, before, after)
             _emit(payload, args.json, render_changes)
             return 0
         if args.command == "flows" and args.limit < 0:
@@ -274,6 +299,8 @@ def run_intel(args: argparse.Namespace, repo_root: Path) -> int:
         return _fail(args, EXIT_SYMBOL, exc.code, str(exc), candidates=exc.candidates)
     except FlowLookupError as exc:
         return _fail(args, EXIT_SYMBOL, exc.code, str(exc), candidates=exc.candidates)
+    except LockError as exc:
+        return _fail(args, EXIT_GIT, "build_lock", str(exc))
     except GitError as exc:
         return _fail(args, EXIT_GIT, "git_error", str(exc))
 
@@ -287,29 +314,81 @@ def _attach_change_flows(
     config: dict[str, object],
     payload: dict[str, object],
     used: list[LoadedGraph],
-) -> None:
+) -> FlowIndex | None:
     """Add the flows that contain a changed (or moved-away) symbol to a changes payload.
 
     The stored flows describe the graph before the change, which is what a diff touches.
     """
     if not _flows_enabled(config):
-        return
+        return None
     loaded = (
         used[0]
         if used
         else load_code_graph(repo_root, config=config, allow_stale=True, finalize=False)
     )
     index = load_flows(repo_root, config, loaded.graph, loaded.path)
-    ids: list[str] = []
-    for item in payload.get("changed_symbols") or []:  # type: ignore[union-attr]
-        ids.append(str(item["id"]))
-        if item.get("old_id"):
-            ids.append(str(item["old_id"]))
-    flows = participation(index, sorted(set(ids)), limit=REPORT_FLOWS)
+    flows = participation(index, _changed_ids(payload), limit=REPORT_FLOWS)
     payload["flows"] = flows
     summary = payload.get("summary")
     if isinstance(summary, dict):
         summary["flows_touched"] = flows["count"]
+    return index
+
+
+def _changed_ids(payload: dict[str, object]) -> list[str]:
+    ids: set[str] = set()
+    for item in payload.get("changed_symbols") or []:  # type: ignore[union-attr]
+        ids.add(str(item["id"]))
+        if item.get("old_id"):
+            ids.add(str(item["old_id"]))
+    return sorted(ids)
+
+
+def _stored_flows(repo_root: Path, config: dict[str, object]) -> FlowIndex | None:
+    """The flows of the stored graph as it is now, or None when there is no graph."""
+    if not _flows_enabled(config):
+        return None
+    try:
+        loaded = load_code_graph(
+            repo_root, config=config, allow_stale=True, finalize=False
+        )
+    except GraphUnavailableError:
+        return None
+    return load_flows(repo_root, config, loaded.graph, loaded.path)
+
+
+def _attach_refreshed_flows(
+    payload: dict[str, object],
+    before: FlowIndex | None,
+    after: FlowIndex,
+) -> None:
+    """``flows_before`` / ``flows_after`` and the counts for ``changes --refresh``.
+
+    ``flows`` (already attached) is read from the refreshed graph, so it equals
+    ``flows_after``. ``summary.flows_touched`` counts the distinct flows that contain a
+    changed symbol in either graph.
+    """
+    ids = _changed_ids(payload)
+    payload["flows_after"] = payload.get("flows")
+    payload["flows_before"] = (
+        participation(before, ids, limit=REPORT_FLOWS) if before is not None else None
+    )
+    summary = payload.get("summary")
+    if not isinstance(summary, dict):
+        return
+    after_set = _touched_ids(after, ids)
+    before_set = _touched_ids(before, ids)
+    summary["flows_touched"] = len(after_set | before_set)
+    summary["flows_touched_before"] = len(before_set) if before is not None else None
+    summary["flows_touched_after"] = len(after_set)
+    summary["flows_only_before"] = len(before_set - after_set)
+    summary["flows_only_after"] = len(after_set - before_set)
+
+
+def _touched_ids(index: FlowIndex | None, ids: list[str]) -> set[str]:
+    if index is None:
+        return set()
+    return {str(flow["id"]) for sid in ids for flow, _ in index.touching(sid)}
 
 
 def _matches_entry(flow: dict, text: str) -> bool:
@@ -739,7 +818,31 @@ def render_changes(payload: dict[str, object]) -> str:
     )
     if summary.get("risk_reasons"):
         lines.append(f"  {'; '.join(summary['risk_reasons'])}")
+    refresh = payload.get("refresh")
+    if isinstance(refresh, dict):
+        lines.insert(
+            0,
+            f"Refreshed the graph first: {refresh['parsed']} file(s) re-parsed "
+            f"in {refresh['seconds']:.1f}s",
+        )
     flows = payload.get("flows")
-    if isinstance(flows, dict):
+    if "flows_after" in payload and isinstance(flows, dict):
+        before = payload.get("flows_before")
+        before_text = (
+            f"{summary['flows_touched_before']}"
+            if isinstance(before, dict)
+            else "no graph"
+        )
+        _flow_lines(
+            lines,
+            "Flows touched",
+            flows,
+            extra=(
+                f" in the refreshed graph (before the refresh: {before_text}; "
+                f"only before: {summary['flows_only_before']}, "
+                f"only after: {summary['flows_only_after']})"
+            ),
+        )
+    elif isinstance(flows, dict):
         _flow_lines(lines, "Flows touched", flows)
     return "\n".join(lines)

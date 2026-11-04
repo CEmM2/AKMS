@@ -531,3 +531,39 @@ class RepoLocalLock:
 
     def __exit__(self, *_exc: object) -> None:
         self.release()
+
+
+BUILD_LOCK_NAME: Final = "repo-wiki-build"
+
+
+def acquire_build_lock(
+    repo_root: Path | str,
+    *,
+    wait_seconds: float = 0.0,
+    poll_seconds: float = 0.2,
+    on_wait: Any = None,
+) -> RepoLocalLock:
+    """Take the lock that serializes ``repo-wiki build`` runs, waiting up to *wait_seconds*.
+
+    ``on_wait`` (if given) is called once, with the holder's description, when the lock
+    is busy and the caller starts waiting. Raises :class:`LockError` when it stays busy.
+    """
+    lock = RepoLocalLock(repo_root, name=BUILD_LOCK_NAME, purpose="repo-wiki build")
+    deadline = time.monotonic() + max(0.0, wait_seconds)
+    waiting = False
+    while True:
+        try:
+            lock.acquire()
+            return lock
+        except LockError as exc:
+            holder = _parse_ownership(lock.path)
+            who = holder.describe() if holder is not None else "unknown owner"
+            if time.monotonic() >= deadline:
+                raise LockError(
+                    f"another repo-wiki build is running ({who}; lock {lock.path}); "
+                    "try again when it finishes"
+                ) from exc
+            if not waiting and on_wait is not None:
+                on_wait(who)
+            waiting = True
+            time.sleep(poll_seconds)
