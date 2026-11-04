@@ -226,6 +226,10 @@ def world(make_store, home, clock, repo):
 
 
 def run_wake(world, agent="alpha", task="decision", budget=2000, **options):
+    # These tests cover isolation, deduplication, priority and budgets over
+    # records written by "t", so they opt into every unreviewed record; the
+    # default eligibility rule has its own tests in test_consolidate.py.
+    options.setdefault("include_unreviewed", True)
     return wake(
         agent=agent,
         task=task,
