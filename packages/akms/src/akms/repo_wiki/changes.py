@@ -20,6 +20,7 @@ from akms.repo_wiki.code_graph import (
     HEURISTIC,
     CodeGraph,
     Edge,
+    LoadedGraph,
     is_test_path,
     load_code_graph,
 )
@@ -372,8 +373,13 @@ def detect_changes(
     mode: str = "worktree",
     base: str | None = None,
     allow_stale: bool = False,
+    loaded_out: list[LoadedGraph] | None = None,
 ) -> dict[str, object]:
-    """Changed files, the symbols they touch, and each symbol's direct callers."""
+    """Changed files, the symbols they touch, and each symbol's direct callers.
+
+    *loaded_out*, when given, receives the loaded graph (with the diff overlaid), so a
+    caller can reuse it instead of reading the graph a second time.
+    """
     inside = _git(repo_root, "rev-parse", "--is-inside-work-tree", check=False)
     if inside.decode().strip() != "true":
         raise GitError(f"repository root is not a git work tree: {repo_root}")
@@ -432,6 +438,8 @@ def detect_changes(
             elif new_parsed is not None:
                 graph.replace_file(change.path, new_parsed)
     graph.finalize()
+    if loaded_out is not None:
+        loaded_out.append(loaded)
     return _report(
         graph,
         loaded.to_dict(repo_root),

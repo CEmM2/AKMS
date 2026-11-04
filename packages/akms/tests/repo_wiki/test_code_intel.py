@@ -502,6 +502,7 @@ def test_context_json_shape_is_stable(
         "members",
         "module",
         "resolution_counts",
+        "flows",
     }
     assert payload["schema"] == "repo-wiki/context/v1"
     assert set(payload["symbol"]) == (LINK_KEYS - {"edge"}) | {
@@ -558,6 +559,7 @@ def test_impact_json_shape_is_stable(
         "affected_test_files",
         "possible_files",
         "summary",
+        "flows",
     }
     assert payload["schema"] == "repo-wiki/impact/v1"
     assert set(payload["levels"][0]) == {"depth", "label", "confident", "possible"}
