@@ -45,8 +45,10 @@ development is intentionally not replayed.
   beside the risk, which is unchanged) and `changes` the flows a diff touches.
   Settings live under a new `flows:` configuration section.
 - `repo-wiki` infers two more kinds of call link: a method called on a local
-  bound to a repository class (`x = C()` or `x: C`, then `x.m()`) links to
-  `C.m`, confidently when exactly one target remains, and a function that
+  bound to a repository class (`x = C()`, `x: C` or a parameter `x: C`, then
+  `x.m()`) links to `C.m`, and so does `self.x.m()` / `cls.x.m()` when the
+  class body or `__init__` binds `x` to `C`; confidently when exactly one
+  target remains, and a function that
   indexes a module-level dict of callables links to every value as a possible
   link. Both are marked `provenance: inferred`; method calls on locals bound
   only to outside classes are now external instead of possible name matches.
@@ -55,7 +57,7 @@ development is intentionally not replayed.
   graphs keep their edge bytes; `context`, `impact` and `changes` report it on
   every link in their JSON output. The graph also gains optional node fields
   for receivers, dispatch tables, `__main__` calls, argparse handlers and
-  decorator names. The IR cache schema moves to 4, so the first build after
+  decorator names. The IR cache schema moves to 5, so the first build after
   upgrading re-parses every file.
 - `akms-failure-memory` can allocate collision-free lesson IDs:
   `validation.id_style = "dated"` gives `L<YYYYMMDD>-<4 Crockford base32>`

@@ -122,7 +122,8 @@ class Symbol:
     calls: list[str] = field(default_factory=list)
     metadata: dict[str, object] = field(default_factory=dict)
     # Local name -> constructor/annotation names it is bound to, for names used as call
-    # receivers (``x = Cls(); x.m()``). Python only; empty elsewhere.
+    # receivers (``x = Cls(); x.m()``, a parameter ``x: Cls``). On a class: attribute name
+    # -> names, for ``self.x.m()`` / ``cls.x.m()``. Python only; empty elsewhere.
     receivers: dict[str, list[str]] = field(default_factory=dict)
     # Module-level names this symbol indexes (``TABLE[key]``, ``TABLE.get(key)``) that may
     # be dispatch tables. Python only; empty elsewhere.

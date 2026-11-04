@@ -32,7 +32,7 @@ Python looks it up, using only what the graph records, and label the result:
 | CONFIDENT | `scope` | A function nested in an enclosing function of the caller. |
 | CONFIDENT | `self` | `self.m()` or `cls.m()`, found on the enclosing class or a confidently resolved base class. |
 | CONFIDENT | `constructor` | A call of class `C`, which also reaches `C.__init__`. |
-| CONFIDENT | `receiver` | `x.m()` where the caller binds `x = C(...)` or annotates `x: C` (also `Optional[C]`, `C \| None`, `"C"`), every bound name is a repository class, and exactly one method `m` is found on them or their bases. Provenance `inferred`. |
+| CONFIDENT | `receiver` | `x.m()` where the caller (or an enclosing function) binds `x = C(...)`, annotates `x: C`, or takes a parameter `x: C` (also `Optional[C]`, `C \| None`, `"C"`); or `self.x.m()` / `cls.x.m()` where the class or a base binds `x` with a class-level `x: C` or `x = C(...)`, or in `__init__` with `self.x = C(...)`, `self.x: C = ...` or `self.x = param` for a parameter `param: C`. Every bound name must be a repository class and exactly one method `m` must be found on them or their bases. Provenance `inferred`. |
 | CONFIDENT | `name` | Rust, C++ and Julia: exactly one symbol in the repository has the name. |
 | HEURISTIC | `name` | The name matches a top-level definition, but nothing imports or defines it where it is called. |
 | HEURISTIC | `attribute` | `obj.m()` on a receiver whose type is unknown, linked to the methods named `m`. Only when there are at most four such methods, and never for method names of built-in types or `pathlib.Path` (`append`, `get`, `exists`, ...). |
@@ -113,11 +113,11 @@ block. `changes` skips the files in its diff, which it parses itself.
 ## What the graph cannot see
 
 The graph comes from parsing source, without running it. Its only type inference
-is the local `receiver` rule above. These are missed, or found only as possible
-links:
+is the `receiver` rule above. These are missed, or found only as possible links:
 
-- calls through dynamic dispatch: a method called on a parameter (annotated or not)
-  or an attribute whose type is not visible, and overrides in subclasses;
+- calls through dynamic dispatch: a method called on an unannotated parameter, an
+  attribute bound anywhere but the class body or `__init__`, a chain such as
+  `self.a.b.m()` or `make().m()`, and overrides in subclasses;
 - reflection and indirection: `getattr`, registries filled at run time, callbacks
   passed as values, decorators that replace a function (a literal dict of callables
   gives only possible `dispatch` links);

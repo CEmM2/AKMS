@@ -14,8 +14,10 @@ import      the caller's module imports the name (module- or function-     CONFI
 self        ``self.m`` / ``cls.m`` found on the enclosing class or a      CONFIDENT
             confidently resolved base class
 constructor a call of class ``C`` also reaches ``C.__init__``               as the call
-receiver    ``x.m`` where ``x = C(...)`` or ``x: C`` in the caller: ``C.m``   CONFIDENT if
-            (base classes walked); several bound classes give HEURISTIC     one target
+receiver    ``x.m`` where ``x = C(...)``, ``x: C`` or a parameter ``x: C`` in   CONFIDENT if
+            the caller, or ``self.x.m`` / ``cls.x.m`` where the class binds  one target
+            ``x`` to ``C``: ``C.m`` (bases walked); several classes give
+            HEURISTIC
 dispatch    ``TABLE[key]`` / ``TABLE.get(key)`` on a module-level dict of   HEURISTIC
             callables: every value of the table
 name        only a name match: no import or definition explains it          HEURISTIC
@@ -583,6 +585,10 @@ class CodeGraph:
                 member = self.lookup_member(owner, rest)
                 if member is not None:
                     return self._edges(node, member, kind, CONFIDENT, "self", name)
+            if owner is not None and kind == "calls" and rest.count(".") == 1:
+                inferred = self._attribute_receiver_edges(node, owner, rest, name)
+                if inferred is not None:
+                    return inferred
             return self._attribute_match(node, name, kind)
         base = self._resolve_head(node, head)
         if base is None:
@@ -621,11 +627,42 @@ class CodeGraph:
         bound = self._receiver_types(node, var)
         if not bound:
             return None
+        return self._typed_edges(node, node, bound, rest, name)
+
+    def _attribute_receiver_edges(
+        self, node: Node, owner: str, rest: str, name: str
+    ) -> list[Edge] | Unresolved | None:
+        """``self.x.m()`` / ``cls.x.m()`` where the class (or a base) binds ``x`` to ``C``.
+
+        The bound names are resolved in the module of the class that binds them.
+        """
+        attribute, _, method = rest.partition(".")
+        queue = [owner]
+        visited: set[str] = set()
+        while queue:
+            current = queue.pop(0)
+            if current in visited or current not in self.nodes:
+                continue
+            visited.add(current)
+            bound = self.receivers.get(current, {}).get(attribute)
+            if bound:
+                return self._typed_edges(node, self.nodes[current], bound, method, name)
+            queue.extend(
+                e.target
+                for e in self.out_edges.get(current, [])
+                if e.type == "inherits" and e.resolution == CONFIDENT
+            )
+        return None
+
+    def _typed_edges(
+        self, node: Node, context: Node, bound: list[str], rest: str, name: str
+    ) -> list[Edge] | Unresolved | None:
+        """Links from *node* to method *rest* of the classes *bound* names in *context*."""
         targets: set[str] = set()
         external = 0
         unknown = 0
         for type_name in bound:
-            outcome = self._resolve_name(node, type_name, "inherits")
+            outcome = self._resolve_name(context, type_name, "inherits")
             if isinstance(outcome, Unresolved):
                 external += outcome.external
                 unknown += not outcome.external

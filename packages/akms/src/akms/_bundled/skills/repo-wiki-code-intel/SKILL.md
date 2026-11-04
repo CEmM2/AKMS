@@ -142,7 +142,7 @@ Every caller, callee and dependent carries the edge that produced it:
 | CONFIDENT | `scope` | a function nested in an enclosing function |
 | CONFIDENT | `self` | `self.m()` / `cls.m()` found on the enclosing class or a resolved base class |
 | CONFIDENT | `constructor` | a call of class `C` also reaches `C.__init__` |
-| CONFIDENT | `receiver` | `x.m()` where the caller set `x = C(...)` or annotated `x: C`, and `C` (or a base) has `m` (provenance `inferred`) |
+| CONFIDENT | `receiver` | `x.m()` where the caller set `x = C(...)`, annotated `x: C` or takes a parameter `x: C`; or `self.x.m()` / `cls.x.m()` where the class body or `__init__` binds `x` to `C`; and `C` (or a base) has `m` (provenance `inferred`) |
 | CONFIDENT | `name` | Rust, C++ and Julia only: exactly one symbol in the repository has that name |
 | HEURISTIC | `name` | the name matches, but nothing imports or defines it where it is called (a star import, a parameter holding a callable, a builtin with the same name) |
 | HEURISTIC | `attribute` | `obj.m()` on a receiver of unknown type, linked to the methods named `m` (at most 4 candidates; `candidates` lists them) |
@@ -156,19 +156,22 @@ HEURISTIC `attribute` link with several candidates usually reaches only one of t
 
 `provenance` (JSON only) says where a link comes from: `static` for a call written in
 the source, `inferred` for one derived from a pattern (`receiver`, `dispatch`). An
-inferred CONFIDENT link counts like any other, but it rests on the local binding: a
-later reassignment the graph cannot see (`x = factory()`) would break it.
+inferred CONFIDENT link counts like any other, but it rests on a binding or an
+annotation: a later reassignment the graph cannot see (`x = factory()`,
+`obj.x = Other()` from outside the class) or a wrong annotation would break it.
 
 ## What the graph cannot know
 
 The graph is built from source text, without running anything. Its only type
-inference is local: `x = C(...)` or `x: C` inside the calling function. It misses, or
+inference is the `receiver` rule: `x = C(...)`, `x: C` or a parameter `x: C` in the
+caller, and `self.x` / `cls.x` bound in the class body or `__init__`. It misses, or
 gets only as a possible link:
 
 - **dynamic dispatch**: a method called on an object whose type is not visible at the
-  call site (`repo.save()` when `repo` is a parameter, even an annotated one, or an
-  attribute such as `self.repo`) is at best a HEURISTIC `attribute` link; overrides in
-  subclasses are not callers of the base method;
+  call site (`repo.save()` when `repo` is an unannotated parameter, an attribute set
+  outside `__init__`, a chain such as `self.a.b.m()` or `make().m()`) is at best a
+  HEURISTIC `attribute` link; overrides in subclasses are not callers of the base
+  method;
 - **reflection and indirection**: `getattr(obj, name)()`, registries filled at run
   time, callbacks passed as values, decorators that replace a function. A literal
   module-level dict of callables is the one exception: it gives HEURISTIC `dispatch`

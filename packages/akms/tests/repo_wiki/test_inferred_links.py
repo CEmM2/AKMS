@@ -110,6 +110,63 @@ def maybe(kind, path):
     return handler(path) if handler else None
 """
 
+HOLDERS = """\
+from typing import Optional
+
+from pkg.models import Archive, Store
+
+
+def param(store: Store):
+    return store.save(1)
+
+
+def optional_param(box: Optional["Store"] = None):
+    return box.save(2)
+
+
+def union_param(box: "Store | None"):
+    return box.save(3)
+
+
+def two_params(a: Store, b):
+    return a.ping(), b.save(4)
+
+
+class Holder:
+    shared: Archive
+
+    def __init__(self, given: Store, other):
+        self.made = Store()
+        self.given = given
+        self.other = other
+        self.noted: Archive = other
+
+    def use(self):
+        return self.made.save(1), self.given.ping(), self.noted.save(2)
+
+    def untyped(self):
+        return self.other.save(3)
+
+    @classmethod
+    def klass(cls):
+        return cls.shared.save(4)
+
+
+class Child(Holder):
+    def again(self):
+        return self.made.save(5)
+
+
+class Mixed:
+    def __init__(self, flag):
+        self.either = Store()
+        if flag:
+            self.either = Archive()
+
+    def go(self):
+        return self.either.save(6)
+"""
+
 REMOTE = """\
 from pkg.tables import HANDLERS
 
@@ -132,6 +189,7 @@ def repo(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> Path:
     _write(tmp_path, "pkg/uses.py", USES)
     _write(tmp_path, "pkg/tables.py", TABLES)
     _write(tmp_path, "pkg/remote.py", REMOTE)
+    _write(tmp_path, "pkg/holders.py", HOLDERS)
     assert (
         main(["--repo-root", str(tmp_path), "build", "--no-summaries", "--no-index"])
         == 0
@@ -375,3 +433,60 @@ def _sym(
         span=SourceSpan(path, 1, 2),
         calls=calls or [],
     )
+
+
+HOLD = "python:pkg/holders.py::"
+
+
+def test_annotated_parameters_type_their_receivers(repo: Path) -> None:
+    graph = load_code_graph(repo).graph
+    for source, method in (
+        ("param", "Store.save"),
+        ("optional_param", "Store.save"),
+        ("union_param", "Store.save"),
+        ("two_params", "Base.ping"),
+    ):
+        calls = _calls(graph, HOLD + source)
+        assert calls[MODELS_ID + method] == (CONFIDENT, "receiver", "inferred"), source
+    # An unannotated parameter keeps the attribute rule.
+    assert (
+        _calls(graph, HOLD + "two_params")[MODELS_ID + "Archive.save"][1] == "attribute"
+    )
+
+
+def test_self_attributes_bound_in_init_or_the_class_body(repo: Path) -> None:
+    graph = load_code_graph(repo).graph
+    use = _calls(graph, HOLD + "Holder.use")
+    assert use[MODELS_ID + "Store.save"] == (CONFIDENT, "receiver", "inferred")
+    assert use[MODELS_ID + "Base.ping"][:2] == (CONFIDENT, "receiver")  # self.given
+    assert use[MODELS_ID + "Archive.save"][:2] == (CONFIDENT, "receiver")  # self.noted
+    klass = _calls(graph, HOLD + "Holder.klass")  # cls.shared: Archive
+    assert klass[MODELS_ID + "Archive.save"][:2] == (CONFIDENT, "receiver")
+    # Inherited from the base class's __init__.
+    again = _calls(graph, HOLD + "Child.again")
+    assert again[MODELS_ID + "Store.save"][:2] == (CONFIDENT, "receiver")
+    # self.other = other (no annotation): still only a name match.
+    untyped = _calls(graph, HOLD + "Holder.untyped")
+    assert {basis for _, basis, _ in untyped.values()} == {"attribute"}
+
+
+def test_attribute_bound_to_two_classes_stays_heuristic(repo: Path) -> None:
+    graph = load_code_graph(repo).graph
+    go = _calls(graph, HOLD + "Mixed.go")
+    assert go[MODELS_ID + "Store.save"] == (HEURISTIC, "receiver", "inferred")
+    assert go[MODELS_ID + "Archive.save"] == (HEURISTIC, "receiver", "inferred")
+
+
+def test_class_nodes_record_attribute_bindings(repo: Path) -> None:
+    graph = json.loads(
+        (repo / ".repo_wiki/generated/symbol_graph.json").read_text("utf-8")
+    )
+    nodes = graph["nodes"]
+    assert nodes[HOLD + "Holder"]["receivers"] == {
+        "given": ["Store"],
+        "made": ["Store"],
+        "noted": ["Archive"],
+        "shared": ["Archive"],
+    }
+    assert nodes[HOLD + "Mixed"]["receivers"] == {"either": ["Archive", "Store"]}
+    assert nodes[HOLD + "param"]["receivers"] == {"store": ["Store"]}

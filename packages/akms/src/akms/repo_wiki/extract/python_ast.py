@@ -170,7 +170,11 @@ def parse_definition(
         calls=calls,
         span=SourceSpan(path=path, start_line=start, end_line=end),
         language=Language.PYTHON,
-        receivers={} if is_class else extract_receivers(node, calls),
+        receivers=(
+            extract_attribute_receivers(node, calls)
+            if isinstance(node, ast.ClassDef)
+            else extract_receivers(node, calls)
+        ),
         table_refs=[] if is_class else extract_table_refs(node, table_names),
         cli_handlers=[] if is_class else extract_cli_handlers(node),
     )
@@ -280,7 +284,8 @@ def _annotation_name(node: ast.AST | None) -> str:
 
 
 def extract_receivers(node: ast.AST, calls: list[str]) -> dict[str, list[str]]:
-    """Local names bound by ``x = C(...)`` or ``x: C = ...`` and then used as ``x.m(...)``.
+    """Local names bound by ``x = C(...)``, ``x: C = ...`` or a parameter ``x: C``, then
+    used as ``x.m(...)``.
 
     Maps each such name to the sorted callable or annotation names it is bound to; whether
     a name is a class is decided later, against the graph. ``self`` and ``cls`` are left out
@@ -295,7 +300,11 @@ def extract_receivers(node: ast.AST, calls: list[str]) -> dict[str, list[str]]:
         return {}
     bound: dict[str, set[str]] = {}
     for child in ast.walk(node):
-        if isinstance(child, ast.Assign) and isinstance(child.value, ast.Call):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for arg, annotation in _annotated_parameters(child).items():
+                if arg in used:
+                    bound.setdefault(arg, set()).add(annotation)
+        elif isinstance(child, ast.Assign) and isinstance(child.value, ast.Call):
             name = call_name(child.value.func)
             for target in child.targets:
                 if name and isinstance(target, ast.Name) and target.id in used:
@@ -309,6 +318,88 @@ def extract_receivers(node: ast.AST, calls: list[str]) -> dict[str, list[str]]:
             if name:
                 bound.setdefault(child.target.id, set()).add(name)
     return {k: sorted(v) for k, v in sorted(bound.items())}
+
+
+def _annotated_parameters(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> dict[str, str]:
+    """Parameter name -> annotated class name, for parameters with a usable annotation."""
+    args = node.args
+    found: dict[str, str] = {}
+    for arg in [*args.posonlyargs, *args.args, *args.kwonlyargs]:
+        if arg.arg in ("self", "cls"):
+            continue
+        name = _annotation_name(arg.annotation)
+        if name:
+            found[arg.arg] = name
+    return found
+
+
+def extract_attribute_receivers(
+    node: ast.ClassDef, calls: list[str]
+) -> dict[str, list[str]]:
+    """A class's attributes used as ``self.x.m()`` / ``cls.x.m()``, and what they are bound to.
+
+    Bindings counted: a class-level ``x: C`` or ``x = C(...)``, and in ``__init__``
+    ``self.x = C(...)``, ``self.x: C = ...`` or ``self.x = param`` where ``param: C``.
+    """
+    used = {
+        call.split(".")[1]
+        for call in calls
+        if call.startswith(("self.", "cls.")) and call.count(".") >= 2
+    }
+    if not used:
+        return {}
+    bound: dict[str, set[str]] = {}
+
+    def add(attr: str, name: str) -> None:
+        if name and attr in used:
+            bound.setdefault(attr, set()).add(name)
+
+    for statement in node.body:
+        if isinstance(statement, ast.AnnAssign) and isinstance(
+            statement.target, ast.Name
+        ):
+            add(statement.target.id, _annotation_name(statement.annotation))
+        elif (
+            isinstance(statement, ast.Assign)
+            and len(statement.targets) == 1
+            and isinstance(statement.targets[0], ast.Name)
+            and isinstance(statement.value, ast.Call)
+        ):
+            add(statement.targets[0].id, call_name(statement.value.func))
+        elif (
+            isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and statement.name == "__init__"
+        ):
+            parameters = _annotated_parameters(statement)
+            for child in ast.walk(statement):
+                if isinstance(child, ast.Assign):
+                    targets, value = child.targets, child.value
+                elif isinstance(child, ast.AnnAssign):
+                    targets, value = [child.target], None
+                    target = child.target
+                    if _is_self_attribute(target):
+                        add(target.attr, _annotation_name(child.annotation))  # type: ignore[union-attr]
+                    continue
+                else:
+                    continue
+                for target in targets:
+                    if not _is_self_attribute(target):
+                        continue
+                    if isinstance(value, ast.Call):
+                        add(target.attr, call_name(value.func))  # type: ignore[union-attr]
+                    elif isinstance(value, ast.Name) and value.id in parameters:
+                        add(target.attr, parameters[value.id])  # type: ignore[union-attr]
+    return {k: sorted(v) for k, v in sorted(bound.items())}
+
+
+def _is_self_attribute(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "self"
+    )
 
 
 def extract_table_refs(node: ast.AST, names: frozenset[str]) -> list[str]:

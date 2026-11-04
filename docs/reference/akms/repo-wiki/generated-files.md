@@ -42,7 +42,7 @@ without them is still valid `symbol_graph v1` and readers must not require them:
 | `provenance` | edge | `static`, `observed` or `inferred`. Absent means `static`, which is every edge written today. |
 | `bindings` | module node | Python: local name to dotted import target. |
 | `dispatch` | module node | Python: module-level dict literals of callables, name to sorted value names. |
-| `receivers` | symbol node | Python: locals used as call receivers, name to the constructor or annotation names they are bound to. |
+| `receivers` | symbol node | Python: on a function or method, locals and annotated parameters used as call receivers, name to the constructor or annotation names they are bound to; on a class, the attributes used as `self.x.m()` or `cls.x.m()`, name to the names they are bound to in the class body or `__init__`. |
 | `table_refs` | symbol node | Python: module-level names the symbol indexes (`T[key]`, `T.get(key)`). |
 | `cli_handlers` | symbol node | Python: names the symbol passes as argparse `set_defaults(func=...)`. |
 | `decorators` | symbol node | Decorator names with their arguments dropped (`app.command`). |
