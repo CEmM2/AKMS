@@ -305,3 +305,59 @@ def validate_route_index_nodes(
     if issues:
         raise RouteIndexValidationError(issues)
     return index
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Route-index discovery
+# ═══════════════════════════════════════════════════════════════════════
+
+# File names, relative to a knowledge directory, where a task route index is
+# conventionally written. Absence is normal: a repository that has not adopted
+# routes has none, and callers fall back to tag-based resolution.
+_LEGACY_ROUTE_INDEX_TAILS = (
+    "task-routes.yaml",
+    "task-routes.yml",
+    "task-routes.json",
+    "graph/task-routes.yaml",
+    "graph/task-routes.yml",
+    "graph/task-routes.json",
+    "routes/task-routes.yaml",
+    "routes/task-routes.json",
+    "failure-routes.yaml",
+    "failure-routes.json",
+)
+# Added later, and so searched after every earlier location. This is the
+# default ``paths.routes`` that ``akms-failure-memory`` writes, always as JSON.
+_ADDED_ROUTE_INDEX_TAILS = ("generated/failure_routes.json",)
+
+# `.knowledge` is the write default. `knowledge` stays so a checkout that
+# already has that directory, and no `.knowledge`, still resolves.
+_KNOWLEDGE_DIRNAMES = (".knowledge", "knowledge")
+
+TASK_ROUTE_INDEX_CANDIDATES: tuple[str, ...] = tuple(
+    f"{dirname}/{tail}"
+    for tails in (_LEGACY_ROUTE_INDEX_TAILS, _ADDED_ROUTE_INDEX_TAILS)
+    for dirname in _KNOWLEDGE_DIRNAMES
+    for tail in tails
+)
+"""Repository-relative paths searched for a task route index, in order.
+
+The first existing file wins. New locations are appended, so a repository that
+resolved to one file before still resolves to the same file.
+"""
+
+
+def find_task_route_index(repo_root: str | Path) -> Path | None:
+    """Return the first existing task route index under conventional paths.
+
+    Looks for each entry of :data:`TASK_ROUTE_INDEX_CANDIDATES` under
+    ``repo_root`` and returns the first regular file found, or ``None``. The
+    file is not parsed; use :func:`parse_route_index` for that.
+    """
+
+    root = Path(repo_root)
+    for relative in TASK_ROUTE_INDEX_CANDIDATES:
+        candidate = root / relative
+        if candidate.is_file():
+            return candidate
+    return None
