@@ -67,6 +67,7 @@ from typing import Any
 from akms_records.canonical import compact_line, digest
 from akms_records.citations import CONSOLIDATION_NAME, summary_cites
 from akms_records.envelope import Record
+from akms_records.fsio import FILE_MODE
 from akms_records.errors import IndexUnavailable, NotFound, RecordsError, ReplayError
 from akms_records.ids import RECORD_ID_RE
 from akms_records.procs import pid_alive
@@ -362,6 +363,8 @@ class RecordIndex:
         try:
             if create:
                 self.directory.mkdir(parents=True, exist_ok=True)
+                # SQLite gives the -wal and -shm files the database's mode.
+                os.close(os.open(self.path, os.O_WRONLY | os.O_CREAT, FILE_MODE))
             self.db = sqlite3.connect(self.path, timeout=60, isolation_level=None)
         except (OSError, sqlite3.Error) as exc:
             raise IndexUnavailable(
@@ -564,7 +567,7 @@ class RecordIndex:
         path = self.pending / f"{target}.{os.getpid()}.{secrets.token_hex(4)}.pending"
         try:
             self.pending.mkdir(parents=True, exist_ok=True)
-            os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644))
+            os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, FILE_MODE))
         except OSError:
             return None
         return path

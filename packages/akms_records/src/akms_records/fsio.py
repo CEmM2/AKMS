@@ -17,6 +17,10 @@ is taken. On Windows, a filesystem without hard links falls back to
 Durability: ``fsync`` is used by default. On macOS that does not flush the
 drive's write cache; set ``AKMS_RECORDS_FULL_FSYNC=1`` for ``F_FULLFSYNC``,
 which costs roughly 15 ms per write.
+
+Permissions: every file the store creates is owner-only (``0o600``). Records
+can hold sensitive text, and git keeps no read bits, so nothing is lost for a
+project store that is committed.
 """
 
 from __future__ import annotations
@@ -34,6 +38,7 @@ from akms_records.errors import RecordsError
 FULL_FSYNC_ENV = "AKMS_RECORDS_FULL_FSYNC"
 TMP_RE = re.compile(r"\.(?P<name>.+)\.(?P<pid>[0-9]+)\.(?P<rand>[0-9a-f]{8})\.tmp")
 _O_BINARY = getattr(os, "O_BINARY", 0)
+FILE_MODE = 0o600
 
 # Test hook: called between the temp-file fsync and the link. Crash tests set
 # it to widen the window a SIGKILL can land in.
@@ -83,7 +88,7 @@ def temp_name(name: str) -> str:
 
 def _write_temp(directory: Path, name: str, data: bytes) -> Path:
     tmp = directory / temp_name(name)
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_BINARY, 0o644)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_BINARY, FILE_MODE)
     try:
         _write_all(fd, data)
         fsync_fd(fd)
@@ -149,7 +154,7 @@ def replace_file(path: Path, data: bytes) -> None:
 def append_line(path: Path, line: str) -> None:
     """Append one line to an append-only log and flush it."""
     created = not path.exists()
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | _O_BINARY, 0o644)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | _O_BINARY, FILE_MODE)
     try:
         _write_all(fd, (line + "\n").encode("utf-8"))
         fsync_fd(fd)
