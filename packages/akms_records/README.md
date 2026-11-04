@@ -18,6 +18,9 @@ history of plain files.
   silently.
 - **No lock, no network, no LLM.** Writes use an exclusive hard link, schema
   references never leave the schema, and nothing calls a provider.
+- **Fast recall and wake.** A derived, rebuildable SQLite FTS5 index answers
+  scoped `recall` and token-budgeted `wake`, rendering record text as fenced
+  data under a fixed layout.
 - **Host-neutral.** It does not import `akms`. The `[akms]` extra is reserved
   for a later promotion bridge into AKMS project-local nodes.
 
@@ -27,6 +30,8 @@ A record is not a fact: records stay records unless a person promotes them.
 
 - Python `>=3.12,<3.13`
 - `jsonschema` and `referencing`
+- SQLite with FTS5 in Python's `sqlite3` (standard builds) for `recall` and
+  `wake`
 - A filesystem with hard links (any local disk on Linux, macOS and Windows)
 
 ## First commands
@@ -38,6 +43,9 @@ akms-records schema register --template decision --scope project:example
 akms-records add --scope project:example --schema decision/v1 --file decision.json
 akms-records list --scope project:example
 akms-records show rec-20261103-k3f9m2xa --scope project:example
+akms-records recall --scope project:example --query surrogate
+akms-records wake --agent scout --task "review the model" --budget-tokens 1200 \
+  --scope project:example
 akms-records doctor --scope project:example
 ```
 

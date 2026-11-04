@@ -14,6 +14,12 @@ can read every record in it. Agents that must not see each other's records
 need separate store roots (agent scopes already get one each) with operating
 system permissions that keep them apart.
 
+`recall` and `wake` follow the same rule: given an agent, `recall` refuses
+another agent's scope, and `wake` reads only the agent's own scope plus the
+project and shared scopes it is given. Sensitive records are left out unless
+asked for, and rejected records are never shown. The index of a store root
+holds every scope in that root, like the files do.
+
 `doctor` is store-wide maintenance and covers every scope in its root.
 
 Setting a promotion policy asks for interactive confirmation, but a process
@@ -36,6 +42,10 @@ not the end:
   `doctor --fix` erases them again; run it after merges.
 - **Exports and backups** made before the erasure are not touched. `import`
   never brings back a record named in the local erasure log.
+- **Other worktrees' indexes.** Each worktree has its own search index.
+  Erasure cleans this worktree's index; another worktree's index drops the
+  record on its next read after the erasure log reaches it, or on
+  `doctor --fix`.
 
 The erasure log holds the record ID, scope, time, actor and reason. Do not
 put the content you are erasing into the reason.
@@ -61,7 +71,16 @@ exclusive rename).
 
 Every record is a directory and every revision a file of about 1–2 KB, which
 occupies a whole filesystem block. Commands without an index (`list`,
-`export`, `doctor`) read every record. Keep project stores well below 100,000
+`export`, `doctor`, `index check`) read every record. `recall` and `wake` use
+the index; after a git checkout or merge their first read stats every record
+directory once.
+
+## The index only sees changes made through the API or git
+
+The staleness check before each read catches writes through `akms-records`
+and changes made by git. Files copied in or restored by other tools, inside an
+existing month directory, are not noticed until `akms-records index
+reconcile` or `doctor --fix`. See [search index](search-index.md). Keep project stores well below 100,000
 records: at that size `git add` and `git status` slow down noticeably.
 
 ## A deleted newest revision goes unnoticed
