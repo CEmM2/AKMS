@@ -13,6 +13,7 @@ there never reaches a consumer.
 | `skills/node-gen/` | Generating domain nodes from NotebookLM notebooks (papers) via the `nlm` CLI. |
 | `skills/deepwiki-nodes/` | Generating domain nodes from a GitHub repo indexed by DeepWiki (code). |
 | `skills/akms-spec-check/` | Auditing an implementation against the frozen v2 conformance invariants. |
+| `skills/repo-wiki-code-intel/` | Checking who depends on code before changing it: `repo-wiki context`, `impact` before an edit, `changes` before a commit. |
 | `agents/akms-spec-reviewer.md` | Reviewing AKMS changes against those invariants before committing. |
 | `agents/digest-refiner.md` | Refining a zotero-summarizer collection digest for the AKMS bridge. |
 | `commands/node-gen-invoker.md` | One-shot entry point that drives `node-gen` end to end. |
