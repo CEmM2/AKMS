@@ -117,7 +117,7 @@ def _unlink_quietly(path: Path) -> None:
         pass
     except PermissionError:
         # Windows refuses to delete a link while another process holds the
-        # file open. The temp file is cleaned up later by doctor or the next
+        # file open. The temp file is cleaned up later by doctor --fix or the next
         # writer once this process has exited.
         pass
 

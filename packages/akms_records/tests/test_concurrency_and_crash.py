@@ -67,7 +67,7 @@ def test_racing_amends_lose_no_update(shared, repo, doc, worker):
     assert len({event["event_id"] for event in history}) == len(history)
     # Windows may keep a temp link it could not delete while a reader held
     # the file open; doctor removes it once its writer has exited.
-    assert shared.doctor()["status"] == "ok"
+    assert shared.doctor(fix=True)["status"] == "ok"
     assert no_tmp(shared.root)
 
 
@@ -107,7 +107,7 @@ def test_concurrent_creates_get_distinct_ids(shared, repo, worker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="SIGKILL is POSIX only")
 def test_killed_writers_never_lose_or_corrupt_acknowledged_events(
-    shared, repo, doc, worker
+    shared, repo, doc, worker, items
 ):
     for i in range(5):
         shared.create(doc(f"seed {i}"), actor="t")
@@ -132,8 +132,10 @@ def test_killed_writers_never_lose_or_corrupt_acknowledged_events(
             assert events[revision - 1]["event_id"] == event_id
         for item in store.iter_records():
             assert not isinstance(item, ReplayError), item
-        report = store.doctor(force_tmp=True)  # no writer is alive now
+        report = store.doctor(fix=True, force_tmp=True)  # no writer is alive now
         assert report["status"] == "ok", report
         assert no_tmp(store.root)
-        assert not report["empty_dirs"]
+        after = store.doctor()
+        assert after["status"] == "ok"
+        assert not items(after, "empty_dirs") and not items(after, "recent_empty_dirs")
     assert acked

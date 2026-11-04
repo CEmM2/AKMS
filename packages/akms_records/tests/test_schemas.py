@@ -140,7 +140,7 @@ def test_format_is_an_annotation_only(make_store):
     assert store.get(rid).payload["x"] == "not-an-email"
 
 
-def test_tampered_schema_is_refused(store, doc):
+def test_tampered_schema_is_refused(store, doc, items):
     path = store.schemas.root / "decision" / "v1" / "schema.json"
     original = path.read_bytes()
     path.write_text(json.dumps(json.loads(original), indent=8), encoding="utf-8")
@@ -154,8 +154,9 @@ def test_tampered_schema_is_refused(store, doc):
     with pytest.raises(RecordsError) as caught:
         store.create(doc(), actor="t")
     assert caught.value.code == "schema_tampered"
-    report = store.doctor(fix=False)
-    assert "decision/v1" in report["schema_errors"] and report["status"] == "error"
+    report = store.doctor()
+    assert [i["schema_ref"] for i in items(report, "schema_errors")] == ["decision/v1"]
+    assert report["status"] == "error"
 
 
 def test_digest_is_canonical():
@@ -225,3 +226,102 @@ def test_name_and_version_can_come_from_the_command(make_store):
     assert outcome.schema.ref == "plain/v3"
     with pytest.raises(RecordsError):
         store.register_schema(schema, actor="t")  # no name anywhere
+
+
+def test_rules_change_keeps_the_schema_digest_and_records(store, doc):
+    rid = store.create(doc(), actor="t").record_id
+    before = store.schemas.get("decision/v1").schema_sha256
+    record = store.get(rid)
+    old_rules = store.schemas.rules("decision/v1")
+    result = store.set_rules(
+        "decision", {**old_rules, "summary_template": "Chosen: {decision}"}, actor="ed"
+    )
+    assert result["schema_ref"] == "decision/v1"
+    assert result["previous"] == old_rules
+    assert store.schemas.get("decision/v1").schema_sha256 == before
+    assert store.get(rid) == record
+    assert store.get(rid).schema_sha256 == before
+    assert store.doctor()["status"] == "ok"
+    new = store.create(doc("next"), actor="t").record_id
+    assert store.get(new).summary == "Chosen: next"
+    log = store.schemas.rules_log("decision/v1")
+    assert [entry["previous"] for entry in log] == [None, old_rules]
+    assert (
+        log[-1]["actor"] == "ed" and log[-1]["rules_sha256"] == result["rules_sha256"]
+    )
+    record_file = store.schemas.rules_record("decision/v1")
+    assert (
+        record_file is not None
+        and record_file["rules_sha256"] == result["rules_sha256"]
+    )
+
+
+def test_schema_digest_ignores_rules():
+    from akms_records.schemas import schema_digest
+
+    template = load_template("decision")
+    changed = json.loads(json.dumps(template))
+    changed["x-akms-records"]["rules"] = {"label": "/rationale"}
+    assert schema_digest(template) == schema_digest(changed)
+    renamed = json.loads(json.dumps(template))
+    renamed["x-akms-records"]["version"] = 2
+    assert schema_digest(template) != schema_digest(renamed)  # identity is covered
+    bare = {k: v for k, v in template.items() if k != "x-akms-records"}
+    bare_with_rules = {**bare, "x-akms-records": {"rules": {"label": "/decision"}}}
+    assert schema_digest(bare) == schema_digest(bare_with_rules)
+
+
+@pytest.mark.parametrize(
+    "rules",
+    [
+        {"search_text": ["/decision", "/nope"]},
+        {"label": "/nope"},
+        {"time_field": "/rationale/deeper"},
+        {"summary_template": "{nope}"},
+    ],
+)
+def test_rules_with_unknown_pointers_are_rejected(store, rules):
+    before = store.schemas.rules("decision/v1")
+    with pytest.raises(RecordsError) as caught:
+        store.set_rules("decision/v1", rules, actor="ed")
+    assert caught.value.code == "invalid_rules"
+    assert "no declared property" in str(caught.value)
+    assert store.schemas.rules("decision/v1") == before
+    assert len(store.schemas.rules_log("decision/v1")) == 1  # only the registration
+
+
+def test_rules_from_options_or_block_but_not_both(make_store):
+    store = make_store()
+    schema = load_template("idea")
+    with pytest.raises(RecordsError, match="not both"):
+        store.register_schema(schema, actor="t", rules={"label": "/idea"})
+    bare = json.loads(json.dumps(schema))
+    del bare["x-akms-records"]["rules"]
+    outcome = store.register_schema(bare, actor="t", rules={"label": "/idea"})
+    assert outcome.rules == "set"
+    assert store.schemas.rules("idea/v1") == {"label": "/idea"}
+    assert outcome.schema.schema_sha256 == store.schemas.get("idea/v1").schema_sha256
+    kept = store.register_schema(schema, actor="t")  # different rules offered
+    assert kept.rules == "kept" and store.schemas.rules("idea/v1") == {"label": "/idea"}
+
+
+def test_rules_file_edits_are_detected(store, items):
+    path = store.schemas.root / "decision" / "v1" / "_rules.json"
+    record = json.loads(path.read_text(encoding="utf-8"))
+    record["rules"]["label"] = "/rationale"
+    path.write_text(json.dumps(record), encoding="utf-8")
+    with pytest.raises(RecordsError) as caught:
+        store.schemas.rules("decision/v1")
+    assert caught.value.code == "rules_invalid"
+    drift = items(store.doctor(), "rules_drift")
+    assert [item["schema_ref"] for item in drift] == ["decision/v1"]
+
+
+def test_rules_inside_a_stored_schema_are_refused(store):
+    path = store.schemas.root / "decision" / "v1" / "schema.json"
+    schema = json.loads(path.read_text(encoding="utf-8"))
+    schema["x-akms-records"]["rules"] = {"label": "/decision"}
+    path.write_text(json.dumps(schema), encoding="utf-8")
+    with pytest.raises(RecordsError) as caught:
+        store.schemas.get("decision/v1")
+    assert caught.value.code == "schema_tampered"

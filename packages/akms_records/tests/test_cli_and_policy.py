@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import time
 import subprocess
 import sys
 from pathlib import Path
@@ -107,11 +109,32 @@ def test_json_errors(cli, capsys, repo):
     }
 
 
-def test_doctor_check_exit_code(cli, repo):
-    stray = repo / ".knowledge" / "records" / "2026-11" / "rec-20261103-zzzzzzzz"
-    stray.mkdir(parents=True)
-    code, out, _ = cli("doctor", "--check")
-    assert code == 1 and out["status"] == "drift"
+def test_doctor_reports_by_default_and_fixes_on_request(cli, repo, items):
+    empty = repo / ".knowledge" / "records" / "2026-11" / "rec-20261103-zzzzzzzz"
+    empty.mkdir(parents=True)
+    old = time.time() - 3600
+    os.utime(empty, (old, old))
+    code, out, _ = cli("doctor")
+    assert code == 1 and out["status"] == "error" and out["mode"] == "report"
+    assert items(out, "empty_dirs") == ["2026-11/rec-20261103-zzzzzzzz"]
+    assert empty.exists()
+    code, _, err = cli("doctor", "--force-tmp")
+    assert code == 2 and "error[usage]" in err
+    code, out, _ = cli("doctor", "--fix")
+    assert code == 0 and out["status"] == "ok" and out["mode"] == "fix"
+    assert out["repairs"]["empty_dirs_removed"] == [
+        "2026-11/rec-20261103-zzzzzzzz",
+        "2026-11",
+    ]
+    assert not empty.exists()
+    check = next(c for c in out["checks"] if c["check"] == "empty_dirs")
+    assert check == {
+        "check": "empty_dirs",
+        "status": "ok",
+        "severity": "error",
+        "repairable": True,
+        "items": [],
+    }
 
 
 def test_export_and_import_commands(cli, tmp_path, repo, capsys):
@@ -208,8 +231,8 @@ def test_policy_changes_are_logged_with_the_previous_value(cli):
         {"source": "human", "status": "tentative", "confidence": 0.6},
     ]
     assert all(entry["actor"] == "tester" and entry["at"] for entry in log)
-    code, out, _ = cli("doctor", "--check")
-    assert out["policy_drift"] == {}
+    code, out, _ = cli("doctor")
+    assert code == 0 and out["status"] == "ok"
 
 
 def test_policy_rules(store):
@@ -254,7 +277,7 @@ def test_policy_change_does_not_change_the_schema_or_records(store, doc):
     assert store.get(rid) == record
 
 
-def test_policy_file_edited_behind_the_log_is_reported(store):
+def test_policy_file_edited_behind_the_log_is_reported(store, items):
     store.policies.set(
         "decision",
         source="human",
@@ -267,7 +290,8 @@ def test_policy_file_edited_behind_the_log_is_reported(store):
     policy = json.loads(path.read_text(encoding="utf-8"))
     policy["status"] = "established"
     path.write_text(json.dumps(policy), encoding="utf-8")
-    assert "decision" in store.doctor(fix=False)["policy_drift"]
+    drift = items(store.doctor(), "policy_drift")
+    assert [item["schema"] for item in drift] == ["decision"]
 
 
 def test_module_entry_point_help():

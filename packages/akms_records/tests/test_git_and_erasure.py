@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from akms_records import RecordStore, ReplayError, Scope
+from akms_records import RecordStore, RecordsError, ReplayError, Scope
 from akms_records.schemas import load_template
 
 SECRET = "zqx-private-7f3a9c"
@@ -64,7 +64,9 @@ def test_disjoint_records_merge_cleanly_in_both_orders(project, repo, git, doc):
     assert trees[0] == trees[1]
 
 
-def test_same_revision_on_two_branches_conflicts_and_is_detected(project, repo, git):
+def test_same_revision_on_two_branches_conflicts_and_is_detected(
+    project, repo, git, items
+):
     store, base = project
     target = base[2]
     for branch in ("c", "d"):
@@ -80,15 +82,21 @@ def test_same_revision_on_two_branches_conflicts_and_is_detected(project, repo, 
     with pytest.raises(ReplayError) as caught:
         st.get(target)
     assert caught.value.replay_code == "conflict"
-    report = st.doctor()
-    assert report["conflicts"] == [target]
-    assert report["replay_errors"][target]["code"] == "conflict"
+    report = st.doctor(fix=True)  # doctor never resolves a conflict
+    assert items(report, "conflicts") == [target]
+    assert items(report, "replay_errors") == [
+        {
+            "record_id": target,
+            "code": "conflict",
+            "detail": "git conflict markers in 000002.json",
+        }
+    ]
     assert report["status"] == "error"
     # The other records still replay.
     assert all(st.get(rid).revision == 1 for rid in base if rid != target)
 
 
-def test_autocrlf_checkout_keeps_event_bytes(project, repo, git, git_env, tmp_path):
+def test_autocrlf_checkout_keeps_event_bytes(project, repo, git, tmp_path, items):
     store, base = project
     clone = tmp_path / "clone"
     result = git(
@@ -99,7 +107,7 @@ def test_autocrlf_checkout_keeps_event_bytes(project, repo, git, git_env, tmp_pa
     sample = cloned.record_dir(base[0]) / "000001.json"
     assert b"\r\n" not in sample.read_bytes()
     assert all(cloned.get(rid).revision == 1 for rid in base)
-    assert cloned.doctor(fix=False)["noncanonical"] == []
+    assert items(cloned.doctor(), "noncanonical") == []
 
 
 def test_erasure_removes_files_and_logs_no_content(store, doc):
@@ -131,7 +139,7 @@ def test_erasure_removes_files_and_logs_no_content(store, doc):
     assert store.doctor()["status"] == "ok"
 
 
-def test_doctor_reapplies_an_erasure_a_merge_brought_back(project, repo, git):
+def test_doctor_reapplies_an_erasure_a_merge_brought_back(project, repo, git, items):
     store, base = project
     target = base[3]
     git(repo, "checkout", "-q", "-b", "late", "main")
@@ -146,13 +154,14 @@ def test_doctor_reapplies_an_erasure_a_merge_brought_back(project, repo, git):
     st = open_store(repo)
     revived = st.record_dir(target) / "000002.json"
     assert SECRET.encode() in revived.read_bytes()
-    check = st.doctor(fix=False)
-    assert check["erased_but_present"] == [target]
-    assert check["status"] == "drift"
-    fixed = st.doctor()
-    assert fixed["erasures_reapplied"] == [target]
+    check = st.doctor()  # reports only
+    assert items(check, "erased_but_present") == [target]
+    assert check["status"] == "error" and check["repairs"]["erasures_reapplied"] == []
+    assert st.record_dir(target).exists()
+    fixed = st.doctor(fix=True)
+    assert fixed["repairs"]["erasures_reapplied"] == [target]
     assert not st.record_dir(target).exists()
-    assert st.doctor(fix=False)["status"] == "ok"
+    assert st.doctor()["status"] == "ok"
 
 
 def test_erasure_logs_from_two_branches_merge_by_union(project, repo, git):
@@ -168,7 +177,7 @@ def test_erasure_logs_from_two_branches_merge_by_union(project, repo, git):
     assert sorted(e["record_id"] for e in entries) == sorted(base[:2]) and not bad
 
 
-def test_doctor_cleans_temp_files_and_empty_directories(store, doc):
+def test_doctor_reports_then_cleans_temp_files_and_empty_directories(store, doc, items):
     rid = store.create(doc(), actor="t").record_id
     directory = store.record_dir(rid)
     dead = directory / ".000002.json.999999.0badc0de.tmp"
@@ -179,24 +188,30 @@ def test_doctor_cleans_temp_files_and_empty_directories(store, doc):
     empty.mkdir()
     old = time.time() - 3600
     os.utime(empty, (old, old))
-    check = store.doctor(fix=False)
-    assert check["status"] == "drift"
-    assert len(check["tmp_files"]) == 2 and check["empty_dirs"]
-    fixed = store.doctor()
-    assert fixed["tmp_removed"] == [
-        f"2026-11/{rid}/{dead.name}"
-    ]  # the live writer's stays
+    check = store.doctor()
+    assert check["status"] == "error" and check["mode"] == "report"
+    assert items(check, "stale_tmp_files") == [f"2026-11/{rid}/{dead.name}"]
+    assert items(check, "tmp_in_progress") == [f"2026-11/{rid}/{live.name}"]
+    assert items(check, "empty_dirs") == ["2026-11/rec-20261103-zzzzzzzz"]
+    assert dead.exists() and empty.exists()  # reporting changes nothing
+    fixed = store.doctor(fix=True)
+    assert fixed["repairs"]["tmp_removed"] == [f"2026-11/{rid}/{dead.name}"]
     assert live.exists() and not dead.exists() and not empty.exists()
-    assert store.doctor(force_tmp=True)["tmp_removed"] == [f"2026-11/{rid}/{live.name}"]
-    assert store.doctor(fix=False)["status"] == "ok"
+    assert fixed["status"] == "ok"  # a live writer's temp file is only a warning
+    forced = store.doctor(fix=True, force_tmp=True)
+    assert forced["repairs"]["tmp_removed"] == [f"2026-11/{rid}/{live.name}"]
+    assert store.doctor()["status"] == "ok"
+    with pytest.raises(RecordsError, match="force_tmp needs fix"):
+        store.doctor(force_tmp=True)
 
 
-def test_doctor_reports_strays_without_touching_them(store, doc):
+def test_doctor_reports_strays_without_touching_them(store, doc, items):
     rid = store.create(doc(), actor="t").record_id
     stray = store.record_dir(rid) / "000001.json.orig"
     stray.write_text("x", encoding="utf-8")
-    report = store.doctor()
-    assert report["stray_files"] == [f"2026-11/{rid}/000001.json.orig"]
+    report = store.doctor(fix=True)
+    assert items(report, "stray_files") == [f"2026-11/{rid}/000001.json.orig"]
+    assert report["status"] == "ok"  # a warning
     assert stray.exists()
 
 

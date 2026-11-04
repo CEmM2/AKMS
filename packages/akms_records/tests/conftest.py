@@ -135,3 +135,16 @@ def clock() -> type[Clock]:
 @pytest.fixture
 def worker() -> Path:
     return WORKER
+
+
+def _items(report: dict[str, Any], name: str) -> list[Any]:
+    for check in report["checks"]:
+        if check["check"] == name:
+            return check["items"]
+    raise KeyError(name)
+
+
+@pytest.fixture
+def items() -> Callable[[dict[str, Any], str], list[Any]]:
+    """The items one doctor check found."""
+    return _items

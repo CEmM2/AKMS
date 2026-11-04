@@ -270,12 +270,12 @@ def test_gap_mismatch_and_conflict_markers_are_reported(store, doc):
     assert caught.value.replay_code == "conflict"
 
 
-def test_whitespace_only_change_keeps_the_digests(store, doc):
+def test_whitespace_only_change_keeps_the_digests(store, doc, items):
     rid = store.create(doc(), actor="t").record_id
     store.amend(rid, {"summary": "b"}, expected_revision=1, actor="t")
     path = store.record_dir(rid) / "000001.json"
     path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
     assert store.get(rid).revision == 2  # hashes are over canonical JSON
-    report = store.doctor(fix=False)
-    assert report["noncanonical"] == [f"2026-11/{rid}/000001.json"]
+    report = store.doctor()
+    assert items(report, "noncanonical") == [f"2026-11/{rid}/000001.json"]
     assert report["status"] == "ok"

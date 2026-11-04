@@ -2,7 +2,7 @@
 
 Every command prints one JSON object on stdout. Exit status: 0 on success,
 1 when the result's ``status`` is ``error`` or ``drift`` (for example
-``doctor`` found problems, or ``import`` met a conflict), and 2 when the
+``doctor`` found a problem, or ``import`` met a conflict), and 2 when the
 command failed; the error goes to stderr as ``error[<code>]: <message>``, or
 to stdout as JSON with ``--json-errors``.
 """
@@ -259,15 +259,19 @@ def _parser() -> argparse.ArgumentParser:
         help="erase a record that does not replay and whose scope is unknown",
     )
 
-    doctor = sub.add_parser("doctor", help="check and clean the store root")
+    doctor = sub.add_parser(
+        "doctor", help="check the store root (reports only, unless --fix)"
+    )
     _store_options(doctor)
     doctor.add_argument(
-        "--check", action="store_true", help="report only; change nothing"
+        "--fix",
+        action="store_true",
+        help="remove stale temp files and empty directories, re-apply erasures",
     )
     doctor.add_argument(
         "--force-tmp",
         action="store_true",
-        help="remove every temp file; only when no writer is running",
+        help="with --fix, remove every temp file; only when no writer is running",
     )
 
     export = sub.add_parser("export", help="write the scope as portable JSONL")
@@ -525,7 +529,9 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         )
         return {"status": "ok", **result}
     if args.command == "doctor":
-        return store.doctor(fix=not args.check, force_tmp=args.force_tmp)
+        if args.force_tmp and not args.fix:
+            raise RecordsError("--force-tmp needs --fix", code="usage")
+        return store.doctor(fix=args.fix, force_tmp=args.force_tmp)
     if args.command == "export":
         from akms_records.portable import export_records
 

@@ -124,7 +124,7 @@ EMPTY_DIR_GRACE_SECONDS = 60.0
 MAX_REASON = 1000
 NOT_REACHED = (
     "git history: commits, packs and remotes that already contain the record",
-    "other clones and unmerged branches (run doctor after a merge to re-apply)",
+    "other clones and unmerged branches (run doctor --fix after a merge to re-apply)",
     "exports and backups made before the erasure",
 )
 _CONFLICT_MARKER = re.compile(rb"(?m)^(?:<{7}|>{7}|={7}|\|{7})(?: |\r?$)")
@@ -337,7 +337,7 @@ def read_event_files(
     if not revisions:
         # An interrupted create leaves an empty directory: no record exists.
         raise NotFound(
-            f"record {record_id} not found (empty directory; doctor removes it)"
+            f"record {record_id} not found (empty directory; doctor --fix removes it)"
         )
     pairs: list[tuple[dict[str, Any], bytes]] = []
     for expected, revision in enumerate(revisions, start=1):
@@ -452,7 +452,7 @@ class RecordStore:
             raise ScopeViolation(f"record {record_id} is not in scope {self.scope}")
         return events, record
 
-    def _cleanup_tmp(self, directory: Path, *, force: bool = False) -> list[str]:
+    def _cleanup_tmp(self, directory: Path) -> list[str]:
         """Remove temp files whose writer is gone (or that are very old)."""
         removed: list[str] = []
         try:
@@ -460,19 +460,8 @@ class RecordStore:
         except FileNotFoundError:
             return removed
         for name in names:
-            match = TMP_RE.fullmatch(name)
-            if match is None:
-                continue
             path = directory / name
-            try:
-                age = time.time() - path.stat().st_mtime
-            except FileNotFoundError:
-                continue
-            if (
-                force
-                or age > TMP_MAX_AGE_SECONDS
-                or not pid_alive(int(match.group("pid")))
-            ):
+            if TMP_RE.fullmatch(name) and self._tmp_is_stale(path, force=False):
                 try:
                     path.unlink()
                     removed.append(self._rel(path))
@@ -930,7 +919,7 @@ class RecordStore:
             "actor": actor,
             "reason": text,
         }
-        # Log first: an interrupted erasure is finished by doctor.
+        # Log first: doctor --fix finishes an interrupted erasure.
         self.ensure_root()
         append_line(self.root / ERASURE_LOG, compact_line(entry))
         removed = self._remove_record_dir(directory)
@@ -952,67 +941,137 @@ class RecordStore:
         return count
 
     # --------------------------------------------------------------- doctor
-    def doctor(self, *, fix: bool = True, force_tmp: bool = False) -> dict[str, Any]:
-        """Check the whole store root and, with ``fix``, clean it up.
+    def doctor(self, *, fix: bool = False, force_tmp: bool = False) -> dict[str, Any]:
+        """Check the whole store root; with ``fix``, also repair what is safe.
 
-        Fixes: remove temp files of dead writers (all of them with
-        ``force_tmp``, which is only safe when no writer is running), remove
-        empty record and month directories, and re-apply logged erasures, for
-        example after a merge brought an erased record back. Never fixed, only
-        reported: replay errors, git conflicts, schema digest problems, and
-        policy files that disagree with their log.
+        Without ``fix`` nothing changes. ``fix`` removes temp files whose
+        writer has exited (every temp file with ``force_tmp``, which is safe
+        only when no writer is running), removes empty record and month
+        directories, and re-applies logged erasures, for example after a merge
+        brought an erased record back. Never repaired, only reported: replay
+        errors, git conflicts, schema digest problems, and rules or policy
+        files that disagree with their logs.
 
-        Doctor is store-wide maintenance: it covers every scope in the root.
+        The result has ``status`` (``ok``, or ``error`` when any check with
+        ``severity: error`` found something), ``checks`` (each with ``check``,
+        ``status``, ``severity``, ``repairable`` and its ``items``),
+        ``repairs`` (what ``fix`` changed) and ``records_checked``. Doctor is
+        store-wide maintenance: it covers every scope in the root.
         """
-        report: dict[str, Any] = {
-            "fixed": fix,
-            "tmp_files": [],
+        if force_tmp and not fix:
+            raise RecordsError("force_tmp needs fix", code="usage")
+        found: dict[str, list[Any]] = {name: [] for name in DOCTOR_CHECKS}
+        repairs: dict[str, list[str]] = {
             "tmp_removed": [],
-            "empty_dirs": [],
             "empty_dirs_removed": [],
-            "stray_files": [],
-            "noncanonical": [],
-            "replay_errors": {},
-            "conflicts": [],
-            "erased_but_present": [],
             "erasures_reapplied": [],
-            "erasure_log_errors": [],
-            "schema_errors": {},
-            "schema_mismatch": [],
-            "policy_drift": {},
-            "records_checked": 0,
         }
-        if not self.root.is_dir():
-            report["status"] = "ok"
-            return report
+        state = {"records_checked": 0}
+        if self.root.is_dir():
+            self._doctor_scan(found, repairs, state, fix=fix, force_tmp=force_tmp)
+        checks = []
+        for name, (severity, repairable) in DOCTOR_CHECKS.items():
+            items = found[name]
+            status = "ok" if not items else severity
+            checks.append(
+                {
+                    "check": name,
+                    "status": status,
+                    "severity": severity,
+                    "repairable": repairable,
+                    "items": items,
+                }
+            )
+        failed = any(check["status"] == "error" for check in checks)
+        return {
+            "status": "error" if failed else "ok",
+            "mode": "fix" if fix else "report",
+            "checks": checks,
+            "repairs": repairs,
+            "records_checked": state["records_checked"],
+        }
+
+    def _tmp_is_stale(self, path: Path, *, force: bool) -> bool | None:
+        """True when the temp file's writer is gone; None if the file vanished."""
+        match = TMP_RE.fullmatch(path.name)
+        try:
+            age = time.time() - path.stat().st_mtime
+        except FileNotFoundError:
+            return None
+        if force or age > TMP_MAX_AGE_SECONDS:
+            return True
+        return match is not None and not pid_alive(int(match.group("pid")))
+
+    def _doctor_tmp(
+        self,
+        path: Path,
+        found: dict[str, list[Any]],
+        repairs: dict[str, list[str]],
+        *,
+        fix: bool,
+        force_tmp: bool,
+    ) -> None:
+        stale = self._tmp_is_stale(path, force=force_tmp)
+        if stale is None:
+            return
+        rel = self._rel(path)
+        if not stale:
+            found["tmp_in_progress"].append(rel)
+            return
+        if fix:
+            try:
+                path.unlink()
+                repairs["tmp_removed"].append(rel)
+                return
+            except FileNotFoundError:
+                return
+            except PermissionError:
+                pass
+        found["stale_tmp_files"].append(rel)
+
+    def _doctor_scan(
+        self,
+        found: dict[str, list[Any]],
+        repairs: dict[str, list[str]],
+        state: dict[str, int],
+        *,
+        fix: bool,
+        force_tmp: bool,
+    ) -> None:
         entries, bad_lines = self.erasure_entries()
-        report["erasure_log_errors"] = bad_lines
+        found["erasure_log"] = [f"line {number}" for number in bad_lines]
         erased = sorted({entry["record_id"] for entry in entries})
         for record_id in erased:
             directory = self.record_dir(record_id)
             if directory.exists():
-                report["erased_but_present"].append(record_id)
                 if fix:
                     self._remove_record_dir(directory)
-                    report["erasures_reapplied"].append(record_id)
+                    repairs["erasures_reapplied"].append(record_id)
+                else:
+                    found["erased_but_present"].append(record_id)
         schema_digests: dict[str, str] = {}
         for ref, loaded in self.schemas.iter_checked():
             if isinstance(loaded, RecordsError):
-                report["schema_errors"][ref] = f"{loaded.code}: {loaded}"
-            else:
-                schema_digests[ref] = loaded.schema_sha256
-        for name in os.listdir(self.root):
+                found["schema_errors"].append(
+                    {"schema_ref": ref, "code": loaded.code, "message": str(loaded)}
+                )
+                continue
+            schema_digests[ref] = loaded.schema_sha256
+            problem = self.schemas.rules_problem(ref)
+            if problem:
+                found["rules_drift"].append({"schema_ref": ref, "problem": problem})
+        for name in self.schemas.names():
+            problem = self.policies.drift(name)
+            if problem:
+                found["policy_drift"].append({"schema": name, "problem": problem})
+        for name in sorted(os.listdir(self.root)):
             path = self.root / name
             if name in ROOT_ENTRIES or (MONTH_RE.fullmatch(name) and path.is_dir()):
                 continue
             if TMP_RE.fullmatch(name):
-                report["tmp_files"].append(name)
-                if fix:
-                    report["tmp_removed"] += self._cleanup_tmp(
-                        self.root, force=force_tmp
-                    )
-                continue
-            report["stray_files"].append(name)
+                self._doctor_tmp(path, found, repairs, fix=fix, force_tmp=force_tmp)
+            else:
+                found["stray_files"].append(name)
         for month in sorted(os.listdir(self.root)):
             month_dir = self.root / month
             if not MONTH_RE.fullmatch(month) or not month_dir.is_dir():
@@ -1020,84 +1079,96 @@ class RecordStore:
             for name in sorted(os.listdir(month_dir)):
                 directory = month_dir / name
                 if not RECORD_ID_RE.fullmatch(name) or not directory.is_dir():
-                    report["stray_files"].append(self._rel(directory))
+                    found["stray_files"].append(self._rel(directory))
                     continue
-                if name in erased and not fix:
+                if name in erased:
                     continue  # reported under erased_but_present
                 self._doctor_record(
-                    directory, name, report, fix, force_tmp, schema_digests
+                    directory,
+                    name,
+                    found,
+                    repairs,
+                    state,
+                    schema_digests,
+                    fix=fix,
+                    force_tmp=force_tmp,
                 )
-            if fix and month_dir.is_dir() and not os.listdir(month_dir):
-                month_dir.rmdir()
-                report["empty_dirs_removed"].append(month)
-        for name in self.schemas.names():
-            problem = self.policies.drift(name)
-            if problem:
-                report["policy_drift"][name] = problem
-        pending = (
-            report["tmp_files"]
-            if not fix
-            else [p for p in report["tmp_files"] if p not in report["tmp_removed"]]
-        )
-        errors = (
-            report["replay_errors"]
-            or report["schema_errors"]
-            or report["schema_mismatch"]
-            or report["erasure_log_errors"]
-            or report["policy_drift"]
-        )
-        needs_fix = (not fix) and (
-            pending or report["empty_dirs"] or report["erased_but_present"]
-        )
-        report["status"] = "error" if errors else "drift" if needs_fix else "ok"
-        return report
+            if month_dir.is_dir() and not os.listdir(month_dir):
+                if fix:
+                    month_dir.rmdir()
+                    repairs["empty_dirs_removed"].append(month)
+                else:
+                    found["empty_dirs"].append(month)
 
     def _doctor_record(
         self,
         directory: Path,
         record_id: str,
-        report: dict[str, Any],
+        found: dict[str, list[Any]],
+        repairs: dict[str, list[str]],
+        state: dict[str, int],
+        schema_digests: dict[str, str],
+        *,
         fix: bool,
         force_tmp: bool,
-        schema_digests: dict[str, str],
     ) -> None:
-        names = os.listdir(directory)
-        for name in names:
+        for name in sorted(os.listdir(directory)):
             if TMP_RE.fullmatch(name):
-                report["tmp_files"].append(self._rel(directory / name))
+                self._doctor_tmp(
+                    directory / name, found, repairs, fix=fix, force_tmp=force_tmp
+                )
             elif not EVENT_NAME_RE.fullmatch(name):
-                report["stray_files"].append(self._rel(directory / name))
-        if fix:
-            report["tmp_removed"] += self._cleanup_tmp(directory, force=force_tmp)
-        if not any(EVENT_NAME_RE.fullmatch(name) for name in os.listdir(directory)):
+                found["stray_files"].append(self._rel(directory / name))
+        names = os.listdir(directory)
+        if not any(EVENT_NAME_RE.fullmatch(name) for name in names):
+            rel = self._rel(directory)
             age = time.time() - directory.stat().st_mtime
-            leftovers = os.listdir(directory)
-            if fix and not leftovers and (force_tmp or age > EMPTY_DIR_GRACE_SECONDS):
+            if not force_tmp and age <= EMPTY_DIR_GRACE_SECONDS:
+                found["recent_empty_dirs"].append(rel)  # maybe a create in flight
+            elif fix and not names:
                 directory.rmdir()
-                report["empty_dirs_removed"].append(self._rel(directory))
-            else:
-                report["empty_dirs"].append(self._rel(directory))
+                repairs["empty_dirs_removed"].append(rel)
+            elif not names:
+                found["empty_dirs"].append(rel)
             return
-        report["records_checked"] += 1
+        state["records_checked"] += 1
         try:
             pairs = read_event_files(directory, record_id)
             record = fold_events(record_id, [event for event, _ in pairs])
         except ReplayError as exc:
-            report["replay_errors"][record_id] = {
-                "code": exc.replay_code,
-                "detail": exc.detail,
-            }
+            found["replay_errors"].append(
+                {"record_id": record_id, "code": exc.replay_code, "detail": exc.detail}
+            )
             if exc.replay_code == "conflict":
-                report["conflicts"].append(record_id)
+                found["conflicts"].append(record_id)
             return
         for event, raw in pairs:
             if raw != canonical_bytes(event):
-                report["noncanonical"].append(
+                found["noncanonical"].append(
                     self._rel(directory / f"{event['revision']:06d}.json")
                 )
         registered = schema_digests.get(record.schema_ref)
         if registered is not None and registered != record.schema_sha256:
-            report["schema_mismatch"].append(record_id)
+            found["schema_mismatch"].append(record_id)
+
+
+# check name -> (severity, repairable by doctor --fix)
+DOCTOR_CHECKS: dict[str, tuple[str, bool]] = {
+    "stale_tmp_files": ("error", True),
+    "empty_dirs": ("error", True),
+    "erased_but_present": ("error", True),
+    "replay_errors": ("error", False),
+    "conflicts": ("error", False),
+    "schema_errors": ("error", False),
+    "schema_mismatch": ("error", False),
+    "rules_drift": ("error", False),
+    "policy_drift": ("error", False),
+    "erasure_log": ("error", False),
+    "tmp_in_progress": ("warning", False),
+    "recent_empty_dirs": ("warning", False),
+    "stray_files": ("warning", False),
+    "noncanonical": ("warning", False),
+}
 
 
 __all__ = [
