@@ -194,6 +194,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-browser", action="store_true", help="Do not open a browser"
     )
     add_intel_parsers(sub)
+    hooks = sub.add_parser(
+        "hooks",
+        help="Install, remove or inspect the opt-in git hooks that keep the graph fresh",
+        description=(
+            "Opt-in git hooks (post-checkout, post-commit, post-merge, post-rewrite) "
+            "that start a background incremental build after git changes the tree. "
+            "Set AKMS_REPO_WIKI_HOOKS=0 to skip them."
+        ),
+    )
+    hooks.add_argument("action", choices=("install", "uninstall", "status"))
+    hooks.add_argument("--json", action="store_true")
     sub.add_parser("clean")
     return parser
 
@@ -411,6 +422,10 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.input) if args.input else repo_root / DEFAULT_GRAPH_RELPATH
         )
         return serve(graph_path, args.host, args.port, not args.no_browser)
+    if args.command == "hooks":
+        from akms.repo_wiki.hooks import cli as hooks_cli
+
+        return hooks_cli(args.action, repo_root, as_json=args.json)
     if args.command in INTEL_COMMANDS:
         return run_intel(args, repo_root)
     if args.command == "clean":
