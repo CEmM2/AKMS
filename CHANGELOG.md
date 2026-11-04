@@ -61,6 +61,22 @@ development is intentionally not replayed.
   cover the rest. Erasure removes a record from the index with SQLite secure
   delete, FTS5 `secure-delete` and a WAL checkpoint, leaving none of its
   bytes in the database files.
+- `repo-wiki` answers code-intelligence questions from its symbol graph, with
+  no server and no model: `repo-wiki context SYMBOL` shows a symbol's
+  definition, callers, callees and module imports; `repo-wiki impact SYMBOL`
+  lists its dependents grouped by depth (d=1 will break, d=2 likely affected,
+  d=3 may need testing) with a LOW/MEDIUM/HIGH/CRITICAL risk; and
+  `repo-wiki changes [--base REF | --staged | --worktree]` maps a git diff,
+  including renames, deletions and untracked files, to the symbols it touches
+  and their direct callers, flagging callers of deleted symbols. Python calls
+  are resolved through scopes, imports, `self` and base classes; links that rest
+  only on a name match are reported separately as possible and never raise the
+  risk. All three take `--json`, refuse a stale graph unless `--allow-stale` is
+  given, and exit 3 for a graph problem and 4 for an unknown or ambiguous
+  symbol.
+- A bundled `repo-wiki-code-intel` agent skill teaches when to run each
+  command: `context` when exploring, `impact` before editing a function, class
+  or method, and `changes` before committing.
 - `failure-memory hooks install|uninstall|status` installs `post-checkout`,
   `post-commit`, `post-merge` and `post-rewrite` git hooks, so a checkout or
   a plain `git commit` no longer leaves generated lessons or code mirrors

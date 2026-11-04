@@ -20,6 +20,7 @@ from it and a test fails the build if the two drift.
 | `skills/node-gen/` | Generating domain nodes from NotebookLM notebooks (papers) via the `nlm` CLI. |
 | `skills/deepwiki-nodes/` | Generating domain nodes from a GitHub repo indexed by DeepWiki (code). |
 | `skills/akms-spec-check/` | Auditing an AKMS implementation against the frozen v2 spec. |
+| `skills/repo-wiki-code-intel/` | Checking who depends on code before changing it: `repo-wiki context`, `impact` before an edit, `changes` before a commit. |
 | `agents/akms-spec-reviewer.md` | Reviewing AKMS changes against the frozen spec before committing. |
 | `agents/digest-refiner.md` | Refining a zotero-summarizer collection digest for the AKMS bridge. |
 | `commands/node-gen-invoker.md` | One-shot entry point that drives `node-gen` end to end. |
@@ -87,6 +88,10 @@ findings. It ships with published copies, so these assets work without the full
 design documents (which live in `dev/`, stripped from published copies). A test
 compares its vocabulary and constant tables against `akms.schema.models`, so what
 you audit against is what the code enforces.
+
+**`repo-wiki-code-intel/`** needs only the `akms` package, which installs the
+`repo-wiki` command, and a git work tree for `repo-wiki changes`. Build the symbol
+graph once with `repo-wiki build --changed-only --no-summaries --no-index`.
 
 **`node-gen/`** additionally needs the `nlm` CLI:
 
