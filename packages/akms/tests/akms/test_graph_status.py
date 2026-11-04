@@ -4,7 +4,7 @@ Coverage:
 - Degraded nodes (confidence < 0.5)
 - Tentative nodes awaiting promotion
 - Id collisions between global and local nodes
-- Orphaned nodes (no edges)
+- Orphaned nodes (no edges, no load_with, not a route target)
 - Stale nodes (last_activated > N days)
 - Orphaned overlay entries
 - Report formatting
@@ -13,10 +13,13 @@ Coverage:
 
 from __future__ import annotations
 
+import json
 from datetime import date
+from pathlib import Path
 
 import yaml
 
+from akms.cli.commands import main
 from akms.graph.build_graph import build_graph
 from akms.graph.graph_status import (
     _check_blocked_tasks,
@@ -210,9 +213,207 @@ class TestOrphanedNodes:
         make_local_node(tmp_repo, id="isolated", status="established", source="human")
 
         text = format_report(graph_status(tmp_repo, global_vault=tmp_vault))
-        assert "## Orphaned Nodes (no edges or load_with): 1" in text
+        assert "## Orphaned Nodes (no edges, load_with or route): 1" in text
         assert "  - isolated (" in text
         assert "lesson-a" not in text
+
+    def test_route_target_not_orphaned(self, tmp_vault, tmp_repo):
+        make_local_node(tmp_repo, id="routed", status="established", source="human")
+        make_local_node(tmp_repo, id="isolated", status="established", source="human")
+        G = build_graph(tmp_repo, global_vault=tmp_vault)
+
+        ids = [o["node_id"] for o in _check_orphaned_nodes(G, {"routed"})]
+        assert ids == ["isolated"]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Route indexes in the health report
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def _write_route_index(path: Path, by_path=None, by_symbol=None) -> Path:
+    """Write a JSON task route index routing to the given node ids."""
+
+    def records(routes):
+        return {
+            key: [
+                {"node_id": node_id, "reason": "fixture", "provenance": "fixture"}
+                for node_id in node_ids
+            ]
+            for key, node_ids in (routes or {}).items()
+        }
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "v1",
+                "source_hash": "sha256:graph-status",
+                "by_path": records(by_path),
+                "by_symbol": records(by_symbol),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _lessons(tmp_repo, *ids):
+    for node_id in ids:
+        make_local_node(tmp_repo, id=node_id, status="established", source="human")
+
+
+class TestRouteReachability:
+    def test_discovered_route_targets_are_not_orphans(self, tmp_vault, tmp_repo):
+        _lessons(tmp_repo, "lesson-path", "lesson-symbol", "isolated")
+        _write_route_index(
+            tmp_repo / "knowledge" / "generated" / "failure_routes.json",
+            by_path={"src/solver.py": ["lesson-path"]},
+            by_symbol={"solve": ["lesson-symbol"]},
+        )
+
+        report = graph_status(tmp_repo, global_vault=tmp_vault)
+        assert [o["node_id"] for o in report["orphaned_nodes"]] == ["isolated"]
+        assert report["route_index"] == "knowledge/generated/failure_routes.json"
+        assert report["route_indexes"] == ["knowledge/generated/failure_routes.json"]
+        assert report["route_index_warnings"] == []
+
+        text = format_report(report)
+        assert "## Orphaned Nodes (no edges, load_with or route): 1" in text
+        assert "  Route index: knowledge/generated/failure_routes.json" in text
+
+    def test_without_route_index_targets_stay_orphans(self, tmp_vault, tmp_repo):
+        _lessons(tmp_repo, "lesson-path", "isolated")
+
+        report = graph_status(tmp_repo, global_vault=tmp_vault)
+        ids = [o["node_id"] for o in report["orphaned_nodes"]]
+        assert ids == ["isolated", "lesson-path"]
+        assert report["route_index"] is None
+        assert report["route_indexes"] == []
+        assert "  Route index: none" in format_report(report)
+
+    def test_explicit_route_index_overrides_discovery(self, tmp_vault, tmp_repo):
+        _lessons(tmp_repo, "discovered", "given", "isolated")
+        _write_route_index(
+            tmp_repo / "knowledge" / "task-routes.json",
+            by_path={"src/a.py": ["discovered"]},
+        )
+        given = _write_route_index(
+            tmp_repo / "elsewhere" / "routes.json",
+            by_path={"src/b.py": ["given"]},
+        )
+
+        report = graph_status(tmp_repo, global_vault=tmp_vault, route_index=given)
+        ids = [o["node_id"] for o in report["orphaned_nodes"]]
+        assert ids == ["discovered", "isolated"]
+        assert report["route_index"] == "elsewhere/routes.json"
+
+    def test_several_route_indexes_combine(self, tmp_vault, tmp_repo):
+        _lessons(tmp_repo, "first", "second", "isolated")
+        _write_route_index(tmp_repo / "a.json", by_path={"src/a.py": ["first"]})
+        _write_route_index(tmp_repo / "b.json", by_path={"src/b.py": ["second"]})
+
+        report = graph_status(
+            tmp_repo, global_vault=tmp_vault, route_index=["a.json", "b.json"]
+        )
+        assert [o["node_id"] for o in report["orphaned_nodes"]] == ["isolated"]
+        assert report["route_index"] == "a.json"
+        assert report["route_indexes"] == ["a.json", "b.json"]
+
+    def test_empty_route_index_list_disables_discovery(self, tmp_vault, tmp_repo):
+        _lessons(tmp_repo, "routed")
+        _write_route_index(
+            tmp_repo / "knowledge" / "task-routes.json",
+            by_path={"src/a.py": ["routed"]},
+        )
+
+        report = graph_status(tmp_repo, global_vault=tmp_vault, route_index=[])
+        assert [o["node_id"] for o in report["orphaned_nodes"]] == ["routed"]
+        assert report["route_index"] is None
+
+    def test_invalid_route_index_is_a_warning(self, tmp_vault, tmp_repo):
+        _lessons(tmp_repo, "lesson")
+        bad = tmp_repo / "knowledge" / "task-routes.json"
+        bad.write_text("{not json", encoding="utf-8")
+
+        report = graph_status(tmp_repo, global_vault=tmp_vault)
+        assert [o["node_id"] for o in report["orphaned_nodes"]] == ["lesson"]
+        assert report["route_index"] is None
+        assert report["route_indexes"] == []
+        [warning] = report["route_index_warnings"]
+        assert warning.startswith("knowledge/task-routes.json: route index not used")
+        assert str(tmp_repo) not in warning
+
+        text = format_report(report)
+        assert "## Route Index Warnings: 1" in text
+        assert "  Route index: none" in text
+
+    def test_schema_invalid_route_index_is_a_warning(self, tmp_vault, tmp_repo):
+        _lessons(tmp_repo, "lesson")
+        bad = tmp_repo / "routes.json"
+        bad.write_text(json.dumps({"schema_version": "v9"}), encoding="utf-8")
+
+        report = graph_status(tmp_repo, global_vault=tmp_vault, route_index=bad)
+        assert len(report["route_index_warnings"]) == 1
+        assert report["route_index"] is None
+
+    def test_missing_explicit_route_index_is_a_warning(self, tmp_vault, tmp_repo):
+        _lessons(tmp_repo, "lesson")
+
+        report = graph_status(
+            tmp_repo, global_vault=tmp_vault, route_index="missing.json"
+        )
+        [warning] = report["route_index_warnings"]
+        assert warning.startswith("missing.json: route index not used")
+        assert [o["node_id"] for o in report["orphaned_nodes"]] == ["lesson"]
+
+
+class TestStatusCommandRoutes:
+    def test_cli_discovers_route_index(self, tmp_vault, tmp_repo, monkeypatch, capsys):
+        monkeypatch.setenv("AKMS_GLOBAL_VAULT", str(tmp_vault))
+        _lessons(tmp_repo, "routed", "isolated")
+        _write_route_index(
+            tmp_repo / "knowledge" / "generated" / "failure_routes.json",
+            by_path={"src/a.py": ["routed"]},
+        )
+
+        assert main(["status", "--repo", str(tmp_repo)]) == 0
+        out = capsys.readouterr().out
+        assert "## Orphaned Nodes (no edges, load_with or route): 1" in out
+        assert "  - isolated (" in out
+        assert "  - routed (" not in out
+
+    def test_cli_routes_flag_overrides_discovery(
+        self, tmp_vault, tmp_repo, monkeypatch, capsys
+    ):
+        monkeypatch.setenv("AKMS_GLOBAL_VAULT", str(tmp_vault))
+        _lessons(tmp_repo, "discovered", "first", "second")
+        _write_route_index(
+            tmp_repo / "knowledge" / "task-routes.json",
+            by_path={"src/a.py": ["discovered"]},
+        )
+        _write_route_index(tmp_repo / "one.json", by_path={"src/b.py": ["first"]})
+        _write_route_index(tmp_repo / "two.json", by_path={"src/c.py": ["second"]})
+
+        argv = ["status", "--repo", str(tmp_repo), "--routes", "one.json"]
+        assert main([*argv, "--routes", "two.json"]) == 0
+        out = capsys.readouterr().out
+        assert "## Orphaned Nodes (no edges, load_with or route): 1" in out
+        assert "  - discovered (" in out
+        assert "  Route index: one.json" in out
+        assert "  Route index: two.json" in out
+
+    def test_cli_invalid_routes_flag_warns(
+        self, tmp_vault, tmp_repo, monkeypatch, capsys
+    ):
+        monkeypatch.setenv("AKMS_GLOBAL_VAULT", str(tmp_vault))
+        _lessons(tmp_repo, "lesson")
+        (tmp_repo / "bad.json").write_text("[]", encoding="utf-8")
+
+        assert main(["status", "--repo", str(tmp_repo), "--routes", "bad.json"]) == 0
+        out = capsys.readouterr().out
+        assert "## Route Index Warnings: 1" in out
+        assert "  - bad.json: route index not used" in out
 
 
 # ═══════════════════════════════════════════════════════════════════════
