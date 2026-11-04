@@ -14,7 +14,10 @@ _GRAPH_SCHEMA_COMMENT = (
     "resolution (CONFIDENT|HEURISTIC|UNRESOLVED), dst_id (str|null), dst_name (str), "
     "dst_candidates (list[str], HEURISTIC only), "
     "provenance (static|observed|inferred, optional: absent means static); "
-    "module node field: bindings ({local name: dotted import target}, Python only)"
+    "module node fields (optional, Python only): bindings ({local name: dotted import "
+    "target}), dispatch ({dict name: [value names]}); symbol node fields (optional, "
+    "Python only): receivers ({local name: [constructor or annotation names]}), "
+    "table_refs ([module-level names indexed])"
 )
 
 #: Where an edge comes from. ``static``: read from source text (every edge written today).
@@ -120,6 +123,10 @@ def build_symbol_graph(parsed_modules: list[ParsedModule]) -> dict[str, object]:
         }
         if parsed.import_bindings:
             nodes[module_id]["bindings"] = dict(parsed.import_bindings)
+        if parsed.dispatch_tables:
+            nodes[module_id]["dispatch"] = {
+                k: list(v) for k, v in sorted(parsed.dispatch_tables.items())
+            }
         # Module-level `imports` edges: once per module (all symbols share the import list).
         for imported in parsed.imports:
             edges.append(
@@ -177,12 +184,18 @@ def build_symbol_graph(parsed_modules: list[ParsedModule]) -> dict[str, object]:
 
 
 def node_for_symbol(symbol: Symbol) -> dict[str, object]:
-    return {
+    """Graph node of one symbol; optional fields are written only when non-empty."""
+    node: dict[str, object] = {
         "kind": symbol.kind,
         "path": symbol.path,
         "start_line": symbol.start_line,
         "end_line": symbol.end_line,
     }
+    if symbol.receivers:
+        node["receivers"] = {k: list(v) for k, v in sorted(symbol.receivers.items())}
+    if symbol.table_refs:
+        node["table_refs"] = list(symbol.table_refs)
+    return node
 
 
 def write_symbol_graph(graph: dict[str, object], path: Path) -> Path:

@@ -3,7 +3,8 @@
 The ``intel_repo`` fixture has known chains::
 
     leaf <- middle <- run <- public_entry (exported from pkg/__init__) <- main (pkg/cli.py)
-    leaf <- Store._write <- Store.save (self) <~ persist (attribute call, 2 candidates)
+    leaf <- Store._write <- Store.save (self) <- persist (``store = Store()``: receiver)
+    Store.save <~ persist_any (``store.save()`` on a parameter: attribute, 2 candidates)
     leaf <- via_module (``core.leaf`` through ``from pkg import core``)
     leaf <- test_leaf (tests/)
     middle <~ stray (bare name, never imported: name match only)
@@ -273,7 +274,13 @@ def test_upstream_impact_groups_dependents_by_depth(
         "python:pkg/core.py::Store.save",
         "python:pkg/service.py::run",
     ]
-    assert ids(d3["confident"]) == ["python:pkg/api.py::public_entry"]
+    assert ids(d3["confident"]) == [
+        "python:pkg/api.py::public_entry",
+        "python:pkg/service.py::persist",
+    ]
+    persist = d3["confident"][1]
+    assert persist["edge"]["basis"] == "receiver"
+    assert persist["edge"]["provenance"] == "inferred"
     assert payload["affected_files"] == ["pkg/api.py", "pkg/core.py", "pkg/service.py"]
     assert payload["affected_test_files"] == ["tests/test_core.py"]
 
@@ -283,22 +290,23 @@ def test_heuristic_links_are_listed_apart_and_never_counted(
 ) -> None:
     _, payload = run_json(repo, capsys, "impact", "leaf")
     assert ids(_level(payload, 2)["possible"]) == ["python:other/helpers.py::stray"]
-    assert ids(_level(payload, 3)["possible"]) == ["python:pkg/service.py::persist"]
+    assert ids(_level(payload, 3)["possible"]) == ["python:pkg/service.py::persist_any"]
     persist = _level(payload, 3)["possible"][0]
     assert persist["edge"]["resolution"] == HEURISTIC
     assert persist["edge"]["basis"] == "attribute"
+    assert persist["edge"]["provenance"] == "static"
     assert persist["edge"]["candidates"] == [
         "python:other/helpers.py::Archive.save",
         "python:pkg/core.py::Store.save",
     ]
     assert payload["possible_files"] == ["other/helpers.py"]
-    assert payload["summary"]["confident"] == 7
+    assert payload["summary"]["confident"] == 8
     assert payload["summary"]["possible"] == 2
     assert payload["summary"]["d1_confident"] == 3  # tests never count
 
     _, save = run_json(repo, capsys, "impact", "Store.save")
-    assert all(not level["confident"] for level in save["levels"])
-    assert ids(_level(save, 1)["possible"]) == ["python:pkg/service.py::persist"]
+    assert ids(_level(save, 1)["confident"]) == ["python:pkg/service.py::persist"]
+    assert ids(_level(save, 1)["possible"]) == ["python:pkg/service.py::persist_any"]
 
 
 def test_depth_and_downstream_direction(
