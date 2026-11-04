@@ -173,6 +173,10 @@ nav:
         - Generated Files: reference/akms/repo-wiki/generated-files.md
         - Privacy and Security: reference/akms/repo-wiki/privacy-security.md
         - AKMS Export: reference/akms/repo-wiki/akms-export.md
+        - context: reference/akms/repo-wiki/context.md
+        - impact: reference/akms/repo-wiki/impact.md
+        - changes: reference/akms/repo-wiki/changes.md
+        - Reading Impact and Risk: reference/akms/repo-wiki/reading-impact.md
       - API Reference:
         - Schema:
           - Models: reference/akms/api/schema/models.md
