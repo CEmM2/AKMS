@@ -14,9 +14,9 @@ script          a module's ``if __name__ == "__main__":`` block, or a
                 ``__main__.py`` module (the flow starts at the module)
 cli             a function decorated with a ``flows.cli_decorators`` pattern
                 (``@app.command()``) or passed as ``set_defaults(func=...)``
-test            a test function (off by default: ``flows.entries.tests``)
 root            a public function or method that nothing outside the tests
                 calls with a CONFIDENT link, and that calls something itself
+test            a test function (off by default: ``flows.entries.tests``)
 ==============  ===============================================================
 
 Three caps bound a flow: ``max_depth`` (levels below the entry), ``max_fanout`` (callees
@@ -55,7 +55,7 @@ FLOWS_FILE_SCHEMA = "repo-wiki/flows-file/v1"
 FLOWS_FILENAME = "flows.json"
 
 #: Entry kinds, highest priority first; a symbol that matches several rules gets the first.
-ENTRY_KINDS = ("console_script", "script", "cli", "test", "root")
+ENTRY_KINDS = ("console_script", "script", "cli", "root", "test")
 _KIND_ORDER = {kind: index for index, kind in enumerate(ENTRY_KINDS)}
 #: ``flows.entries`` rule name -> entry kind.
 RULE_KINDS = {
@@ -79,7 +79,7 @@ _CONTENT_SETTINGS = (
 _COMMENT = (
     "repo-wiki/flows-file/v1; derived from symbol_graph.json (graph_sha256) and the "
     "flows settings plus console scripts (inputs_sha256); each flow: id, name, kind "
-    "(console_script|script|cli|test|root), entry, steps [{id, depth, via, resolution, "
+    "(console_script|script|cli|root|test), entry, steps [{id, depth, via, resolution, "
     "basis, provenance, cut?, omitted?, omitted_ids?}], terminals, cycles, truncated, "
     "truncated_reasons"
 )
@@ -522,13 +522,13 @@ def compute_flows(
     max_flows = int(settings.get("max_flows", 1000))  # type: ignore[call-overload]
     omitted: dict[str, int] = {}
     if len(flows) > max_flows:
-        # Keep every non-root flow first, then the longest roots; the rest are counted.
+        # Keep flows in entry-kind priority order (opt-in tests go first, then roots),
+        # the longest first within a kind; the rest are counted.
         ranked = sorted(
             flows,
             key=lambda f: (
-                f["kind"] == "root",
-                -len(f["steps"]),  # type: ignore[arg-type]
                 _KIND_ORDER[str(f["kind"])],
+                -len(f["steps"]),  # type: ignore[arg-type]
                 str(f["name"]),
             ),
         )

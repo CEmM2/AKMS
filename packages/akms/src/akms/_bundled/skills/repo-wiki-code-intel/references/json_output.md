@@ -102,7 +102,7 @@ A **flow summary**:
  "heuristic_steps": 0, "inferred_steps": 0}
 ```
 
-`kind` is `console_script`, `script`, `cli`, `test` or `root`. `detail` is the
+`kind` is `console_script`, `script`, `cli`, `root` or `test`. `detail` is the
 console-script spec, `__main__`, the matched decorator (`@app.command`) or
 `set_defaults(func=...)`. `truncated_reasons` lists `depth`, `fanout` and `steps`.
 

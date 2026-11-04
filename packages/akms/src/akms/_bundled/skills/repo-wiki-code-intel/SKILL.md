@@ -287,8 +287,8 @@ Entry kinds, one flow per entry, in this priority order:
 | `console_script` | a `[project.scripts]` target in a `pyproject.toml`; the flow is named after the script |
 | `script` | a module's `if __name__ == "__main__":` block, or a `__main__.py` (named `module:__main__`) |
 | `cli` | a function with a decorator matching `flows.cli_decorators` (`@app.command()`, `@cli.group()`), or passed as `parser.set_defaults(func=...)` |
-| `test` | a test function; off unless `flows.entries.tests: true` |
 | `root` | a public function or method that nothing outside the tests calls with a CONFIDENT link, and that calls something itself |
+| `test` | a test function; off unless `flows.entries.tests: true` |
 
 `FLOW` in `repo-wiki flow` is a flow ID (`flow:...`), a flow name, a console-script
 name or alias, or the entry symbol. A symbol that is a step but not an entry exits 4

@@ -240,6 +240,10 @@ def test_max_flows_keeps_named_entries_and_counts_the_rest(repo: Path) -> None:
     kinds = [f["kind"] for f in payload["flows"]]
     assert kinds.count("root") == 1 and len(kinds) == 5
     assert payload["summary"]["omitted_flows"] == {"root": 2}
+    # Opt-in tests rank last, so turning them on never pushes out a default flow.
+    crowded = recompute(repo, max_flows=7, entries={"tests": True})
+    assert "test" not in [f["kind"] for f in crowded["flows"]]
+    assert crowded["summary"]["omitted_flows"] == {"test": 3}
 
 
 # -------------------------------------------------------------- determinism

@@ -44,7 +44,7 @@ Terminals: 1
 | Flag | Default | Meaning |
 |---|---|---|
 | `--entry TEXT` | none | Only flows whose name, entry ID or console-script alias contains `TEXT`. With `*`, `?` or `[`, `TEXT` is a wildcard pattern matched against the whole name. |
-| `--kind KIND` | none | Only flows whose entry is `console_script`, `script`, `cli`, `test` or `root`. |
+| `--kind KIND` | none | Only flows whose entry is `console_script`, `script`, `cli`, `root` or `test`. |
 | `--touching SYMBOL` | none | Only flows with a step on `SYMBOL`, named as for [`context`](context.md#naming-a-symbol). Each flow then shows the depth of that step. |
 | `--limit N` | `50` | Show at most `N` flows; `0` shows all. The summary still counts every match. |
 | `--json` | off | Print a `repo-wiki/flows/v1` object instead of text. |
@@ -68,8 +68,8 @@ first kind in this table:
 | `console_script` | The target of an entry in `[project.scripts]`, `[project.gui-scripts]` or `[tool.poetry.scripts]` of any `pyproject.toml` in a directory that holds scanned sources. Two scripts with one target share a flow; the second name is an alias. | the script name |
 | `script` | A module's top-level `if __name__ == "__main__":` block, or every module-level call of a `__main__.py`. The flow starts at the module. | `module:__main__` |
 | `cli` | A function or method with a decorator matching [`flows.cli_decorators`](configuration.md#flows) (`@app.command()`, `@cli.group()`), or a name passed as `parser.set_defaults(func=...)` in argparse code. | dotted name |
-| `test` | A test function: `test*` at the top level of a test file, or a `test*` method of a top-level `Test*` class. Off by default. | dotted name |
 | `root` | A public function or method (no part of its qualified name starts with `_`, not nested in a function, not in a test file) that no code outside the tests calls with a CONFIDENT link, and that has at least one link to follow. | dotted name |
+| `test` | A test function: `test*` at the top level of a test file, or a `test*` method of a top-level `Test*` class. Off by default. | dotted name |
 
 Test functions are off by default because each one is its own entry point: on a
 repository with a large suite they outnumber every other kind and bury the flows a
@@ -149,8 +149,9 @@ its diffs readable.
 A flow ID is `flow:` plus the first 12 hex digits of the SHA-256 of the entry's
 node ID, so it stays the same across builds while the entry keeps its ID.
 
-`max_flows` (default `1000`) bounds the file. Past it, every flow that is not a root
-is kept first, then the roots with the most steps; the rest are counted in
+`max_flows` (default `1000`) bounds the file. Past it, flows are kept in the
+priority order of their entry kind (console scripts, scripts, CLI commands, roots,
+tests), the longest first within a kind; the rest are counted in
 `summary.omitted_flows`. On the AKMS repository itself the file holds 163 flows in
 about 0.9 MB, next to an 18 MB symbol graph.
 

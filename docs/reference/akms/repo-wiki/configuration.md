@@ -128,7 +128,7 @@ Unknown keys and values of the wrong type are rejected when the file is loaded.
 | `flows.max_depth` | `6` | Levels below the entry. |
 | `flows.max_fanout` | `12` | Callees followed from one step. |
 | `flows.max_steps` | `60` | Steps in one flow. |
-| `flows.max_flows` | `1000` | Flows kept in `flows.json`; roots with the fewest steps are dropped first. |
+| `flows.max_flows` | `1000` | Flows kept in `flows.json`; tests, then roots, are dropped first, the shortest first. |
 
 A change to any of these, except `enabled`, makes an existing `flows.json` stale:
 readers recompute until the next build.
