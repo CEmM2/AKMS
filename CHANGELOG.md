@@ -198,6 +198,27 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `repo-wiki`: a `scanner.exclude` list in `.repo_wiki/config.yaml` no longer
+  replaces the built-in exclude patterns. It replaced the whole list, so
+  adding one pattern silently dropped the secret and credential patterns
+  (`.env`, keys, certificates, `*_secret`, `secrets.yaml`, `credentials.*`,
+  ...) and the cache and build-output ones, and such files could reach the
+  generated pages, the search index and exported mirrors. `scanner.exclude`
+  now adds to the built-in patterns. The new `scanner.use_default_excludes:
+  false` drops the ordinary built-ins (tool state, environments, caches,
+  build and data output), but the secret and credential set always applies;
+  no setting removes it. That set is now also matched against the file name
+  at any depth, so a nested `.env.local` or `credentials.toml` is skipped
+  too. `scanner.include` still replaces the default include list. `init` no
+  longer writes the exclude list out, and a config that still carries the
+  full list an older `init` wrote keeps exactly the same effect. Invalid
+  `scanner.include`, `scanner.exclude` or `scanner.use_default_excludes`
+  values now fail config loading, and `repo-wiki scan --json` reports the
+  applied list under `exclude`. If a custom list let secret files in, the
+  next `build` removes their pages, index entries and IR cache records, and a
+  full `export-akms --prune` removes their mirrors. Deleted index rows can
+  leave bytes behind in the SQLite file, so delete `.repo_wiki/index/` and
+  rebuild as well.
 - `akms status` no longer lists nodes reached through `load_with` as
   orphans. A node that names others in `load_with`, or that another node
   names there, is reached by coactivation even without edges; a
