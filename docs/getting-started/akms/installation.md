@@ -9,6 +9,7 @@
 | `akms-learn` | `>=3.11,<3.14` |
 | `compmech-reference-pack` | `>=3.11,<3.14` |
 | `akms-failure-memory` | `>=3.12,<3.13` |
+| `akms-records` | `>=3.12,<3.13` |
 
 Use Python 3.12 for a complete-workspace environment.
 
@@ -41,7 +42,7 @@ pip install "akms[all]"
 
 Quote the argument: zsh otherwise treats the brackets as a glob. The package
 extras pin the companions to the same minor series as `akms`, because the
-five packages are released in lockstep.
+six packages are released in lockstep.
 
 The companion packages remain independent installs if you prefer to name
 them directly:
@@ -50,6 +51,7 @@ them directly:
 pip install akms-learn                # learning-packet compiler
 pip install akms-nodes-gen            # node generation and validation tooling
 pip install akms-failure-memory       # project-owned failure memory
+pip install akms-records              # experimental record store (no akms extra)
 pip install compmech-reference-pack   # computational-mechanics companion adapter
 ```
 

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Failed approach",
+  "description": "An approach that failed, why, and what to do instead.",
+  "type": "object",
+  "required": [
+    "task",
+    "approach",
+    "failure"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "task": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What was being done."
+    },
+    "approach": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What was tried."
+    },
+    "failure": {
+      "type": "string",
+      "minLength": 1,
+      "description": "How it failed."
+    },
+    "cause": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The cause, if known."
+    },
+    "instead": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What to do instead."
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When it was observed (RFC 3339; format is an annotation only)"
+    }
+  },
+  "x-akms-records": {
+    "name": "failed-approach",
+    "version": 1,
+    "title": "Failed approach",
+    "description": "An approach that failed, why, and what to do instead.",
+    "rules": {
+      "search_text": [
+        "/task",
+        "/approach",
+        "/failure",
+        "/cause",
+        "/instead"
+      ],
+      "label": "/approach",
+      "time_field": "/observed_at",
+      "summary_template": "Failed for {task}: {approach}"
+    }
+  }
+}

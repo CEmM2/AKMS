@@ -16,6 +16,29 @@ development is intentionally not replayed.
   lock-only change; `uv audit` reports no known vulnerabilities.
 
 ### Added
+- New experimental package `akms-records` (console script `akms-records`): a
+  schema-driven, provenance-aware record store. Records are a fixed envelope
+  (ID, revision, schema ref and digest, scope, time, origin, source refs,
+  summary, tags, sensitivity, review state, lifecycle) around a payload that a
+  registered JSON Schema (Draft 2020-12) describes; payloads cannot shadow
+  envelope fields. History is append-only `create`, `amend`, `supersede` and
+  `retract` events, one hash-chained, sealed file per revision under
+  `<repo>/.knowledge/records/` for project scope and
+  `~/.knowledge/records/<kind>/<id>/` (or `AKMS_RECORDS_HOME`) for agent and
+  shared scopes. Writes take no lock: an exclusive hard link makes a stale
+  revision fail and a retried event a no-op. Parallel work on different
+  records merges cleanly in git; a same-revision conflict is reported. Schema
+  references never leave the schema and `format` is an annotation only.
+  Extraction rules (search text, label, time field, summary template) are
+  stored beside the schema outside its digest, so `schema rules set` can
+  change them without a new schema version; every change is logged. It also
+  stores per-schema promotion policies (with a change log), erases records
+  with a content-free log that `doctor --fix` re-applies after merges
+  (`doctor` alone only reports), and
+  exports and imports a scope as digest-checked JSONL. Eight built-in
+  templates ship as plain schema files. It does not depend on `akms`; the
+  `[akms]` extra is reserved for a later promotion bridge. Search, recall and
+  promotion are not part of this release. See `docs/reference/records/`.
 - `repo-wiki` answers code-intelligence questions from its symbol graph, with
   no server and no model: `repo-wiki context SYMBOL` shows a symbol's
   definition, callers, callees and module imports; `repo-wiki impact SYMBOL`

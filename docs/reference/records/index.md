@@ -1,0 +1,129 @@
+# Records (experimental)
+
+!!! warning "Experimental"
+    `akms-records` is an experimental package. Its storage format, Python API
+    and CLI may change before a stable release. Keep data you cannot re-create
+    elsewhere as well.
+
+`akms-records` is an optional, independently installable record store for
+agents and people working with AKMS. It keeps typed experiences and
+observations (decisions, research findings, successful and failed approaches,
+preferences, ideas, workflow lessons) as an append-only history of plain JSON
+files.
+
+A record is **not** a fact. It is something someone recorded, with its origin,
+sources and review state. Records stay records; nothing in this package turns
+them into AKMS knowledge nodes.
+
+## What it gives you
+
+- **Your own schemas.** Register JSON Schema (Draft 2020-12) documents for
+  record payloads, or start from eight built-in
+  [templates](schemas-and-templates.md). No AKMS source changes needed.
+- **A fixed envelope.** Every record carries the same AKMS-controlled fields:
+  ID, revision, schema reference and digest, scope, time, origin, source
+  references, summary, tags, sensitivity, review state and lifecycle. A
+  payload cannot shadow them.
+- **History, not edits.** Changes append `create`, `amend`, `supersede` and
+  `retract` events. The current state is a replay of those events.
+- **Git-friendly project memory.** Project records are files inside the
+  repository. Parallel work on different records merges without conflicts; a
+  conflict on the same record is detected and reported, never resolved
+  silently. See the [storage format](storage-format.md).
+- **Safe writes without a lock.** Each revision is linked into place
+  exclusively, so two writers can never both win the same revision, and a
+  crashed writer leaves only a temp file that `doctor --fix` removes.
+- **Portable.** `export` and `import` move a scope as JSONL with digest checks.
+
+## What it does not do (yet)
+
+- No search index, `recall` or token-budgeted `wake`: `list` and `show` read
+  the files directly.
+- No summaries or consolidation.
+- No promotion into AKMS nodes. Per-schema promotion *policies* can already be
+  stored, but nothing reads them yet.
+- No import from `akms-failure-memory`.
+
+## Install
+
+```bash
+pip install akms-records
+akms-records --help
+```
+
+The package needs Python `>=3.12,<3.13`, `jsonschema` and `referencing`. It
+does not depend on `akms`; the `akms-records[akms]` extra is reserved for the
+future promotion bridge.
+
+## Scopes and where records live
+
+Every command names a scope with `--scope kind:id`.
+
+| Scope | Store root | Typical use |
+|---|---|---|
+| `project:<id>` | `<repo>/.knowledge/records/` (or `<repo>/knowledge/records/` in a repository that only has `knowledge/`) | Committed with the project |
+| `agent:<id>` | `~/.knowledge/records/agent/<id>/` | One agent's own memory |
+| `shared:<id>` | `~/.knowledge/records/shared/<id>/` | Shared by several agents on one machine |
+
+`AKMS_RECORDS_HOME` replaces `~/.knowledge/records` for agent and shared
+scopes. Project scope uses `--repo` (default: the current directory).
+
+Scope isolation is enforced by the API: a store opened for one scope refuses
+to read or write another scope's records. It is a rule for cooperating agents,
+not a security boundary; see [limits](limits.md).
+
+## A first session
+
+```bash
+akms-records schema register --template decision --scope project:example
+
+cat > decision.json <<'JSON'
+{
+  "payload": {
+    "decision": "Keep the existing surrogate model",
+    "rationale": "Its validation error is within budget",
+    "alternatives": ["Train a new architecture"]
+  },
+  "tags": ["surrogate"],
+  "source_refs": [{"kind": "issue", "ref": "#42"}]
+}
+JSON
+
+akms-records add --scope project:example --schema decision/v1 --file decision.json
+# {"event_id": "...", "kind": "create", "noop": false,
+#  "record_id": "rec-20261103-k3f9m2xa", "revision": 1, "status": "ok"}
+
+akms-records amend rec-20261103-k3f9m2xa --scope project:example \
+  --expect-revision 1 --review-state user_confirmed
+akms-records show rec-20261103-k3f9m2xa --scope project:example
+akms-records history rec-20261103-k3f9m2xa --scope project:example
+akms-records doctor --scope project:example   # reports; --fix repairs
+```
+
+Commit `.knowledge/records/` with the rest of the repository.
+
+## Python API
+
+```python
+from akms_records import RecordStore
+from akms_records.schemas import load_template
+
+store = RecordStore.open("project:example", repo=".")
+store.register_schema(load_template("decision"), actor="me")
+created = store.create(
+    {"schema_ref": "decision/v1",
+     "payload": {"decision": "Keep it", "rationale": "Works"}},
+    actor="me",
+    event_id="decision-keep-it",  # retrying with this ID writes nothing
+)
+record = store.get(created.record_id)
+store.amend(created.record_id, {"tags": ["model"]},
+            expected_revision=record.revision, actor="me")
+```
+
+## Pages
+
+- [CLI reference](cli-reference.md)
+- [Storage format](storage-format.md)
+- [Schemas and templates](schemas-and-templates.md)
+- [Limits](limits.md)

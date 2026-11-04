@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Experiment observation",
+  "description": "What an experiment, run or measurement showed.",
+  "type": "object",
+  "required": [
+    "experiment",
+    "observation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "experiment": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The experiment, run or measurement."
+    },
+    "observation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What was observed."
+    },
+    "conditions": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Setup, inputs or environment."
+    },
+    "measurements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/measurement"
+      },
+      "description": "Recorded values."
+    },
+    "outcome": {
+      "enum": [
+        "expected",
+        "unexpected",
+        "inconclusive"
+      ],
+      "description": "How the result compares with expectation."
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When it was observed (RFC 3339; format is an annotation only)"
+    }
+  },
+  "$defs": {
+    "measurement": {
+      "type": "object",
+      "required": [
+        "name",
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Quantity."
+        },
+        "value": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unit."
+        }
+      }
+    }
+  },
+  "x-akms-records": {
+    "name": "experiment-observation",
+    "version": 1,
+    "title": "Experiment observation",
+    "description": "What an experiment, run or measurement showed.",
+    "rules": {
+      "search_text": [
+        "/experiment",
+        "/observation",
+        "/conditions"
+      ],
+      "label": "/experiment",
+      "time_field": "/observed_at",
+      "summary_template": "{experiment}: {observation}"
+    }
+  }
+}

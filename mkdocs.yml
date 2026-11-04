@@ -224,6 +224,12 @@ nav:
       - Operator Policy: reference/failure-memory/operator-policy.md
       - Adoption Guide: reference/failure-memory/adoption.md
       - Internals: reference/failure-memory/internals.md
+    - Records (Experimental):
+      - reference/records/index.md
+      - CLI Reference: reference/records/cli-reference.md
+      - Storage Format: reference/records/storage-format.md
+      - Schemas and Templates: reference/records/schemas-and-templates.md
+      - Limits: reference/records/limits.md
     - akms-learn:
       - reference/akms-learn/index.md
       - Usage: reference/akms-learn/usage.md
