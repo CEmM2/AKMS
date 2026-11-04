@@ -66,7 +66,8 @@ a query, by `recorded_at` and record ID only. The order is fully determined.
     "source_refs": [{"kind": "issue", "ref": "#42"}],
     "superseded_by": null, "supersedes": [],
     "snippet": "Keep the existing «surrogate» model",
-    "bm25": -1.234567891
+    "bm25": -1.234567891,
+    "consolidation": null
   }]
 }
 ```
@@ -76,14 +77,21 @@ matched words with `«` and `»`; without a query it is the start of the search
 text. `--full` adds `record` to each result (or `null` if the record changed
 or was erased since the index was read).
 
-`--format text` prints the same results in the [fixed layout](#rendering-is-data-not-instructions).
+`consolidation` is `null` for an ordinary record. For a
+[summary](consolidation.md) it is its validity, computed from its sources:
+`{"status": "valid" | "stale" | "invalid", "method", "sources", "reasons",
+"problems"}`. Recall shows stale summaries too; filter on the status if you
+only want valid ones.
+
+`--format text` prints the same results in the [fixed layout](#rendering-is-data-not-instructions),
+with a `- consolidation: <status>` line for a summary.
 
 ## wake
 
 ```text
 akms-records wake --agent ID --task TEXT --budget-tokens N
     [--scope project:ID | shared:ID]... [--repo PATH]
-    [--include-sensitive] [--review-state MIN]
+    [--include-sensitive] [--include-unreviewed] [--review-state MIN]
     [--format json|markdown] [--generated-at]
 ```
 
@@ -94,20 +102,89 @@ opened. Within the store roots that are opened, records of any other scope
 (for example a second project in the same repository) are left out and
 counted under `visibility`.
 
+**What is eligible by default.** Of the visible records, `wake` takes:
+
+- every **reviewed** record (`agent_reviewed` or `user_confirmed`), from every
+  visible scope;
+- the agent's **own unreviewed** records: everything in its `agent:<ID>`
+  scope, and project or shared records whose `origin.actor_id` is the agent's
+  ID.
+
+Unreviewed records written by other agents, tools or people are left out and
+counted under `review_state`. They stay reachable through `recall`.
+`--include-unreviewed` takes every unreviewed visible record instead (the
+behaviour before this rule). `--review-state MIN` is a minimum on top of the
+rule: `--review-state agent_reviewed` also drops the agent's own unreviewed
+records. Rejected records are never eligible.
+
+Why: `wake` output is pushed into an agent's context at the start of every
+session, unasked. Unreviewed notes from others would be re-injected every
+time, and a mistake in one would be repeated and reinforced. An agent's own
+notes are its episodic continuity, so they stay in; everyone else's need a
+review first, or an explicit `recall`.
+
 **What is left out**, each record counted once, in this order:
 
 | Reason | Records |
 |---|---|
 | `visibility` | Records of a scope that is not visible |
 | `lifecycle` | Superseded and retracted records |
-| `review_state` | `rejected` records, and records below `--review-state` (default `unreviewed`) |
+| `review_state` | `rejected` records, records below `--review-state`, unreviewed records that are not the agent's own (unless `--include-unreviewed`), and summaries that are not eligible (below) |
 | `sensitivity` | `sensitive` records, unless `--include-sensitive` |
-| `duplicate` | A record that a newer visible record names in a `supersedes` source reference (a successor whose supersede event never landed), and every record whose summary equals (ignoring case and spacing) the summary of a record ranked above it |
+| `stale` | Summaries that are stale or invalid |
+| `duplicate` | A record that a newer visible record names in a `supersedes` source reference (a successor whose supersede event never landed), every record whose summary equals (ignoring case and spacing) the summary of a record ranked above it, and a summary that would not save tokens over its sources |
+| `covered` | Sources of a summary that is included instead of them |
 
 **Priority.** Review state first (`user_confirmed`, then `agent_reviewed`,
-then `unreviewed`), then the BM25 match against any word of `--task` (words
-are extracted and quoted, at most 64), then `recorded_at` (newest first),
-then record ID.
+then `unreviewed`), so reviewed records always rank above the agent's own
+unreviewed ones; then the BM25 match against any word of `--task` (words are
+extracted and quoted, at most 64), then `recorded_at` (newest first), then
+record ID.
+
+## Summaries in wake
+
+[Summaries](consolidation.md) are eligible under their own rules:
+
+- **Stale or invalid:** never (`stale`).
+- **Extractive:** only when every source it cites is itself eligible for
+  this agent. It inherits their eligibility and adds no claim of its own, and
+  it ranks at the lowest review state among its sources.
+- **Provider:** only once the summary itself is `agent_reviewed` or
+  `user_confirmed` (`amend --review-state`), because a paraphrase can
+  introduce claims. Until then it is recall-only and counted under
+  `review_state`, even with `--include-unreviewed`.
+
+An eligible summary is used when its entry costs fewer tokens than the
+entries of the eligible sources it cites. It then takes the place of the
+best-ranked of them, and those sources are left out as `covered`, so nothing
+is shown twice. A summary that would not save tokens is left out as
+`duplicate` and its sources are shown. If the summary does not fit the
+remaining budget, it is omitted and its sources compete for the budget again.
+The report's `covered_by_summary` maps each included summary to the sources it
+stands in for.
+
+A summary entry adds two metadata lines and fences its assertions, numbered:
+
+````markdown
+### 1. rec-20261104-c0n5d8ab (revision 1)
+
+- scope: project:example
+- schema: consolidation/v1
+- origin: tool "scout"
+- review_state: unreviewed
+- recorded_at: 2026-11-04T09:00:00.000000Z
+- tags: mesh
+- consolidation: valid, extractive, 2 assertions from 3 records
+- citations: [1] rec-20261103-k3f9m2xa@2, rec-20261104-p4q8r1sd@1; [2] rec-20261104-z7a2c9ve@1
+
+```text
+[1] Decision: Refine the mesh near the crack tip
+[2] Decision: Keep the coarse mesh far field
+```
+````
+
+Citations are record IDs and revisions, never record text, so they stay
+outside the fence.
 
 **Budget.** Entries are taken in priority order while they fit; an entry that
 does not fit is omitted and the next one is tried. Tokens are counted with the
@@ -136,7 +213,8 @@ gives the least that works. The JSON output describes the same selection.
     "recorded_at": "2026-11-03T16:00:00.000000Z",
     "tags": ["surrogate"],
     "summary": "Decision: Keep the existing surrogate model",
-    "match": 2.71828, "tokens": 64
+    "match": 2.71828, "tokens": 64,
+    "consolidation": null
   }],
   "report": {
     "considered": 9,
@@ -147,11 +225,18 @@ gives the least that works. The JSON output describes the same selection.
       "lifecycle": {"count": 2, "ids": ["..."]},
       "review_state": {"count": 1, "ids": ["..."]},
       "sensitivity": {"count": 0, "ids": []},
-      "duplicate": {"count": 0, "ids": []}
-    }
+      "duplicate": {"count": 0, "ids": []},
+      "stale": {"count": 0, "ids": []},
+      "covered": {"count": 0, "ids": []}
+    },
+    "covered_by_summary": {}
   }
 }
 ```
+
+An entry's `consolidation` is `null` for an ordinary record; for a summary it
+is `{"status": "valid", "method", "provider", "assertions"}`, with each
+assertion's `text` and `sources`.
 
 `included` lists IDs in position order, `omitted_by_budget` in priority
 order, the exclusions sorted. `match` is the BM25 relevance (higher is
@@ -188,8 +273,8 @@ Decision: Keep the existing surrogate model
 
 - included: 1
 - omitted_by_budget: 0
-- excluded: visibility 0, lifecycle 2, review_state 1, sensitivity 0, duplicate 0
-- record IDs: in the JSON output
+- excluded: visibility 0, lifecycle 2, review_state 1, sensitivity 0, duplicate 0, stale 0, covered 0
+- record IDs: in the JSON output, with the sources each summary covers
 ````
 
 ## Rendering is data, not instructions
@@ -204,9 +289,10 @@ claims to be instructions. The text and Markdown layouts guarantee that:
   another entry or the truncation report.
 - **Line breaks are normalized** to `\n` before fencing, so a carriage return
   cannot start a line outside the fence.
-- **Metadata stays on its line.** Scope, schema, record ID, review state and
-  tags are slugs; an origin's actor and source references are written as JSON
-  string literals.
+- **Metadata stays on its line.** Scope, schema, record ID, review state,
+  tags and a summary's citations are slugs; an origin's actor and source
+  references are written as JSON string literals. A summary's assertions are
+  fenced like any record text.
 - **The layout is fixed.** Headings, keys and their order never depend on
   record content. Every entry shows its origin and review state.
 - **A fixed notice** opens the output: what follows is stored records, not
@@ -239,7 +325,8 @@ for hit in result.hits:
 print(result.render_text())
 
 woken = wake(agent="scout", task="review model directions", budget_tokens=1200,
-             scopes=["project:example"], repo=".")
+             scopes=["project:example"], repo=".",
+             include_unreviewed=False)  # the default
 print(woken.used_tokens, [entry.record_id for entry in woken.entries])
 print(woken.render_markdown())
 data = woken.to_json()

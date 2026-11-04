@@ -17,10 +17,15 @@ history of plain files.
   without conflicts; a conflict on the same record is detected, never resolved
   silently.
 - **No lock, no network, no LLM.** Writes use an exclusive hard link, schema
-  references never leave the schema, and nothing calls a provider.
+  references never leave the schema, and nothing calls a provider unless you
+  hand `consolidate` one.
 - **Fast recall and wake.** A derived, rebuildable SQLite FTS5 index answers
   scoped `recall` and token-budgeted `wake`, rendering record text as fenced
   data under a fixed layout.
+- **Source-linked summaries (opt-in).** `consolidate` writes topic summaries
+  whose every assertion cites the record revisions it came from; they turn
+  stale when a source changes. Extractive by default; a provider can be a
+  callable or an external command.
 - **Host-neutral.** It does not import `akms`. The `[akms]` extra is reserved
   for a later promotion bridge into AKMS project-local nodes.
 

@@ -158,6 +158,7 @@ the new line on their next write.
 | Different records created or amended | Clean, in either order, with the same tree |
 | The same record amended to the same revision | An add/add conflict on that revision file; replay and `doctor` report `conflict` for that record only |
 | A record erased on one branch, amended on the other | Clean merge that brings the amendment back; `doctor` reports it and `doctor --fix` re-applies the erasure |
+| A record erased on one branch, summarized on the other | Clean merge that brings the summary in; it is never indexed, `doctor` reports it under `summaries_citing_erased` and `doctor --fix` erases it |
 
 Resolve a same-revision conflict by keeping one side's file and re-adding the
 other side's change as a new amendment. Taking one side alone silently drops

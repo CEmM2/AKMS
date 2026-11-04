@@ -26,6 +26,28 @@ Setting a promotion policy asks for interactive confirmation, but a process
 that can drive a terminal could answer it. That is why every change is
 logged.
 
+## Summaries are derived content
+
+A [summary](consolidation.md) is written by a tool, `unreviewed`, from records
+that are themselves not facts. Treat it as a convenience, not a source:
+
+- **Citations limit a summary; they do not prove it.** The validator checks
+  that every assertion cites real source revisions in the same scope. For the
+  extractive method it also checks that the text is the source's own summary
+  or an extracted field, so an extractive summary can only drop nuance, not
+  add claims. A provider's text is free: it can paraphrase badly, merge two
+  sources into a claim neither makes, or cite the wrong one, and still pass.
+  Review a provider summary before you rely on it; `wake` will not show one
+  until it is reviewed.
+- **Staleness is about the inputs**, not the world: a summary is valid while
+  its sources and its topic's gather are unchanged, however old they are.
+- **At most 64 sources** per summary, the envelope's source-reference limit.
+  Summaries do not summarize summaries, so there is no hierarchy to work
+  around it; narrow the topic.
+- **The erasure cascade finds summaries through the index.** A summary the
+  index has never seen (for example files copied in by hand) is erased by
+  `doctor --fix`, which reads every record.
+
 ## Erasure and git history
 
 `erase` removes a record's files from the store and logs the erasure without
