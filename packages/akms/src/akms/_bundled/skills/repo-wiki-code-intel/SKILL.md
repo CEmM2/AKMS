@@ -139,25 +139,37 @@ Every caller, callee and dependent carries the edge that produced it:
 | CONFIDENT | `scope` | a function nested in an enclosing function |
 | CONFIDENT | `self` | `self.m()` / `cls.m()` found on the enclosing class or a resolved base class |
 | CONFIDENT | `constructor` | a call of class `C` also reaches `C.__init__` |
+| CONFIDENT | `receiver` | `x.m()` where the caller set `x = C(...)` or annotated `x: C`, and `C` (or a base) has `m` (provenance `inferred`) |
 | CONFIDENT | `name` | Rust, C++ and Julia only: exactly one symbol in the repository has that name |
 | HEURISTIC | `name` | the name matches, but nothing imports or defines it where it is called (a star import, a parameter holding a callable, a builtin with the same name) |
 | HEURISTIC | `attribute` | `obj.m()` on a receiver of unknown type, linked to the methods named `m` (at most 4 candidates; `candidates` lists them) |
+| HEURISTIC | `receiver` | `x.m()` where `x` is bound to more than one class, or also to something that is not a repository class (provenance `inferred`) |
+| HEURISTIC | `dispatch` | the caller indexes a module-level dict of callables (`TABLE[key](...)`, `TABLE.get(key)`); one link per value, never confident (provenance `inferred`) |
 
 Count CONFIDENT links as fact. Treat HEURISTIC links as *possible*: they are listed
 separately (`possible`, marked `?` in text output), never feed the risk level, and
 must not be reported as certain. Open the caller and check when it matters. A
 HEURISTIC `attribute` link with several candidates usually reaches only one of them.
 
+`provenance` (JSON only) says where a link comes from: `static` for a call written in
+the source, `inferred` for one derived from a pattern (`receiver`, `dispatch`). An
+inferred CONFIDENT link counts like any other, but it rests on the local binding: a
+later reassignment the graph cannot see (`x = factory()`) would break it.
+
 ## What the graph cannot know
 
-The graph is built from source text, without running anything and without type
-inference. It misses, or gets only as a possible link:
+The graph is built from source text, without running anything. Its only type
+inference is local: `x = C(...)` or `x: C` inside the calling function. It misses, or
+gets only as a possible link:
 
 - **dynamic dispatch**: a method called on an object whose type is not visible at the
-  call site (`repo.save()` when `repo` is a parameter) is at best a HEURISTIC
-  `attribute` link; overrides in subclasses are not callers of the base method;
-- **reflection and indirection**: `getattr(obj, name)()`, registries and dispatch
-  tables, callbacks passed as values, decorators that replace a function;
+  call site (`repo.save()` when `repo` is a parameter, even an annotated one, or an
+  attribute such as `self.repo`) is at best a HEURISTIC `attribute` link; overrides in
+  subclasses are not callers of the base method;
+- **reflection and indirection**: `getattr(obj, name)()`, registries filled at run
+  time, callbacks passed as values, decorators that replace a function. A literal
+  module-level dict of callables is the one exception: it gives HEURISTIC `dispatch`
+  links;
 - **string-based imports**: `importlib.import_module("pkg.mod")`, entry points declared
   in packaging metadata, plugin discovery;
 - **a function-level import under another name**: `from pkg.cli import main as run_cli`
@@ -193,9 +205,10 @@ d=2 likely affected: 2 confident, 1 possible
     python:pkg/core.py::Store.save  pkg/core.py:L20-L21  [CONFIDENT self]
     python:pkg/service.py::run  pkg/service.py:L7-L8  [CONFIDENT import]
     ? python:other/helpers.py::stray  other/helpers.py:L13-L14  [HEURISTIC name]
-d=3 may need testing: 1 confident, 1 possible
+d=3 may need testing: 2 confident, 1 possible
     python:pkg/api.py::public_entry  pkg/api.py:L6-L8  [CONFIDENT import] (public:export)
-    ? python:pkg/service.py::persist  pkg/service.py:L11-L13  [HEURISTIC attribute, 1 of 2 candidates]
+    python:pkg/service.py::persist  pkg/service.py:L11-L13  [CONFIDENT receiver]
+    ? python:pkg/service.py::persist_any  pkg/service.py:L20-L22  [HEURISTIC attribute, 1 of 2 candidates]
 Affected files: 3
   pkg/api.py
   pkg/core.py
@@ -210,8 +223,10 @@ Risk: HIGH (counting possible links: HIGH) - 3 direct non-test dependent(s); 2 o
 What to tell the user before editing `leaf`: three production callers break if its
 contract changes (`Store._write`, `middle`, `via_module`), plus `test_leaf`; two more
 at d=2 and the exported `public_entry` at d=3; risk HIGH because a public entry point
-is reached, so wait for confirmation. `stray` and `persist` are only possible links:
-`stray` calls a name it never imports, and `persist` calls `.save()` on a value whose
+is reached, so wait for confirmation. `persist` is a confident caller because it builds
+the receiver itself (`store = Store()`), so the graph infers `Store.save`. `stray` and
+`persist_any` are only possible links: `stray` calls a name it never imports, and
+`persist_any` calls `.save()` on a parameter whose
 type the graph cannot see.
 
 After changing `leaf`'s body and deleting `middle`:

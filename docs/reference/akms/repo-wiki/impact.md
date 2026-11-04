@@ -19,9 +19,10 @@ d=2 likely affected: 2 confident, 1 possible
     python:pkg/core.py::Store.save  pkg/core.py:L20-L21  [CONFIDENT self]
     python:pkg/service.py::run  pkg/service.py:L7-L8  [CONFIDENT import]
     ? python:other/helpers.py::stray  other/helpers.py:L13-L14  [HEURISTIC name]
-d=3 may need testing: 1 confident, 1 possible
+d=3 may need testing: 2 confident, 1 possible
     python:pkg/api.py::public_entry  pkg/api.py:L6-L8  [CONFIDENT import] (public:export)
-    ? python:pkg/service.py::persist  pkg/service.py:L11-L13  [HEURISTIC attribute, 1 of 2 candidates]
+    python:pkg/service.py::persist  pkg/service.py:L11-L13  [CONFIDENT receiver]
+    ? python:pkg/service.py::persist_any  pkg/service.py:L20-L22  [HEURISTIC attribute, 1 of 2 candidates]
 Affected files: 3
   pkg/api.py
   pkg/core.py

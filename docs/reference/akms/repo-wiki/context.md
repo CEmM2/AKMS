@@ -13,8 +13,9 @@ repo-wiki context Store.save
 python:pkg/core.py::Store.save  (method)
   pkg/core.py:L20-L21
   def save(self, item)
-Callers: 0 confident, 1 possible
-  ? python:pkg/service.py::persist  pkg/service.py:L11-L13  [HEURISTIC attribute, 1 of 2 candidates]
+Callers: 1 confident, 1 possible
+  python:pkg/service.py::persist  pkg/service.py:L11-L13  [CONFIDENT receiver]
+  ? python:pkg/service.py::persist_any  pkg/service.py:L20-L22  [HEURISTIC attribute, 1 of 2 candidates]
 Callees: 1 confident, 0 possible
   python:pkg/core.py::Store._write  pkg/core.py:L23-L24  [CONFIDENT self]
 Module pkg.core: imports 0 repository module(s) and 0 external name(s); imported by 2

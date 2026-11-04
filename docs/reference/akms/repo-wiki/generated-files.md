@@ -26,6 +26,30 @@ configuration and your overlays can be rebuilt from source.
 `.repo_wiki/cache/`, `manifest.json` and `build_errors.json`, then run
 `repo-wiki build --force`.
 
+## Symbol graph fields
+
+`generated/symbol_graph.json` (schema `symbol_graph v1`, described in its `_comment`
+field) has `nodes` keyed by ID and a sorted `edges` list. Each edge has `source`,
+`target`, `type` (`defined_in`, `belongs_to`, `imports`, `calls`, `inherits`),
+`resolution` (`CONFIDENT`, `HEURISTIC`, `UNRESOLVED`), `dst_id`, `dst_name` and, for
+HEURISTIC edges, `dst_candidates`.
+
+These fields are optional. Each is written only when it has a value, so a graph
+without them is still valid `symbol_graph v1` and readers must not require them:
+
+| Field | On | Meaning |
+|---|---|---|
+| `provenance` | edge | `static`, `observed` or `inferred`. Absent means `static`, which is every edge written today. |
+| `bindings` | module node | Python: local name to dotted import target. |
+| `dispatch` | module node | Python: module-level dict literals of callables, name to sorted value names. |
+| `receivers` | symbol node | Python: locals used as call receivers, name to the constructor or annotation names they are bound to. |
+| `table_refs` | symbol node | Python: module-level names the symbol indexes (`T[key]`, `T.get(key)`). |
+
+`context`, `impact` and `changes` turn `receivers`, `table_refs` and `dispatch` into
+`receiver` and `dispatch` links (provenance `inferred`) when they load the graph;
+the edges in the file are unchanged. See
+[Reading impact and risk](reading-impact.md#confident-and-possible-links).
+
 ## `.gitignore`
 
 List the rebuildable paths explicitly:
