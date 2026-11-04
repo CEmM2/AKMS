@@ -32,6 +32,31 @@ development is intentionally not replayed.
 - A bundled `repo-wiki-code-intel` agent skill teaches when to run each
   command: `context` when exploring, `impact` before editing a function, class
   or method, and `changes` before committing.
+- `repo-wiki flows` lists static execution flows and `repo-wiki flow FLOW`
+  shows one as a call tree. A flow is an entry point (a console script from
+  any `pyproject.toml`, a `__main__` block, a CLI command found by decorator
+  or argparse `set_defaults(func=...)`, an uncalled public function, or, if
+  enabled, a test) followed breadth-first over confident calls, within depth,
+  fan-out and step caps; capped steps, truncation reasons and cycles are
+  recorded. `build` writes them to `.repo_wiki/generated/flows.json`, a pure
+  function of the symbol graph that records the graph's hash, so readers
+  recompute in memory when it is stale. `context` shows the flows a symbol is
+  in, `impact` the flows through the target and its dependents (reported
+  beside the risk, which is unchanged) and `changes` the flows a diff touches.
+  Settings live under a new `flows:` configuration section.
+- `repo-wiki` infers two more kinds of call link: a method called on a local
+  bound to a repository class (`x = C()` or `x: C`, then `x.m()`) links to
+  `C.m`, confidently when exactly one target remains, and a function that
+  indexes a module-level dict of callables links to every value as a possible
+  link. Both are marked `provenance: inferred`; method calls on locals bound
+  only to outside classes are now external instead of possible name matches.
+- Symbol graph edges may carry an optional `provenance` (`static`,
+  `observed`, `inferred`), written only when it is not `static`, so existing
+  graphs keep their edge bytes; `context`, `impact` and `changes` report it on
+  every link in their JSON output. The graph also gains optional node fields
+  for receivers, dispatch tables, `__main__` calls, argparse handlers and
+  decorator names. The IR cache schema moves to 4, so the first build after
+  upgrading re-parses every file.
 - `akms-failure-memory` can allocate collision-free lesson IDs:
   `validation.id_style = "dated"` gives `L<YYYYMMDD>-<4 Crockford base32>`
   IDs, so lessons added on two branches no longer collide. `"sequential"`

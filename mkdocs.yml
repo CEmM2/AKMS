@@ -176,6 +176,7 @@ nav:
         - context: reference/akms/repo-wiki/context.md
         - impact: reference/akms/repo-wiki/impact.md
         - changes: reference/akms/repo-wiki/changes.md
+        - flows and flow: reference/akms/repo-wiki/flows.md
         - Reading Impact and Risk: reference/akms/repo-wiki/reading-impact.md
       - API Reference:
         - Schema:

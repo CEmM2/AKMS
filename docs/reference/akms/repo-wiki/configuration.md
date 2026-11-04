@@ -110,6 +110,29 @@ Controls `query`. The index returns `top_k_initial` candidates; the best
 | `retrieval.expand_heuristic_edges` | `true` | Follow call edges that matched several candidates by name. With `false`, only edges that resolved to exactly one target are followed. |
 | `retrieval.include_tests` | `true` | Add test modules (paths containing `test`) that mention a result. |
 
+## `flows`
+
+Settings for the [execution flows](flows.md) that `build` writes to `flows.json`.
+Unknown keys and values of the wrong type are rejected when the file is loaded.
+
+| Key | Default | Effect |
+|---|---|---|
+| `flows.enabled` | `true` | Write `flows.json` on `build`, and show flows in `context`, `impact` and `changes`. With `false`, `build` removes an old `flows.json`; `flows` and `flow` still compute flows on demand. |
+| `flows.entries.console_scripts` | `true` | Console scripts declared in `pyproject.toml` files are entry points. |
+| `flows.entries.scripts` | `true` | `if __name__ == "__main__":` blocks and `__main__.py` modules are entry points. |
+| `flows.entries.cli` | `true` | Functions with a decorator matching `cli_decorators`, and argparse `set_defaults(func=...)` handlers, are entry points. |
+| `flows.entries.tests` | `false` | Test functions are entry points. |
+| `flows.entries.roots` | `true` | Public functions and methods that nothing outside the tests calls confidently are entry points. |
+| `flows.cli_decorators` | `["*.command", "*.group"]` | Wildcard patterns matched against a decorator's dotted name, without its arguments (`@app.command("x")` is `app.command`). |
+| `flows.include_heuristic` | `false` | Also follow HEURISTIC links. They are counted and flagged in each flow. |
+| `flows.max_depth` | `6` | Levels below the entry. |
+| `flows.max_fanout` | `12` | Callees followed from one step. |
+| `flows.max_steps` | `60` | Steps in one flow. |
+| `flows.max_flows` | `1000` | Flows kept in `flows.json`; roots with the fewest steps are dropped first. |
+
+A change to any of these, except `enabled`, makes an existing `flows.json` stale:
+readers recompute until the next build.
+
 ## Keys that are written but not read
 
 `init` writes these keys, and they are accepted, but the current code does not

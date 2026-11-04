@@ -11,7 +11,7 @@ configuration and your overlays can be rebuilt from source.
 | `config.yaml` | `init` | The [configuration](configuration.md). | Yes, if the team shares it. |
 | `SPEC.md` | `init` | A short note on how the directory is managed. | Yes, if the team shares it. |
 | `overlays/` | you | Hand-written Markdown notes. `build` never touches them; `index` includes them in search. | Yes. |
-| `generated/` | `build`, `summarize` | Module pages (`modules/`), symbol pages (`symbols/`), summaries (`summaries/`), `repo_map.md` and `symbol_graph.json`. Symbol pages include the symbol's source. | No. |
+| `generated/` | `build`, `summarize` | Module pages (`modules/`), symbol pages (`symbols/`), summaries (`summaries/`), `repo_map.md`, `symbol_graph.json` and `flows.json` (see [flows](flows.md#flowsjson)). Symbol pages include the symbol's source. | No. |
 | `index/repo_wiki.sqlite3` | `build`, `index` | The SQLite full-text search index. | No. |
 | `ir_cache/` | `build` | Parsed-source cache that makes `build --changed-only` fast. | No. |
 | `cache/llm_summaries.json` | `build`, `summarize` | Cache of the local summaries. | No. |
@@ -44,10 +44,14 @@ without them is still valid `symbol_graph v1` and readers must not require them:
 | `dispatch` | module node | Python: module-level dict literals of callables, name to sorted value names. |
 | `receivers` | symbol node | Python: locals used as call receivers, name to the constructor or annotation names they are bound to. |
 | `table_refs` | symbol node | Python: module-level names the symbol indexes (`T[key]`, `T.get(key)`). |
+| `cli_handlers` | symbol node | Python: names the symbol passes as argparse `set_defaults(func=...)`. |
+| `decorators` | symbol node | Decorator names with their arguments dropped (`app.command`). |
+| `main_calls` | module node | Python: call names run when the module executes as a script (its `__main__` block, or all module-level code of a `__main__.py`). |
 
 `context`, `impact` and `changes` turn `receivers`, `table_refs` and `dispatch` into
 `receiver` and `dispatch` links (provenance `inferred`) when they load the graph;
-the edges in the file are unchanged. See
+the edges in the file are unchanged. `cli_handlers`, `decorators` and `main_calls`
+are read only to find the entry points of [flows](flows.md). See
 [Reading impact and risk](reading-impact.md#confident-and-possible-links).
 
 ## `.gitignore`

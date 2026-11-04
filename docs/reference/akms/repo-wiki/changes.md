@@ -22,7 +22,14 @@ Changes (worktree vs HEAD, a0fa1a8b16f4): 1 file(s), 2 changed symbol(s)
         ? python:other/helpers.py::stray  other/helpers.py:L13-L14  [HEURISTIC dangling]
 Summary: 2 changed symbol(s) (1 deleted, 1 modified); affected callers: 4 confident, 1 possible; risk HIGH (counting possible links: HIGH)
   3 direct non-test dependent(s); 1 other module(s); 1 caller(s) still reference a deleted or moved symbol
+Flows touched: 3
+  pkg.service.via_module  [root; 2 steps; depth 1]  at d=1  flow:81e076513602
+  pkg.cli.main  [root; 5 steps; depth 4]  through 2 of the symbols  flow:67984a14e9db
+  pkg.service.persist  [root; 5 steps; depth 3]  at d=3  flow:0bc38b6af8b6
 ```
+
+`Flows touched` lists the [execution flows](flows.md) of the graph before the change
+that contain a changed symbol, or the old ID of a moved one.
 
 ## Flags
 
@@ -109,9 +116,10 @@ makes the command exit 3. Rebuild with
               "affected_callers": {"confident": 4, "possible": 1},
               "dangling_references": 1, "modules_reached": 1,
               "public_entry_points": [], "risk": "HIGH", "risk_with_possible": "HIGH",
-              "risk_reasons": ["..."]},
+              "risk_reasons": ["..."], "flows_touched": 3},
   "graph": {"path": "...", "built_commit": "...", "stale": false,
-            "changed": [], "added": [], "removed": []}
+            "changed": [], "added": [], "removed": []},
+  "flows": {"count": 3, "source": "file", "reason": null, "flows": [...]}
 }
 ```
 

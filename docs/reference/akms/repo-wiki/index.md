@@ -68,6 +68,8 @@ extras.
 | `context <symbol>` | Shows a symbol's definition, callers, callees and module imports. See [context](context.md). |
 | `impact <symbol>` | Lists what depends on a symbol, by depth, with a risk level. See [impact](impact.md). |
 | `changes` | Maps a git diff to the symbols it touches and their direct callers. See [changes](changes.md). |
+| `flows` | Lists execution flows: entry points followed down their confident calls. See [flows and flow](flows.md). |
+| `flow <flow>` | Shows one execution flow as a call tree. See [flows and flow](flows.md). |
 | `graph [input]` | Serves an interactive viewer for the symbol graph on `127.0.0.1:8765`. |
 | `clean` | Not implemented: prints a message and removes nothing. |
 
@@ -85,5 +87,8 @@ Run `repo-wiki <subcommand> --help` for the flags of each.
 - [context](context.md), [impact](impact.md) and [changes](changes.md): code
   intelligence over the symbol graph, for exploring a symbol, checking who depends
   on it before an edit, and checking a diff before a commit.
+- [flows and flow](flows.md): static execution flows from console scripts,
+  `__main__` blocks, CLI commands and uncalled public functions, and the
+  `flows.json` format.
 - [Reading impact and risk](reading-impact.md): depths, confident and possible
   links, the risk rule, and what the graph cannot see.
