@@ -190,12 +190,12 @@ def read_console_scripts(repo_root: Path, paths: list[str]) -> list[ConsoleScrip
             data = tomllib.loads(file.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
             continue
-        project = data.get("project") if isinstance(data.get("project"), dict) else {}
-        poetry = data.get("tool", {}).get("poetry", {})
+        project = _table(data, "project")
+        poetry = _table(_table(data, "tool"), "poetry")
         tables = [
             project.get("scripts"),
             project.get("gui-scripts"),
-            poetry.get("scripts") if isinstance(poetry, dict) else None,
+            poetry.get("scripts"),
         ]
         for table in tables:
             if not isinstance(table, dict):
@@ -204,6 +204,11 @@ def read_console_scripts(repo_root: Path, paths: list[str]) -> list[ConsoleScrip
                 if isinstance(spec, str) and ":" in spec:
                     scripts.append(ConsoleScript(str(name), spec, rel))
     return sorted(set(scripts), key=lambda s: (s.name, s.spec, s.pyproject))
+
+
+def _table(data: dict[str, object], key: str) -> dict[str, object]:
+    value = data.get(key)
+    return value if isinstance(value, dict) else {}
 
 
 def inputs_sha256(settings: dict[str, object], scripts: list[ConsoleScript]) -> str:
@@ -284,7 +289,10 @@ def detect_entries(
                 name = f"{graph.dotted_name(module_id) or module_id}:__main__"
                 offer(Entry(module_id, "script", name, "__main__"))
     if rules.get("cli"):
-        patterns = [str(p) for p in settings.get("cli_decorators") or []]
+        raw_patterns = settings.get("cli_decorators")
+        patterns = (
+            [str(p) for p in raw_patterns] if isinstance(raw_patterns, list) else []
+        )
         for node_id, names in sorted(graph.decorators.items()):
             if not symbol(node_id):
                 continue
