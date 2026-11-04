@@ -55,6 +55,7 @@ Links always come in two lists: `{"confident": [...], "possible": [...]}`.
 | `module` | `id`, `path`, `imports` (repository modules), `external_imports`, `importers` |
 | `resolution_counts` | `callers`: CONFIDENT/HEURISTIC; `callees`: also UNRESOLVED/EXTERNAL |
 | `graph` | `path`, `built_commit`, `stale`, `changed`, `added`, `removed` |
+| `flows` | flow participation (below) plus `as_entry`: the ID of the flow the symbol is the entry of, or `null`. Absent when `flows.enabled` is false |
 
 ## `repo-wiki/impact/v1`
 
@@ -67,6 +68,7 @@ Links always come in two lists: `{"confident": [...], "possible": [...]}`.
 | `possible_files` | files reached only through possible links |
 | `summary` | `confident`, `possible`, `risk`, `risk_with_possible`, `d1_confident`, `modules_reached`, `public_entry_points`, `risk_reasons` |
 | `graph` | as for `context` |
+| `flows` | flow participation of the target and its confident dependents, plus `through_target` (flows with a step on the target). Never part of the risk |
 
 Entries in `levels` are links plus `depth` and `via` (the node one step closer to the
 target). Downstream walks set `risk` and `risk_with_possible` to `null`.
@@ -80,11 +82,62 @@ target). Downstream walks set `risk` and `risk_with_possible` to `null`.
 | `files` | `path`, `old_path`, `status` (`added`/`modified`/`deleted`/`renamed`), `binary`, `hunks` (`old_start`, `old_lines`, `new_start`, `new_lines`), `symbols_supported`, `parse_error` |
 | `changed_symbols` | node fields plus `old_id`, `status` (`added`/`modified`/`deleted`/`moved`), `callers` |
 | `module_level_changes` | `path` and `lines` (`[start, end]` ranges) outside every symbol |
-| `summary` | `files`, `changed_symbols`, `by_status`, `affected_callers` (`confident`, `possible`), `dangling_references`, `modules_reached`, `public_entry_points`, `risk`, `risk_with_possible`, `risk_reasons` |
+| `summary` | `files`, `changed_symbols`, `by_status`, `affected_callers` (`confident`, `possible`), `dangling_references`, `modules_reached`, `public_entry_points`, `risk`, `risk_with_possible`, `risk_reasons`, `flows_touched` |
 | `graph` | as for `context` |
+| `flows` | flow participation of the changed symbols (and the old IDs of moved ones) |
 
 Callers in `changed_symbols` are links plus `changed` (true when the caller is itself
 part of the change). A caller of a deleted or moved symbol has basis `dangling`.
+
+## Flows
+
+A **flow summary**:
+
+```json
+{"id": "flow:67984a14e9db", "name": "pkg.cli.main", "kind": "root",
+ "entry": "python:pkg/cli.py::main", "detail": null,
+ "path": "pkg/cli.py", "start_line": 6, "end_line": 7,
+ "steps": 5, "depth": 4, "terminals": 1,
+ "truncated": false, "truncated_reasons": [],
+ "heuristic_steps": 0, "inferred_steps": 0}
+```
+
+`kind` is `console_script`, `script`, `cli`, `test` or `root`. `detail` is the
+console-script spec, `__main__`, the matched decorator (`@app.command`) or
+`set_defaults(func=...)`. `truncated_reasons` lists `depth`, `fanout` and `steps`.
+
+**Flow participation** (the `flows` block of `context`, `impact`, `changes`):
+`count` (all matching flows), `flows` (the first few summaries, each with `matched`:
+`[{"id", "depth"}]`, where the symbols sit in that flow), `source` (`file` or
+`computed`) and `reason` (why it was computed: `missing`, `graph changed since
+flows.json was written`, ...).
+
+### `repo-wiki/flows/v1` (`repo-wiki flows`)
+
+| Key | Value |
+|---|---|
+| `filters` | `entry`, `kind`, `touching` (the resolved ID), `limit` |
+| `flows` | flow summaries; with `--touching`, each adds `touching_depth` |
+| `summary` | `total`, `matched`, `shown`, `by_kind`, `omitted_flows` (by kind, dropped by `flows.max_flows`) |
+| `settings` | the flow settings the flows were computed with |
+| `flows_source` | `source`, `reason` |
+| `graph` | as for `context` |
+
+### `repo-wiki/flow/v1` (`repo-wiki flow`)
+
+`flow` is a flow summary plus `aliases` (other console-script names), `terminals`
+(IDs), `cycles` (`[from, to]` pairs) and `steps`, in breadth-first order:
+
+```json
+{"id": "python:pkg/api.py::public_entry", "depth": 1, "via": "python:pkg/cli.py::main",
+ "resolution": "CONFIDENT", "basis": "import", "provenance": "static",
+ "kind": "function", "name": "public_entry", "qualname": "public_entry",
+ "path": "pkg/api.py", "start_line": 6, "end_line": 8}
+```
+
+The entry step has `depth` 0, `via` `null` and no link fields. A capped step adds
+`cut` (`depth`, `fanout` or `steps`), `omitted` (callees not followed) and, for a
+fan-out cut, `omitted_ids`.
 
 ## `repo-wiki/error/v1`
 
@@ -95,4 +148,5 @@ part of the change). A caller of a deleted or moved symbol has basis `dangling`.
 
 `code` is one of `graph_missing`, `graph_unreadable`, `graph_stale` (with `details`:
 `rebuild`, `changed`, `added`, `removed`), `unknown_symbol`, `ambiguous_symbol`
-(with `candidates`: nodes), `git_error`, `usage`.
+(with `candidates`: nodes), `unknown_flow`, `ambiguous_flow` (with `candidates`:
+flow summaries), `git_error`, `usage`.

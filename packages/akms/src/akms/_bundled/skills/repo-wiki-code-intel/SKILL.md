@@ -1,20 +1,22 @@
 ---
 name: repo-wiki-code-intel
-description: "Check who depends on code before changing it, using the repo-wiki CLI that ships with akms. Run `repo-wiki context` to explore a symbol (definition, callers, callees, module imports), `repo-wiki impact` before editing any function, class or method (dependents grouped by depth, with a LOW/MEDIUM/HIGH/CRITICAL risk), and `repo-wiki changes` before committing (the symbols your diff touches and their direct callers). Use when exploring unfamiliar code, before editing a symbol, before a commit, or when asked what breaks if something changes. Triggers on: 'impact analysis', 'blast radius', 'who calls', 'what calls', 'callers of', 'what breaks if', 'is it safe to change', 'before committing', 'detect changes', 'symbol context'."
+description: "Check who depends on code before changing it, using the repo-wiki CLI that ships with akms. Run `repo-wiki context` to explore a symbol (definition, callers, callees, module imports), `repo-wiki impact` before editing any function, class or method (dependents grouped by depth, with a LOW/MEDIUM/HIGH/CRITICAL risk), `repo-wiki changes` before committing (the symbols your diff touches and their direct callers), and `repo-wiki flows` / `repo-wiki flow` to see execution flows (entry points such as console scripts, __main__ blocks and CLI commands, walked down their confident calls). Use when exploring unfamiliar code, before editing a symbol, before a commit, when asked what breaks if something changes, or what runs when a command is invoked. Triggers on: 'impact analysis', 'blast radius', 'who calls', 'what calls', 'callers of', 'what breaks if', 'is it safe to change', 'before committing', 'detect changes', 'symbol context', 'execution flow', 'entry points', 'what runs when', 'call path'."
 ---
 
 # Code intelligence with repo-wiki
 
 `repo-wiki` builds a symbol graph of the repository (functions, classes, methods,
-constants, modules and the calls, inheritance and imports between them). Three
-commands read it. They are local, deterministic, make no network calls and call no
-model.
+constants, modules and the calls, inheritance and imports between them), and from
+it a set of execution flows. Five commands read them. They are local,
+deterministic, make no network calls and call no model.
 
 | Command | Run it | It answers |
 |---|---|---|
 | `repo-wiki context SYMBOL` | when exploring | Where is it defined, who calls it, what does it call, what does its module import? |
 | `repo-wiki impact SYMBOL` | **before editing** any function, class or method | Who depends on it, at depth 1, 2 and 3, and how risky is a change? |
 | `repo-wiki changes` | **before committing** | Which symbols does my diff touch, and who calls them? |
+| `repo-wiki flows` | to find entry points | Which flows exist, and which ones pass through a symbol? |
+| `repo-wiki flow FLOW` | to follow one path | What does this entry point call, level by level? |
 
 Add `--json` to any of them for machine-readable output
 (see [references/json_output.md](references/json_output.md)). Put `--repo-root PATH`
@@ -27,8 +29,8 @@ repo-wiki build --changed-only --no-summaries --no-index
 ```
 
 That is the fastest refresh: it re-parses only changed files and rewrites
-`.repo_wiki/generated/symbol_graph.json`. Run it at the start of a session and after
-pulling or switching branches.
+`.repo_wiki/generated/symbol_graph.json` and `flows.json`. Run it at the start of a
+session and after pulling or switching branches.
 
 `context` and `impact` refuse a stale graph. If any source file differs from what the
 graph was built from, they exit with code 3 and a message that names the files and
@@ -66,7 +68,8 @@ repo-wiki impact SYMBOL --direction downstream   # what SYMBOL depends on
 repo-wiki impact SYMBOL --depth 5
 ```
 
-Upstream results are grouped by depth:
+Upstream results are grouped by depth (the flows through the target are listed
+after the risk, as context; they never change it):
 
 | Depth | Label | What to do |
 |---|---|---|
@@ -179,7 +182,8 @@ gets only as a possible link:
   calling it, `isinstance` checks, type annotations;
 - **`super().method()`** and calls on the result of another call (`make().run()`);
 - **module-level code**: calls made at import time or under `if __name__ == "__main__":`
-  are not attributed to any symbol;
+  are not attributed to any symbol, so they are never callers in `impact` (a
+  `__main__` block does start a `script` flow);
 - **files the scanner skips**: excluded or ignored paths, files over the size limit,
   and languages not enabled in `.repo_wiki/config.yaml`.
 
@@ -218,6 +222,10 @@ Affected test files: 1
 Possibly affected files: 1
   other/helpers.py
 Risk: HIGH (counting possible links: HIGH) - 3 direct non-test dependent(s); 2 other module(s); public entry point(s) reached: 1
+Affected flows: 3 (3 through the target; not part of the risk)
+  pkg.service.via_module  [root; 2 steps; depth 1]  at d=1  flow:81e076513602
+  pkg.service.persist  [root; 5 steps; depth 3]  at d=3  flow:0bc38b6af8b6
+  pkg.cli.main  [root; 5 steps; depth 4]  at d=4  flow:67984a14e9db
 ```
 
 What to tell the user before editing `leaf`: three production callers break if its
@@ -245,10 +253,104 @@ Changes (worktree vs HEAD, a0fa1a8b16f4): 1 file(s), 2 changed symbol(s)
         ? python:other/helpers.py::stray  other/helpers.py:L13-L14  [HEURISTIC dangling]
 Summary: 2 changed symbol(s) (1 deleted, 1 modified); affected callers: 4 confident, 1 possible; risk HIGH (counting possible links: HIGH)
   3 direct non-test dependent(s); 1 other module(s); 1 caller(s) still reference a deleted or moved symbol
+Flows touched: 3
+  pkg.service.via_module  [root; 2 steps; depth 1]  at d=1  flow:81e076513602
+  pkg.cli.main  [root; 5 steps; depth 4]  through 2 of the symbols  flow:67984a14e9db
+  pkg.service.persist  [root; 5 steps; depth 3]  at d=3  flow:0bc38b6af8b6
 ```
 
 `run` still imports the deleted `middle`, so this commit would break it: fix `run`
-before committing.
+before committing. The last lines list the flows the diff touches
+(`Flows touched: 3 ...`): name them in your report when the change alters behaviour
+along a path a user runs.
+
+## 4. Execution flows: `flows` and `flow`
+
+A flow is an entry point followed down its calls, breadth-first, over CONFIDENT
+links only. Use flows to answer "what runs when I call X", to find the entry points
+that reach a symbol before you change it, and to name the user-visible paths a change
+touches.
+
+```bash
+repo-wiki flows                          # all flows (first 50; --limit 0 for all)
+repo-wiki flows --kind console_script    # only console scripts
+repo-wiki flows --entry "pkg.cli.*"      # name or entry ID contains / matches
+repo-wiki flows --touching build_repo    # flows with a step on that symbol
+repo-wiki flow repo-wiki                 # one flow as a call tree
+repo-wiki flow pkg.cli.main --json       # by entry symbol, as JSON
+```
+
+Entry kinds, one flow per entry, in this priority order:
+
+| Kind | Entry point |
+|---|---|
+| `console_script` | a `[project.scripts]` target in a `pyproject.toml`; the flow is named after the script |
+| `script` | a module's `if __name__ == "__main__":` block, or a `__main__.py` (named `module:__main__`) |
+| `cli` | a function with a decorator matching `flows.cli_decorators` (`@app.command()`, `@cli.group()`), or passed as `parser.set_defaults(func=...)` |
+| `test` | a test function; off unless `flows.entries.tests: true` |
+| `root` | a public function or method that nothing outside the tests calls with a CONFIDENT link, and that calls something itself |
+
+`FLOW` in `repo-wiki flow` is a flow ID (`flow:...`), a flow name, a console-script
+name or alias, or the entry symbol. A symbol that is a step but not an entry exits 4
+and tells you to run `flows --touching`.
+
+`context` shows the flows a symbol is a step in (count and the five shallowest),
+`impact` lists the flows through the target or a confident dependent, and `changes`
+lists the flows that contain a changed symbol.
+
+### Reading a flow
+
+```text
+$ repo-wiki flow pkg.cli.main
+Flow pkg.cli.main  [root; 5 steps; depth 4]  flow:67984a14e9db
+  entry python:pkg/cli.py::main  pkg/cli.py:L6-L7
+  main  pkg/cli.py:L6-L7
+    public_entry  pkg/api.py:L6-L8  [CONFIDENT import]
+      run  pkg/service.py:L7-L8  [CONFIDENT import]
+        middle  pkg/core.py:L9-L10  [CONFIDENT import]
+          leaf  pkg/core.py:L4-L6  [CONFIDENT local]
+Terminals: 1
+```
+
+Each step is listed once, under the step that first reached it, with the link that
+reached it. `Terminals` are steps that call nothing the graph can see.
+
+- **Truncation.** Three caps bound a flow: `max_depth` (6 levels), `max_fanout`
+  (12 callees per step) and `max_steps` (60 steps). A capped step ends with
+  `... N more not followed (depth|fanout|steps cap)`, and the header says
+  `truncated: ...`. A truncated flow is a prefix, not the whole path: what lies past
+  the cut is unknown, not absent. Use `repo-wiki impact SYMBOL --direction downstream`
+  on the cut step, or `flow` on a deeper entry, to see further. A fan-out cut keeps
+  the callees that call the most themselves and lists the dropped ones in JSON
+  (`omitted_ids`).
+- **HEURISTIC steps.** Only when `flows.include_heuristic: true`. They are marked
+  `?` and counted in the header (`N HEURISTIC`): the call may reach a different
+  candidate or none. Do not report a path through a `?` step as certain.
+- **Inferred steps.** A step whose link has basis `receiver` rests on a local
+  binding (`x = C()`), not a call written as such (`inferred_steps` in JSON).
+- **Cycles.** A call back onto the current path is listed under `Cycles:` and not
+  followed again; the flow is not truncated by it.
+- **Staleness.** `flows.json` records the hash of the graph it came from. If it no
+  longer matches (or the flow settings changed), the command recomputes the flows in
+  memory and says so on stderr; rebuild to refresh the file.
+
+### What flows cannot see
+
+Flows inherit every blind spot of the graph (below), and these matter most:
+
+- **callbacks passed as values**: `map(f, xs)`, `register(handler)`,
+  `Thread(target=run)`, `executor.submit(job)`: the callee never appears as a step.
+  Only `set_defaults(func=...)` is recognized, and only as an entry point;
+- **dynamic dispatch**: `obj.method()` on a parameter or attribute is HEURISTIC at
+  best, so it is not followed by default. A flow through a plugin or strategy object
+  stops at the call;
+- **string-based imports and entry points**: `importlib.import_module(name)`,
+  plugin discovery, and entry-point groups other than console scripts are not flows;
+- **roots are a heuristic**: "nothing calls it confidently" also holds for code
+  called only dynamically, so a root is a candidate entry point, not a proven one.
+
+So a flow is "the calls the graph can see from here", in breadth-first order. It is
+not an execution trace and does not say in which order calls happen at run time.
 
 ## Exit codes
 
@@ -258,6 +360,6 @@ before committing.
 | 1 | git failure (not a work tree, unknown `--base` ref) |
 | 2 | usage error |
 | 3 | symbol graph missing, unreadable or stale: run the rebuild command it prints |
-| 4 | symbol unknown or ambiguous: the candidates are listed |
+| 4 | symbol or flow unknown or ambiguous: the candidates are listed |
 
 With `--json`, a failure also prints a `repo-wiki/error/v1` object on stdout.
