@@ -660,18 +660,31 @@ def flow_summary(flow: dict) -> dict[str, object]:
 
 
 def participation(
-    index: FlowIndex, symbol_ids: list[str], *, limit: int | None = None
+    index: FlowIndex,
+    symbol_ids: list[str],
+    *,
+    limit: int | None = None,
+    primary: str | None = None,
 ) -> dict[str, object]:
-    """Flows with a step on any of *symbol_ids*: count, and the first *limit* of them."""
+    """Flows with a step on any of *symbol_ids*: count, and the first *limit* of them.
+
+    Ordered by the depth of *primary* in the flow when it is a step there (else the
+    shallowest matched step), then entry kind and name.
+    """
     hits: dict[str, tuple[dict, list[tuple[str, int]]]] = {}
     for symbol_id in symbol_ids:
         for flow, step in index.touching(symbol_id):
             entry = hits.setdefault(str(flow["id"]), (flow, []))
             entry[1].append((symbol_id, int(step["depth"])))
+
+    def depth_key(matched: list[tuple[str, int]]) -> int:
+        own = [depth for sid, depth in matched if sid == primary]
+        return min(own) if own else min(depth for _, depth in matched)
+
     ordered = sorted(
         hits.values(),
         key=lambda item: (
-            min(depth for _, depth in item[1]),
+            depth_key(item[1]),
             _KIND_ORDER.get(str(item[0]["kind"]), len(ENTRY_KINDS)),
             str(item[0]["name"]),
         ),

@@ -261,7 +261,9 @@ def run_intel(args: argparse.Namespace, repo_root: Path) -> int:
                 for level in payload["levels"]  # type: ignore[union-attr]
                 for item in level["confident"]
             ]
-            flows = participation(index, [node_id, *reached], limit=REPORT_FLOWS)
+            flows = participation(
+                index, [node_id, *reached], limit=REPORT_FLOWS, primary=node_id
+            )
             flows["through_target"] = len(index.touching(node_id))
             payload["flows"] = flows
         _emit(payload, args.json, render_impact)
