@@ -20,8 +20,10 @@ development is intentionally not replayed.
   `post-merge` and `post-rewrite` git hooks, so a checkout no longer leaves
   generated lessons or code mirrors missing or stale. The hooks go where git
   runs them (`git rev-parse --git-path hooks`, so `core.hooksPath` and linked
-  worktrees are respected). A missing hook is created; an existing shell hook
-  gets a marked block after its `#!` line and is otherwise kept byte for byte;
+  worktrees are respected). A missing hook is created owner-only (`0700`;
+  widen it yourself where other users' commits must run it); an existing
+  shell hook keeps its mode and gets a marked block after its `#!` line and
+  is otherwise kept byte for byte;
   hooks in other languages, symlinked, non-executable or tracked hooks are
   refused, not edited. Install is idempotent and uninstall removes only the
   block. The global vault, project root and config path are kept in git

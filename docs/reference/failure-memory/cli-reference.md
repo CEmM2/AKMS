@@ -179,7 +179,10 @@ environment. `--global-vault` is required the first time and remembered after
 that. `install` is idempotent: it reports each hook as `created`, `inserted`,
 `updated` or `unchanged`.
 
-- A hook that does not exist is created holding only the block.
+- A hook that does not exist is created holding only the block, with mode
+  `0700` (only its owner can read or run it). A shared repository whose hooks
+  must also run for other users has to widen the mode itself (for example
+  `chmod 755`); `install` and `uninstall` keep an existing hook's mode.
 - An existing POSIX shell hook (`sh`, `bash`, `dash`, `ash`, `ksh`, `mksh`,
   `zsh`) gets the block inserted directly after its `#!` line, so an `exit`
   later in the hook cannot skip it. The block leaves `$@` and the hook's stdin

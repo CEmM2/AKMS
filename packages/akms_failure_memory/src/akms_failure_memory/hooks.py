@@ -222,11 +222,14 @@ def _executable(path: Path) -> bool:
     return os.access(path, os.X_OK)
 
 
+_NEW_HOOK_MODE = 0o700  # owner only: git runs hooks as the user who commits
+
+
 def _write_hook(path: Path, text: str, *, mode: int | None) -> None:
+    """Write atomically; an existing hook keeps ``mode``, a new one is 0o700."""
     temporary = path.with_name(f".{path.name}.akms-{os.getpid()}.tmp")
     temporary.write_bytes(text.encode("utf-8"))
-    final_mode = mode if mode is not None else 0o755
-    os.chmod(temporary, final_mode)
+    os.chmod(temporary, _NEW_HOOK_MODE if mode is None else mode)
     os.replace(temporary, path)
 
 

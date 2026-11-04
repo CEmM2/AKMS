@@ -274,6 +274,25 @@ def test_existing_hook_keeps_running_and_is_restored_exactly(tmp_path: Path) -> 
     assert hook.stat().st_mode & 0o777 == 0o750
 
 
+def test_new_hooks_are_owner_only_and_existing_modes_are_kept(tmp_path: Path) -> None:
+    repo, vault = _refreshed(tmp_path)
+    hooks_dir = repo / ".git" / "hooks"
+    shared = hooks_dir / "post-merge"
+    shared.write_text("#!/bin/sh\necho team\n", encoding="utf-8")
+    shared.chmod(0o755)
+
+    install_hooks(repository_root=repo, config_path=repo / CONFIG, global_vault=vault)
+
+    for name in HOOK_NAMES:
+        expected = 0o755 if name == "post-merge" else 0o700
+        assert (hooks_dir / name).stat().st_mode & 0o777 == expected, name
+
+    uninstall_hooks(repository_root=repo)
+
+    assert shared.read_text(encoding="utf-8") == "#!/bin/sh\necho team\n"
+    assert shared.stat().st_mode & 0o777 == 0o755
+
+
 def test_hooks_it_cannot_compose_with_are_refused_untouched(tmp_path: Path) -> None:
     repo, vault = _refreshed(tmp_path)
     hooks_dir = repo / ".git" / "hooks"
