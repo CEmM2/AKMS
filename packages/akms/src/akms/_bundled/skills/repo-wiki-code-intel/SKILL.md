@@ -160,6 +160,9 @@ inference. It misses, or gets only as a possible link:
   tables, callbacks passed as values, decorators that replace a function;
 - **string-based imports**: `importlib.import_module("pkg.mod")`, entry points declared
   in packaging metadata, plugin discovery;
+- **a function-level import under another name**: `from pkg.cli import main as run_cli`
+  inside a function; the `as` name is not recorded, so `run_cli()` is not linked
+  (module-level aliases are);
 - **references that are not calls**: reading a constant, passing a function without
   calling it, `isinstance` checks, type annotations;
 - **`super().method()`** and calls on the result of another call (`make().run()`);
