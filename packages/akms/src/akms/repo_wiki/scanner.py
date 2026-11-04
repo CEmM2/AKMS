@@ -8,6 +8,7 @@ from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
 
+from akms.repo_wiki.config import SECRET_EXCLUDE_PATTERNS, effective_excludes
 from akms.repo_wiki.hashing import sha256_file
 from akms.repo_wiki.models import SkippedFile, SourceFile
 from akms.repo_wiki.paths import repo_relative
@@ -70,7 +71,7 @@ def scan_repository(
     # An empty include set already accepts everything; only extend a non-empty one.
     if include:
         include = include + _enabled_language_globs(config)
-    exclude = [str(v) for v in scanner.get("exclude", [])]
+    exclude = effective_excludes(config)
     max_size = int(scanner.get("max_file_size_kb", 512)) * 1024
     gitignore_patterns = (
         read_gitignore(root) if scanner.get("respect_gitignore", True) else []
@@ -80,7 +81,11 @@ def scan_repository(
     skipped: list[SkippedFile] = []
     for path in iter_candidate_files(root, exclude + gitignore_patterns, skipped):
         rel = repo_relative(path, root)
-        if matches_any(rel, exclude) or matches_any(rel, gitignore_patterns):
+        if (
+            matches_any(rel, exclude)
+            or matches_secret_name(rel)
+            or matches_any(rel, gitignore_patterns)
+        ):
             skipped.append(
                 SkippedFile(rel, "excluded", "matched exclude or gitignore pattern")
             )
@@ -154,6 +159,12 @@ def matches_any(path: str, patterns: list[str]) -> bool:
     return any(matches_pattern(path, pattern) for pattern in patterns)
 
 
+def matches_secret_name(path: str) -> bool:
+    """True when the file name, at any depth, matches a secret or credential pattern."""
+    name = path.rsplit("/", 1)[-1]
+    return any(fnmatch.fnmatch(name, pattern) for pattern in SECRET_EXCLUDE_PATTERNS)
+
+
 def matches_any_dir(path: str, patterns: list[str]) -> bool:
     return matches_any(path, patterns) or matches_any(f"{path}/__dir__", patterns)
 
@@ -180,15 +191,20 @@ def is_binary(path: Path) -> bool:
     return False
 
 
-def scan_to_json(sources: list[SourceFile], skipped: list[SkippedFile]) -> str:
-    return json.dumps(
-        {
-            "files": [source.to_dict() for source in sources],
-            "skipped": [item.to_dict() for item in skipped],
-            "skipped_by_reason": dict(
-                sorted(Counter(item.reason for item in skipped).items())
-            ),
-        },
-        indent=2,
-        sort_keys=True,
-    )
+def scan_to_json(
+    sources: list[SourceFile],
+    skipped: list[SkippedFile],
+    *,
+    exclude: list[str] | None = None,
+) -> str:
+    """Serialize a scan; ``exclude`` adds the effective exclude patterns applied."""
+    payload: dict[str, object] = {
+        "files": [source.to_dict() for source in sources],
+        "skipped": [item.to_dict() for item in skipped],
+        "skipped_by_reason": dict(
+            sorted(Counter(item.reason for item in skipped).items())
+        ),
+    }
+    if exclude is not None:
+        payload["exclude"] = list(exclude)
+    return json.dumps(payload, indent=2, sort_keys=True)

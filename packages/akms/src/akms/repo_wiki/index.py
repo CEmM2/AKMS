@@ -9,11 +9,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Protocol
 
-from akms.repo_wiki.config import init_repo_wiki, load_config
+from akms.repo_wiki.config import effective_excludes, init_repo_wiki, load_config
 from akms.repo_wiki.hashing import sha256_text
 from akms.repo_wiki.paths import ensure_parent, repo_relative
 from akms.repo_wiki.render_markdown import repo_commit
-from akms.repo_wiki.scanner import matches_any, read_gitignore
+from akms.repo_wiki.scanner import matches_any, matches_secret_name, read_gitignore
 from akms.repo_wiki.simple_yaml import load_yaml
 
 INDEX_PATH = ".repo_wiki/index/repo_wiki.sqlite3"
@@ -370,11 +370,14 @@ def discover_index_documents(repo_root: Path) -> list[IndexDocument]:
 
 def source_is_excluded(path: str, repo_root: Path, config: dict[str, object]) -> bool:
     scanner = config["scanner"] if isinstance(config["scanner"], dict) else {}
-    exclude = [str(v) for v in scanner.get("exclude", [])]
     gitignore_patterns = (
         read_gitignore(repo_root) if scanner.get("respect_gitignore", True) else []
     )
-    return matches_any(path, exclude) or matches_any(path, gitignore_patterns)
+    return (
+        matches_any(path, effective_excludes(config))
+        or matches_secret_name(path)
+        or matches_any(path, gitignore_patterns)
+    )
 
 
 def document_from_markdown(

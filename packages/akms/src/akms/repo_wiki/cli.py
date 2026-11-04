@@ -14,7 +14,7 @@ from akms.repo_wiki.answer import (
     AnswerResult,
     LocalContextOnlyAnswerProvider,
 )
-from akms.repo_wiki.config import init_repo_wiki, load_config
+from akms.repo_wiki.config import effective_excludes, init_repo_wiki, load_config
 from akms.repo_wiki.export import export_akms
 from akms.repo_wiki.export.akms import (
     DEFAULT_KNOWLEDGE_DIR,
@@ -208,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
         config = load_config(repo_root)
         sources, skipped = scan_repository(repo_root, config)
         if args.json:
-            print(scan_to_json(sources, skipped))
+            print(scan_to_json(sources, skipped, exclude=effective_excludes(config)))
         else:
             print(f"Eligible files: {len(sources)}")
             print(f"Skipped files: {len(skipped)}")

@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from akms.repo_wiki.cli import main
-from akms.repo_wiki.config import default_config, load_config
+from akms.repo_wiki.config import default_config, effective_excludes, load_config
 from akms.repo_wiki.scanner import (
     LANGUAGE_BY_SUFFIX,
     matches_any,
@@ -125,11 +125,119 @@ def test_secret_files_are_skipped_and_never_reach_generated_docs(tmp_path: Path)
                 encoding="utf-8", errors="replace"
             )
 
-    exclude = [str(pattern) for pattern in config["scanner"]["exclude"]]
+    exclude = effective_excludes(config)
     for name in secret_files:
         assert matches_any(name, exclude)
     assert matches_pattern("key.pem", "*.pem")
     assert matches_pattern("deploy.key", "*.key")
+
+
+SECRET_TOKEN = "SECRET-TOKEN-MUST-NOT-LEAK-67890"
+
+
+def _seed_secret_repo(root: Path) -> None:
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "app.py").write_text('"""App."""\n\nVALUE = 1\n')
+    (root / "private").mkdir()
+    (root / "private" / "notes.py").write_text(f'NOTE = "{SECRET_TOKEN}"\n')
+    (root / "build").mkdir()
+    (root / "build" / "generated.py").write_text("BUILT = 1\n")
+    # Below the root: the default ``**/*.py``-style includes do match these.
+    (root / "src" / "secrets.yaml").write_text(f"token: {SECRET_TOKEN}\n")
+    (root / "src" / "db_secret.py").write_text(f'TOKEN = "{SECRET_TOKEN}"\n')
+    (root / "conf").mkdir()
+    (root / "conf" / "credentials.toml").write_text(f'token = "{SECRET_TOKEN}"\n')
+
+
+def _write_scanner_config(root: Path, body: str) -> None:
+    (root / ".repo_wiki").mkdir(exist_ok=True)
+    (root / ".repo_wiki" / "config.yaml").write_text(
+        "scanner:\n" + body, encoding="utf-8"
+    )
+
+
+SECRET_PATHS = {"src/secrets.yaml", "src/db_secret.py", "conf/credentials.toml"}
+
+
+def test_user_exclude_adds_to_defaults_and_keeps_secrets_out(tmp_path: Path, capsys):
+    """A custom exclude list no longer drops the built-in or secret patterns."""
+    _seed_secret_repo(tmp_path)
+    _write_scanner_config(tmp_path, "  exclude:\n    - private/**\n")
+
+    sources, skipped = scan_repository(tmp_path, load_config(tmp_path))
+    assert {source.path for source in sources} == {
+        "src/app.py",
+        ".repo_wiki/config.yaml",
+    }
+    excluded = {item.path for item in skipped if item.reason == "excluded"}
+    assert SECRET_PATHS | {"private"} <= excluded  # private/** prunes the dir
+    assert "build" in excluded  # the default build/** prune still applies
+
+    assert main(["--repo-root", str(tmp_path), "scan", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["exclude"] == effective_excludes(load_config(tmp_path))
+    assert {"secrets.yaml", "build/**", "private/**"} <= set(payload["exclude"])
+
+    # End to end: the wiki, the search index and an exported mirror stay clean.
+    assert main(["--repo-root", str(tmp_path), "build", "--no-summaries"]) == 0
+    assert (
+        main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "export-akms",
+                "--output",
+                "akms-output",
+                "--phase",
+                "1",
+                "--generated-at",
+                "2026-03-07T12:00:00+00:00",
+                "--full",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    manifest = json.loads((tmp_path / ".repo_wiki" / "manifest.json").read_text())
+    assert set(manifest["files"]) == {"src/app.py"}
+    for written in (tmp_path / ".repo_wiki").rglob("*"):
+        if written.is_file() and written.parent.name != "overlays":
+            assert SECRET_TOKEN.encode() not in written.read_bytes(), written
+    mirrors = [p for p in (tmp_path / "akms-output").rglob("*") if p.is_file()]
+    assert mirrors
+    for mirror in mirrors:
+        assert SECRET_TOKEN.encode() not in mirror.read_bytes(), mirror
+
+
+def test_use_default_excludes_false_still_skips_secrets(tmp_path: Path):
+    _seed_secret_repo(tmp_path)
+    _write_scanner_config(tmp_path, "  use_default_excludes: false\n")
+
+    sources, skipped = scan_repository(tmp_path, load_config(tmp_path))
+    paths = {source.path for source in sources}
+    assert "build/generated.py" in paths  # ordinary defaults dropped
+    assert "private/notes.py" in paths
+    assert not SECRET_PATHS & paths
+    assert SECRET_PATHS <= {item.path for item in skipped if item.reason == "excluded"}
+
+
+def test_raw_scanner_config_cannot_disable_secret_patterns(tmp_path: Path):
+    """The scanner enforces the secret set even for a config built by hand."""
+    _seed_secret_repo(tmp_path)
+    (tmp_path / ".env").write_text(f"KEY={SECRET_TOKEN}\n")
+    (tmp_path / "conf" / ".env.local").write_text(f"KEY={SECRET_TOKEN}\n")
+    config = {
+        "scanner": {
+            "include": [],
+            "exclude": [],
+            "use_default_excludes": False,
+            "respect_gitignore": False,
+        }
+    }
+    sources, _ = scan_repository(tmp_path, config)
+    paths = {source.path for source in sources}
+    assert not (SECRET_PATHS | {".env", "conf/.env.local"}) & paths
+    assert {"src/app.py", "private/notes.py", "build/generated.py"} <= paths
 
 
 def _seed_with_outside_link(tmp_path: Path) -> tuple[Path, Path]:

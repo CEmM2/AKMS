@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
 
@@ -10,6 +11,79 @@ from akms.repo_wiki.simple_yaml import dump_yaml, load_yaml
 CONFIG_DIR = ".repo_wiki"
 CONFIG_FILE = "config.yaml"
 SPEC_FILE = "SPEC.md"
+
+# Ordinary default excludes: tool state, environments, caches, build and data output.
+# ``scanner.exclude`` adds to these; ``scanner.use_default_excludes: false`` drops them.
+DEFAULT_EXCLUDE_PATTERNS: tuple[str, ...] = (
+    ".git/**",
+    ".repo_wiki/generated/**",
+    ".repo_wiki/index/**",
+    ".venv/**",
+    "venv/**",
+    "env/**",
+    "__pycache__/**",
+    ".mypy_cache/**",
+    ".pytest_cache/**",
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    "*.egg-info/**",
+    "data/**",
+    "outputs/**",
+    "checkpoints/**",
+    "wandb/**",
+)
+
+# Secret and credential files. The scanner always applies these, also against the
+# file name at any depth; no configuration key removes them.
+SECRET_EXCLUDE_PATTERNS: tuple[str, ...] = (
+    ".env",
+    ".env.*",
+    "*.env",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx",
+    "*_secret",
+    "*_secret.*",
+    "*_secrets",
+    "*_secrets.*",
+    "*.secret",
+    "*.secrets",
+    "secrets.yaml",
+    "secrets.yml",
+    "secrets.json",
+    "credentials",
+    "credentials.*",
+    "credentials.json",
+    "credentials.yaml",
+    "credentials.yml",
+    "id_rsa",
+    "id_ed25519",
+    "id_dsa",
+    "id_ecdsa",
+    ".netrc",
+    "*.netrc",
+)
+
+# ``scanner.include`` replaces this list: narrowing what is scanned is not a safety issue.
+DEFAULT_INCLUDE_PATTERNS: tuple[str, ...] = (
+    "**/*.py",
+    "**/*.md",
+    "**/*.yaml",
+    "**/*.yml",
+    "**/*.toml",
+)
+
+CONFIG_HEADER = (
+    "# repo-wiki configuration, merged over the built-in defaults key by key.\n"
+    "# scanner.exclude adds patterns to the built-in default excludes (tool state,\n"
+    "# environments, caches, build and data output); it does not replace them.\n"
+    "# scanner.use_default_excludes: false drops those defaults. Secret and\n"
+    "# credential patterns (.env files, keys, certificates, *_secret, credentials,\n"
+    "# ...) are always excluded and cannot be removed by configuration.\n"
+    "# scanner.include replaces the default include list.\n"
+)
 
 
 def default_config(repo_root: Path | None = None) -> dict[str, object]:
@@ -51,56 +125,13 @@ def default_config(repo_root: Path | None = None) -> dict[str, object]:
             "top_k_initial": 30,
             "top_k_reranked": 8,
         },
+        # No ``exclude`` key: user patterns are additions to DEFAULT_EXCLUDE_PATTERNS.
+        # Leaving it out also keeps an older repo-wiki on its built-in list.
         "scanner": {
-            "exclude": [
-                ".git/**",
-                ".repo_wiki/generated/**",
-                ".repo_wiki/index/**",
-                ".venv/**",
-                "venv/**",
-                "env/**",
-                "__pycache__/**",
-                ".mypy_cache/**",
-                ".pytest_cache/**",
-                "node_modules/**",
-                "dist/**",
-                "build/**",
-                "*.egg-info/**",
-                "data/**",
-                "outputs/**",
-                "checkpoints/**",
-                "wandb/**",
-                ".env",
-                ".env.*",
-                "*.env",
-                "*.pem",
-                "*.key",
-                "*.p12",
-                "*.pfx",
-                "*_secret",
-                "*_secret.*",
-                "*_secrets",
-                "*_secrets.*",
-                "*.secret",
-                "*.secrets",
-                "secrets.yaml",
-                "secrets.yml",
-                "secrets.json",
-                "credentials",
-                "credentials.*",
-                "credentials.json",
-                "credentials.yaml",
-                "credentials.yml",
-                "id_rsa",
-                "id_ed25519",
-                "id_dsa",
-                "id_ecdsa",
-                ".netrc",
-                "*.netrc",
-            ],
-            "include": ["**/*.py", "**/*.md", "**/*.yaml", "**/*.yml", "**/*.toml"],
+            "include": list(DEFAULT_INCLUDE_PATTERNS),
             "max_file_size_kb": 512,
             "respect_gitignore": True,
+            "use_default_excludes": True,
         },
         "summaries": {
             "allow_source_code_upload": False,
@@ -140,6 +171,39 @@ def load_config(repo_root: Path | None = None) -> dict[str, object]:
     return config
 
 
+def effective_excludes(config: Mapping[str, object]) -> list[str]:
+    """The exclude patterns the scanner applies, in a stable order.
+
+    The ordinary defaults come first (unless ``scanner.use_default_excludes`` is
+    ``false``), then the secret set, then the ``scanner.exclude`` entries. A
+    duplicate keeps its first position, so a config that still lists the old,
+    copied-out default list yields the same patterns as one that lists nothing.
+    """
+
+    scanner = config.get("scanner")
+    if not isinstance(scanner, Mapping):
+        scanner = {}
+    patterns: list[str] = []
+    # Only an explicit ``false`` drops the ordinary defaults.
+    if scanner.get("use_default_excludes", True) is not False:
+        patterns.extend(DEFAULT_EXCLUDE_PATTERNS)
+    patterns.extend(SECRET_EXCLUDE_PATTERNS)
+    patterns.extend(_pattern_list(scanner, "exclude"))
+    return list(dict.fromkeys(patterns))
+
+
+def _pattern_list(scanner: Mapping[str, object], key: str) -> list[str]:
+    value = scanner.get(key, [])
+    # A bare ``key:`` with no items reads as an empty mapping in the YAML subset.
+    if value is None or value == {}:
+        return []
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(
+            f"scanner.{key} must be a list of patterns, one '- pattern' per line"
+        )
+    return [str(item) for item in value]
+
+
 def validate_config(config: dict[str, object]) -> None:
     scanner = _mapping(config, "scanner")
     generation = _mapping(config, "generation")
@@ -147,6 +211,10 @@ def validate_config(config: dict[str, object]) -> None:
     max_size = scanner["max_file_size_kb"]
     if not isinstance(max_size, (int, float, str)) or int(max_size) <= 0:
         raise ValueError("scanner.max_file_size_kb must be positive")
+    for key in ("exclude", "include"):
+        _pattern_list(scanner, key)
+    if not isinstance(scanner.get("use_default_excludes", True), bool):
+        raise ValueError("scanner.use_default_excludes must be true or false")
     if not generation.get("output_dir"):
         raise ValueError("generation.output_dir is required")
     if summaries.get("provider") != "local" and not summaries.get(
@@ -175,7 +243,9 @@ def init_repo_wiki(repo_root: Path | None = None) -> list[Path]:
         created.append(overlays)
     cfg = config_path(root)
     if not cfg.exists():
-        cfg.write_text(dump_yaml(default_config(root)), encoding="utf-8")
+        cfg.write_text(
+            CONFIG_HEADER + dump_yaml(default_config(root)), encoding="utf-8"
+        )
         created.append(cfg)
     spec = wiki / SPEC_FILE
     if not spec.exists():
