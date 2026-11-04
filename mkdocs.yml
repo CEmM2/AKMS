@@ -249,10 +249,12 @@ nav:
 
   - Specification:
     - AKMS v2 Specification: specification/AKMS_v2_specification.md
+    - Addendum 0001 — Health reporting reachability: specification/addenda/0001-health-reporting-reachability.md
 
   - Decisions:
     - Projection and Evidence Contract Surface: adr/0001-projection-and-evidence-contract-surface.md
     - Extensible Records and Episodic Memory: adr/0002-extensible-records-and-episodic-memory.md
+    - Reachability in Health Reporting: adr/0003-reachability-in-health-reporting.md
 
   - Project:
     - Limitations: limitations.md

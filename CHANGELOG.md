@@ -229,7 +229,26 @@ development is intentionally not replayed.
   names there, is reached by coactivation even without edges; a
   failure-memory project's lessons with related lessons all appeared under
   **Orphaned Nodes**. Nodes with no edges and no `load_with` link are still
-  listed. The section heading now reads "no edges or load_with".
+  listed.
+- `akms status` no longer lists route targets as orphans either. It finds the
+  task route index the way reviewer required-knowledge does, or uses the ones
+  given with the new `--routes PATH` option (repeatable), and a node that a
+  `by_path` or `by_symbol` route names is not an orphan. The section heading
+  now reads "no edges, load_with or route" and names the route index used. A
+  route index that cannot be read or parsed is reported under **Route Index
+  Warnings** instead of failing the report. The report adds `route_index`,
+  `route_indexes` and `route_index_warnings`; existing keys are unchanged.
+  [Addendum 0001](docs/specification/addenda/0001-health-reporting-reachability.md)
+  to §5.7 states the rule and [ADR 0003](docs/adr/0003-reachability-in-health-reporting.md)
+  records why. No schema field changes.
+- Reviewer required-knowledge did not find the route index written by
+  `akms-failure-memory` at its default path,
+  `.knowledge/generated/failure_routes.json`, and fell back to tag-based
+  loadouts. `generated/failure_routes.json` under `.knowledge/` and
+  `knowledge/` is now searched after every earlier location, so repositories
+  that resolved to a route index before still resolve to the same one. The
+  search lives in `akms.task_context.routes.find_task_route_index`, shared by
+  the reviewer and `akms status`.
 - Loadouts: a node with `reading_priority: summary` and no `## Summary`
   section is now rendered in full, as FR-L10c specifies. It used to get its
   first five non-heading lines as a "summary", which for generated nodes is

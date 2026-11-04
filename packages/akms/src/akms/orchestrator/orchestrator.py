@@ -70,6 +70,9 @@ from akms.orchestrator.stages import (
     PipelineState,
     Stage,
 )
+from akms.task_context.routes import (
+    find_task_route_index as _find_task_route_index,
+)
 from akms.telemetry import traced
 from akms.agents.base import AgentPreflightError, AKMSAgent
 from akms.orchestrator.wave_dispatch import (
@@ -225,39 +228,6 @@ def _git_files_modified(repo_root: Path, parent_branch: str) -> _GitDiffResult:
             line.strip() for line in (proc.stdout or "").splitlines() if line.strip()
         )
     )
-
-
-# Conventional locations for the optional task route index used by exact
-# required-knowledge resolution. Absence is normal for repos that have not
-# adopted failure-memory routes yet — review falls back to tag-based loadouts.
-_TASK_ROUTE_INDEX_TAILS = (
-    "task-routes.yaml",
-    "task-routes.yml",
-    "task-routes.json",
-    "graph/task-routes.yaml",
-    "graph/task-routes.yml",
-    "graph/task-routes.json",
-    "routes/task-routes.yaml",
-    "routes/task-routes.json",
-    "failure-routes.yaml",
-    "failure-routes.json",
-)
-# `.knowledge` is the write default. `knowledge` stays so a checkout that
-# already has that directory, and no `.knowledge`, still resolves.
-_TASK_ROUTE_INDEX_CANDIDATES = tuple(
-    f"{dirname}/{tail}"
-    for dirname in (".knowledge", "knowledge")
-    for tail in _TASK_ROUTE_INDEX_TAILS
-)
-
-
-def _find_task_route_index(repo_root: Path) -> Path | None:
-    """Return the first existing task route index under conventional paths."""
-    for relative in _TASK_ROUTE_INDEX_CANDIDATES:
-        candidate = repo_root / relative
-        if candidate.is_file():
-            return candidate
-    return None
 
 
 def _phase_tasks(state: PipelineState, phase: int) -> list[dict[str, Any]]:

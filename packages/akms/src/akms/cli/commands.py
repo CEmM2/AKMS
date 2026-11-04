@@ -165,7 +165,8 @@ def cmd_status(args: argparse.Namespace) -> int:
     config_path = local_knowledge_dir(repo_root) / "graph" / "propagation_config.yaml"
     config = parse_propagation_config(config_path) if config_path.exists() else None
 
-    report = graph_status(repo_root, config=config)
+    # --routes overrides discovery; relative paths resolve against the repo.
+    report = graph_status(repo_root, config=config, route_index=args.routes)
     print(format_report(report))
 
     return 0
@@ -657,6 +658,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run graph health report",
     )
     _add_repo_argument(status_parser)
+    status_parser.add_argument(
+        "--routes",
+        action="append",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Task route index whose targets are not orphans; repeatable. "
+            "Overrides discovery under .knowledge/ and knowledge/"
+        ),
+    )
     status_parser.set_defaults(func=cmd_status)
 
     # query
