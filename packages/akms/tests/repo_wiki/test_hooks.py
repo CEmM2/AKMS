@@ -1,8 +1,10 @@
 """Opt-in git hooks: install/uninstall/status, composition, skip logic and the worker.
 
 Git runs here with an empty global configuration so a developer's own ``core.hooksPath``
-or hooks cannot leak in. The failure-memory hook block (PR #62) is reproduced by a fixture
-with the same format and placement rules, because ``akms`` must not import that package.
+or hooks cannot leak in. Coexistence with the failure-memory hooks is tested twice: with
+a fixture that reproduces their block format and placement rules (so the test still runs
+where that package is absent; ``akms`` itself never imports it), and with failure-memory's
+own installer when it is installed.
 """
 
 from __future__ import annotations
@@ -446,3 +448,63 @@ def test_detached_worker_finishes_in_the_background(
     assert "refreshed:" in log.read_text("utf-8")
     assert not (repo / ".repo_wiki" / "hooks" / "pending").exists()
     assert elapsed < 10  # the commit did not wait for the build
+
+
+@pytest.mark.parametrize("order", ["failure_memory_first", "repo_wiki_first"])
+def test_coexists_with_the_real_failure_memory_installer(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory, order: str
+) -> None:
+    """The same checks against failure-memory's own installer, when it is installed."""
+    fm = pytest.importorskip("akms_failure_memory.hooks")
+    from akms_failure_memory.project import init_project
+
+    init_project(
+        repository_root=repo,
+        config_path=".knowledge/failure-memory.toml",
+        repository_id="flows-sample",
+        node_namespace="flows-failure",
+    )
+    with (repo / ".gitignore").open("a", encoding="utf-8") as handle:
+        handle.write(".knowledge/\n")
+    vault = tmp_path_factory.mktemp("vault")
+    config = repo / ".knowledge" / "failure-memory.toml"
+
+    def fm_install_real() -> None:
+        fm.install_hooks(repository_root=repo, config_path=config, global_vault=vault)
+
+    if order == "failure_memory_first":
+        fm_install_real()
+        install_hooks(repo)
+    else:
+        install_hooks(repo)
+        fm_install_real()
+    assert fm.hooks_status(repository_root=repo)["installed"] == "all"
+    assert all(
+        e["current"] for e in fm.hooks_status(repository_root=repo)["hooks"].values()
+    )
+    ours = {
+        hook: render_block(hook, PYTHON, created=order == "repo_wiki_first")
+        for hook in HOOK_NAMES
+    }
+    theirs = {
+        hook: fm.render_block(hook, PYTHON, created=order == "failure_memory_first")
+        for hook in HOOK_NAMES
+    }
+    for hook in HOOK_NAMES:
+        text = (hooks_dir(repo) / hook).read_text("utf-8")
+        assert ours[hook] in text and theirs[hook] in text
+    # A commit runs both blocks and still succeeds.
+    commit_change(repo, "with both")
+    assert triggers(repo) == ["post-commit: commit"]
+
+    fm.uninstall_hooks(repository_root=repo)
+    for hook in HOOK_NAMES:
+        text = (hooks_dir(repo) / hook).read_text("utf-8")
+        assert ours[hook] in text and "akms-failure-memory" not in text
+    fm_install_real()
+    uninstall_hooks(repo)
+    for hook in HOOK_NAMES:
+        text = (hooks_dir(repo) / hook).read_text("utf-8")
+        assert fm.render_block(hook, PYTHON, created=False) in text
+        assert "akms-repo-wiki" not in text
+    assert fm.hooks_status(repository_root=repo)["installed"] == "all"
