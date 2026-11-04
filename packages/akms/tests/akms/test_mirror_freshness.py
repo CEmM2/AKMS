@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from akms.graph.graph_status import format_report, graph_status
-from akms.graph.mirror_freshness import stale_mirrors
+from akms.graph.mirror_freshness import check_mirror_freshness, stale_mirrors
 from akms.repo_wiki.export import export_akms
 
 GENERATED = "2026-01-01T00:00:00+00:00"
@@ -128,6 +128,14 @@ def test_nothing_is_reported_outside_git(tmp_path: Path):
     _set_mtime(tmp_path / "pkg" / "a.py", LATER)
 
     assert stale_mirrors(tmp_path) == []
+    result = check_mirror_freshness(tmp_path)
+    assert (result["checked"], result["skipped"]) == (False, "not a git repository")
+
+
+def test_a_clean_check_says_it_ran(repo: Path):
+    result = check_mirror_freshness(repo)
+
+    assert result == {"mirrors": 2, "checked": True, "skipped": None, "stale": []}
 
 
 def test_knowledge_below_the_repository_resolves_sources_from_the_top(tmp_path: Path):
@@ -160,7 +168,68 @@ def test_status_report_lists_stale_mirrors(repo: Path, tmp_path: Path):
     _export(repo, REFRESHED)
     report = graph_status(repo, global_vault=vault)
     assert report["stale_mirrors"] == []
+    assert report["mirror_freshness"] == {
+        "mirrors": 2,
+        "checked": True,
+        "skipped": None,
+    }
+    text = format_report(report)
+    assert "## Stale Code Mirrors: 0\n  All 2 code mirrors are current." in text
+
+
+def test_status_says_the_check_was_skipped_outside_git(tmp_path: Path):
+    repo = tmp_path / "plain"
+    _write(repo, "pkg/a.py", "A = 1\n")
+    _export(repo, GENERATED)
+    vault = tmp_path / "vault"
+    vault.mkdir()
+
+    report = graph_status(repo, global_vault=vault)
+    text = format_report(report)
+
+    assert report["stale_mirrors"] == []
+    assert report["mirror_freshness"] == {
+        "mirrors": 1,
+        "checked": False,
+        "skipped": "not a git repository",
+    }
+    assert "## Stale Code Mirrors: not checked" in text
+    assert "Skipped (not a git repository)" in text
+    assert "## Stale Code Mirrors: 0" not in text
+
+
+def test_status_has_no_mirror_section_without_mirrors(tmp_path: Path):
+    repo = tmp_path / "bare"
+    (repo / ".knowledge").mkdir(parents=True)
+    _git(repo, "init", "-q")
+    vault = tmp_path / "vault"
+    vault.mkdir()
+
+    report = graph_status(repo, global_vault=vault)
+
+    assert report["mirror_freshness"]["mirrors"] == 0
     assert "Stale Code Mirrors" not in format_report(report)
+
+
+def test_a_report_without_freshness_keeps_the_old_layout():
+    # A report dict from before mirror_freshness existed still formats.
+    assert "Stale Code Mirrors" not in format_report({"stale_mirrors": []})
+
+
+def test_a_failing_git_query_is_not_reported_clean(repo: Path, monkeypatch):
+    from akms.graph import mirror_freshness
+
+    real = mirror_freshness._git
+
+    def failing_log(top: Path, *arguments: str) -> bytes | None:
+        return None if arguments[0] == "log" else real(top, *arguments)
+
+    monkeypatch.setattr(mirror_freshness, "_git", failing_log)
+    result = check_mirror_freshness(repo)
+
+    assert result["checked"] is False
+    assert result["skipped"] == "git failed"
+    assert result["stale"] == []
 
 
 def test_reads_mirror_files_not_a_cached_graph(repo: Path, tmp_path: Path):

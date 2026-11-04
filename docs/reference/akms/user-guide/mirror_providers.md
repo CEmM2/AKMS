@@ -123,9 +123,14 @@ and asks git. A mirror is stale when its `source_file`:
 - has uncommitted changes, and the file was modified after `generated_at`; or
 - no longer exists (deleted, or renamed away).
 
-Refreshing the mirror clears the entry. Outside a git repository nothing is
-reported. Sources are looked up relative to the repository root, then relative
-to the git top level, so an AKMS root below the repository (`dev/`, say) works.
+Refreshing the mirror clears the entry. When no mirror is stale the section
+still appears, as `Stale Code Mirrors: 0` with the number of mirrors checked.
+Outside a git repository, or when git fails, it reads
+`Stale Code Mirrors: not checked` with the reason. A repository without code
+mirrors has no such section. The JSON report carries the same facts under
+`mirror_freshness` (`mirrors`, `checked`, `skipped`) beside the `stale_mirrors`
+list. Sources are looked up relative to the repository root, then relative to
+the git top level, so an AKMS root below the repository (`dev/`, say) works.
 
 The check trusts `generated_at`, so it must record when the refresh ran. A
 fixed deterministic timestamp older than the latest commit (an old
