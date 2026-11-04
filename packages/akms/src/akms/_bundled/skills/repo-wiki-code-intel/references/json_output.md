@@ -29,12 +29,16 @@ A **node** (symbol or module):
 A **link** is a node plus the edge that reached it:
 
 ```json
-"edge": {"type": "calls", "resolution": "CONFIDENT", "basis": "import", "name": "leaf"}
+"edge": {"type": "calls", "resolution": "CONFIDENT", "basis": "import", "name": "leaf",
+         "provenance": "static"}
 ```
 
 `type` is `calls`, `inherits` or `imports`. `resolution` is `CONFIDENT` or
 `HEURISTIC`. `name` is the name as written at the call site. A HEURISTIC edge with
-more than one possible target adds `"candidates": [...]`.
+more than one possible target adds `"candidates": [...]`. `provenance` says where the
+link comes from: `static` (a call written in the source), `inferred` (derived from a
+pattern: a local variable's constructor, a dispatch table) or `observed` (reserved for
+links seen at run time; nothing produces it yet).
 
 Links always come in two lists: `{"confident": [...], "possible": [...]}`.
 

@@ -12,9 +12,19 @@ from akms.repo_wiki.paths import ensure_parent
 _GRAPH_SCHEMA_COMMENT = (
     "symbol_graph v1; edge fields: source, target, type, "
     "resolution (CONFIDENT|HEURISTIC|UNRESOLVED), dst_id (str|null), dst_name (str), "
-    "dst_candidates (list[str], HEURISTIC only); "
+    "dst_candidates (list[str], HEURISTIC only), "
+    "provenance (static|observed|inferred, optional: absent means static); "
     "module node field: bindings ({local name: dotted import target}, Python only)"
 )
+
+#: Where an edge comes from. ``static``: read from source text (every edge written today).
+#: ``observed``: seen at run time. ``inferred``: derived from a pattern (a typed local
+#: receiver, a dispatch table) rather than a direct call. Only non-static values are
+#: written, so graphs without the field stay byte-identical and v1 readers are unaffected.
+STATIC = "static"
+OBSERVED = "observed"
+INFERRED = "inferred"
+PROVENANCES = (STATIC, OBSERVED, INFERRED)
 
 
 class Resolution(enum.Enum):
@@ -34,8 +44,13 @@ def _make_edge(
     dst_id: str | None,
     resolution: Resolution,
     dst_candidates: list[str] | None = None,
+    provenance: str = STATIC,
 ) -> dict[str, object]:
-    """Return an edge dict; ``dst_candidates`` is attached only for HEURISTIC edges."""
+    """Return an edge dict.
+
+    ``dst_candidates`` is attached only for HEURISTIC edges and ``provenance`` only when it
+    is not ``static``.
+    """
     edge: dict[str, object] = {
         "dst_id": dst_id,
         "dst_name": dst_name,
@@ -46,7 +61,17 @@ def _make_edge(
     }
     if dst_candidates is not None:
         edge["dst_candidates"] = dst_candidates
+    if provenance != STATIC:
+        if provenance not in PROVENANCES:
+            raise ValueError(f"unknown edge provenance {provenance!r}")
+        edge["provenance"] = provenance
     return edge
+
+
+def edge_provenance(edge: dict[str, object]) -> str:
+    """The provenance of an on-disk edge; absent or unknown values read as ``static``."""
+    value = edge.get("provenance", STATIC)
+    return value if isinstance(value, str) and value in PROVENANCES else STATIC
 
 
 def _resolve_from_multimap(

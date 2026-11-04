@@ -37,6 +37,7 @@ from typing import Any, cast
 
 from akms.repo_wiki.config import load_config
 from akms.repo_wiki.errors import RepoWikiError
+from akms.repo_wiki.graph import STATIC
 from akms.repo_wiki.hashing import sha256_file
 from akms.repo_wiki.models import ParsedModule, Symbol
 from akms.repo_wiki.scanner import (
@@ -122,6 +123,7 @@ class Edge:
     basis: str
     dst_name: str
     candidates: tuple[str, ...] = ()
+    provenance: str = STATIC
 
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
@@ -129,6 +131,7 @@ class Edge:
             "resolution": self.resolution,
             "basis": self.basis,
             "name": self.dst_name,
+            "provenance": self.provenance,
         }
         if self.candidates:
             data["candidates"] = list(self.candidates)

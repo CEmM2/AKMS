@@ -141,6 +141,18 @@ def test_unknown_extra_edge_and_node_fields_are_ignored() -> None:
     assert [e.target for e in graph.out_edges["python:m.py::a"]] == ["python:m.py::b"]
 
 
+def test_edges_report_static_provenance_and_tolerate_its_absence(repo: Path) -> None:
+    """symbol_graph v1 edges carry no ``provenance``; every loaded edge reads as static."""
+    data = json.loads(
+        (repo / ".repo_wiki" / "generated" / "symbol_graph.json").read_text("utf-8")
+    )
+    assert all("provenance" not in edge for edge in data["edges"])
+    graph = load_code_graph(repo).graph
+    edge = next(e for e in graph.in_edges[LEAF] if e.source == MIDDLE)
+    assert edge.provenance == "static"
+    assert edge.to_dict()["provenance"] == "static"
+
+
 # ---------------------------------------------------------------------- lookup
 
 
@@ -497,6 +509,7 @@ def test_context_json_shape_is_stable(
         "resolution",
         "basis",
         "name",
+        "provenance",
     }
     assert set(payload["module"]) == {
         "id",
