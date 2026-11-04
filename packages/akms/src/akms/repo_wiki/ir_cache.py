@@ -12,7 +12,8 @@ from typing import Any
 from akms.repo_wiki.models import ParsedModule, SourceFile
 
 # 3: Python IR gained receivers, table_refs and dispatch_tables.
-CACHE_SCHEMA_VERSION = 3
+# 4: Python IR gained main_calls and cli_handlers.
+CACHE_SCHEMA_VERSION = 4
 CACHE_DIR = ".repo_wiki/ir_cache"
 _logger = logging.getLogger(__name__)
 

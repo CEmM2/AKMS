@@ -127,12 +127,14 @@ class Symbol:
     # Module-level names this symbol indexes (``TABLE[key]``, ``TABLE.get(key)``) that may
     # be dispatch tables. Python only; empty elsewhere.
     table_refs: list[str] = field(default_factory=list)
+    # Names this symbol registers as command handlers (argparse ``set_defaults(func=f)``).
+    cli_handlers: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         d = asdict(self)
         d["language"] = self.language.value
         # Optional fields are left out when empty, so payloads without them stay unchanged.
-        for key in ("metadata", "receivers", "table_refs"):
+        for key in ("metadata", "receivers", "table_refs", "cli_handlers"):
             if not d.get(key):
                 d.pop(key, None)
         return d
@@ -172,6 +174,7 @@ class Symbol:
             metadata=_as_metadata(data.get("metadata")),
             receivers=_as_name_lists(data.get("receivers")),
             table_refs=[str(v) for v in _as_iter(data.get("table_refs"))],
+            cli_handlers=[str(v) for v in _as_iter(data.get("cli_handlers"))],
         )
 
 
@@ -188,6 +191,9 @@ class ParsedModule:
     # Module-level dict literals whose values are all module-level or imported names:
     # table name -> sorted value names (Python only).
     dispatch_tables: dict[str, list[str]] = field(default_factory=dict)
+    # Call names made when the module runs as a script: inside a top-level
+    # ``if __name__ == "__main__":`` block, or anywhere at module level in ``__main__.py``.
+    main_calls: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
@@ -203,6 +209,8 @@ class ParsedModule:
             data["dispatch_tables"] = {
                 k: list(v) for k, v in sorted(self.dispatch_tables.items())
             }
+        if self.main_calls:
+            data["main_calls"] = list(self.main_calls)
         return data
 
     @classmethod
@@ -247,6 +255,7 @@ class ParsedModule:
                 else {}
             ),
             dispatch_tables=_as_name_lists(data.get("dispatch_tables")),
+            main_calls=[str(v) for v in _as_iter(data.get("main_calls"))],
         )
 
 

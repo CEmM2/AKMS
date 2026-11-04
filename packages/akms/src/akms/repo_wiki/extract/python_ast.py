@@ -65,6 +65,9 @@ def parse_python_file(source_file: SourceFile) -> ParsedModule:
         [],
         bindings,
         dispatch_tables=tables,
+        main_calls=extract_main_calls(
+            tree, is_main_module=Path(source_file.path).name == "__main__.py"
+        ),
     )
 
 
@@ -169,6 +172,7 @@ def parse_definition(
         language=Language.PYTHON,
         receivers={} if is_class else extract_receivers(node, calls),
         table_refs=[] if is_class else extract_table_refs(node, table_names),
+        cli_handlers=[] if is_class else extract_cli_handlers(node),
     )
     result = [symbol]
     for child in node.body:
@@ -328,6 +332,70 @@ def extract_table_refs(node: ast.AST, names: frozenset[str]) -> list[str]:
             and child.func.value.id in names
         ):
             found.add(child.func.value.id)
+    return sorted(found)
+
+
+def _is_main_guard(test: ast.expr) -> bool:
+    """``__name__ == "__main__"`` (either way round)."""
+    if not (
+        isinstance(test, ast.Compare)
+        and len(test.ops) == 1
+        and isinstance(test.ops[0], ast.Eq)
+    ):
+        return False
+    sides = [test.left, test.comparators[0]]
+    names = [s for s in sides if isinstance(s, ast.Name) and s.id == "__name__"]
+    consts = [s for s in sides if isinstance(s, ast.Constant) and s.value == "__main__"]
+    return len(names) == 1 and len(consts) == 1
+
+
+def extract_main_calls(tree: ast.Module, *, is_main_module: bool) -> list[str]:
+    """Call names run when the module is executed as a script (sorted, unique).
+
+    Those in a top-level ``if __name__ == "__main__":`` block; in ``__main__.py`` every
+    module-level statement outside a definition counts.
+    """
+    statements: list[ast.stmt] = []
+    for node in tree.body:
+        if isinstance(node, ast.If) and _is_main_guard(node.test):
+            statements.extend(node.body)
+        elif is_main_module and not isinstance(
+            node,
+            (
+                ast.FunctionDef,
+                ast.AsyncFunctionDef,
+                ast.ClassDef,
+                ast.Import,
+                ast.ImportFrom,
+            ),
+        ):
+            statements.append(node)
+    names: set[str] = set()
+    for statement in statements:
+        for child in ast.walk(statement):
+            if isinstance(child, ast.Call):
+                name = call_name(child.func)
+                if name:
+                    names.add(name)
+    return sorted(names)
+
+
+def extract_cli_handlers(node: ast.AST) -> list[str]:
+    """Names registered as argparse command handlers: ``parser.set_defaults(func=f)``."""
+    found: set[str] = set()
+    for child in ast.walk(node):
+        if (
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Attribute)
+            and child.func.attr == "set_defaults"
+        ):
+            for keyword in child.keywords:
+                if keyword.arg == "func" and isinstance(
+                    keyword.value, (ast.Name, ast.Attribute)
+                ):
+                    name = call_name(keyword.value)
+                    if name:
+                        found.add(name)
     return sorted(found)
 
 

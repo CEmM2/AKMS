@@ -17,7 +17,9 @@ _GRAPH_SCHEMA_COMMENT = (
     "module node fields (optional, Python only): bindings ({local name: dotted import "
     "target}), dispatch ({dict name: [value names]}); symbol node fields (optional, "
     "Python only): receivers ({local name: [constructor or annotation names]}), "
-    "table_refs ([module-level names indexed])"
+    "table_refs ([module-level names indexed]), cli_handlers ([names passed as "
+    "set_defaults(func=...)]); decorators ([decorator names, arguments dropped]); "
+    "module node field (optional): main_calls ([call names run as a script])"
 )
 
 #: Where an edge comes from. ``static``: read from source text (every edge written today).
@@ -127,6 +129,8 @@ def build_symbol_graph(parsed_modules: list[ParsedModule]) -> dict[str, object]:
             nodes[module_id]["dispatch"] = {
                 k: list(v) for k, v in sorted(parsed.dispatch_tables.items())
             }
+        if parsed.main_calls:
+            nodes[module_id]["main_calls"] = list(parsed.main_calls)
         # Module-level `imports` edges: once per module (all symbols share the import list).
         for imported in parsed.imports:
             edges.append(
@@ -195,7 +199,22 @@ def node_for_symbol(symbol: Symbol) -> dict[str, object]:
         node["receivers"] = {k: list(v) for k, v in sorted(symbol.receivers.items())}
     if symbol.table_refs:
         node["table_refs"] = list(symbol.table_refs)
+    if symbol.cli_handlers:
+        node["cli_handlers"] = list(symbol.cli_handlers)
+    decorators = decorator_names(symbol.decorators)
+    if decorators:
+        node["decorators"] = decorators
     return node
+
+
+def decorator_names(decorators: list[str]) -> list[str]:
+    """``@app.command("x")`` -> ``app.command``: the decorator's dotted name, in order."""
+    names: list[str] = []
+    for text in decorators:
+        name = text.lstrip("@").split("(", 1)[0].strip()
+        if name and name not in names:
+            names.append(name)
+    return names
 
 
 def write_symbol_graph(graph: dict[str, object], path: Path) -> Path:
