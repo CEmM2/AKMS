@@ -70,6 +70,7 @@ extras.
 | `changes` | Maps a git diff to the symbols it touches and their direct callers. See [changes](changes.md). |
 | `flows` | Lists execution flows: entry points followed down their confident calls. See [flows and flow](flows.md). |
 | `flow <flow>` | Shows one execution flow as a call tree. See [flows and flow](flows.md). |
+| `hooks <action>` | `install`, `uninstall` or `status` of the opt-in git hooks that refresh the graph in the background after git changes the tree. See [hooks](hooks.md). |
 | `graph [input]` | Serves an interactive viewer for the symbol graph on `127.0.0.1:8765`. |
 | `clean` | Not implemented: prints a message and removes nothing. |
 
@@ -90,5 +91,6 @@ Run `repo-wiki <subcommand> --help` for the flags of each.
 - [flows and flow](flows.md): static execution flows from console scripts,
   `__main__` blocks, CLI commands and uncalled public functions, and the
   `flows.json` format.
+- [hooks](hooks.md): opt-in git hooks that keep the graph and flows fresh.
 - [Reading impact and risk](reading-impact.md): depths, confident and possible
   links, the risk rule, and what the graph cannot see.

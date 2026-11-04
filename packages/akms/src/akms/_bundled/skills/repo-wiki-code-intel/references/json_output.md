@@ -84,7 +84,8 @@ target). Downstream walks set `risk` and `risk_with_possible` to `null`.
 | `module_level_changes` | `path` and `lines` (`[start, end]` ranges) outside every symbol |
 | `summary` | `files`, `changed_symbols`, `by_status`, `affected_callers` (`confident`, `possible`), `dangling_references`, `modules_reached`, `public_entry_points`, `risk`, `risk_with_possible`, `risk_reasons`, `flows_touched` |
 | `graph` | as for `context` |
-| `flows` | flow participation of the changed symbols (and the old IDs of moved ones) |
+| `flows` | flow participation of the changed symbols (and the old IDs of moved ones), in the graph the command read |
+| `refresh`, `flows_before`, `flows_after` | only with `--refresh`: the build (`seconds`, `parsed`, `errors`), participation in the stored graph before it (`null` if none) and in the refreshed graph (equal to `flows`). `summary` then adds `flows_touched_before`, `flows_touched_after`, `flows_only_before`, `flows_only_after`, and `flows_touched` counts distinct flows in either graph |
 
 Callers in `changed_symbols` are links plus `changed` (true when the caller is itself
 part of the change). A caller of a deleted or moved symbol has basis `dangling`.
@@ -149,4 +150,5 @@ fan-out cut, `omitted_ids`.
 `code` is one of `graph_missing`, `graph_unreadable`, `graph_stale` (with `details`:
 `rebuild`, `changed`, `added`, `removed`), `unknown_symbol`, `ambiguous_symbol`
 (with `candidates`: nodes), `unknown_flow`, `ambiguous_flow` (with `candidates`:
-flow summaries), `git_error`, `usage`.
+flow summaries), `git_error`, `build_lock` (`changes --refresh` could not get the
+build lock), `usage`.

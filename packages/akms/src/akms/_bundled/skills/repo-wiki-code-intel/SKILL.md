@@ -42,6 +42,11 @@ which files are stale and they do not matter to the question.
 re-parses them itself and overlays them on the graph. It still fails if files
 **outside** the diff are stale (for example after a `git pull` without a rebuild).
 
+If the user has run `repo-wiki hooks install`, a background build refreshes the graph
+after every commit, checkout, merge and rebase, so it is usually fresh. It does not
+follow uncommitted edits, and the build may still be running; `changes --refresh`
+(below) still guarantees a current graph.
+
 ## 1. Explore: `context`
 
 ```bash
@@ -107,7 +112,16 @@ possible link were real; if it is higher than `risk`, mention it.
 repo-wiki changes                 # worktree + untracked files vs HEAD (default)
 repo-wiki changes --staged        # exactly what `git commit` would record
 repo-wiki changes --base main     # everything since the merge base with main
+repo-wiki changes --refresh       # rebuild the graph first (about 1 s), then report
 ```
+
+Pass `--refresh` after you have edited code and before you report the impact of new
+or moved code: without it, the flows come from the stored graph, which predates your
+edits, so a function you added is in no flow. With it, `changes` runs the incremental
+build first (waiting if another build is running) and reports `flows_before` and
+`flows_after`; `flows_touched` then counts flows touched in either graph. It costs
+about 1 s on a repository the size of AKMS, so skip it for a quick check of a diff
+that only modifies existing symbols.
 
 It maps every diff hunk to the innermost symbol whose line range it overlaps and
 classifies each as `added`, `modified`, `deleted` or `moved` (a symbol whose ID

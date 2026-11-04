@@ -44,6 +44,19 @@ development is intentionally not replayed.
   in, `impact` the flows through the target and its dependents (reported
   beside the risk, which is unchanged) and `changes` the flows a diff touches.
   Settings live under a new `flows:` configuration section.
+  `repo-wiki changes --refresh` runs the incremental build first and reports
+  the flows of the graph before and after it (`flows_before`, `flows_after`),
+  so symbols a diff adds appear in flows; without it the output is
+  unchanged. Builds now take a repo-local lock, and `repo-wiki build` waits
+  for a running one.
+- `repo-wiki hooks install|uninstall|status` manages opt-in git hooks
+  (`post-checkout`, `post-commit`, `post-merge`, `post-rewrite`) that start a
+  detached incremental build after git changes the tree: at most once per git
+  command, once at the end of a rebase or a cherry-pick sequence, never during
+  `git bisect`, and never failing or noticeably slowing git.
+  `AKMS_REPO_WIKI_HOOKS=0` skips them. The blocks follow the failure-memory
+  hooks' conventions with their own markers, so both tools coexist in the
+  same hook files.
 - `repo-wiki` infers two more kinds of call link: a method called on a local
   bound to a repository class (`x = C()`, `x: C` or a parameter `x: C`, then
   `x.m()`) links to `C.m`, and so does `self.x.m()` / `cls.x.m()` when the

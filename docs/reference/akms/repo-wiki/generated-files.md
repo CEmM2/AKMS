@@ -16,6 +16,8 @@ configuration and your overlays can be rebuilt from source.
 | `ir_cache/` | `build` | Parsed-source cache that makes `build --changed-only` fast. | No. |
 | `cache/llm_summaries.json` | `build`, `summarize` | Cache of the local summaries. | No. |
 | `manifest.json` | `build` | File hashes and the list of generated pages. | No. |
+| `locks/` | `build`, `export-akms`, the git hooks | Lock files that keep two builds or exports from overlapping. | No. |
+| `hooks/` | the [git hooks](hooks.md) | `build.log` of background refreshes and the `pending` marker. | No. |
 | `build_errors.json` | `build` | Files that failed to parse in the last build; `[]` when none. | No. |
 
 `build` runs `init` first, so it also creates `config.yaml`, `SPEC.md` and
@@ -65,6 +67,8 @@ List the rebuildable paths explicitly:
 .repo_wiki/cache/
 .repo_wiki/manifest.json
 .repo_wiki/build_errors.json
+.repo_wiki/locks/
+.repo_wiki/hooks/
 .repo2md-export-*.lock
 ```
 

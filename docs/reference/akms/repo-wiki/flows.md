@@ -123,7 +123,8 @@ The other code-intelligence commands read the same flows:
   and flows are built from the same links.
 - [`changes`](changes.md) lists the flows that contain a changed symbol (or the old
   ID of a moved one) and adds `flows_touched` to the summary. These are the flows
-  of the graph before the change.
+  of the stored graph, normally built before the change; `changes --refresh` builds
+  first and reports the flows of both graphs.
 
 With `flows.enabled: false` the three commands leave flows out, and `build` does not
 write `flows.json` (it removes an old one). `flows` and `flow` still work: they
