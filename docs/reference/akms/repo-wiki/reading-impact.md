@@ -1,0 +1,122 @@
+# Reading impact and risk
+
+[`context`](context.md), [`impact`](impact.md) and [`changes`](changes.md) all report
+dependencies found in the symbol graph. This page explains what a reported link
+means, how depth and risk are computed, and what the graph cannot see.
+
+## Depth
+
+`impact` walks outward from the target, one edge at a time. Upstream, each depth
+has a label that says what to do with it:
+
+| Depth | Label | Meaning |
+|---|---|---|
+| d=1 | will break | Calls or subclasses the target directly. If the target's contract changes, these change too. |
+| d=2 | likely affected | Depends on a d=1 dependent. Affected when the change is visible through it. |
+| d=3 | may need testing | Further out. Worth running their tests on important paths. |
+
+Downstream, the labels are `direct dependency`, `indirect dependency` and
+`transitive dependency`. Depths beyond 3 reuse the depth-3 label.
+
+A dependent appears once, at the shallowest depth any path reaches it.
+
+## Confident and possible links
+
+The build records each call by name. The commands resolve every name the way
+Python looks it up, using only what the graph records, and label the result:
+
+| Resolution | Basis | Evidence |
+|---|---|---|
+| CONFIDENT | `local` | A definition in the caller's own module. |
+| CONFIDENT | `import` | The caller's module imports the name: at module or function level, under an `as` alias, or through a package `__init__` that re-exports it. |
+| CONFIDENT | `scope` | A function nested in an enclosing function of the caller. |
+| CONFIDENT | `self` | `self.m()` or `cls.m()`, found on the enclosing class or a confidently resolved base class. |
+| CONFIDENT | `constructor` | A call of class `C`, which also reaches `C.__init__`. |
+| CONFIDENT | `name` | Rust, C++ and Julia: exactly one symbol in the repository has the name. |
+| HEURISTIC | `name` | The name matches a top-level definition, but nothing imports or defines it where it is called. |
+| HEURISTIC | `attribute` | `obj.m()` on a receiver whose type is unknown, linked to the methods named `m`. Only when there are at most four such methods, and never for method names of built-in types or `pathlib.Path` (`append`, `get`, `exists`, ...). |
+| CONFIDENT or HEURISTIC | `dangling` | `changes` only: code that still names a deleted or moved symbol. |
+
+CONFIDENT links are counted. HEURISTIC links are reported apart, as *possible*:
+in the `possible` lists of the JSON output and with a leading `?` in text. They
+never feed the risk level. When a possible link has several targets, `candidates`
+lists all of them, and the call usually reaches only one.
+
+Calls into modules outside the repository (`json.dumps`, `Path.read_text` on a
+`pathlib` import) produce no link. `context` lists them as external calls.
+
+Python resolution is finer than the graph file's own `resolution` field, which
+matches names across the whole repository. A bare call of a name the module never
+imports is CONFIDENT in the graph file when only one symbol has that name, but
+HEURISTIC here.
+
+## Risk
+
+Risk is computed from confident links only, and test code never counts:
+
+- **d1**: the number of non-test dependents at depth 1;
+- **modules**: the number of distinct modules, other than the target's own, among
+  all non-test confident dependents up to the requested depth;
+- **public entry points**: whether the target or a dependent is in a CLI module
+  (`cli.py`, `__main__.py`, a `cli/` package) or is a public name that a package
+  `__init__.py` defines or re-exports from its own subpackages.
+
+The level is the first row where *either* count reaches its minimum:
+
+| Level | Minimum d1 | Minimum modules |
+|---|---|---|
+| CRITICAL | 25 | 12 |
+| HIGH | 10 | 6 |
+| MEDIUM | 3 | 3 |
+| LOW | below that | below that |
+
+Reaching a public entry point raises the level one step, but never above HIGH: only
+the counts make a change CRITICAL. The table lives in one constant,
+`akms.repo_wiki.impact.RISK_THRESHOLDS`, with the cap in `PUBLIC_ENTRY_CAP`.
+
+`risk_with_possible` applies the same rule as if every possible link were real.
+When it is higher than `risk`, the possible links deserve a look.
+
+`changes` applies the rule to the union of the direct callers of every changed
+symbol, leaving out callers that are part of the change, and raises the level to at
+least HIGH when a confident caller still names a deleted or moved symbol.
+
+As a calibration point: on the AKMS repository itself, at the default depth, about
+62% of non-test symbols come out LOW, 21% MEDIUM, 16% HIGH and 1% CRITICAL.
+
+## Freshness
+
+The graph records a content hash for every source it was built from. Before
+answering, `context` and `impact` compare those hashes with the tree, hashing only
+files modified after the graph was written, and look for new or deleted sources.
+Any difference is an error (exit 3) that names the files and gives the rebuild
+command:
+
+```bash
+repo-wiki build --changed-only --no-summaries --no-index
+```
+
+`--allow-stale` skips the check and reports `"stale": true` in the JSON `graph`
+block. `changes` skips the files in its diff, which it parses itself.
+
+## What the graph cannot see
+
+The graph comes from parsing source, without running it and without type
+inference. These are missed, or found only as possible links:
+
+- calls through dynamic dispatch: a method called on a parameter or attribute
+  whose type is not visible, and overrides in subclasses;
+- reflection and indirection: `getattr`, registries and dispatch tables, callbacks
+  passed as values, decorators that replace a function;
+- string-based imports: `importlib.import_module`, packaging entry points, plugin
+  discovery;
+- references that are not calls: reading a constant, passing a function without
+  calling it, `isinstance` checks, annotations;
+- `super().method()` and calls on the result of another call;
+- module-level code, such as calls made at import time;
+- files the scanner skips, and languages not enabled in the
+  [configuration](configuration.md).
+
+A LOW risk or an empty level means no dependents the graph can see. For public
+API, plugin hooks and anything called by name from configuration, search for the
+name as well.
