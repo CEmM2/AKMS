@@ -723,6 +723,31 @@ def test_wake_falls_back_to_sources_when_the_summary_does_not_fit(project, repo,
     assert tight.excluded["covered"] == () and tight.covered_by_summary == {}
 
 
+def test_a_summary_never_ranks_above_a_higher_reviewed_record(project, repo, home):
+    long = "mesh refinement near the crack tip " * 4
+    confirmed = add(
+        project, f"Confirmed {long}", actor="bravo", review_state="user_confirmed"
+    )
+    own = add(project, f"Own note {long}", actor="alpha")
+    other = add(
+        project,
+        "An unrelated confirmed decision",
+        tags=["other"],
+        review_state="user_confirmed",
+    )
+    sid = summarize(project, actor="alpha")
+    assert {r["ref"] for r in project.get(sid).source_refs} == {
+        f"{confirmed}@1",
+        f"{own}@1",
+    }
+    result = run(repo, home, task="mesh refinement crack")
+    # The summary ranks at its lowest source (unreviewed), below the other
+    # user_confirmed record, although it covers a user_confirmed source that
+    # matches the task better than that record does.
+    assert entry_ids(result) == [other, sid]
+    assert set(result.excluded["covered"]) == {confirmed, own}
+
+
 def test_extractive_summary_with_an_ineligible_source_is_excluded(project, repo, home):
     add(project, "Mesh by alpha", actor="alpha")
     add(project, "Mesh by bravo", actor="bravo")

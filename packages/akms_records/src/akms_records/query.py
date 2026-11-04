@@ -735,10 +735,11 @@ def wake(
     Summaries: a stale or invalid one is excluded (``stale``). An extractive
     summary is eligible only when every source it cites is; a provider
     summary only once it is itself reviewed. When an eligible summary costs
-    fewer tokens than the eligible sources it cites, it takes the place of
-    the best-ranked of them and those sources are excluded as ``covered``;
-    otherwise the summary is excluded as a ``duplicate``. If an included
-    summary does not fit the budget, its sources compete again.
+    fewer tokens than the eligible sources it cites, it is shown at its own
+    priority (its effective review rank, then match, then recency) and those
+    sources are excluded as ``covered``; otherwise the summary is excluded as
+    a ``duplicate``. If an included summary does not fit the budget, its
+    sources compete again.
 
     Priority: review state (``user_confirmed`` first; reviewed records always
     above unreviewed ones), then BM25 match with any word of ``task``, then
@@ -946,8 +947,10 @@ def _place_summaries(
     Each summary, best first, covers the cited sources that are still in
     ``kept`` and not covered by a summary before it. It is used when its
     entry costs fewer tokens than those sources' entries together, and then
-    takes the queue position of the best-ranked one; otherwise it is excluded
-    as a ``duplicate``.
+    keeps its own queue position: its effective review rank (an extractive
+    summary's lowest source rank, a provider summary's own), then match,
+    then recency. So a summary never rises above a record of a higher review
+    rank, whatever it covers. Otherwise it is excluded as a ``duplicate``.
     """
     position_of = {c.record_id: n for n, c in enumerate(kept)}
     probe = max(len(kept), 1)  # one position for all cost estimates
@@ -981,10 +984,7 @@ def _place_summaries(
         rid = candidate.record_id
         if rid in covered or rid in dropped:
             continue
-        place = position_of[rid]
-        if rid in covered_by:
-            place = min(place, *(position_of[m] for m in covered_by[rid]))
-        queue.append((place, candidate))
+        queue.append((position_of[rid], candidate))
     queue.sort(key=lambda item: item[0])
     return queue, covered_by
 

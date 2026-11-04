@@ -155,9 +155,12 @@ record ID.
   `review_state`, even with `--include-unreviewed`.
 
 An eligible summary is used when its entry costs fewer tokens than the
-entries of the eligible sources it cites. It then takes the place of the
-best-ranked of them, and those sources are left out as `covered`, so nothing
-is shown twice. A summary that would not save tokens is left out as
+entries of the eligible sources it cites. It is then shown at its own
+priority, ranked like any record by its effective review state (for an
+extractive summary the lowest among its sources, for a provider summary its
+own), then task match, then recency, and those sources are left out as
+`covered`, so nothing is shown twice. A summary therefore never ranks above
+a record of a higher review state, even when it covers a reviewed source. A summary that would not save tokens is left out as
 `duplicate` and its sources are shown. If the summary does not fit the
 remaining budget, it is omitted and its sources compete for the budget again.
 The report's `covered_by_summary` maps each included summary to the sources it
