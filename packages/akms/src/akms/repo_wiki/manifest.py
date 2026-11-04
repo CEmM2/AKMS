@@ -11,6 +11,7 @@ from typing import Any, cast
 
 from akms.repo_wiki.config import init_repo_wiki, load_config
 from akms.repo_wiki.errors import BuildError
+from akms.repo_wiki.flows import build_flows
 from akms.repo_wiki.graph import build_symbol_graph, write_symbol_graph
 from akms.repo_wiki.hashing import sha256_text
 from akms.repo_wiki.index import update_index
@@ -669,7 +670,10 @@ def build_repo(
         write_repo_map(complete_modules, output_dir, commit, repo_root.name, repo_root)
     if complete_modules:
         graph = build_symbol_graph(complete_modules)
-        write_symbol_graph(graph, output_dir / "symbol_graph.json")
+        graph_path = write_symbol_graph(graph, output_dir / "symbol_graph.json")
+        # Flows are a pure function of the graph just written (plus settings and console
+        # scripts), so they are rebuilt with it, from the complete IR, on every build.
+        build_flows(repo_root, config, graph, graph_path)
 
     index_summary = None if no_index else update_index(repo_root, force=force)
 
