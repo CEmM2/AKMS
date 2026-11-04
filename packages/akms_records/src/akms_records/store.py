@@ -32,11 +32,12 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import sqlite3
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from akms_records.canonical import (
     canonical_bytes,
@@ -60,6 +61,7 @@ from akms_records.envelope import (
     SENSITIVITY_LEVELS,
 )
 from akms_records.errors import (
+    IndexUnavailable,
     NotFound,
     RecordsError,
     ReplayError,
@@ -67,6 +69,7 @@ from akms_records.errors import (
     StaleRevision,
 )
 from akms_records.fsio import TMP_RE, append_line, fsync_dir, write_exclusive
+from akms_records.index import INDEX_DIRNAME, INDEX_FILENAME, RecordIndex
 from akms_records.ids import (
     RECORD_ID_RE,
     check_event_id,
@@ -86,6 +89,9 @@ from akms_records.schemas import (
     render_summary,
 )
 from akms_records.scope import Scope, store_root
+
+if TYPE_CHECKING:
+    from akms_records.query import RecallResult
 
 EVENT_FORMAT = "akms-records-event/v1"
 EVENT_KINDS = ("create", "amend", "supersede", "retract")
@@ -126,6 +132,8 @@ NOT_REACHED = (
     "git history: commits, packs and remotes that already contain the record",
     "other clones and unmerged branches (run doctor --fix after a merge to re-apply)",
     "exports and backups made before the erasure",
+    "indexes of other worktrees of the repository (each worktree has its own; "
+    "doctor --fix there removes the record)",
 )
 _CONFLICT_MARKER = re.compile(rb"(?m)^(?:<{7}|>{7}|={7}|\|{7})(?: |\r?$)")
 
@@ -369,12 +377,16 @@ class RecordStore:
         scope: Scope,
         *,
         clock: Callable[[], str] | None = None,
+        index: bool = True,
     ) -> None:
         self.root = Path(root)
         self.scope = scope
         self.schemas = SchemaRegistry(self.root)
         self.policies = PolicyStore(self.schemas)
         self._clock = clock or utc_now
+        self._index_writes = index
+        self._index: RecordIndex | None = None
+        self._index_broken = False
         if self.root.is_symlink():
             raise RecordsError(
                 f"refusing a symlinked store root: {self.root}", code="store_path"
@@ -388,10 +400,32 @@ class RecordStore:
         repo: str | Path | None = None,
         home: str | Path | None = None,
         clock: Callable[[], str] | None = None,
+        index: bool = True,
     ) -> "RecordStore":
-        """Open the store that holds ``scope`` (see :mod:`akms_records.scope`)."""
+        """Open the store that holds ``scope`` (see :mod:`akms_records.scope`).
+
+        ``index=False`` skips the index update on writes (for bulk loads
+        followed by ``index rebuild``); reads still use and refresh it.
+        """
         resolved = Scope.parse(scope) if isinstance(scope, str) else scope
-        return cls(store_root(resolved, repo=repo, home=home), resolved, clock=clock)
+        return cls(
+            store_root(resolved, repo=repo, home=home),
+            resolved,
+            clock=clock,
+            index=index,
+        )
+
+    def close(self) -> None:
+        """Close the index connection, if one is open."""
+        if self._index is not None:
+            self._index.close()
+            self._index = None
+
+    def __enter__(self) -> "RecordStore":
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
 
     # ------------------------------------------------------------- plumbing
     def now(self) -> str:
@@ -475,6 +509,91 @@ class RecordStore:
     def _schema(self, ref: str) -> RegisteredSchema:
         return self.schemas.get(self.schemas.resolve_ref(ref))
 
+    # ---------------------------------------------------------------- index
+    @property
+    def index_path(self) -> Path:
+        return self.root / INDEX_DIRNAME / INDEX_FILENAME
+
+    def _replay_any(self, record_id: str) -> Record:
+        """A record's current state, whatever its scope (for the index)."""
+        directory = self.record_dir(record_id)
+        events = [event for event, _ in read_event_files(directory, record_id)]
+        return fold_events(record_id, events)
+
+    def erased_ids(self) -> set[str]:
+        return {entry["record_id"] for entry in self.erasure_entries()[0]}
+
+    def open_index(self, *, create: bool = True) -> RecordIndex:
+        """The store root's index, opened (and created) on first use.
+
+        Raises :class:`~akms_records.errors.IndexUnavailable` when SQLite has
+        no FTS5 or the index cannot be opened.
+        """
+        if self._index is None:
+            self._index = RecordIndex(
+                self.root,
+                schemas=self.schemas,
+                replay=self._replay_any,
+                erased=self.erased_ids,
+                erasure_log=self.root / ERASURE_LOG,
+                create=create,
+            )
+        return self._index
+
+    def index_for_read(self) -> RecordIndex | None:
+        """The index after its staleness check; ``None`` before the first write."""
+        if not self.root.is_dir():
+            return None
+        index = self.open_index()
+        index.refresh()
+        return index
+
+    def _write_index(self) -> RecordIndex | None:
+        if not self._index_writes or self._index_broken:
+            return None
+        try:
+            return self.open_index()
+        except IndexUnavailable:
+            self._index_broken = True  # writes still succeed; reads report it
+            return None
+
+    def _refresh_index(self) -> None:
+        """Bring the index up to date after a write that is not an event."""
+        index = self._write_index()
+        if index is None or not self.index_path.is_file():
+            return
+        try:
+            index.refresh()
+        except (sqlite3.Error, OSError, RecordsError):
+            pass  # the next read retries
+
+    def _mark(self, target: str) -> Path | None:
+        index = self._write_index()
+        return index.mark(target) if index is not None else None
+
+    def _index_written(self, record: Record | str, marker: Path | None) -> None:
+        """Index what a write just did. On failure the marker stays for a reader."""
+        index = self._write_index()
+        if index is None:
+            RecordIndex.unmark(marker)
+            return
+        try:
+            state = self._replay_any(record) if isinstance(record, str) else record
+            index.write(state)
+        except (sqlite3.Error, OSError, RecordsError):
+            if marker is None:
+                marker = index.mark(
+                    record if isinstance(record, str) else record.record_id
+                )
+            return
+        RecordIndex.unmark(marker)
+
+    def recall(self, query: str | None = None, **options: Any) -> RecallResult:
+        """Recall this scope's records; see :func:`akms_records.query.recall`."""
+        from akms_records.query import recall
+
+        return recall(self, query=query, **options)
+
     def register_schema(
         self,
         schema: Any,
@@ -490,17 +609,21 @@ class RecordStore:
         """
         check_actor(actor)
         self.ensure_root()
-        return self.schemas.register(
+        outcome = self.schemas.register(
             schema, actor=actor, at=self.now(), name=name, version=version, rules=rules
         )
+        self._refresh_index()
+        return outcome
 
     def set_rules(self, ref: str, rules: Any, *, actor: str) -> dict[str, Any]:
         """Replace a schema's extraction rules; the change is logged."""
         check_actor(actor)
         self.ensure_root()
-        return self.schemas.set_rules(
+        result = self.schemas.set_rules(
             self.schemas.resolve_ref(ref), rules, actor=actor, at=self.now()
         )
+        self._refresh_index()  # re-extract the records of that schema version
+        return result
 
     # ---------------------------------------------------------------- reads
     def get(self, record_id: str) -> Record:
@@ -623,6 +746,7 @@ class RecordStore:
             if self._existing_create(earlier, event_id):
                 return WriteResult("create", earlier, 1, event_id, noop=True)
         self.ensure_root()
+        marker = self._mark(f"month-{day:%Y-%m}")
         for attempt in range(CREATE_ATTEMPTS):
             record_id = record_id_for(day, event_id, attempt)
             directory = self.record_dir(record_id)
@@ -634,6 +758,7 @@ class RecordStore:
                 pass
             if (directory / "000001.json").exists():
                 if self._existing_create(record_id, event_id):
+                    RecordIndex.unmark(marker)  # a crashed first try left its own
                     return WriteResult("create", record_id, 1, event_id, noop=True)
                 continue  # an unrelated record already has this ID
             event = make_event(
@@ -650,9 +775,12 @@ class RecordStore:
                 write_exclusive(directory, "000001.json", canonical_bytes(event))
             except FileExistsError:
                 if self._existing_create(record_id, event_id):
+                    RecordIndex.unmark(marker)  # a crashed first try left its own
                     return WriteResult("create", record_id, 1, event_id, noop=True)
                 continue
+            self._index_written(fold_events(record_id, [event]), marker)
             return WriteResult("create", record_id, 1, event_id)
+        RecordIndex.unmark(marker)
         raise RecordsError("could not allocate a record ID", code="id_exhausted")
 
     def _append(
@@ -711,6 +839,7 @@ class RecordStore:
             event_id=event_id,
         )
         name = f"{head + 1:06d}.json"
+        marker = self._mark(record_id)
         try:
             write_exclusive(directory, name, canonical_bytes(event))
         except FileExistsError:
@@ -719,10 +848,13 @@ class RecordStore:
             except (OSError, ValueError, UnicodeDecodeError):
                 other = None
             if isinstance(other, dict) and other.get("event_id") == event_id:
+                RecordIndex.unmark(marker)
                 return WriteResult(kind, record_id, head + 1, event_id, noop=True)
+            RecordIndex.unmark(marker)  # nothing was written
             raise StaleRevision(
                 record_id, expected=expected_revision, head=head + 1, where="link"
             ) from None
+        self._index_written(fold_events(record_id, [*events, event]), marker)
         return WriteResult(kind, record_id, head + 1, event_id)
 
     def amend(
@@ -923,12 +1055,45 @@ class RecordStore:
         self.ensure_root()
         append_line(self.root / ERASURE_LOG, compact_line(entry))
         removed = self._remove_record_dir(directory)
+        not_reached: list[str] = list(NOT_REACHED)
+        index_report = self._purge_index(record_id, not_reached)
         return {
             "record_id": record_id,
             "files_removed": removed,
+            "index": index_report,
             "logged": entry,
-            "not_reached": list(NOT_REACHED),
+            "not_reached": not_reached,
         }
+
+    def _purge_index(self, record_id: str, not_reached: list[str]) -> dict[str, Any]:
+        """Remove an erased record from this worktree's index, bytes included."""
+        if not self.index_path.is_file():
+            return {"status": "absent"}
+        try:
+            result = self.open_index().purge(record_id)
+        except (IndexUnavailable, sqlite3.Error, OSError):
+            # The index is derived: when it cannot be cleaned, delete it.
+            self.close()
+            leftover = []
+            for suffix in ("", "-wal", "-shm"):
+                path = self.index_path.with_name(INDEX_FILENAME + suffix)
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    leftover.append(path.name)
+            if leftover:
+                not_reached.append(
+                    "this store's index files, which could not be cleaned or "
+                    "deleted: " + ", ".join(leftover)
+                )
+                return {"status": "not_reached"}
+            return {"status": "deleted"}
+        if result["checkpoint"] != "complete":
+            not_reached.append(
+                "this store's index write-ahead log, held open by another process; "
+                "run doctor --fix when no other process uses the store"
+            )
+        return {"status": "purged", **result}
 
     def _remove_record_dir(self, directory: Path) -> int:
         count = sum(1 for _ in directory.iterdir()) if directory.is_dir() else 0
@@ -952,6 +1117,10 @@ class RecordStore:
         errors, git conflicts, schema digest problems, and rules or policy
         files that disagree with their logs.
 
+        When the store has an index, doctor compares it with the files
+        (``index_drift``); ``fix`` reconciles it. An absent index is not a
+        problem: the first read builds it.
+
         The result has ``status`` (``ok``, or ``error`` when any check with
         ``severity: error`` found something), ``checks`` (each with ``check``,
         ``status``, ``severity``, ``repairable`` and its ``items``),
@@ -965,10 +1134,15 @@ class RecordStore:
             "tmp_removed": [],
             "empty_dirs_removed": [],
             "erasures_reapplied": [],
+            "index_reconciled": [],
         }
         state = {"records_checked": 0}
+        replayed: dict[str, Record | None] = {}
         if self.root.is_dir():
-            self._doctor_scan(found, repairs, state, fix=fix, force_tmp=force_tmp)
+            self._doctor_scan(
+                found, repairs, state, replayed, fix=fix, force_tmp=force_tmp
+            )
+            self._doctor_index(found, repairs, replayed, fix=fix)
         checks = []
         for name, (severity, repairable) in DOCTOR_CHECKS.items():
             items = found[name]
@@ -990,6 +1164,62 @@ class RecordStore:
             "repairs": repairs,
             "records_checked": state["records_checked"],
         }
+
+    def _doctor_index(
+        self,
+        found: dict[str, list[Any]],
+        repairs: dict[str, list[str]],
+        replayed: dict[str, Record | None],
+        *,
+        fix: bool,
+    ) -> None:
+        if not self.index_path.is_file():
+            return
+        try:
+            if fix:
+                changes = self.open_index().reconcile()
+                repairs["index_reconciled"] = sorted(
+                    {rid for ids in changes.values() for rid in ids}
+                )
+                return
+            if self._index is not None:
+                index, owned = self._index, False
+            else:
+                index, owned = self._report_index(), True
+            try:
+                report = index.compare(replayed)
+            finally:
+                if owned:
+                    index.close()
+        except IndexUnavailable as exc:
+            if exc.code == "index_format":
+                found["index_drift"].append({"problem": "format"})
+            else:
+                found["index_unavailable"].append(
+                    {"code": exc.code, "message": str(exc)}
+                )
+            return
+        except sqlite3.Error as exc:
+            found["index_unavailable"].append(
+                {"code": "index_unavailable", "message": str(exc)}
+            )
+            return
+        for problem in ("missing", "extra", "stale"):
+            found["index_drift"].extend(
+                {"record_id": record_id, "problem": problem}
+                for record_id in report[problem]
+            )
+
+    def _report_index(self) -> RecordIndex:
+        """Open the index for a report, changing nothing (not cached)."""
+        return RecordIndex(
+            self.root,
+            schemas=self.schemas,
+            replay=self._replay_any,
+            erased=self.erased_ids,
+            erasure_log=self.root / ERASURE_LOG,
+            create=False,
+        )
 
     def _tmp_is_stale(self, path: Path, *, force: bool) -> bool | None:
         """True when the temp file's writer is gone; None if the file vanished."""
@@ -1034,6 +1264,7 @@ class RecordStore:
         found: dict[str, list[Any]],
         repairs: dict[str, list[str]],
         state: dict[str, int],
+        replayed: dict[str, Record | None],
         *,
         fix: bool,
         force_tmp: bool,
@@ -1089,6 +1320,7 @@ class RecordStore:
                     found,
                     repairs,
                     state,
+                    replayed,
                     schema_digests,
                     fix=fix,
                     force_tmp=force_tmp,
@@ -1107,6 +1339,7 @@ class RecordStore:
         found: dict[str, list[Any]],
         repairs: dict[str, list[str]],
         state: dict[str, int],
+        replayed: dict[str, Record | None],
         schema_digests: dict[str, str],
         *,
         fix: bool,
@@ -1136,12 +1369,14 @@ class RecordStore:
             pairs = read_event_files(directory, record_id)
             record = fold_events(record_id, [event for event, _ in pairs])
         except ReplayError as exc:
+            replayed[record_id] = None
             found["replay_errors"].append(
                 {"record_id": record_id, "code": exc.replay_code, "detail": exc.detail}
             )
             if exc.replay_code == "conflict":
                 found["conflicts"].append(record_id)
             return
+        replayed[record_id] = record
         for event, raw in pairs:
             if raw != canonical_bytes(event):
                 found["noncanonical"].append(
@@ -1168,6 +1403,8 @@ DOCTOR_CHECKS: dict[str, tuple[str, bool]] = {
     "recent_empty_dirs": ("warning", False),
     "stray_files": ("warning", False),
     "noncanonical": ("warning", False),
+    "index_drift": ("error", True),
+    "index_unavailable": ("warning", False),
 }
 
 

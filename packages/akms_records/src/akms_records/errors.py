@@ -95,7 +95,21 @@ class ReplayError(RecordsError):
         self.detail = detail
 
 
+class IndexUnavailable(RecordsError):
+    """The derived index cannot be used on this machine or in this store.
+
+    ``code`` is ``fts5_unavailable`` when the Python ``sqlite3`` module was
+    built without FTS5, and ``index_unavailable`` when the index file cannot
+    be opened or created (for example a read-only store). The canonical event
+    files are unaffected: writes still succeed, only index reads fail.
+    """
+
+    def __init__(self, message: str, *, code: str = "index_unavailable") -> None:
+        super().__init__(message, code=code)
+
+
 __all__ = [
+    "IndexUnavailable",
     "NotFound",
     "RecordsError",
     "ReplayError",
