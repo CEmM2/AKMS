@@ -15,8 +15,9 @@ akms-records schema register ./research-decision.schema.json --scope project:exa
 akms-records schema register --template idea --scope project:example
 ```
 
-Registration stores the schema's canonical JSON and the SHA-256 of it. Every
-record written against the schema carries that digest. Loading a schema
+Registration stores the schema's canonical JSON and the SHA-256 of it, and
+stores any extraction rules beside it. Every record written against the schema
+carries the schema digest. Loading a schema
 recomputes it, and a schema whose content no longer matches is refused
 (`schema_tampered`); a formatting-only edit keeps the digest. Registering the
 same content again does nothing. Different content under an existing
@@ -75,8 +76,25 @@ A schema may carry its name, version and extraction rules:
 }
 ```
 
-The block is part of the schema, so it is covered by the digest. If it gives
-no name or version, pass `--name` and `--version`.
+If the block gives no name or version, pass `--name` and `--version`.
+
+### What the digest covers
+
+The schema digest covers the whole document, including the block's `name`,
+`version`, `title` and `description`, **except** `x-akms-records.rules`.
+Name and version stay inside because they are the schema's identity: the same
+content under another name or version is a different schema. The rules are
+moved out at registration and stored beside the schema in
+`_schemas/<name>/v<N>/_rules.json`, with a digest of their own. They only
+steer derived output (the summary of new records now, and the search index of
+a later release), so changing them never needs a new schema version, never
+changes the schema digest, and leaves existing records valid and unchanged.
+
+Rules can also be given at registration with `--rules RULES.json` or the rule
+options (`--search-text`, `--label`, `--time-field`, `--summary-template`),
+but not both there and in the block. Registering an already registered schema
+with different rules leaves the stored rules alone (`"rules": "kept"`); use
+`schema rules set` to change them.
 
 | Rule | Value | Use |
 |---|---|---|
@@ -87,10 +105,31 @@ no name or version, pass `--name` and `--version`.
 
 Every pointer must name a property the schema declares (following local
 `$ref`s). Placeholders cannot call methods, index, or format: `{a.b}`,
-`{a[0]}` and `{a!r}` are refused. Rules are data; nothing in a schema runs.
-This release validates and stores the rules and uses `summary_template`;
-`search_text`, `label` and `time_field` are for the index a later release
-adds.
+`{a[0]}` and `{a!r}` are refused, and so is a pointer to an undeclared
+property (`invalid_rules`). Rules are data; nothing in a schema or its rules
+runs. This release validates and stores the rules and uses
+`summary_template`; `search_text`, `label` and `time_field` are for the index
+a later release adds.
+
+### Changing rules
+
+```bash
+akms-records schema rules show decision --scope project:example
+akms-records schema rules set decision --scope project:example \
+  --summary-template "Chosen: {decision}" --unset time_field
+akms-records schema rules set decision/v1 --scope project:example --file rules.json
+```
+
+`REF` is `name/vN`, or `name` for the newest version; rules belong to one
+schema version, because their pointers name that version's properties.
+`--file` replaces the rules; the rule options and `--unset` change single
+rules of the current set. Every change is appended to `_rules_log.jsonl` with
+the actor, the time, the previous value and the new digest. Rules are not
+trust-sensitive, so unlike the promotion policy no confirmation is asked.
+
+A rules change affects only what is derived from now on: records keep their
+summaries. The rules digest is stored so that a later index can tell its
+extracted text is out of date and re-extract it.
 
 ## Built-in templates
 

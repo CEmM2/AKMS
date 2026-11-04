@@ -32,8 +32,8 @@ not the end:
   update of every copy.
 - **Branches can bring it back.** An amendment made on another branch before
   the erasure merges back cleanly and restores a revision file, payload
-  included. `doctor` finds records named in the erasure log and erases them
-  again; run it after merges.
+  included. `doctor` reports records named in the erasure log, and
+  `doctor --fix` erases them again; run it after merges.
 - **Exports and backups** made before the erasure are not touched. `import`
   never brings back a record named in the local erasure log.
 
@@ -63,6 +63,16 @@ Every record is a directory and every revision a file of about 1–2 KB, which
 occupies a whole filesystem block. Commands without an index (`list`,
 `export`, `doctor`) read every record. Keep project stores well below 100,000
 records: at that size `git add` and `git status` slow down noticeably.
+
+## A deleted newest revision goes unnoticed
+
+The store detects an edit to any revision of a record, but not the deletion
+of its newest revision file: the record then replays one revision earlier,
+without an error. A per-record head file would catch it, but every write would
+update that file, so two branches touching the same record would always
+conflict on it in git. That trade-off is deliberate. In a project store, git
+history is the remedy: the deletion shows in `git status` and `git log`, and
+the file can be restored from any commit that has it.
 
 ## Canonical JSON
 

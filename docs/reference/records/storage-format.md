@@ -15,6 +15,8 @@
     <name>/
       v<N>/schema.json           the schema, canonical JSON
       v<N>/registration.json     ref, digest, who and when
+      v<N>/_rules.json           extraction rules and their digest (optional)
+      v<N>/_rules_log.jsonl      every rules change (append-only)
       _policy.json               current promotion policy (optional)
       _policy_log.jsonl          every policy change (append-only)
   <YYYY-MM>/
@@ -82,8 +84,18 @@ accepts no further events. The scope never changes.
   `doctor` lists such files as `noncanonical` without failing.
 - **What they are not.** The digests detect accidental and naive edits and
   merge mistakes. They are not signatures: someone who rewrites a whole
-  history can recompute them. Deleting the newest revision is not detected by
-  the store; git history shows it.
+  history can recompute them.
+
+!!! warning "Known gap: a deleted newest revision is not detected"
+    An edit to any revision is detected: by the chain for a revision that has
+    a successor, and by the seal for the newest one. Deleting the newest
+    revision file is **not** detected. The record simply replays at the
+    previous revision. Catching it would need a per-record head file that
+    every write updates, and such a mutable file would conflict in git
+    whenever two branches touch the same record, which defeats the
+    one-file-per-revision design. For a project store, git history is the
+    remedy: `git log --diff-filter=D -- .knowledge/records/` lists deleted
+    revision files, and `git checkout <commit> -- <file>` restores one.
 
 ## Writing a revision
 
@@ -95,7 +107,7 @@ accepts no further events. The scope never changes.
 3. Remove the temp file and `fsync` the directory (not possible on Windows).
 
 There is no lock. Readers only see complete files. A writer killed at any
-point leaves at most a temp file or an empty record directory. `doctor`
+point leaves at most a temp file or an empty record directory. `doctor --fix`
 removes both once the writer's process has exited, and the next write to the
 record removes such temp files too (on Windows the owner check never sends a
 console signal). An acknowledged
@@ -130,17 +142,21 @@ The store writes `.gitattributes` with:
 * -text
 _erasures.jsonl merge=union
 _schemas/*/_policy_log.jsonl merge=union
+_schemas/*/*/_rules_log.jsonl merge=union
 ```
 
-`* -text` stops `core.autocrlf` from rewriting event files. The two logs merge
-by union, so two branches that each erase a record, or each change a policy,
-do not conflict on the log.
+`* -text` stops `core.autocrlf` from rewriting event files. The append-only
+logs merge by union, so two branches that each erase a record, or each change
+a policy or a schema's rules, do not conflict on the log. (The current
+`_policy.json` or `_rules.json` can still conflict; `doctor` reports a file
+that disagrees with its log.) Stores written before the rules log existed get
+the new line on their next write.
 
 | On two branches | Result of the merge |
 |---|---|
 | Different records created or amended | Clean, in either order, with the same tree |
 | The same record amended to the same revision | An add/add conflict on that revision file; replay and `doctor` report `conflict` for that record only |
-| A record erased on one branch, amended on the other | Clean merge that brings the amendment back; `doctor` re-applies the erasure |
+| A record erased on one branch, amended on the other | Clean merge that brings the amendment back; `doctor` reports it and `doctor --fix` re-applies the erasure |
 
 Resolve a same-revision conflict by keeping one side's file and re-adding the
 other side's change as a new amendment. Taking one side alone silently drops

@@ -28,9 +28,13 @@ development is intentionally not replayed.
   shared scopes. Writes take no lock: an exclusive hard link makes a stale
   revision fail and a retried event a no-op. Parallel work on different
   records merges cleanly in git; a same-revision conflict is reported. Schema
-  references never leave the schema and `format` is an annotation only. It
-  also stores per-schema promotion policies (with a change log), erases
-  records with a content-free log that `doctor` re-applies after merges, and
+  references never leave the schema and `format` is an annotation only.
+  Extraction rules (search text, label, time field, summary template) are
+  stored beside the schema outside its digest, so `schema rules set` can
+  change them without a new schema version; every change is logged. It also
+  stores per-schema promotion policies (with a change log), erases records
+  with a content-free log that `doctor --fix` re-applies after merges
+  (`doctor` alone only reports), and
   exports and imports a scope as digest-checked JSONL. Eight built-in
   templates ship as plain schema files. It does not depend on `akms`; the
   `[akms]` extra is reserved for a later promotion bridge. Search, recall and

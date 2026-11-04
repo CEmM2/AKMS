@@ -32,7 +32,7 @@ them into AKMS knowledge nodes.
   silently. See the [storage format](storage-format.md).
 - **Safe writes without a lock.** Each revision is linked into place
   exclusively, so two writers can never both win the same revision, and a
-  crashed writer leaves only a temp file that `doctor` removes.
+  crashed writer leaves only a temp file that `doctor --fix` removes.
 - **Portable.** `export` and `import` move a scope as JSONL with digest checks.
 
 ## What it does not do (yet)
@@ -97,7 +97,7 @@ akms-records amend rec-20261103-k3f9m2xa --scope project:example \
   --expect-revision 1 --review-state user_confirmed
 akms-records show rec-20261103-k3f9m2xa --scope project:example
 akms-records history rec-20261103-k3f9m2xa --scope project:example
-akms-records doctor --scope project:example
+akms-records doctor --scope project:example   # reports; --fix repairs
 ```
 
 Commit `.knowledge/records/` with the rest of the repository.

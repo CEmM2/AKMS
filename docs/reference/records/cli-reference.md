@@ -12,9 +12,9 @@ akms-records [--version] [--json-errors] <command> ...
 - **Output.** Every command prints one JSON object on stdout with a `status`
   field. `export` without `--output` prints the JSONL on stdout and its
   summary on stderr.
-- **Exit status.** `0` on success; `1` when `status` is `drift` or `error`
-  (for example `doctor` found problems, or `import` met a conflict); `2` when
-  the command failed. A failure prints `error[<code>]: <message>` on stderr,
+- **Exit status.** `0` on success; `1` when `status` is `error` or `drift`
+  (for example `doctor` found a problem, or `import` met a conflict); `2`
+  when the command failed. A failure prints `error[<code>]: <message>` on stderr,
   or `{"status": "error", "error": {"code": ..., "message": ...}}` on stdout
   with `--json-errors`.
 - **Scope.** Every command except `schema templates` takes
@@ -33,13 +33,22 @@ akms-records [--version] [--json-errors] <command> ...
 
 | Command | Purpose |
 |---|---|
-| `schema register PATH [--name N] [--version V]` | Register a schema file. Name and version come from the file's `x-akms-records` block or the flags. |
-| `schema register --template NAME` | Register a built-in template. |
+| `schema register PATH [--name N] [--version V] [RULES]` | Register a schema file. Name and version come from the file's `x-akms-records` block or the flags; rules from the block's `rules` or the rule options, not both. |
+| `schema register --template NAME` | Register a built-in template (with its rules). |
 | `schema list` | Registered schemas, with an error entry for any that fail their digest check. |
 | `schema show REF` | One schema with its content. `REF` is `name/vN`, or `name` for the newest version. |
 | `schema templates` | Names of the built-in templates. |
+| `schema rules set REF [--file RULES.json] [--search-text P]... [--label P] [--time-field P] [--summary-template T] [--unset KEY]...` | Change a schema version's extraction rules. `--file` replaces them; the options change single rules of the current set. |
+| `schema rules show REF` | The rules, their digest, who set them and when, and the change log. |
 | `schema policy set NAME --source human\|agent --status tentative\|established --confidence X [--yes]` | Set a schema's promotion policy. |
 | `schema policy show NAME` | The current policy, the effective one (the default when none is set), and the change log. |
+
+`RULES` on `register` is `--rules RULES.json` and/or the same rule options
+as `schema rules set`. Rules are kept beside the schema, outside its digest:
+changing them needs no new schema version and leaves records untouched. Every
+change goes to the rules log with the actor, the time and the previous value.
+Each pointer must name a property the schema declares, or the command fails
+with `invalid_rules`. See [schemas and templates](schemas-and-templates.md).
 
 `schema policy set` is a **human operation**. It asks for confirmation on an
 interactive terminal and refuses (`confirmation_required`) when standard input
@@ -83,7 +92,7 @@ can be amended, superseded or retracted.
 | Command | Purpose |
 |---|---|
 | `erase RECORD --reason TEXT [--force]` | Remove a record's files and log a content-free erasure line. |
-| `doctor [--check] [--force-tmp]` | Check the store root and clean it up. |
+| `doctor [--fix [--force-tmp]]` | Check the store root; with `--fix`, also repair what is safe. |
 | `export [--output FILE] [--include-sensitive] [--skip-broken]` | Write the scope as JSONL. |
 | `import FILE` | Replay an export into the scope. |
 
@@ -93,18 +102,31 @@ content in the reason. The result lists what erasure cannot reach (see
 [limits](limits.md)). `--force` erases a record that does not replay and
 whose scope cannot be read; a record that names another scope is never erased.
 
-**`doctor`** covers every scope in the store root. By default it fixes what is
-safe to fix and reports the rest; `--check` only reports.
+**`doctor`** covers every scope in the store root. Without options it only
+reports and changes nothing. `--fix` repairs what is safe to repair;
+`--force-tmp` (only with `--fix`) also removes temp files whose writer still
+looks alive, which is safe only when no writer is running.
 
-| Fixed | Reported only |
-|---|---|
-| Temp files whose writer has exited (all of them with `--force-tmp`, safe only when no writer runs) | Replay errors: gaps, broken chains or seals, malformed events |
-| Empty record directories older than a minute, and empty month directories | Git conflict markers (`conflicts`) |
-| Erased records that came back, for example through a merge (`erasures_reapplied`) | Schemas that fail their digest check; records whose digest differs from the registry |
-| | Stray files, non-canonical event bytes, policy files that disagree with their log |
+The result follows `failure-memory doctor`: a `status` of `ok` or `error`
+(exit code 0 or 1), and a `checks` list. Each check has `check`, `status`
+(`ok`, `warning` or `error`), `severity`, `repairable` (whether `--fix`
+handles it) and the `items` it found. `repairs` lists what `--fix` changed
+(`tmp_removed`, `empty_dirs_removed`, `erasures_reapplied`), `mode` is
+`report` or `fix`, and `records_checked` counts the records replayed.
 
-`status` is `ok`, `drift` (only with `--check`: something needs fixing) or
-`error` (something doctor never fixes).
+| Check | Severity | Repaired by `--fix` |
+|---|---|---|
+| `stale_tmp_files`: temp files whose writer has exited | error | yes |
+| `empty_dirs`: empty record directories older than a minute, empty month directories | error | yes |
+| `erased_but_present`: records in the erasure log that are back, for example after a merge | error | yes (erased again) |
+| `replay_errors`: gaps, broken chains or seals, malformed events | error | no |
+| `conflicts`: records with git conflict markers | error | no |
+| `schema_errors`: schemas that fail their digest check | error | no |
+| `schema_mismatch`: records whose schema digest differs from the registry | error | no |
+| `rules_drift`, `policy_drift`: rules or policy files that fail their digest or disagree with their log | error | no |
+| `erasure_log`: unreadable erasure-log lines | error | no |
+| `tmp_in_progress`, `recent_empty_dirs`: a writer may still be working | warning | no |
+| `stray_files`, `noncanonical`: unexpected files, event files that are not byte-canonical | warning | no |
 
 **`export`** writes a header, every registered schema with its digest, the
 scope's erasure lines, every event, and a footer with counts and a digest of
@@ -113,8 +135,11 @@ out unless `--include-sensitive` is given. A scope with records that do not
 replay is refused unless `--skip-broken` is given.
 
 **`import`** checks the footer, schema digests, every event's seal and chain,
-and every payload, before writing anything. It then registers missing
-schemas, appends new erasure lines, and writes the missing event files.
+every rules digest, and every payload, before writing anything. It then
+registers missing schemas with their rules, stores rules for a local schema
+that has none, appends new erasure lines, and writes the missing event files.
+Where the local rules differ from the exported ones, the local rules are kept
+and the schema is listed under `rules_differ`.
 Importing the same file again writes nothing. A record whose local history
 diverges is reported under `conflicts` and left alone (`status: drift`). A
 record in the local erasure log is never brought back. The export's scope must
@@ -135,7 +160,8 @@ equal `--scope`.
 | `not_active` | The record is superseded or retracted |
 | `event_id_reused` | The event ID was already used for a different kind of event, or in another scope |
 | `replay_error` | The record's files do not replay (`details.replay_code` says why) |
-| `invalid_schema`, `invalid_rules` | The schema or its extraction rules are not acceptable |
+| `invalid_schema`, `invalid_rules` | The schema or its extraction rules are not acceptable (for example a pointer to an undeclared property) |
+| `rules_invalid` | A stored rules file no longer matches its digest |
 | `schema_ref_refused` | The schema has a non-local reference, `$id` or another dialect |
 | `schema_exists` | That `name/vN` is registered with different content |
 | `schema_tampered` | A registered schema no longer matches its digest |
