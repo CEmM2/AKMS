@@ -14,9 +14,12 @@ classifiers = [
 ]
 requires-python = ">=3.12,<3.13"
 # jsonschema 4.18 introduced the `referencing` registry API this package
-# relies on to refuse every remote reference.
+# relies on to refuse every remote reference. jsonschema-specifications holds
+# the bundled metaschemas a schema is checked against; the floors are the ones
+# jsonschema 4.18.0 itself declares.
 dependencies = [
     "jsonschema>=4.18,<5",
+    "jsonschema-specifications>=2023.03.6",
     "referencing>=0.28.4,<1",
 ]
 
