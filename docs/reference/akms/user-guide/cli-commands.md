@@ -59,8 +59,14 @@ akms status --repo .
 Runs the graph health report using repository propagation configuration when
 present. It warns under **Knowledge Layout** when `.knowledge/` exists next to
 a non-empty `knowledge/`, whose contents are then ignored. Under **Stale Code
-Mirrors** it lists mirrors older than their source; see
+Mirrors** it lists mirrors older than their source, or says that all of them
+are current or that the check was skipped; see
 [mirror freshness](mirror_providers.md#freshness).
+
+**Orphaned Nodes** lists nodes nothing reaches: no edge in or out, and no
+`load_with` hint naming them or named by them. A node loaded only through
+`load_with` (such as a failure-memory lesson with related lessons) is not an
+orphan. Session nodes and code mirrors are never listed.
 
 ### `migrate-layout`
 

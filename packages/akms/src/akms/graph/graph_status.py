@@ -9,7 +9,7 @@ Reports:
   - Dedup events persisted in local overlay history
   - Blocked downstream tasks
   - Id collisions between global and local nodes
-  - Orphaned nodes (no edges)
+  - Orphaned nodes (no edges and no load_with hint either way)
   - Stale nodes (last_activated > N days)
   - Orphaned overlay entries
   - Docstring drift warnings (consumed from generate_mirror output)
@@ -30,7 +30,7 @@ import yaml
 
 from akms.layout import ignored_legacy_dir, local_knowledge_dir
 from akms.graph.build_graph import build_graph, load_graph, resolve_global_vault
-from akms.graph.mirror_freshness import stale_mirrors
+from akms.graph.mirror_freshness import check_mirror_freshness
 from akms.schema.models import NodeStatus, PropagationConfig
 from akms.schema.validators import parse_propagation_config
 from akms.telemetry import traced
@@ -185,13 +185,33 @@ def _check_id_collisions(
     return collisions
 
 
+def _load_with_ids(data: dict) -> list[str]:
+    """A node's ``load_with`` hints as a list of ids."""
+    hints = data.get("load_with", []) or []
+    if isinstance(hints, str):
+        hints = [hints]
+    return [str(target) for target in hints]
+
+
 def _check_orphaned_nodes(G: nx.DiGraph) -> list[dict]:
-    """Find nodes with no edges (neither in nor out)."""
+    """Find nodes nothing connects: no edges and no ``load_with`` hint.
+
+    ``load_with`` (FR-G10) is not a graph edge, but it does load a node: a
+    node that names others in ``load_with``, or that another node names, is
+    reached by coactivation and is not an orphan.
+    """
+    hinted: set[str] = set()
+    for node_id, data in G.nodes(data=True):
+        targets = {target for target in _load_with_ids(data) if target != node_id}
+        if targets:
+            hinted.add(node_id)
+            hinted.update(targets)
+
     orphaned = []
     for node_id in G.nodes():
         in_deg = G.in_degree(node_id)
         out_deg = G.out_degree(node_id)
-        if in_deg == 0 and out_deg == 0:
+        if in_deg == 0 and out_deg == 0 and node_id not in hinted:
             data = G.nodes[node_id]
             # Skip session nodes and code-mirror (expected to be orphaned)
             domain = data.get("domain", "")
@@ -434,7 +454,7 @@ def format_report(report: dict[str, Any]) -> str:
 
     # Orphaned nodes
     orphaned = report.get("orphaned_nodes", [])
-    lines.append(f"## Orphaned Nodes (no edges): {len(orphaned)}")
+    lines.append(f"## Orphaned Nodes (no edges or load_with): {len(orphaned)}")
     for o in orphaned:
         lines.append(f"  - {o['node_id']} ({o['domain']}, {o['origin']})")
     lines.append("")
@@ -514,7 +534,21 @@ def format_report(report: dict[str, Any]) -> str:
 
     # Code mirrors older than their source
     stale_mirror_records = report.get("stale_mirrors", [])
-    if stale_mirror_records:
+    freshness = report.get("mirror_freshness") or {}
+    mirror_count = freshness.get("mirrors", 0)
+    if not stale_mirror_records and mirror_count:
+        # Mirrors exist but none is stale: say whether that is clean or unchecked.
+        if freshness.get("checked"):
+            lines.append("## Stale Code Mirrors: 0")
+            lines.append(f"  All {mirror_count} code mirrors are current.")
+        else:
+            lines.append("## Stale Code Mirrors: not checked")
+            lines.append(
+                f"  Skipped ({freshness.get('skipped') or 'unknown reason'}); "
+                f"freshness of {mirror_count} code mirrors is unknown."
+            )
+        lines.append("")
+    elif stale_mirror_records:
         lines.append(f"## Stale Code Mirrors: {len(stale_mirror_records)}")
         for m in stale_mirror_records:
             reason = {
@@ -640,6 +674,8 @@ def graph_status(
 
     local_nodes_dir = knowledge_dir / "local-nodes"
 
+    freshness = check_mirror_freshness(repo_root)
+
     # Provider identity (non-secret) for status surfaces.
     if mirror_provider is None:
         try:
@@ -677,7 +713,12 @@ def graph_status(
         # Configured / last-refresh mirror provider identity (non-secret).
         "mirror_provider": mirror_provider,
         "layout_warnings": _check_layout(repo_root),
-        "stale_mirrors": stale_mirrors(repo_root),
+        "stale_mirrors": freshness["stale"],
+        # Whether the stale-mirror check ran, so an empty list can be told
+        # apart from a skipped check (no git repository, git failure).
+        "mirror_freshness": {
+            key: freshness[key] for key in ("mirrors", "checked", "skipped")
+        },
     }
 
     logger.info(

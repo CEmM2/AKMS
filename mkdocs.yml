@@ -252,6 +252,7 @@ nav:
 
   - Decisions:
     - Projection and Evidence Contract Surface: adr/0001-projection-and-evidence-contract-surface.md
+    - Extensible Records and Episodic Memory: adr/0002-extensible-records-and-episodic-memory.md
 
   - Project:
     - Limitations: limitations.md

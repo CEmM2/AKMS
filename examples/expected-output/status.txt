@@ -7,7 +7,7 @@
 
 ## Id Collisions: 0
 
-## Orphaned Nodes (no edges): 0
+## Orphaned Nodes (no edges or load_with): 0
 
 ## Stale Nodes: 0
 
