@@ -30,7 +30,14 @@ from akms_records.errors import (
     ScopeViolation,
     StaleRevision,
 )
-from akms_records.query import RecallHit, RecallResult, WakeEntry, WakeResult, wake
+from akms_records.failure_memory import import_failure_memory
+from akms_records.query import (
+    RecallHit,
+    RecallResult,
+    WakeEntry,
+    WakeResult,
+    wake,
+)
 from akms_records.schemas import RegisteredSchema, SchemaRegistry
 from akms_records.scope import Scope, store_root
 from akms_records.store import RecordStore, WriteResult
@@ -59,6 +66,7 @@ __all__ = [
     "command_summarizer",
     "consolidate",
     "consolidation_status",
+    "import_failure_memory",
     "list_consolidations",
     "refresh_consolidation",
     "store_root",

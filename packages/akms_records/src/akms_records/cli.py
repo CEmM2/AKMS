@@ -295,9 +295,24 @@ def _parser() -> argparse.ArgumentParser:
     export.add_argument("--include-sensitive", action="store_true")
     export.add_argument("--skip-broken", action="store_true")
 
-    imported = sub.add_parser("import", help="replay a JSONL export into the scope")
+    imported = sub.add_parser(
+        "import",
+        help="replay a JSONL export into the scope, or read failure-memory lessons",
+    )
     _store_options(imported)
-    imported.add_argument("path", type=Path)
+    imported.add_argument("path", type=Path, nargs="?", help="a JSONL export")
+    imported.add_argument(
+        "--from-failure-memory",
+        type=Path,
+        metavar="CONFIG",
+        help="read the lessons of this failure-memory project config (read-only)",
+    )
+    imported.add_argument(
+        "--failure-memory-repo",
+        type=Path,
+        metavar="PATH",
+        help="the root CONFIG's paths are relative to (default: --repo)",
+    )
 
     recall = sub.add_parser("recall", help="search the scope's records (index)")
     _store_options(recall)
@@ -835,10 +850,32 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         print(json.dumps(summary, ensure_ascii=False, sort_keys=True), file=sys.stderr)
         return {"status": summary["status"], "_quiet": True}
     if args.command == "import":
+        return _import_command(args, store, actor=actor)
+    raise RecordsError(f"unknown command {args.command!r}", code="usage")
+
+
+def _import_command(
+    args: argparse.Namespace, store: RecordStore, *, actor: str
+) -> dict[str, Any]:
+    if (args.path is None) == (args.from_failure_memory is None):
+        raise RecordsError(
+            "give exactly one of an export file or --from-failure-memory",
+            code="usage",
+        )
+    if args.path is not None:
+        if args.failure_memory_repo is not None:
+            raise RecordsError(
+                "--failure-memory-repo needs --from-failure-memory", code="usage"
+            )
         from akms_records.portable import import_records
 
         return import_records(store, args.path, actor=actor)
-    raise RecordsError(f"unknown command {args.command!r}", code="usage")
+    from akms_records.failure_memory import import_failure_memory
+
+    root = args.failure_memory_repo or args.repo or Path.cwd()
+    return import_failure_memory(
+        store, args.from_failure_memory, repo=root, actor=actor
+    )
 
 
 def _print_error(error: RecordsError, as_json: bool) -> None:
