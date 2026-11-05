@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from akms.repo_wiki.simple_yaml import dump_yaml, load_yaml
 
@@ -12,12 +12,29 @@ CONFIG_DIR = ".repo_wiki"
 CONFIG_FILE = "config.yaml"
 SPEC_FILE = "SPEC.md"
 
-# Ordinary default excludes: tool state, environments, caches, build and data output.
-# ``scanner.exclude`` adds to these; ``scanner.use_default_excludes: false`` drops them.
-DEFAULT_EXCLUDE_PATTERNS: tuple[str, ...] = (
+# Version-control and repo-wiki state. Always applied; no configuration key removes
+# them. None of it is source, and generated pages, the index and the caches hold
+# copies of source. ``.git`` matches at any depth, so it also covers the ``.git``
+# file of a worktree or submodule and a nested repository's ``.git`` directory.
+# ``.repo_wiki/**`` covers everything repo-wiki keeps there (config.yaml, SPEC.md,
+# generated/, index/, ir_cache/, cache/, locks/, hooks/, manifest.json,
+# build_errors.json) and the overlays, which the index reads directly rather than
+# through the scanner. ``.repo_wiki/generated/**`` and ``.repo_wiki/index/**``
+# are subsumed but kept, so the set holds every pattern older versions of
+# ``init`` wrote. The export lock files sit next to an export's output tree.
+TOOL_STATE_EXCLUDE_PATTERNS: tuple[str, ...] = (
+    ".git",
     ".git/**",
+    ".repo_wiki/**",
     ".repo_wiki/generated/**",
     ".repo_wiki/index/**",
+    ".repo2md-export.lock",
+    ".repo2md-export-*.lock",
+)
+
+# Ordinary default excludes: environments, caches, build and data output.
+# ``scanner.exclude`` adds to these; ``scanner.use_default_excludes: false`` drops them.
+DEFAULT_EXCLUDE_PATTERNS: tuple[str, ...] = (
     ".venv/**",
     "venv/**",
     "env/**",
@@ -66,6 +83,13 @@ SECRET_EXCLUDE_PATTERNS: tuple[str, ...] = (
     "*.netrc",
 )
 
+# Slash-free fixed patterns, also matched against the file name at any depth.
+PROTECTED_NAME_PATTERNS: tuple[str, ...] = tuple(
+    pattern
+    for pattern in (*TOOL_STATE_EXCLUDE_PATTERNS, *SECRET_EXCLUDE_PATTERNS)
+    if "/" not in pattern
+)
+
 # ``scanner.include`` replaces this list: narrowing what is scanned is not a safety issue.
 DEFAULT_INCLUDE_PATTERNS: tuple[str, ...] = (
     "**/*.py",
@@ -77,11 +101,12 @@ DEFAULT_INCLUDE_PATTERNS: tuple[str, ...] = (
 
 CONFIG_HEADER = (
     "# repo-wiki configuration, merged over the built-in defaults key by key.\n"
-    "# scanner.exclude adds patterns to the built-in default excludes (tool state,\n"
-    "# environments, caches, build and data output); it does not replace them.\n"
-    "# scanner.use_default_excludes: false drops those defaults. Secret and\n"
-    "# credential patterns (.env files, keys, certificates, *_secret, credentials,\n"
-    "# ...) are always excluded and cannot be removed by configuration.\n"
+    "# scanner.exclude adds patterns to the built-in default excludes\n"
+    "# (environments, caches, build and data output); it does not replace them.\n"
+    "# scanner.use_default_excludes: false drops those defaults. Version-control\n"
+    "# and repo-wiki state (.git, .repo_wiki/) and secret and credential patterns\n"
+    "# (.env files, keys, certificates, *_secret, credentials, ...) are always\n"
+    "# excluded and cannot be removed by configuration.\n"
     "# scanner.include replaces the default include list.\n"
 )
 
@@ -171,25 +196,49 @@ def load_config(repo_root: Path | None = None) -> dict[str, object]:
     return config
 
 
-def effective_excludes(config: Mapping[str, object]) -> list[str]:
+def effective_excludes(
+    config: Mapping[str, object], *, tool_state: bool = True
+) -> list[str]:
     """The exclude patterns the scanner applies, in a stable order.
 
-    The ordinary defaults come first (unless ``scanner.use_default_excludes`` is
+    The tool-state set comes first, with the configured ``generation.output_dir``,
+    then the ordinary defaults (unless ``scanner.use_default_excludes`` is
     ``false``), then the secret set, then the ``scanner.exclude`` entries. A
-    duplicate keeps its first position, so a config that still lists the old,
-    copied-out default list yields the same patterns as one that lists nothing.
+    duplicate keeps its first position, so a config that still lists the
+    copied-out list older versions of ``init`` wrote adds nothing.
+    ``tool_state=False`` leaves the tool-state set out, for the index's own
+    walk of ``.repo_wiki/overlays/``.
     """
 
     scanner = config.get("scanner")
     if not isinstance(scanner, Mapping):
         scanner = {}
     patterns: list[str] = []
+    if tool_state:
+        patterns.extend(TOOL_STATE_EXCLUDE_PATTERNS)
+        output_dir = _generated_dir_pattern(config)
+        if output_dir is not None:
+            patterns.append(output_dir)
     # Only an explicit ``false`` drops the ordinary defaults.
     if scanner.get("use_default_excludes", True) is not False:
         patterns.extend(DEFAULT_EXCLUDE_PATTERNS)
     patterns.extend(SECRET_EXCLUDE_PATTERNS)
     patterns.extend(_pattern_list(scanner, "exclude"))
     return list(dict.fromkeys(patterns))
+
+
+def _generated_dir_pattern(config: Mapping[str, object]) -> str | None:
+    """``<generation.output_dir>/**`` for a repository-relative output directory."""
+    generation = config.get("generation")
+    if not isinstance(generation, Mapping):
+        return None
+    raw = generation.get("output_dir")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    path = PurePosixPath(raw.strip().replace("\\", "/"))
+    if path.is_absolute() or ".." in path.parts or str(path) in {"", "."}:
+        return None
+    return f"{path.as_posix()}/**"
 
 
 def _pattern_list(scanner: Mapping[str, object], key: str) -> list[str]:

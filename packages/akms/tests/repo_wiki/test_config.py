@@ -6,6 +6,7 @@ from akms.repo_wiki.cli import main
 from akms.repo_wiki.config import (
     DEFAULT_EXCLUDE_PATTERNS,
     SECRET_EXCLUDE_PATTERNS,
+    TOOL_STATE_EXCLUDE_PATTERNS,
     default_config,
     effective_excludes,
     init_repo_wiki,
@@ -60,6 +61,20 @@ PRE_EXTEND_INIT_EXCLUDE = [
     "id_ecdsa",
     ".netrc",
     "*.netrc",
+]
+
+
+# What a fresh init config applies: the fixed tool-state set, the ordinary
+# defaults, then the secret set.
+FRESH_EFFECTIVE = [
+    ".git",
+    ".git/**",
+    ".repo_wiki/**",
+    ".repo_wiki/generated/**",
+    ".repo_wiki/index/**",
+    ".repo2md-export.lock",
+    ".repo2md-export-*.lock",
+    *(p for p in PRE_EXTEND_INIT_EXCLUDE if not p.startswith((".git", ".repo_wiki"))),
 ]
 
 
@@ -168,18 +183,23 @@ def test_init_config_round_trips_to_the_built_in_excludes(tmp_path: Path):
     assert written["use_default_excludes"] is True
 
     config = load_config(tmp_path)
-    assert effective_excludes(config) == PRE_EXTEND_INIT_EXCLUDE
-    assert [*DEFAULT_EXCLUDE_PATTERNS, *SECRET_EXCLUDE_PATTERNS] == (
-        PRE_EXTEND_INIT_EXCLUDE
-    )
+    effective = effective_excludes(config)
+    assert effective == FRESH_EFFECTIVE
+    assert effective == [
+        *TOOL_STATE_EXCLUDE_PATTERNS,
+        *DEFAULT_EXCLUDE_PATTERNS,
+        *SECRET_EXCLUDE_PATTERNS,
+    ]
+    # The effective set only grew: every pattern older inits wrote still applies.
+    assert set(PRE_EXTEND_INIT_EXCLUDE) <= set(effective)
 
 
 def test_copied_out_default_list_keeps_the_same_effective_excludes(tmp_path: Path):
-    """An existing config holding the old full default list behaves exactly as before."""
+    """An existing config holding the old full default list adds nothing to it."""
     _write_config(
         tmp_path, "scanner:\n" + _block_list("exclude", PRE_EXTEND_INIT_EXCLUDE)
     )
-    assert effective_excludes(load_config(tmp_path)) == PRE_EXTEND_INIT_EXCLUDE
+    assert effective_excludes(load_config(tmp_path)) == FRESH_EFFECTIVE
 
 
 def test_user_exclude_extends_the_defaults_in_stable_order(tmp_path: Path):
@@ -188,19 +208,38 @@ def test_user_exclude_extends_the_defaults_in_stable_order(tmp_path: Path):
         "scanner:\n" + _block_list("exclude", ["private/**", ".git/**", "notes/**"]),
     )
     first = effective_excludes(load_config(tmp_path))
-    assert first == [*PRE_EXTEND_INIT_EXCLUDE, "private/**", "notes/**"]
+    assert first == [*FRESH_EFFECTIVE, "private/**", "notes/**"]
     assert effective_excludes(load_config(tmp_path)) == first
 
 
-def test_use_default_excludes_false_keeps_the_secret_set(tmp_path: Path):
+def test_use_default_excludes_false_keeps_tool_state_and_secrets(tmp_path: Path):
     _write_config(
         tmp_path,
         "scanner:\n  use_default_excludes: false\n"
         + _block_list("exclude", ["private/**"]),
     )
     config = load_config(tmp_path)
-    assert effective_excludes(config) == [*SECRET_EXCLUDE_PATTERNS, "private/**"]
+    assert effective_excludes(config) == [
+        *TOOL_STATE_EXCLUDE_PATTERNS,
+        *SECRET_EXCLUDE_PATTERNS,
+        "private/**",
+    ]
     assert "data/**" not in effective_excludes(config)
+
+
+def test_custom_output_dir_is_tool_state(tmp_path: Path):
+    _write_config(tmp_path, "generation:\n  output_dir: docs/wiki\n")
+    effective = effective_excludes(load_config(tmp_path))
+    assert effective[len(TOOL_STATE_EXCLUDE_PATTERNS)] == "docs/wiki/**"
+    for unsafe in ("/abs/wiki", "../outside", "."):
+        config = {"generation": {"output_dir": unsafe}, "scanner": {}}
+        assert effective_excludes(config) == FRESH_EFFECTIVE
+
+
+def test_tool_state_can_be_left_out_for_overlays():
+    patterns = effective_excludes({}, tool_state=False)
+    assert not set(TOOL_STATE_EXCLUDE_PATTERNS) & set(patterns)
+    assert set(SECRET_EXCLUDE_PATTERNS) <= set(patterns)
 
 
 def test_secret_set_survives_any_raw_config():
@@ -212,6 +251,7 @@ def test_secret_set_survives_any_raw_config():
     ):
         patterns = effective_excludes({"scanner": scanner})
         assert set(SECRET_EXCLUDE_PATTERNS) <= set(patterns)
+        assert set(TOOL_STATE_EXCLUDE_PATTERNS) <= set(patterns)
     assert set(SECRET_EXCLUDE_PATTERNS) <= set(effective_excludes({}))
 
 
@@ -245,7 +285,7 @@ def test_invalid_scanner_values_fail_loading(tmp_path: Path, text: str, message:
 def test_empty_exclude_forms_mean_no_additions(tmp_path: Path):
     for text in ("scanner:\n  exclude: []\n", "scanner:\n  exclude:\n"):
         _write_config(tmp_path, text)
-        assert effective_excludes(load_config(tmp_path)) == PRE_EXTEND_INIT_EXCLUDE
+        assert effective_excludes(load_config(tmp_path)) == FRESH_EFFECTIVE
 
 
 def test_yaml_empty_list_round_trips():

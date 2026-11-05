@@ -22,7 +22,7 @@ from akms.repo_wiki.config import effective_excludes, init_repo_wiki, load_confi
 from akms.repo_wiki.hashing import sha256_text
 from akms.repo_wiki.paths import ensure_parent, repo_relative
 from akms.repo_wiki.render_markdown import repo_commit
-from akms.repo_wiki.scanner import matches_any, matches_secret_name, read_gitignore
+from akms.repo_wiki.scanner import is_excluded, read_gitignore
 from akms.repo_wiki.simple_yaml import load_yaml
 
 INDEX_PATH = ".repo_wiki/index/repo_wiki.sqlite3"
@@ -406,7 +406,8 @@ def discover_index_documents(repo_root: Path) -> list[IndexDocument]:
             docs.append(parsed)
     for path in sorted(overlays.rglob("*.md")) if overlays.exists() else []:
         rel = repo_relative(path, root)
-        if source_is_excluded(rel, root, config):
+        # Overlays live under .repo_wiki/, so the tool-state set must not apply.
+        if source_is_excluded(rel, root, config, tool_state=False):
             continue
         parsed = document_from_markdown(root, path, rel, human_authored=True)
         if parsed:
@@ -414,15 +415,15 @@ def discover_index_documents(repo_root: Path) -> list[IndexDocument]:
     return docs
 
 
-def source_is_excluded(path: str, repo_root: Path, config: dict[str, object]) -> bool:
+def source_is_excluded(
+    path: str, repo_root: Path, config: dict[str, object], *, tool_state: bool = True
+) -> bool:
     scanner = config["scanner"] if isinstance(config["scanner"], dict) else {}
     gitignore_patterns = (
         read_gitignore(repo_root) if scanner.get("respect_gitignore", True) else []
     )
-    return (
-        matches_any(path, effective_excludes(config))
-        or matches_secret_name(path)
-        or matches_any(path, gitignore_patterns)
+    return is_excluded(
+        path, effective_excludes(config, tool_state=tool_state), gitignore_patterns
     )
 
 

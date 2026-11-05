@@ -8,7 +8,7 @@ from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
 
-from akms.repo_wiki.config import SECRET_EXCLUDE_PATTERNS, effective_excludes
+from akms.repo_wiki.config import PROTECTED_NAME_PATTERNS, effective_excludes
 from akms.repo_wiki.hashing import sha256_file
 from akms.repo_wiki.models import SkippedFile, SourceFile
 from akms.repo_wiki.paths import repo_relative
@@ -81,11 +81,7 @@ def scan_repository(
     skipped: list[SkippedFile] = []
     for path in iter_candidate_files(root, exclude + gitignore_patterns, skipped):
         rel = repo_relative(path, root)
-        if (
-            matches_any(rel, exclude)
-            or matches_secret_name(rel)
-            or matches_any(rel, gitignore_patterns)
-        ):
+        if is_excluded(rel, exclude, gitignore_patterns):
             skipped.append(
                 SkippedFile(rel, "excluded", "matched exclude or gitignore pattern")
             )
@@ -159,10 +155,21 @@ def matches_any(path: str, patterns: list[str]) -> bool:
     return any(matches_pattern(path, pattern) for pattern in patterns)
 
 
-def matches_secret_name(path: str) -> bool:
-    """True when the file name, at any depth, matches a secret or credential pattern."""
+def matches_protected_name(path: str) -> bool:
+    """True when the file name, at any depth, matches a tool-state or secret pattern."""
     name = path.rsplit("/", 1)[-1]
-    return any(fnmatch.fnmatch(name, pattern) for pattern in SECRET_EXCLUDE_PATTERNS)
+    return any(fnmatch.fnmatch(name, pattern) for pattern in PROTECTED_NAME_PATTERNS)
+
+
+def is_excluded(
+    path: str, exclude: list[str], gitignore_patterns: list[str] | None = None
+) -> bool:
+    """The scanner's exclusion test: *exclude* patterns, protected names, gitignore."""
+    return (
+        matches_any(path, exclude)
+        or matches_protected_name(path)
+        or matches_any(path, gitignore_patterns or [])
+    )
 
 
 def matches_any_dir(path: str, patterns: list[str]) -> bool:

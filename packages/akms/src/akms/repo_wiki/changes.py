@@ -23,6 +23,7 @@ from akms.repo_wiki.code_graph import (
     is_test_path,
     load_code_graph,
 )
+from akms.repo_wiki.config import effective_excludes
 from akms.repo_wiki.errors import RepoWikiError
 from akms.repo_wiki.hashing import sha256_bytes
 from akms.repo_wiki.impact import RISK_LEVELS, Hit, assess_risk, node_summary
@@ -30,6 +31,7 @@ from akms.repo_wiki.models import ParsedModule, SourceFile, Symbol
 from akms.repo_wiki.scanner import (
     LANGUAGE_BY_SUFFIX,
     _enabled_language_globs,
+    is_excluded,
     matches_any,
 )
 
@@ -200,6 +202,9 @@ def _extractable(rel: str, config: dict[str, object]) -> str | None:
 
     language = LANGUAGE_BY_SUFFIX.get(PurePosixPath(rel).suffix.lower())
     if language is None or get_backend(language, config) is None:
+        return None
+    # ``build`` never opens an excluded file, so neither does change analysis.
+    if is_excluded(rel, effective_excludes(config)):
         return None
     scanner = config.get("scanner")
     include: list[str] = []

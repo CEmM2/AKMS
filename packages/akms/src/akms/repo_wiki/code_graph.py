@@ -35,13 +35,14 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
-from akms.repo_wiki.config import load_config
+from akms.repo_wiki.config import effective_excludes, load_config
 from akms.repo_wiki.errors import RepoWikiError
 from akms.repo_wiki.hashing import sha256_file
 from akms.repo_wiki.models import ParsedModule, Symbol
 from akms.repo_wiki.scanner import (
     LANGUAGE_BY_SUFFIX,
     _enabled_language_globs,
+    is_excluded,
     matches_any,
     read_gitignore,
 )
@@ -952,7 +953,7 @@ def _new_sources(
     include = [str(v) for v in scanner.get("include", [])]
     if include:
         include = include + _enabled_language_globs(config)
-    exclude = [str(v) for v in scanner.get("exclude", [])]
+    exclude = effective_excludes(config)
     if scanner.get("respect_gitignore", True):
         exclude = exclude + read_gitignore(repo_root)
     routable = {
@@ -972,7 +973,7 @@ def _new_sources(
         if rel not in known
         and PurePosixPath(rel).suffix.lower() in routable
         and (not include or matches_any(rel, include))
-        and not matches_any(rel, exclude)
+        and not is_excluded(rel, exclude)
         and (repo_root / rel).is_file()
         and not (repo_root / rel).is_symlink()
     ]
