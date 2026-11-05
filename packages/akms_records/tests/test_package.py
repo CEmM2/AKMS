@@ -48,6 +48,18 @@ def test_importing_the_package_and_its_cli_loads_no_akms():
     subprocess.run([sys.executable, "-c", code], check=True)
 
 
+def test_a_reading_command_does_not_load_the_schema_validator(tmp_path):
+    """The validator is most of the import time, and recall does not need it."""
+    code = (
+        "import sys\n"
+        "from akms_records.cli import main\n"
+        f"code = main(['recall', '--scope', 'project:a', '--repo', {str(tmp_path)!r}])\n"
+        "assert code == 0\n"
+        "assert 'jsonschema' not in sys.modules\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True, capture_output=True)
+
+
 def test_windows_probe_does_not_use_os_kill(monkeypatch):
     from akms_records import procs
 
