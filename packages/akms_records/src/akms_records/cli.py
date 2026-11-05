@@ -3,8 +3,9 @@
 Every command prints one JSON object on stdout, except ``recall --format
 text`` and ``wake --format markdown``, which print the rendered text. Exit
 status: 0 on success, 1 when the result's ``status`` is ``error`` or
-``drift`` (for example ``doctor`` or ``index check`` found a problem, or
-``import`` met a conflict), and 2 when the command failed; the error goes to
+``drift`` (for example ``doctor`` or ``index check`` found a problem,
+``import`` met a conflict, or ``consolidate status`` found a stale summary),
+and 2 when the command failed; the error goes to
 stderr as ``error[<code>]: <message>``, or to stdout as JSON with
 ``--json-errors``.
 """
@@ -21,6 +22,16 @@ from typing import Any
 
 from akms_records import __version__
 from akms_records.canonical import loads_strict
+from akms_records.consolidate import (
+    DEFAULT_TIMEOUT,
+    METHODS,
+    command_summarizer,
+    consolidate,
+    describe,
+    list_consolidations,
+    refresh_consolidation,
+    status_report,
+)
 from akms_records.envelope import ORIGIN_KINDS, REVIEW_STATES, SENSITIVITY_LEVELS
 from akms_records.errors import RecordsError
 from akms_records.policy import POLICY_SOURCES, POLICY_STATUSES
@@ -269,7 +280,8 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument(
         "--fix",
         action="store_true",
-        help="remove stale temp files and empty directories, re-apply erasures",
+        help="remove stale temp files and empty directories, re-apply erasures "
+        "and erase summaries that cite erased records",
     )
     doctor.add_argument(
         "--force-tmp",
@@ -345,6 +357,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     wake.add_argument("--include-sensitive", action="store_true")
     wake.add_argument(
+        "--include-unreviewed",
+        action="store_true",
+        help="also unreviewed records of other agents and tools (default: only "
+        "reviewed records plus the agent's own unreviewed ones)",
+    )
+    wake.add_argument(
         "--review-state",
         choices=MIN_REVIEW_STATES,
         default="unreviewed",
@@ -357,6 +375,8 @@ def _parser() -> argparse.ArgumentParser:
         help="add a generated_at time to the JSON (makes output time-dependent)",
     )
 
+    _consolidate_parser(sub)
+
     index = sub.add_parser("index", help="the derived search index of a store root")
     index_sub = index.add_subparsers(dest="index_command", required=True)
     for name, text in (
@@ -367,6 +387,116 @@ def _parser() -> argparse.ArgumentParser:
         command = index_sub.add_parser(name, help=text)
         _store_options(command)
     return parser
+
+
+def _summarizer_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--summarizer-timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT,
+        metavar="SECONDS",
+        help=f"how long the summarizer may run (default {DEFAULT_TIMEOUT:g})",
+    )
+    parser.add_argument(
+        "--summarizer-cmd",
+        nargs=argparse.REMAINDER,
+        metavar="ARGV",
+        help="run this command (no shell) as the provider: topic and sources as "
+        "JSON on stdin, assertions as JSON on stdout; must be the last option",
+    )
+
+
+def _consolidate_parser(sub: Any) -> None:
+    consolidate = sub.add_parser(
+        "consolidate", help="source-linked summaries of records (opt-in)"
+    )
+    commands = consolidate.add_subparsers(dest="consolidate_command", required=True)
+    create = commands.add_parser("create", help="summarize the records of a topic")
+    _store_options(create)
+    create.add_argument(
+        "--tag",
+        action="append",
+        dest="tags",
+        default=[],
+        metavar="TAG",
+        help="a tag every source carries (repeatable)",
+    )
+    create.add_argument("--query", help="words every source contains (plain text)")
+    create.add_argument("--topic-name", help="a display name for the topic")
+    create.add_argument(
+        "--review-state",
+        choices=MIN_REVIEW_STATES,
+        default="unreviewed",
+        help="minimum review state of a source",
+    )
+    create.add_argument("--method", choices=METHODS)
+    create.add_argument(
+        "--agent", help="the acting agent; refuses another agent's scope"
+    )
+    create.add_argument("--event-id")
+    _summarizer_options(create)
+    status = commands.add_parser(
+        "status", help="valid or stale, with reasons (exit 1 when any is not valid)"
+    )
+    _store_options(status)
+    status.add_argument(
+        "record_id", nargs="?", help="one summary (default: all active)"
+    )
+    refresh = commands.add_parser(
+        "refresh", help="write a new revision of a stale summary"
+    )
+    _store_options(refresh)
+    refresh.add_argument("record_id")
+    refresh.add_argument(
+        "--expect-revision",
+        type=int,
+        help="the revision you last read (default: the head when the command starts)",
+    )
+    refresh.add_argument("--event-id")
+    _summarizer_options(refresh)
+    listing = commands.add_parser("list", help="the scope's summaries")
+    _store_options(listing)
+
+
+def _summarizer(args: argparse.Namespace) -> Any:
+    if args.summarizer_cmd is None:
+        return None
+    return command_summarizer(args.summarizer_cmd, timeout=args.summarizer_timeout)
+
+
+def _consolidate_command(args: argparse.Namespace) -> dict[str, Any]:
+    store = _open(args)
+    command = args.consolidate_command
+    if command == "list":
+        return {
+            "status": "ok",
+            "scope": str(store.scope),
+            "summaries": [describe(record) for record in list_consolidations(store)],
+        }
+    if command == "status":
+        return status_report(store, args.record_id)
+    actor = _actor(args)
+    if command == "create":
+        return consolidate(
+            store,
+            actor=actor,
+            tags=args.tags,
+            query=args.query,
+            topic_name=args.topic_name,
+            method=args.method,
+            summarizer=_summarizer(args),
+            review_state=args.review_state,
+            agent=args.agent,
+            event_id=args.event_id,
+        )
+    return refresh_consolidation(
+        store,
+        args.record_id,
+        actor=actor,
+        expected_revision=args.expect_revision,
+        summarizer=_summarizer(args),
+        event_id=args.event_id,
+    )
 
 
 _OPENED: list[RecordStore] = []
@@ -393,6 +523,7 @@ def _wake(args: argparse.Namespace) -> dict[str, Any]:
         repo=repo,
         include_sensitive=args.include_sensitive,
         review_state=args.review_state,
+        include_unreviewed=args.include_unreviewed,
     )
     if args.format == "markdown":
         return {"status": "ok", "_text": result.render_markdown()}
@@ -566,6 +697,8 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return _wake(args)
     if args.command == "index":
         return _index_command(args)
+    if args.command == "consolidate":
+        return _consolidate_command(args)
     store = _open(args)
     if args.command == "recall":
         result = store.recall(
@@ -673,7 +806,7 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "doctor":
         if args.force_tmp and not args.fix:
             raise RecordsError("--force-tmp needs --fix", code="usage")
-        return store.doctor(fix=args.fix, force_tmp=args.force_tmp)
+        return store.doctor(fix=args.fix, force_tmp=args.force_tmp, actor=actor)
     if args.command == "export":
         from akms_records.portable import export_records
 

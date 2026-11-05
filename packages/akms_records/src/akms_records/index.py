@@ -38,6 +38,11 @@ The cheap check covers changes made through the API and through git. Files
 copied or edited by other means need ``akms-records index reconcile`` (or
 ``doctor --fix``), which replays every record.
 
+**Summaries of erased records.** A summary (schema ``consolidation``) whose
+current revision cites a record in the erasure log is treated like an erased
+record: it is never indexed, so recall and wake cannot show text derived from
+the erased record even before ``doctor --fix`` erases the summary itself.
+
 **Erasure.** The connection runs with ``PRAGMA secure_delete=ON`` and the
 FTS5 table with its ``secure-delete`` option, so deleted rows are
 overwritten, and every deletion ends with a ``wal_checkpoint(TRUNCATE)``.
@@ -47,6 +52,7 @@ also run the FTS5 ``optimize`` command and ``VACUUM``.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import secrets
@@ -59,6 +65,7 @@ from pathlib import Path
 from typing import Any
 
 from akms_records.canonical import compact_line, digest
+from akms_records.citations import CONSOLIDATION_NAME, summary_cites
 from akms_records.envelope import Record
 from akms_records.fsio import FILE_MODE
 from akms_records.errors import IndexUnavailable, NotFound, RecordsError, ReplayError
@@ -613,6 +620,11 @@ class RecordIndex:
             else:
                 self.db.execute("DELETE FROM files WHERE record_id=?", (record_id,))
             return
+        if _cites_erased(record, erased):
+            if self._delete(record_id):
+                changes["removed"].append(record_id)
+            self._set_file(record_id, sig)
+            return
         current = self._stored(record_id)
         self._note_rules(record.schema_ref)
         row = self.row_for(record)
@@ -748,6 +760,20 @@ class RecordIndex:
                 (sha, sig, ref),
             )
 
+    def _summaries_citing(self, erased: set[str]) -> set[str]:
+        """Indexed summaries whose source refs name an erased record."""
+        if not erased:
+            return set()
+        rows = self.db.execute(
+            "SELECT record_id, schema_ref, source_refs FROM records WHERE schema_name=?",
+            (CONSOLIDATION_NAME,),
+        ).fetchall()
+        return {
+            record_id
+            for record_id, schema_ref, refs in rows
+            if summary_cites(schema_ref, _json(refs), None, erased)
+        }
+
     def refresh(self) -> dict[str, list[str]]:
         """The cheap staleness check; reconcile only what changed.
 
@@ -782,7 +808,7 @@ class RecordIndex:
         def body() -> None:
             erased = self._erased()
             if erasure_changed:
-                for record_id in sorted(erased):
+                for record_id in sorted(erased | self._summaries_citing(erased)):
                     if self._delete(record_id):
                         changes["removed"].append(record_id)
             for month in sorted(months):
@@ -869,8 +895,8 @@ class RecordIndex:
         """What a rebuild would index now, and the records that do not replay."""
         rows: dict[str, IndexRow] = {}
         unindexable: list[str] = []
+        erased = self._erased()
         if replayed is None:
-            erased = self._erased()
             replayed = {}
             for record_id in self.disk_record_ids():
                 if record_id in erased:
@@ -884,7 +910,7 @@ class RecordIndex:
         for record_id, record in sorted(replayed.items()):
             if record is None:
                 unindexable.append(record_id)
-            else:
+            elif record_id not in erased and not _cites_erased(record, erased):
                 rows[record_id] = self.row_for(record)
         return rows, unindexable
 
@@ -974,6 +1000,17 @@ class RecordIndex:
             self.db.execute("VACUUM")
         busy, _, _ = self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
         return "complete" if busy == 0 else "busy"
+
+
+def _json(text: Any) -> Any:
+    try:
+        return json.loads(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def _cites_erased(record: Record, erased: set[str]) -> bool:
+    return summary_cites(record.schema_ref, record.source_refs, record.payload, erased)
 
 
 def _month_of(record_id: str) -> str:

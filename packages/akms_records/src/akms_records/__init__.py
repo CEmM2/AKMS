@@ -6,12 +6,21 @@ payload described by a locally registered JSON Schema, kept as an append-only
 history of event files that merges cleanly in git.
 
 A derived SQLite index (FTS5) answers scoped ``recall`` and token-budgeted
-``wake`` queries without rebuilding anything.
+``wake`` queries without rebuilding anything. Optional ``consolidate``
+summaries are records too; each assertion cites the source revisions it came
+from, and a summary turns stale when a source changes.
 
 This package does not import ``akms``. The optional ``[akms]`` extra is
 reserved for a later promotion bridge into AKMS project-local nodes.
 """
 
+from akms_records.consolidate import (
+    command_summarizer,
+    consolidate,
+    consolidation_status,
+    list_consolidations,
+    refresh_consolidation,
+)
 from akms_records.envelope import ENVELOPE_KEYS, Record
 from akms_records.errors import (
     IndexUnavailable,
@@ -47,6 +56,11 @@ __all__ = [
     "WakeResult",
     "WriteResult",
     "__version__",
+    "command_summarizer",
+    "consolidate",
+    "consolidation_status",
+    "list_consolidations",
+    "refresh_consolidation",
     "store_root",
     "wake",
 ]

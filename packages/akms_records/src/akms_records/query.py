@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from akms_records.citations import is_consolidation
 from akms_records.errors import RecordsError, ScopeViolation
 from akms_records.index import REVIEW_RANK, normalize_time
 from akms_records.render import (
@@ -59,6 +60,8 @@ EXCLUSION_KINDS = (
     "review_state",
     "sensitivity",
     "duplicate",
+    "stale",
+    "covered",
 )
 _WORD = re.compile(r"[^\W_]+")
 
@@ -168,6 +171,7 @@ class RecallHit:
     snippet: str | None
     bm25: float | None
     record: dict[str, Any] | None = None
+    consolidation: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -189,6 +193,7 @@ class RecallHit:
             "supersedes": list(self.supersedes),
             "snippet": self.snippet,
             "bm25": self.bm25,
+            "consolidation": self.consolidation,
         }
         if self.record is not None:
             out["record"] = self.record
@@ -236,6 +241,8 @@ class RecallResult:
             )
             parts.append(f"- review_state: {hit.review_state}\n")
             parts.append(f"- lifecycle: {hit.lifecycle}\n")
+            if hit.consolidation is not None:
+                parts.append(f"- consolidation: {hit.consolidation['status']}\n")
             parts.append(f"- recorded_at: {hit.recorded_at}\n")
             parts.append(f"- tags: {tag_list(hit.tags)}\n")
             parts.append(f"- source_refs: {literal(list(hit.source_refs))}\n")
@@ -262,6 +269,7 @@ def recall(
     agent: str | None = None,
     limit: int = DEFAULT_LIMIT,
     full: bool = False,
+    with_status: bool = True,
 ) -> RecallResult:
     """Recall records of ``store``'s scope from the index.
 
@@ -271,6 +279,11 @@ def recall(
     ``until`` (exclusive) apply to the schema's time field where the record
     has one, and to ``recorded_at`` otherwise. By default only active records
     (chain heads) are returned, never rejected ones, and no sensitive ones.
+
+    Summaries (schema ``consolidation``) are returned like other records, with
+    their validity in ``consolidation`` (see
+    :func:`akms_records.consolidate.consolidation_status`), which reads their
+    sources; ``with_status=False`` skips that.
     """
     check_visibility(store.scope, agent)
     if type(limit) is not int or not 1 <= limit <= MAX_LIMIT:
@@ -371,6 +384,11 @@ def recall(
                 record = store.get(row[0]).envelope_json()
             except RecordsError:
                 record = None  # erased or changed since the index was read
+        consolidation = (
+            _summary_status(store, row[0])
+            if with_status and is_consolidation(row[3])
+            else None
+        )
         hits.append(
             RecallHit(
                 record_id=row[0],
@@ -392,6 +410,7 @@ def recall(
                 snippet=snippet,
                 bm25=row[18],
                 record=record,
+                consolidation=consolidation,
             )
         )
     filters = {
@@ -408,6 +427,23 @@ def recall(
         "full": full,
     }
     return RecallResult(str(store.scope), query, filters, tuple(hits))
+
+
+def _summary_status(store: RecordStore, record_id: str) -> dict[str, Any]:
+    """A summary's validity for a recall hit: status, method, counts and reasons."""
+    from akms_records.consolidate import consolidation_status
+
+    try:
+        status = consolidation_status(store, record_id)
+    except RecordsError as exc:
+        return {"status": "invalid", "problems": [{"code": exc.code}]}
+    return {
+        "status": status["status"],
+        "method": status["method"],
+        "sources": len(status["sources"]),
+        "reasons": status["reasons"],
+        "problems": status["problems"],
+    }
 
 
 # -------------------------------------------------------------------- wake
@@ -427,11 +463,19 @@ class _Candidate:
     summary: str
     supersedes: tuple[str, ...]
     match: float
+    # For a summary: its payload and what wake needs to place it.
+    consolidation: dict[str, Any] | None = None
+    cites: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class WakeEntry:
-    """One record included in a wake, with its rendered text and token cost."""
+    """One record included in a wake, with its rendered text and token cost.
+
+    ``consolidation`` is ``None`` for an ordinary record. For a summary it
+    holds its status (always ``valid`` in a wake), method, provider and
+    assertions with their citations.
+    """
 
     position: int
     record_id: str
@@ -446,6 +490,7 @@ class WakeEntry:
     match: float
     tokens: int
     text: str = field(repr=False)
+    consolidation: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -461,6 +506,7 @@ class WakeEntry:
             "summary": self.summary,
             "match": self.match,
             "tokens": self.tokens,
+            "consolidation": self.consolidation,
         }
 
 
@@ -470,7 +516,9 @@ class WakeResult:
 
     ``budget_tokens`` bounds the Markdown rendering: the header, every entry
     and the footer, each counted with the AKMS estimator. The JSON form
-    carries the same entries and counts.
+    carries the same entries and counts. ``covered_by_summary`` maps each
+    included summary to the sources it stands in for (excluded as
+    ``covered``).
     """
 
     agent: str
@@ -483,6 +531,7 @@ class WakeResult:
     omitted_by_budget: tuple[str, ...]
     excluded: dict[str, tuple[str, ...]]
     considered: int
+    covered_by_summary: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def header_tokens(self) -> int:
@@ -523,6 +572,10 @@ class WakeResult:
                 "excluded": {
                     kind: _ids(self.excluded[kind]) for kind in EXCLUSION_KINDS
                 },
+                "covered_by_summary": {
+                    key: list(value)
+                    for key, value in sorted(self.covered_by_summary.items())
+                },
             },
         }
         if generated_at is not None:
@@ -561,13 +614,13 @@ def _wake_footer(included: int, omitted: int, excluded: dict[str, int]) -> str:
         f"- included: {included}\n"
         f"- omitted_by_budget: {omitted}\n"
         f"- excluded: {counts}\n"
-        "- record IDs: in the JSON output\n"
+        "- record IDs: in the JSON output, with the sources each summary covers\n"
     )
 
 
 def _wake_entry(position: int, candidate: _Candidate) -> str:
     origin = candidate.origin
-    return (
+    head = (
         f"\n### {position}. {candidate.record_id} (revision {candidate.revision})\n"
         "\n"
         f"- scope: {candidate.scope}\n"
@@ -576,12 +629,84 @@ def _wake_entry(position: int, candidate: _Candidate) -> str:
         f"- review_state: {candidate.review_state}\n"
         f"- recorded_at: {candidate.recorded_at}\n"
         f"- tags: {tag_list(candidate.tags)}\n"
-        "\n" + fence(candidate.summary)
+    )
+    info = candidate.consolidation
+    if info is None:
+        return head + "\n" + fence(candidate.summary)
+    from akms_records.consolidate import assertion_lines
+
+    body, cites = assertion_lines(info)
+    return (
+        head + f"- consolidation: valid, {info['method']}, "
+        f"{len(info['assertions'])} assertions from {len(candidate.cites)} records\n"
+        + f"- citations: {cites}\n"
+        + "\n"
+        + fence(body)
     )
 
 
 def _summary_key(summary: str) -> str:
     return " ".join(summary.split()).casefold()
+
+
+def _summary_candidates(
+    pending: list[tuple[Path, _Candidate]],
+    eligible: dict[str, _Candidate],
+    excluded: dict[str, list[str]],
+    *,
+    min_rank: int,
+) -> list[_Candidate]:
+    """The summaries a wake may show: valid, and eligible for this agent.
+
+    Extractive: every cited source must itself be eligible, and the summary
+    takes the lowest review rank among them. Provider: the summary itself
+    must be reviewed (``agent_reviewed`` or better), since a paraphrase can
+    add claims.
+    """
+    from akms_records.consolidate import consolidation_status
+    from akms_records.store import RecordStore
+
+    out: list[_Candidate] = []
+    for root, candidate in pending:
+        store = RecordStore(root, Scope.parse(candidate.scope))
+        try:
+            status = consolidation_status(store, candidate.record_id)
+            record = store.get(candidate.record_id)
+        except RecordsError:
+            status, record = None, None
+        finally:
+            store.close()
+        if status is None or record is None or status["status"] != "valid":
+            excluded["stale"].append(candidate.record_id)
+            continue
+        cites = tuple(sorted({ref["record_id"] for ref in status["sources"]}))
+        payload = record.payload
+        rank = candidate.review_rank
+        if payload["method"] == "provider":
+            if rank < max(REVIEW_RANK["agent_reviewed"], min_rank):
+                excluded["review_state"].append(candidate.record_id)
+                continue
+        else:
+            if any(source not in eligible for source in cites):
+                excluded["review_state"].append(candidate.record_id)
+                continue
+            rank = min(eligible[source].review_rank for source in cites)
+        out.append(
+            _Candidate(
+                **{
+                    **candidate.__dict__,
+                    "review_rank": rank,
+                    "consolidation": {
+                        "status": "valid",
+                        "method": payload["method"],
+                        "provider": payload["provider"],
+                        "assertions": payload["assertions"],
+                    },
+                    "cites": cites,
+                }
+            )
+        )
+    return out
 
 
 def wake(
@@ -594,17 +719,35 @@ def wake(
     home: str | Path | None = None,
     include_sensitive: bool = False,
     review_state: str = "unreviewed",
+    include_unreviewed: bool = False,
 ) -> WakeResult:
     """Select records for an agent starting a task, within a token budget.
 
     Visible: ``agent:<agent>`` and the project and shared ``scopes`` given.
-    Priority: review state (``user_confirmed`` first), then BM25 match with
-    any word of ``task``, then ``recorded_at`` (newest first), then record
-    ID. Deduplicated: superseded records and records that a newer visible
-    record names as superseded are left out (only chain heads remain), and of
-    several records with the same summary only the first is kept. Entries are
-    taken in priority order while they fit; one that does not fit is omitted
-    and the next is tried.
+
+    Eligible by default: reviewed records (``agent_reviewed`` or
+    ``user_confirmed``) of every visible scope, plus the agent's own
+    unreviewed records: those in ``agent:<agent>`` and those whose
+    ``origin.actor_id`` is the agent. Other unreviewed records are excluded
+    (``review_state``); ``include_unreviewed`` admits them. ``review_state``
+    is a minimum that applies on top. Rejected records are never eligible.
+
+    Summaries: a stale or invalid one is excluded (``stale``). An extractive
+    summary is eligible only when every source it cites is; a provider
+    summary only once it is itself reviewed. When an eligible summary costs
+    fewer tokens than the eligible sources it cites, it is shown at its own
+    priority (its effective review rank, then match, then recency) and those
+    sources are excluded as ``covered``; otherwise the summary is excluded as
+    a ``duplicate``. If an included summary does not fit the budget, its
+    sources compete again.
+
+    Priority: review state (``user_confirmed`` first; reviewed records always
+    above unreviewed ones), then BM25 match with any word of ``task``, then
+    ``recorded_at`` (newest first), then record ID. Deduplicated: superseded
+    records and records that a newer visible record names as superseded are
+    left out (only chain heads remain), and of several records with the same
+    summary only the first is kept. Entries are taken in priority order while
+    they fit; one that does not fit is omitted and the next is tried.
     """
     own = _check_agent(agent)
     if not isinstance(task, str):
@@ -625,9 +768,11 @@ def wake(
         roots.setdefault(str(root.absolute()), (root, scope))
     excluded: dict[str, list[str]] = {kind: [] for kind in EXCLUSION_KINDS}
     candidates: list[_Candidate] = []
+    pending: list[tuple[Path, _Candidate]] = []
     seen_ids: set[str] = set()
     considered = 0
     fts = match_any(task)
+    reviewed_rank = REVIEW_RANK["agent_reviewed"]
     from akms_records.store import RecordStore
 
     for key in sorted(roots):
@@ -656,36 +801,51 @@ def wake(
         for row in rows:
             considered += 1
             record_id = row[0]
+            summary_row = is_consolidation(row[3])
+            mine = row[2] == str(own) or row[5] == agent
+            rank = row[7]
             if row[2] not in visible_names:
                 excluded["visibility"].append(record_id)
             elif record_id in seen_ids:
                 excluded["duplicate"].append(record_id)
             elif row[8] != "active":
                 excluded["lifecycle"].append(record_id)
-            elif row[7] == 0 or row[7] < min_rank:
+            elif rank == 0 or (
+                not summary_row
+                and (
+                    rank < min_rank
+                    or (rank < reviewed_rank and not (mine or include_unreviewed))
+                )
+            ):
                 excluded["review_state"].append(record_id)
             elif row[9] == "sensitive" and not include_sensitive:
                 excluded["sensitivity"].append(record_id)
             else:
-                candidates.append(
-                    _Candidate(
-                        record_id=record_id,
-                        revision=row[1],
-                        scope=row[2],
-                        schema_ref=row[3],
-                        origin={"kind": row[4], "actor_id": row[5]},
-                        review_state=row[6],
-                        review_rank=row[7],
-                        lifecycle=row[8],
-                        sensitivity=row[9],
-                        recorded_at=row[10],
-                        tags=tuple(_json_list(row[11])),
-                        summary=row[12],
-                        supersedes=tuple(_json_list(row[13])),
-                        match=scores.get(record_id, 0.0),
-                    )
+                candidate = _Candidate(
+                    record_id=record_id,
+                    revision=row[1],
+                    scope=row[2],
+                    schema_ref=row[3],
+                    origin={"kind": row[4], "actor_id": row[5]},
+                    review_state=row[6],
+                    review_rank=rank,
+                    lifecycle=row[8],
+                    sensitivity=row[9],
+                    recorded_at=row[10],
+                    tags=tuple(_json_list(row[11])),
+                    summary=row[12],
+                    supersedes=tuple(_json_list(row[13])),
+                    match=scores.get(record_id, 0.0),
                 )
+                if summary_row:
+                    pending.append((root, candidate))
+                else:
+                    candidates.append(candidate)
             seen_ids.add(record_id)
+    eligible = {c.record_id: c for c in candidates}
+    candidates.extend(
+        _summary_candidates(pending, eligible, excluded, min_rank=min_rank)
+    )
     # Priority order, built from the last key to the first (sorts are stable).
     candidates.sort(key=lambda c: c.record_id)
     candidates.sort(key=lambda c: c.recorded_at, reverse=True)
@@ -706,6 +866,7 @@ def wake(
             continue
         summaries.add(key)
         kept.append(candidate)
+    queue, covered_by = _place_summaries(kept, excluded)
     scope_names = sorted(visible_names)
     header = _wake_header(agent, scope_names, budget_tokens)
     widest = int("9" * len(str(max(considered, 1))))
@@ -720,14 +881,22 @@ def wake(
             code="budget_too_small",
             details={"minimum_tokens": budget_tokens - remaining},
         )
+    position_of = {c.record_id: n for n, c in enumerate(kept)}
     entries: list[WakeEntry] = []
     omitted: list[str] = []
-    for candidate in kept:
+    while queue:
+        _, candidate = queue.pop(0)
         position = len(entries) + 1
         text = _wake_entry(position, candidate)
         cost = estimate_tokens(text)
         if cost > remaining:
             omitted.append(candidate.record_id)
+            restored = covered_by.pop(candidate.record_id, ())
+            if restored:  # the summary did not fit: its sources compete again
+                queue.extend(
+                    (position_of[rid], kept[position_of[rid]]) for rid in restored
+                )
+                queue.sort(key=lambda item: item[0])
             continue
         remaining -= cost
         entries.append(
@@ -745,8 +914,10 @@ def wake(
                 match=candidate.match,
                 tokens=cost,
                 text=text,
+                consolidation=candidate.consolidation,
             )
         )
+    excluded["covered"] = [rid for ids in covered_by.values() for rid in ids]
     final_excluded = {kind: tuple(sorted(ids)) for kind, ids in excluded.items()}
     footer = _wake_footer(
         len(entries),
@@ -764,7 +935,58 @@ def wake(
         omitted_by_budget=tuple(omitted),
         excluded=final_excluded,
         considered=considered,
+        covered_by_summary={key: tuple(value) for key, value in covered_by.items()},
     )
+
+
+def _place_summaries(
+    kept: list[_Candidate], excluded: dict[str, list[str]]
+) -> tuple[list[tuple[int, _Candidate]], dict[str, tuple[str, ...]]]:
+    """The wake queue in priority order, with summaries standing in for sources.
+
+    Each summary, best first, covers the cited sources that are still in
+    ``kept`` and not covered by a summary before it. It is used when its
+    entry costs fewer tokens than those sources' entries together, and then
+    keeps its own queue position: its effective review rank (an extractive
+    summary's lowest source rank, a provider summary's own), then match,
+    then recency. So a summary never rises above a record of a higher review
+    rank, whatever it covers. Otherwise it is excluded as a ``duplicate``.
+    """
+    position_of = {c.record_id: n for n, c in enumerate(kept)}
+    probe = max(len(kept), 1)  # one position for all cost estimates
+    covered: set[str] = set()
+    covered_by: dict[str, tuple[str, ...]] = {}
+    dropped: set[str] = set()
+    for candidate in kept:
+        if candidate.consolidation is None:
+            continue
+        members = sorted(
+            (
+                rid
+                for rid in candidate.cites
+                if rid in position_of
+                and rid not in covered
+                and kept[position_of[rid]].consolidation is None
+            ),
+            key=lambda rid: position_of[rid],
+        )
+        if not members or estimate_tokens(_wake_entry(probe, candidate)) >= sum(
+            estimate_tokens(_wake_entry(probe, kept[position_of[rid]]))
+            for rid in members
+        ):
+            excluded["duplicate"].append(candidate.record_id)
+            dropped.add(candidate.record_id)
+            continue
+        covered.update(members)
+        covered_by[candidate.record_id] = tuple(members)
+    queue: list[tuple[int, _Candidate]] = []
+    for candidate in kept:
+        rid = candidate.record_id
+        if rid in covered or rid in dropped:
+            continue
+        queue.append((position_of[rid], candidate))
+    queue.sort(key=lambda item: item[0])
+    return queue, covered_by
 
 
 __all__ = [

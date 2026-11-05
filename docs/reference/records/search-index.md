@@ -24,8 +24,9 @@ include. Without it, `recall`, `wake` and `index` fail with
 | `records_fts` | FTS5 (`unicode61` tokenizer) over the summary, the tags and the search text the schema's `search_text` rules select |
 | `files`, `months`, `rules`, `meta` | Bookkeeping for the staleness check |
 
-Records that do not replay (a gap, a conflict, a broken seal) and records named
-in the erasure log are never indexed.
+Records that do not replay (a gap, a conflict, a broken seal), records named
+in the erasure log, and [summaries](consolidation.md) whose current revision
+cites a record named there are never indexed.
 
 ## Keeping it current
 

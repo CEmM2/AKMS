@@ -41,9 +41,14 @@ them into AKMS knowledge nodes.
   and can always be rebuilt. See [recall and wake](recall-and-wake.md) and the
   [search index](search-index.md).
 
+- **Source-linked summaries (opt-in).** `consolidate` writes topic summaries
+  whose every assertion cites the record revisions it came from. The default
+  method is extractive and uses no model; a provider can be plugged in as a
+  callable or a command. A summary turns stale when a source changes, and is
+  erased with any source that is erased. See [consolidation](consolidation.md).
+
 ## What it does not do (yet)
 
-- No summaries or consolidation.
 - No promotion into AKMS nodes. Per-schema promotion *policies* can already be
   stored, but nothing reads them yet.
 - No import from `akms-failure-memory`.
@@ -133,6 +138,7 @@ hits = store.recall("keep", tags=["model"]).hits
 
 - [CLI reference](cli-reference.md)
 - [Recall and wake](recall-and-wake.md)
+- [Consolidation](consolidation.md)
 - [Search index](search-index.md)
 - [Storage format](storage-format.md)
 - [Schemas and templates](schemas-and-templates.md)

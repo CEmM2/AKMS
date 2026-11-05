@@ -14,7 +14,8 @@ akms-records [--version] [--json-errors] <command> ...
   summary on stderr. `recall --format text` and `wake --format markdown`
   print rendered text instead.
 - **Exit status.** `0` on success; `1` when `status` is `error` or `drift`
-  (for example `doctor` found a problem, or `import` met a conflict); `2`
+  (for example `doctor` found a problem, `import` met a conflict, or
+  `consolidate status` found a summary that is not valid); `2`
   when the command failed. A failure prints `error[<code>]: <message>` on stderr,
   or `{"status": "error", "error": {"code": ..., "message": ...}}` on stdout
   with `--json-errors`.
@@ -76,10 +77,22 @@ cannot be `established`.
 | Command | Purpose |
 |---|---|
 | `recall [--query WORDS] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--agent ID] [--limit N] [--full] [--format json\|text]` | Search the scope through the index; ranked by BM25, then newest first. |
-| `wake --agent ID --task TEXT --budget-tokens N [--scope S]... [--include-sensitive] [--review-state MIN] [--format json\|markdown] [--generated-at]` | Prioritised, deduplicated records for an agent within a hard token budget, with a truncation report. |
+| `wake --agent ID --task TEXT --budget-tokens N [--scope S]... [--include-sensitive] [--include-unreviewed] [--review-state MIN] [--format json\|markdown] [--generated-at]` | Prioritised, deduplicated records for an agent within a hard token budget, with a truncation report. By default: reviewed records plus the agent's own unreviewed ones; `--include-unreviewed` adds everyone's. |
 
 Both are described in [recall and wake](recall-and-wake.md), including the
-visibility rules and the output shapes.
+visibility and eligibility rules and the output shapes.
+
+## Consolidation
+
+| Command | Purpose |
+|---|---|
+| `consolidate create [--tag T]... [--query Q] [--topic-name NAME] [--review-state MIN] [--method extractive\|provider] [--agent ID] [--event-id ID] [--summarizer-timeout S] [--summarizer-cmd ARGV...]` | Write a source-linked summary of the topic's records. `--summarizer-cmd` (last option; no shell) selects the provider method. |
+| `consolidate status [ID]` | `valid`, `stale` or `invalid`, with each source's state and the topic check; every active summary without `ID`. Exit 1 when any is not valid. |
+| `consolidate refresh ID [--expect-revision N] [--event-id ID] [--summarizer-timeout S] [--summarizer-cmd ARGV...]` | Rewrite a stale summary as an amendment; `stale_revision` if another refresh won. |
+| `consolidate list` | The scope's summaries, without checking them. |
+
+See [consolidation](consolidation.md) for the payload, the citation rules,
+invalidation, the erasure cascade and the provider protocol.
 
 `add` and `amend` also take `--summary`, `--tag TAG` (repeatable),
 `--sensitivity public|internal|sensitive`,
@@ -103,7 +116,7 @@ can be amended, superseded or retracted.
 
 | Command | Purpose |
 |---|---|
-| `erase RECORD --reason TEXT [--force]` | Remove a record's files and log a content-free erasure line. |
+| `erase RECORD --reason TEXT [--force]` | Remove a record's files and log a content-free erasure line; summaries that cite it are erased too. |
 | `doctor [--fix [--force-tmp]]` | Check the store root; with `--fix`, also repair what is safe. |
 | `export [--output FILE] [--include-sensitive] [--skip-broken]` | Write the scope as JSONL. |
 | `import FILE` | Replay an export into the scope. |
@@ -118,6 +131,9 @@ result's `index` field; see [search index](search-index.md#erasure)). Never put
 protected content in the reason. The result lists what erasure cannot reach
 (see [limits](limits.md)). `--force` erases a record that does not replay and
 whose scope cannot be read; a record that names another scope is never erased.
+Every [summary](consolidation.md#erasure-cascades) whose history cites the
+record is erased with it, each with its own log line carrying `cascade_of`;
+the result lists them under `cascade`.
 
 **`doctor`** covers every scope in the store root. Without options it only
 reports and changes nothing. `--fix` repairs what is safe to repair;
@@ -129,14 +145,16 @@ The result follows `failure-memory doctor`: a `status` of `ok` or `error`
 (`ok`, `warning` or `error`), `severity`, `repairable` (whether `--fix`
 handles it) and the `items` it found. `repairs` lists what `--fix` changed
 (`tmp_removed`, `empty_dirs_removed`, `erasures_reapplied`,
-`index_reconciled`), `mode` is `report` or `fix`, and `records_checked`
-counts the records replayed.
+`summaries_erased`, `index_reconciled`), `mode` is `report` or `fix`, and
+`records_checked` counts the records replayed. `--actor` names who `--fix`
+logs as erasing a summary.
 
 | Check | Severity | Repaired by `--fix` |
 |---|---|---|
 | `stale_tmp_files`: temp files whose writer has exited | error | yes |
 | `empty_dirs`: empty record directories older than a minute, empty month directories | error | yes |
 | `erased_but_present`: records in the erasure log that are back, for example after a merge | error | yes (erased again) |
+| `summaries_citing_erased`: summaries whose history cites an erased record | error | yes (erased, logged as a cascade) |
 | `replay_errors`: gaps, broken chains or seals, malformed events | error | no |
 | `conflicts`: records with git conflict markers | error | no |
 | `schema_errors`: schemas that fail their digest check | error | no |
@@ -190,6 +208,13 @@ equal `--scope`.
 | `link_unsupported` | The filesystem has no hard links |
 | `invalid_query` | A recall query has no searchable words, or cannot be run |
 | `budget_too_small` | The wake budget cannot hold the header and truncation report (`details.minimum_tokens`) |
+| `citation_invalid` | A summary assertion is uncited or cites something it may not (`details.problem`) |
+| `consolidation_write` | A summary was written or changed outside `consolidate` |
+| `consolidation_schema`, `reserved_schema` | `consolidation/v1` differs from the built-in, or another schema used the reserved name |
+| `empty_topic`, `topic_too_large` | The topic gathers no records, or more than 64 |
+| `summary_exists` | An active summary of the same topic exists (`details.record_id`); refresh it |
+| `summary_invalid`, `not_a_summary` | The summary cannot be refreshed; the record is not a summary |
+| `summarizer_required`, `summarizer_failed`, `summarizer_timeout`, `summarizer_output_invalid` | Provider errors: none given, it failed or exited non-zero, it ran too long, or its output is not the expected JSON |
 | `fts5_unavailable` | Python's `sqlite3` has no FTS5; recall, wake and index commands need it |
 | `index_unavailable`, `index_format` | The index file cannot be opened, or has another format (rebuild it) |
 | `internal_error` | An unexpected failure |
