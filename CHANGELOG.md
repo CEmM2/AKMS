@@ -357,6 +357,14 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `repo-wiki` records `as` import aliases inside a function (`from pkg.cli import
+  main as run_cli`, `import pkg.tools as tools`) and resolves calls through them
+  with function scope: the alias shadows a module-level name of the same spelling,
+  reaches nested functions, and does not leak to sibling functions. `context`,
+  `impact`, `changes` and `flows` gain the links; the wrong by-name guesses for
+  those calls go away. `symbol_graph.json` gains an optional `import_aliases` field
+  on symbol nodes that have one; it stays `symbol_graph v1`. The extraction cache
+  is rebuilt once. Mirror bytes do not change.
 - `repo-wiki`: a `scanner.exclude` list in `.repo_wiki/config.yaml` no longer
   replaces the built-in exclude patterns. It replaced the whole list, so
   adding one pattern silently dropped the secret and credential patterns

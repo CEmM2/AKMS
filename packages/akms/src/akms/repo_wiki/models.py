@@ -38,6 +38,12 @@ def _as_metadata(value: object) -> dict[str, object]:
     return {str(k): v for k, v in cast(dict[Any, Any], value).items()}
 
 
+def _as_name_map(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): str(item) for key, item in value.items()}
+
+
 def _as_name_lists(value: object) -> dict[str, list[str]]:
     """``{name: [names]}`` from a JSON value; anything else reads as empty."""
     if not isinstance(value, dict):
@@ -130,12 +136,21 @@ class Symbol:
     table_refs: list[str] = field(default_factory=list)
     # Names this symbol registers as command handlers (argparse ``set_defaults(func=f)``).
     cli_handlers: list[str] = field(default_factory=list)
+    # ``as`` names imported in this function's own body -> absolute dotted targets.
+    # Python only; empty elsewhere.
+    import_aliases: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         d = asdict(self)
         d["language"] = self.language.value
         # Optional fields are left out when empty, so payloads without them stay unchanged.
-        for key in ("metadata", "receivers", "table_refs", "cli_handlers"):
+        for key in (
+            "metadata",
+            "receivers",
+            "table_refs",
+            "cli_handlers",
+            "import_aliases",
+        ):
             if not d.get(key):
                 d.pop(key, None)
         return d
@@ -176,6 +191,7 @@ class Symbol:
             receivers=_as_name_lists(data.get("receivers")),
             table_refs=[str(v) for v in _as_iter(data.get("table_refs"))],
             cli_handlers=[str(v) for v in _as_iter(data.get("cli_handlers"))],
+            import_aliases=_as_name_map(data.get("import_aliases")),
         )
 
 

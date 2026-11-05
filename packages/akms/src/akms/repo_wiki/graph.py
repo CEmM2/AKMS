@@ -18,7 +18,8 @@ _GRAPH_SCHEMA_COMMENT = (
     "target}), dispatch ({dict name: [value names]}); symbol node fields (optional, "
     "Python only): receivers ({local name: [constructor or annotation names]}), "
     "table_refs ([module-level names indexed]), cli_handlers ([names passed as "
-    "set_defaults(func=...)]); decorators ([decorator names, arguments dropped]); "
+    "set_defaults(func=...)]); import_aliases ({as name: dotted import target, "
+    "function scope}); decorators ([decorator names, arguments dropped]); "
     "module node field (optional): main_calls ([call names run as a script])"
 )
 
@@ -201,6 +202,8 @@ def node_for_symbol(symbol: Symbol) -> dict[str, object]:
         node["table_refs"] = list(symbol.table_refs)
     if symbol.cli_handlers:
         node["cli_handlers"] = list(symbol.cli_handlers)
+    if symbol.import_aliases:
+        node["import_aliases"] = dict(sorted(symbol.import_aliases.items()))
     decorators = decorator_names(symbol.decorators)
     if decorators:
         node["decorators"] = decorators
