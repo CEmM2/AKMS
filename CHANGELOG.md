@@ -285,6 +285,18 @@ development is intentionally not replayed.
   lesson ID fails with `annotation_id`. It does not change generated nodes,
   routes or the registry digest. `registry migrate --to 2` copies it into the
   new directory.
+- `export.mirror_summary` in `.repo_wiki/config.yaml` (default `false`) makes
+  `repo-wiki export-akms` open each code mirror with a `## Summary`: the first
+  paragraph of the module docstring and the public top-level classes and
+  functions with their signatures, built only from that file's parse, with no
+  model call, and capped at 800 characters. Routing-mode loadouts load that
+  section for a mirror, so an entry says what the file holds instead of showing
+  only a path. It is off by default because mirror bytes are pinned by the
+  export fixture pack and the `repo2md_fixture_sha256` projects record; off leaves
+  every mirror and every loadout byte-identical. Turning it on rewrites every
+  mirror once. On a large downstream project the section averaged 86 tokens per
+  mirror (at most 197), and whole routing-mode loadouts grew by 3.6%. The external
+  `repo2md` provider is not changed.
 
 ### Changed
 - Loadouts render coactivated (`load_with`) nodes as their `## Summary`

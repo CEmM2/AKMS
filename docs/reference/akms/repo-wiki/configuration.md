@@ -140,6 +140,12 @@ Unknown keys and values of the wrong type are rejected when the file is loaded.
 A change to any of these, except `enabled`, makes an existing `flows.json` stale:
 readers recompute until the next build.
 
+## `export`
+
+| Key | Default | Effect |
+|---|---|---|
+| `export.mirror_summary` | `false` | `export-akms` opens each mirror with a [`## Summary` section](akms-export.md#mirror-summary). A value other than `true` or `false` is rejected when the file is loaded. |
+
 ## Keys that are written but not read
 
 `init` writes these keys, and they are accepted, but the current code does not
@@ -162,6 +168,6 @@ external search service, whatever `index.*` says.
 
 ## Export and configuration
 
-`export-akms` reads `scanner.*` and `languages.*` only. It ignores
+`export-akms` reads `scanner.*`, `languages.*` and `export.*` only. It ignores
 `generation`, `summaries`, `index` and `retrieval`, and it never writes
 summaries or the index.

@@ -86,6 +86,18 @@ loadout:
   coactivate_from_advisory: false
 ```
 
+## Code mirrors in routing mode
+
+A code mirror's `content_ref` is relative to the knowledge directory. A mirror
+exported with a [`## Summary` section](../repo-wiki/akms-export.md#mirror-summary)
+is read from there, and that section is what routing mode loads for it, whether
+the mirror is required or coactivated. Only a section ahead of `## Symbol Index`
+counts, because the source text further down may hold such a line too.
+
+A mirror exported without the section, the default, renders as it always has:
+its entry is the path, with `(no content available)` as the summary. Full mode
+does not read mirrors this way and is not affected.
+
 ## Retrieval and timestamps
 
 The generator may use the `qmd` wrapper for scoped content retrieval and records
