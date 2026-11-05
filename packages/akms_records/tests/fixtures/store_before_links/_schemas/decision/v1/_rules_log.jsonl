@@ -1,0 +1,1 @@
+{"actor":"tester","at":"2026-11-03T10:00:00.000000Z","previous":null,"rules_sha256":"fa65a455e8f176a54cb12d19770a7be02d892a3e293c93d8ed6afd63518b6cc2","schema_ref":"decision/v1","value":{"label":"/decision","search_text":["/decision","/rationale","/context","/alternatives"],"summary_template":"Decision: {decision}","time_field":"/decided_at"}}

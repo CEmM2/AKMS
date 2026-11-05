@@ -1,0 +1,3 @@
+# akms-records: derived and temporary files
+.index/
+*.tmp
