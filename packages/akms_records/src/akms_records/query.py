@@ -520,6 +520,8 @@ class _Candidate:
     # For a summary: its payload and what wake needs to place it.
     consolidation: dict[str, Any] | None = None
     cites: tuple[str, ...] = ()
+    # For a reviewed record whose successor nobody has reviewed yet.
+    superseded_by: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -529,6 +531,10 @@ class WakeEntry:
     ``consolidation`` is ``None`` for an ordinary record. For a summary it
     holds its status (always ``valid`` in a wake), method, provider and
     assertions with their citations.
+
+    ``superseded_by`` is ``None`` unless this is a reviewed record whose successor
+    has not been reviewed yet: then it holds the successor's ``record_id``,
+    ``review_state`` and ``summary`` (``None`` when that text may not be shown).
     """
 
     position: int
@@ -545,6 +551,7 @@ class WakeEntry:
     tokens: int
     text: str = field(repr=False)
     consolidation: dict[str, Any] | None = None
+    superseded_by: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -561,6 +568,7 @@ class WakeEntry:
             "match": self.match,
             "tokens": self.tokens,
             "consolidation": self.consolidation,
+            "superseded_by": self.superseded_by,
         }
 
 
@@ -689,6 +697,16 @@ def _wake_entry(position: int, candidate: _Candidate) -> str:
         f"{literal(origin['actor_id'])} {candidate.review_state} "
         f"{candidate.recorded_at[:10]}\n"
     )
+    successor = candidate.superseded_by
+    if successor is not None:
+        marker = (
+            f"superseded by {successor['record_id']} ({successor['review_state']}); "
+            "shown until that is reviewed\n"
+        )
+        text = head + marker + fence(candidate.summary, "")
+        if successor["summary"] is None:
+            return text
+        return text + "its successor, not reviewed:\n" + fence(successor["summary"], "")
     info = candidate.consolidation
     if info is None:
         return head + fence(candidate.summary, "")
@@ -795,6 +813,48 @@ def _summary_candidates(
     return out
 
 
+def _pending_successor(
+    row: Any,
+    by_id: dict[str, Any],
+    *,
+    own: str,
+    agent: str,
+    include_unreviewed: bool,
+    min_rank: int,
+    include_sensitive: bool,
+) -> dict[str, Any] | None:
+    """The unreviewed replacement that keeps a reviewed record in this wake, if any.
+
+    Follows the supersession chain to its head. Nothing keeps the record when a
+    reviewed record is on the chain, when the head is retracted, rejected or
+    reviewed, or when this reader may see the head itself and so loses nothing.
+    """
+    seen = {row[0]}
+    head = by_id.get(row[15])
+    while head is not None and head[0] not in seen and head[8] == "superseded":
+        if head[7] != REVIEW_RANK["unreviewed"]:
+            return None
+        seen.add(head[0])
+        head = by_id.get(head[15])
+    if (
+        head is None
+        or head[0] in seen
+        or head[8] != "active"
+        or head[7] != REVIEW_RANK["unreviewed"]
+        or head[2] != row[2]
+    ):
+        return None
+    shown = head[9] != "sensitive" or include_sensitive
+    mine = head[2] == own or head[5] == agent
+    if (mine or include_unreviewed) and head[7] >= min_rank and shown:
+        return None
+    return {
+        "record_id": head[0],
+        "review_state": head[6],
+        "summary": head[12] if shown else None,
+    }
+
+
 def _hold_reason(
     schema_ref: str,
     source_refs: str,
@@ -844,6 +904,13 @@ def wake(
     ``origin.actor_id`` is the agent. Other unreviewed records are excluded
     (``review_state``); ``include_unreviewed`` admits them. ``review_state``
     is a minimum that applies on top. Rejected records are never eligible.
+
+    A superseded record is left out, unless it is reviewed and its successor is not
+    yet, and this reader may not see the successor: another agent's unreviewed
+    replacement must not make a checked fact vanish. It then stays, in its own place,
+    marked with the successor's ID and quoting its summary, until the successor is
+    reviewed. Retracted records never stay. This rule is for wake only: recall shows
+    current records.
 
     Left to the loadout or to failure-memory: a record promoted into a node
     (``promoted``), unless ``include_promoted``; a record of a promoted node in
@@ -908,7 +975,8 @@ def wake(
             rows = index.db.execute(
                 "SELECT record_id, revision, scope, schema_ref, origin_kind, "
                 "origin_actor, review_state, review_rank, lifecycle, sensitivity, "
-                "recorded_at, tags, summary, supersedes, source_refs FROM records "
+                "recorded_at, tags, summary, supersedes, source_refs, superseded_by "
+                "FROM records "
                 "ORDER BY record_id"
             ).fetchall()
             scores: dict[str, float] = {}
@@ -921,6 +989,7 @@ def wake(
                     scores[record_id] = abs(score)
         finally:
             store.close()
+        by_id = {row[0]: row for row in rows}
         for row in rows:
             considered += 1
             record_id = row[0]
@@ -929,6 +998,17 @@ def wake(
             mine = row[2] == str(own) or row[5] == agent
             admitted = mine or include_unreviewed or (imported and include_imported)
             rank = row[7]
+            successor = None
+            if row[8] == "superseded" and rank >= reviewed_rank and not summary_row:
+                successor = _pending_successor(
+                    row,
+                    by_id,
+                    own=str(own),
+                    agent=agent,
+                    include_unreviewed=include_unreviewed,
+                    min_rank=min_rank,
+                    include_sensitive=include_sensitive,
+                )
             hold = _hold_reason(
                 row[3],
                 row[14],
@@ -940,7 +1020,7 @@ def wake(
                 excluded["visibility"].append(record_id)
             elif record_id in seen_ids:
                 excluded["duplicate"].append(record_id)
-            elif row[8] != "active":
+            elif row[8] != "active" and successor is None:
                 excluded["lifecycle"].append(record_id)
             elif rank != 0 and hold is not None:
                 excluded[hold].append(record_id)
@@ -968,6 +1048,7 @@ def wake(
                     summary=row[12],
                     supersedes=tuple(_json_list(row[13])),
                     match=scores.get(record_id, 0.0),
+                    superseded_by=successor,
                 )
                 if summary_row:
                     pending.append((root, candidate))
@@ -1047,6 +1128,7 @@ def wake(
                 tokens=cost,
                 text=text,
                 consolidation=candidate.consolidation,
+                superseded_by=candidate.superseded_by,
             )
         )
     excluded["covered"] = [rid for ids in covered_by.values() for rid in ids]

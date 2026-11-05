@@ -210,7 +210,9 @@ examples, not privileged types.
   budget and a loadout budget mean the same thing. It never includes another
   agent's private records. It reads only the record store. Promoted records and
   imported failure lessons are left out by default, because the loadout and
-  failure-memory already serve them, and a caller can ask for them deliberately.
+  failure-memory already serve them, and a caller can ask for them deliberately. A
+  reviewed record superseded by a successor nobody has reviewed stays, marked with the
+  successor, so one agent's unchecked replacement cannot make a checked fact vanish.
 - **Rendering is data, not instructions.** Recall and wake output render record
   text as quoted data in a fixed layout, with origin and review state shown, so
   text inside a record cannot pose as instructions or forge a section boundary.

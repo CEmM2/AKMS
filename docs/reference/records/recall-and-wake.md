@@ -130,7 +130,7 @@ review first, or an explicit `recall`.
 | Reason | Records |
 |---|---|
 | `visibility` | Records of a scope that is not visible |
-| `lifecycle` | Superseded and retracted records |
+| `lifecycle` | Retracted records, and superseded ones unless [their successor is waiting for a review](#a-replacement-nobody-has-reviewed-yet) |
 | `in_loadout` | Records [promoted](promotion-and-import.md) into a node the `--exclude-nodes` manifest selected |
 | `promoted` | Other promoted records, unless `--include-promoted` |
 | `imported` | [Imported failure lessons](promotion-and-import.md#import-from-failure-memory) (`failure-lesson/v1`), unless `--include-imported`, which also admits them while `unreviewed` |
@@ -154,6 +154,42 @@ else: on a 597-record evaluation corpus, 500 of 501 entries at 2k tokens were
 the reviewed tier by task match, with the shorter entries below, took that to 52 %. An
 unreviewed record still never outranks a reviewed one, because it is the agent's own
 note, not a checked one.
+
+## A replacement nobody has reviewed yet
+
+When another agent supersedes a reviewed record with an unreviewed successor, the old
+record is out of `wake` by its lifecycle and the new one by its review state, so a
+checked fact would vanish on someone else's unchecked say-so. `wake` therefore keeps
+showing the old record, in its usual place, marked with the successor's ID, and quotes
+the successor's summary below it:
+
+````markdown
+### 1. rec-20261103-k3f9m2xa@2
+project:example decision/v1 agent "owner" user_confirmed 2026-11-03
+superseded by rec-20261105-p4q8r1sd (unreviewed); shown until that is reviewed
+```
+Decision: Keep the existing surrogate model
+```
+its successor, not reviewed:
+```
+Decision: Train a new surrogate
+```
+````
+
+Both texts are fenced, and the marker sits outside the fences, so record text cannot
+forge or remove it. In JSON the entry's `superseded_by` holds the successor's
+`record_id`, `review_state` and `summary`.
+
+- **The old record drops out as usual** once the successor (or a later record on the
+  chain) is reviewed, or if this reader can already see the successor: it wrote it, or
+  passed `--include-unreviewed`.
+- **Only the head counts.** A chain of unreviewed successors shows the newest one. If
+  the head was retracted or rejected, nothing stays.
+- **A sensitive successor** is named but not quoted, unless `--include-sensitive`.
+- **Retracted records** never stay, and a successor that is itself reviewed behaves as
+  before.
+- **`recall` does not do this:** it shows current records, and old text there is a
+  stale answer. `--include-superseded` asks for it.
 
 ## One context budget across systems
 
