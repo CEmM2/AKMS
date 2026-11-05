@@ -21,6 +21,7 @@ from akms_failure_memory.errors import FailureMemoryError
 from akms_failure_memory.index_query import query_lesson_index
 from akms_failure_memory.lesson_index import (
     first_sentence,
+    TITLE_MAX_LENGTH,
     record_title,
     split_first_sentence,
 )
@@ -214,8 +215,20 @@ def test_record_title_uses_the_first_clause(
 
 def test_record_title_is_capped_at_a_word_boundary() -> None:
     title = record_title(_lesson(root_cause="word " * 60))
-    assert len(title) <= 96
+    assert len(title) <= TITLE_MAX_LENGTH
     assert title.endswith("word...")
+
+
+def test_title_cap_keeps_a_title_at_the_limit_and_cuts_one_past_it() -> None:
+    fits = "x" * (TITLE_MAX_LENGTH - 6) + " tail"
+    assert len(fits) == TITLE_MAX_LENGTH - 1
+    assert record_title(_lesson(root_cause=fits)) == fits
+    exact = fits + "s"
+    assert record_title(_lesson(root_cause=exact)) == exact
+    over = exact + "s"
+    assert (
+        record_title(_lesson(root_cause=over)) == "x" * (TITLE_MAX_LENGTH - 6) + "..."
+    )
 
 
 def test_first_sentence_keeps_paths_and_abbreviations() -> None:
