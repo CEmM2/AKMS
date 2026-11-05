@@ -16,6 +16,83 @@ development is intentionally not replayed.
   lock-only change; `uv audit` reports no known vulnerabilities.
 
 ### Added
+- New experimental package `akms-records` (console script `akms-records`): a
+  schema-driven, provenance-aware record store. Records are a fixed envelope
+  (ID, revision, schema ref and digest, scope, time, origin, source refs,
+  summary, tags, sensitivity, review state, lifecycle) around a payload that a
+  registered JSON Schema (Draft 2020-12) describes; payloads cannot shadow
+  envelope fields. History is append-only `create`, `amend`, `supersede` and
+  `retract` events, one hash-chained, sealed file per revision under
+  `<repo>/.knowledge/records/` for project scope and
+  `~/.knowledge/records/<kind>/<id>/` (or `AKMS_RECORDS_HOME`) for agent and
+  shared scopes. Writes take no lock: an exclusive hard link makes a stale
+  revision fail and a retried event a no-op. Parallel work on different
+  records merges cleanly in git; a same-revision conflict is reported. Schema
+  references never leave the schema and `format` is an annotation only.
+  Extraction rules (search text, label, time field, summary template) are
+  stored beside the schema outside its digest, so `schema rules set` can
+  change them without a new schema version; every change is logged. It also
+  stores per-schema promotion policies (with a change log), erases records
+  with a content-free log that `doctor --fix` re-applies after merges
+  (`doctor` alone only reports), and
+  exports and imports a scope as digest-checked JSONL. Eight built-in
+  templates ship as plain schema files. It does not depend on `akms`; the
+  `[akms]` extra is reserved for a later promotion bridge. Promotion is not
+  part of this release. See `docs/reference/records/`.
+- `akms-records` recall and wake, over a derived SQLite FTS5 index at
+  `<store root>/.index/records.sqlite` (never committed, always rebuildable).
+  `recall` filters one scope by schema, tags (all must match), a time range
+  on the schema's time field or `recorded_at`, a minimum review state, and
+  plain-word queries (quoted for FTS5, so no input can break a query); it
+  ranks by BM25 with deterministic tie-breaks and returns summaries,
+  provenance and snippets, with `--full` for whole records. `wake --agent
+  --task --budget-tokens` returns the agent's own records plus the project
+  and shared scopes it names, never another agent's, prioritised by review
+  state, task match and recency, deduplicated across supersession chains and
+  identical summaries, within a hard budget counted with the AKMS loadout
+  estimator, and with a truncation report of what was omitted or excluded and
+  why. Sensitive records need `--include-sensitive`; rejected records are
+  never shown. Text and Markdown output put record text in fences it cannot
+  close, under a fixed layout and a notice that records are data, not
+  instructions. Output is byte-identical for the same store and inputs. Every
+  write through the API updates the index (only to a higher revision); a cheap
+  check before each read catches git checkouts, merges, crashed writers and
+  rules changes, and `index rebuild|check|reconcile` and `doctor [--fix]`
+  cover the rest. Erasure removes a record from the index with SQLite secure
+  delete, FTS5 `secure-delete` and a WAL checkpoint, leaving none of its
+  bytes in the database files.
+- `akms-records` wake eligibility: by default `wake` takes reviewed records
+  (`agent_reviewed`, `user_confirmed`) from every visible scope plus the
+  agent's own unreviewed records (its `agent:` scope, and project or shared
+  records whose `origin.actor_id` is the agent). Other agents' and tools'
+  unreviewed records are left out and counted under `excluded.review_state`;
+  they stay reachable through `recall`. `--include-unreviewed` takes every
+  unreviewed visible record, and `--review-state` still tightens. Reviewed
+  records always rank above the agent's own unreviewed ones. Wake output is
+  injected into every session start, so unreviewed notes from others would
+  otherwise be repeated and reinforced.
+- `akms-records consolidate create|status|refresh|list`: opt-in topic
+  summaries (a scope plus tags and/or a query) stored as ordinary records of
+  a built-in `consolidation/v1` schema, so they get events, git merging,
+  export, the index and erasure like any record. Every assertion cites the
+  `<record_id>@<revision>` it came from; a validator refuses an uncited
+  assertion, a citation outside the summary's sources or at another
+  revision, another scope's record, another summary, and (for the default
+  extractive method) any text that is not the cited source's own. The
+  extractive method uses no model and gives byte-identical payloads for the
+  same sources. The provider method takes a callable
+  (`consolidate(..., summarizer=...)`) or `--summarizer-cmd ARGV...` (no
+  shell, JSON on stdin and stdout, a timeout, typed errors) and records the
+  provider and an `inputs_sha256`. A summary is `stale` when a source is
+  amended, superseded, retracted or erased, or the topic would now gather
+  other records; `refresh` rewrites it as an amendment with an expected
+  revision. Erasing a record erases every summary that cites it (logged as a
+  content-free cascade), and `doctor --fix` erases summaries a merge brings
+  back. `recall` shows a summary's validity; `wake` shows a valid, eligible
+  summary instead of its sources when that saves tokens (extractive: every
+  cited source eligible; provider: the summary itself reviewed), lists its
+  citations, and reports the sources it covers. See
+  `docs/reference/records/consolidation.md`.
 - `repo-wiki` answers code-intelligence questions from its symbol graph, with
   no server and no model: `repo-wiki context SYMBOL` shows a symbol's
   definition, callers, callees and module imports; `repo-wiki impact SYMBOL`

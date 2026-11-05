@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Workflow lesson",
+  "description": "A lesson about how work is done.",
+  "type": "object",
+  "required": [
+    "lesson"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "lesson": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The lesson."
+    },
+    "situation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The situation it came from."
+    },
+    "practice": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The practice to follow from now on."
+    },
+    "trigger": {
+      "type": "string",
+      "minLength": 1,
+      "description": "When the lesson applies."
+    },
+    "learned_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When it was learned (RFC 3339; format is an annotation only)"
+    }
+  },
+  "x-akms-records": {
+    "name": "workflow-lesson",
+    "version": 1,
+    "title": "Workflow lesson",
+    "description": "A lesson about how work is done.",
+    "rules": {
+      "search_text": [
+        "/lesson",
+        "/situation",
+        "/practice"
+      ],
+      "label": "/lesson",
+      "time_field": "/learned_at",
+      "summary_template": "Lesson: {lesson}"
+    }
+  }
+}

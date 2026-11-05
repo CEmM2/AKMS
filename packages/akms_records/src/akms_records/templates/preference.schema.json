@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Preference",
+  "description": "A stated preference of a person or team.",
+  "type": "object",
+  "required": [
+    "subject",
+    "preference"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What the preference is about."
+    },
+    "preference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The preference."
+    },
+    "applies_to": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where it applies."
+    },
+    "strength": {
+      "enum": [
+        "weak",
+        "strong",
+        "required"
+      ],
+      "description": "How strongly it holds."
+    },
+    "stated_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who stated it."
+    },
+    "stated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When it was stated (RFC 3339; format is an annotation only)"
+    }
+  },
+  "x-akms-records": {
+    "name": "preference",
+    "version": 1,
+    "title": "Preference",
+    "description": "A stated preference of a person or team.",
+    "rules": {
+      "search_text": [
+        "/subject",
+        "/preference",
+        "/applies_to"
+      ],
+      "label": "/subject",
+      "time_field": "/stated_at",
+      "summary_template": "{subject}: {preference}"
+    }
+  }
+}

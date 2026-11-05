@@ -146,6 +146,7 @@ jobs:
           --cov=akms_learn
           --cov=akms_nodes_gen
           --cov=akms_failure_memory
+          --cov=akms_records
           --cov-report=term-missing
           --cov-report=xml
           -q
@@ -188,6 +189,39 @@ jobs:
         run: >-
           uv run --no-sync --with pytest pytest
           packages/akms_failure_memory/tests/test_locks_pid_probe.py
+          -q -rs -p no:cacheprovider
+
+  windows-records:
+    name: Windows records store
+    needs: [quality]
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # Only akms-records and its dependencies: its write path (hard links,
+      # temp-file owner probe, no directory fsync) is the part that differs on
+      # Windows. The crash-injection test needs SIGKILL and skips itself.
+      - name: Install akms-records
+        run: uv sync --locked --package akms-records
+
+      - name: Run the records test suite
+        run: >-
+          uv run --no-sync --with pytest pytest
+          packages/akms_records/tests
           -q -rs -p no:cacheprovider
 
   runtime-contracts:
@@ -262,6 +296,7 @@ jobs:
           uv build --package akms-learn --out-dir dist
           uv build --package akms-nodes-gen --out-dir dist
           uv build --package akms-failure-memory --out-dir dist
+          uv build --package akms-records --out-dir dist
           uv build --package compmech-reference-pack --out-dir dist
 
       - name: Validate distribution metadata
@@ -287,13 +322,28 @@ jobs:
             dist/akms_learn-*.whl \
             dist/akms_nodes_gen-*.whl \
             dist/akms_failure_memory-*.whl \
+            dist/akms_records-*.whl \
             pytest
           .venv-wheel/bin/python -c \
-            "import akms, akms_learn, akms_nodes_gen, akms_failure_memory; from akms.orchestrator import run_pipeline; print('wheel imports: OK')"
+            "import akms, akms_learn, akms_nodes_gen, akms_failure_memory, akms_records; from akms.orchestrator import run_pipeline; print('wheel imports: OK')"
           .venv-wheel/bin/akms --help
           .venv-wheel/bin/akms-learn --help
           .venv-wheel/bin/failure-memory --help
           .venv-wheel/bin/akms-pick --help
+          .venv-wheel/bin/akms-records --help
+
+      # akms-records is host-neutral: its wheel must install and run without
+      # akms, whose bridge is only an optional extra.
+      - name: Clean-install akms-records alone
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv .venv-records --python 3.12
+          uv pip install --python .venv-records/bin/python dist/akms_records-*.whl
+          .venv-records/bin/akms-records --help
+          .venv-records/bin/akms-records schema templates
+          .venv-records/bin/python -c \
+            "import importlib.util as u, akms_records; assert u.find_spec('akms') is None; print('akms-records without akms: OK')"
 
       - name: Run installed public smoke suites
         run: .venv-wheel/bin/python -m pytest tests/public_smoke -q
