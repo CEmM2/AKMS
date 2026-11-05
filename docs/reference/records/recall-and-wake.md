@@ -145,6 +145,10 @@ when a record has left for another reason, such as becoming `sensitive`. If anot
 process holds the index for over a minute, `erase` lists it under `not_reached`, and
 `doctor --fix` or the next semantic recall removes it.
 
+**An amend leaves the old text in that index.** An amended record's earlier text stays
+in qmd's database until the index is next rebuilt, though recall only ever returns the
+current record. To remove it now, delete `.index/semantic/` or erase the record.
+
 **Sensitive records are not embedded** unless `--embed-sensitive` is passed, and they
 leave again the first time it is not passed, which means a rebuild. `--include-sensitive`
 decides what a recall shows, and does not allow embedding.
