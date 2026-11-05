@@ -22,7 +22,7 @@ repository's outbound Apache-2.0 / CC BY 4.0 licensing.
 
 ## External tools (referenced, not bundled)
 
-- **qmd** (https://github.com/tobi/qmd) — external Go binary used by optional
+- **qmd** (https://github.com/tobi/qmd) — external command-line tool (a Node package) used by optional
   search paths; detected at runtime and never redistributed. When absent, AKMS
   falls back to `grep`.
 - **nlm** (NotebookLM CLI) — external binary used by optional node-generation

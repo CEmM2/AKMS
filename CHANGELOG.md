@@ -385,6 +385,8 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- Docs: qmd is an external Node package (`npm install -g @tobilu/qmd`), not a Go
+  binary.
 - `repo-wiki`: a `scanner.exclude` list in `.repo_wiki/config.yaml` no longer
   replaces the built-in exclude patterns. It replaced the whole list, so
   adding one pattern silently dropped the secret and credential patterns

@@ -64,7 +64,7 @@ systems use. AKMS does not own portfolio-wide orchestration.
 ## Requirements
 
 Python 3.12. Some search paths use [qmd](https://github.com/tobi/qmd), an
-external Go binary; when it is absent those paths fall back to `grep`.
+external Node package; when it is absent those paths fall back to `grep`.
 
 ## Maturity
 
