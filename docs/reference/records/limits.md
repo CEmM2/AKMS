@@ -26,12 +26,18 @@ Setting a promotion policy asks for interactive confirmation, but a process
 that can drive a terminal could answer it. That is why every change is
 logged.
 
+
 ## Review state
 
 An agent's content change resets a review, and only `origin` tells a person from an
 agent; see the [CLI reference](cli-reference.md#records). After such a reset the
 record is `unreviewed`, so other agents no longer get it from `wake` until someone
 reviews it again, while `recall` still finds it. Old revisions stay in `history`.
+
+This rests on the actor name. `--actor` and `AKMS_RECORDS_ACTOR` are trusted as given, so
+an agent that claims the name in `origin` keeps the review. Like scope isolation, this
+protects cooperating agents from mistakes; it is a policy, not a security boundary. Each
+event records the actor, so a claim can be traced, but not disproved.
 
 ## Promotion
 
