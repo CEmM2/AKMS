@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Research finding",
+  "description": "A claim with the evidence and sources behind it. A finding is an observation, not established knowledge.",
+  "type": "object",
+  "required": [
+    "claim",
+    "evidence"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "claim": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The finding."
+    },
+    "evidence": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What supports it."
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Citations, links or document identifiers."
+    },
+    "confidence": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "description": "The author's own confidence."
+    },
+    "limitations": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Known limits or open questions."
+    },
+    "found_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When it was found (RFC 3339; format is an annotation only)"
+    }
+  },
+  "x-akms-records": {
+    "name": "research-finding",
+    "version": 1,
+    "title": "Research finding",
+    "description": "A claim with the evidence and sources behind it. A finding is an observation, not established knowledge.",
+    "rules": {
+      "search_text": [
+        "/claim",
+        "/evidence",
+        "/limitations"
+      ],
+      "label": "/claim",
+      "time_field": "/found_at",
+      "summary_template": "Finding: {claim}"
+    }
+  }
+}

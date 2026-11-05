@@ -9,7 +9,8 @@ Reports:
   - Dedup events persisted in local overlay history
   - Blocked downstream tasks
   - Id collisions between global and local nodes
-  - Orphaned nodes (no edges and no load_with hint either way)
+  - Orphaned nodes (no edges, no load_with hint either way, and not a
+    route-index target)
   - Stale nodes (last_activated > N days)
   - Orphaned overlay entries
   - Docstring drift warnings (consumed from generate_mirror output)
@@ -20,6 +21,7 @@ Does NOT modify anything — pure read-only reporting.
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection, Sequence
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -33,6 +35,8 @@ from akms.graph.build_graph import build_graph, load_graph, resolve_global_vault
 from akms.graph.mirror_freshness import check_mirror_freshness
 from akms.schema.models import NodeStatus, PropagationConfig
 from akms.schema.validators import parse_propagation_config
+from akms.task_context.models import RouteIndexValidationError
+from akms.task_context.routes import find_task_route_index, parse_route_index
 from akms.telemetry import traced
 
 logger = logging.getLogger(__name__)
@@ -193,12 +197,17 @@ def _load_with_ids(data: dict) -> list[str]:
     return [str(target) for target in hints]
 
 
-def _check_orphaned_nodes(G: nx.DiGraph) -> list[dict]:
-    """Find nodes nothing connects: no edges and no ``load_with`` hint.
+def _check_orphaned_nodes(
+    G: nx.DiGraph,
+    route_targets: Collection[str] = (),
+) -> list[dict]:
+    """Find nodes nothing reaches: no edges, no ``load_with`` hint, no route.
 
     ``load_with`` (FR-G10) is not a graph edge, but it does load a node: a
     node that names others in ``load_with``, or that another node names, is
-    reached by coactivation and is not an orphan.
+    reached by coactivation and is not an orphan. A node named as a target in
+    a task route index (``route_targets``) is loaded by an exact route and is
+    not an orphan either.
     """
     hinted: set[str] = set()
     for node_id, data in G.nodes(data=True):
@@ -211,7 +220,12 @@ def _check_orphaned_nodes(G: nx.DiGraph) -> list[dict]:
     for node_id in G.nodes():
         in_deg = G.in_degree(node_id)
         out_deg = G.out_degree(node_id)
-        if in_deg == 0 and out_deg == 0 and node_id not in hinted:
+        if (
+            in_deg == 0
+            and out_deg == 0
+            and node_id not in hinted
+            and node_id not in route_targets
+        ):
             data = G.nodes[node_id]
             # Skip session nodes and code-mirror (expected to be orphaned)
             domain = data.get("domain", "")
@@ -226,6 +240,63 @@ def _check_orphaned_nodes(G: nx.DiGraph) -> list[dict]:
             )
 
     return sorted(orphaned, key=lambda x: x["node_id"])
+
+
+RouteIndexArg = str | Path | Sequence[str | Path] | None
+"""A route index path, several of them, or ``None`` to discover one."""
+
+
+def _display_route_path(path: Path, repo_root: Path) -> str:
+    """Render a route-index path relative to the repository when inside it."""
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except (OSError, ValueError):
+        return str(path)
+
+
+def _load_route_targets(
+    repo_root: Path,
+    route_index: RouteIndexArg,
+) -> tuple[set[str], list[str], list[str]]:
+    """Load the node ids routed to by the given or discovered route indexes.
+
+    Returns ``(targets, used, warnings)``: the routed node ids, the display
+    paths of the indexes that loaded, and one warning per index that could not
+    be read or parsed. A failing index is skipped, never raised.
+    """
+    if route_index is None:
+        found = find_task_route_index(repo_root)
+        paths = [found] if found is not None else []
+    else:
+        raw = [route_index] if isinstance(route_index, (str, Path)) else route_index
+        paths = [Path(p) if Path(p).is_absolute() else repo_root / p for p in raw]
+
+    targets: set[str] = set()
+    used: list[str] = []
+    warnings: list[str] = []
+    for path in paths:
+        shown = _display_route_path(path, repo_root)
+        try:
+            index = parse_route_index(path)
+        except RouteIndexValidationError as error:
+            detail = "; ".join(
+                issue.message
+                if issue.location == ("route_index",)
+                else f"{'.'.join(str(part) for part in issue.location)}: "
+                f"{issue.message}"
+                for issue in error.issues
+            ).replace(str(path), shown)
+            warnings.append(f"{shown}: route index not used: {detail}")
+            continue
+        except (OSError, ValueError) as error:
+            detail = str(error).replace(str(path), shown)
+            warnings.append(f"{shown}: route index not used: {detail}")
+            continue
+        for routes in (index.by_path, index.by_symbol):
+            for records in routes.values():
+                targets.update(record.node_id for record in records)
+        used.append(shown)
+    return targets, used, warnings
 
 
 def _check_stale_nodes(
@@ -454,7 +525,12 @@ def format_report(report: dict[str, Any]) -> str:
 
     # Orphaned nodes
     orphaned = report.get("orphaned_nodes", [])
-    lines.append(f"## Orphaned Nodes (no edges or load_with): {len(orphaned)}")
+    lines.append(f"## Orphaned Nodes (no edges, load_with or route): {len(orphaned)}")
+    used_routes = report.get("route_indexes") or []
+    if used_routes:
+        lines += [f"  Route index: {path}" for path in used_routes]
+    else:
+        lines.append("  Route index: none")
     for o in orphaned:
         lines.append(f"  - {o['node_id']} ({o['domain']}, {o['origin']})")
     lines.append("")
@@ -562,6 +638,13 @@ def format_report(report: dict[str, Any]) -> str:
         lines.append("  Refresh with: akms generate-mirror (or failure-memory refresh)")
         lines.append("")
 
+    # Route indexes that could not be used
+    route_warnings = report.get("route_index_warnings", [])
+    if route_warnings:
+        lines.append(f"## Route Index Warnings: {len(route_warnings)}")
+        lines += [f"  - {warning}" for warning in route_warnings]
+        lines.append("")
+
     # Knowledge directory layout problems
     layout = report.get("layout_warnings", [])
     if layout:
@@ -589,6 +672,7 @@ def format_report(report: dict[str, Any]) -> str:
         + len(blocked_tasks)
         + len(drift)
         + len(layout)
+        + len(route_warnings)
         + len(stale_mirror_records)
     )
     lines.append(f"## Summary: {total_issues} total issues")
@@ -614,6 +698,7 @@ def graph_status(
     mirror_provider: dict[str, Any] | None = None,
     *,
     allow_graph_rebuild: bool = True,
+    route_index: RouteIndexArg = None,
 ) -> dict[str, Any]:
     """Run the full health check and return structured report.
 
@@ -629,6 +714,11 @@ def graph_status(
         allow_graph_rebuild: When False, skip ``build_graph`` if graph.json is
             missing (used after a required mirror-provider failure so a partial
             mirror set cannot enter the graph).
+        route_index: Task route index path(s) whose targets are not orphans.
+            Relative paths resolve against ``repo_root``. ``None`` (default)
+            discovers one with
+            :func:`~akms.task_context.routes.find_task_route_index`; an empty
+            sequence uses none.
 
     Returns:
         Dict with all check results.
@@ -675,6 +765,9 @@ def graph_status(
     local_nodes_dir = knowledge_dir / "local-nodes"
 
     freshness = check_mirror_freshness(repo_root)
+    route_targets, used_routes, route_warnings = _load_route_targets(
+        repo_root, route_index
+    )
 
     # Provider identity (non-secret) for status surfaces.
     if mirror_provider is None:
@@ -694,7 +787,7 @@ def graph_status(
         "degraded_nodes": _check_degraded_nodes(G, overlay),
         "tentative_nodes": _check_tentative_nodes(G, repo_root, local_nodes_dir),
         "id_collisions": _check_id_collisions(vault_path, local_nodes_dir),
-        "orphaned_nodes": _check_orphaned_nodes(G),
+        "orphaned_nodes": _check_orphaned_nodes(G, route_targets),
         "stale_nodes": _check_stale_nodes(
             G,
             overlay,
@@ -719,6 +812,11 @@ def graph_status(
         "mirror_freshness": {
             key: freshness[key] for key in ("mirrors", "checked", "skipped")
         },
+        # Route index whose targets count as reached (first one used, or None),
+        # every index used, and why any given or discovered index was not used.
+        "route_index": used_routes[0] if used_routes else None,
+        "route_indexes": used_routes,
+        "route_index_warnings": route_warnings,
     }
 
     logger.info(

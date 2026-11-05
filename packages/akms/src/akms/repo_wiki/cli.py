@@ -30,6 +30,7 @@ from akms.repo_wiki.graph_viewer import (
     serve,
 )
 from akms.repo_wiki.index import SearchResult, search_index, update_index
+from akms.repo_wiki.intel_cli import INTEL_COMMANDS, add_intel_parsers, run_intel
 from akms.repo_wiki.locking import LockError
 from akms.repo_wiki.manifest import build_repo, get_backend_notes, load_manifest
 from akms.repo_wiki.models import SourceFile
@@ -191,6 +192,7 @@ def build_parser() -> argparse.ArgumentParser:
     graph.add_argument(
         "--no-browser", action="store_true", help="Do not open a browser"
     )
+    add_intel_parsers(sub)
     sub.add_parser("clean")
     return parser
 
@@ -393,6 +395,8 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.input) if args.input else repo_root / DEFAULT_GRAPH_RELPATH
         )
         return serve(graph_path, args.host, args.port, not args.no_browser)
+    if args.command in INTEL_COMMANDS:
+        return run_intel(args, repo_root)
     if args.command == "clean":
         print("Clean is not implemented; no files removed.")
         return 0

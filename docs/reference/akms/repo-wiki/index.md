@@ -65,6 +65,9 @@ extras.
 | `summarize` | Generates local summary pages. `--changed-only`, `--force` and `--symbol` narrow or force the run. |
 | `export-akms` | Writes AKMS code mirrors. See [AKMS export](akms-export.md). |
 | `stats` | Prints the number of tracked files and generated pages. |
+| `context <symbol>` | Shows a symbol's definition, callers, callees and module imports. See [context](context.md). |
+| `impact <symbol>` | Lists what depends on a symbol, by depth, with a risk level. See [impact](impact.md). |
+| `changes` | Maps a git diff to the symbols it touches and their direct callers. See [changes](changes.md). |
 | `graph [input]` | Serves an interactive viewer for the symbol graph on `127.0.0.1:8765`. |
 | `clean` | Not implemented: prints a message and removes nothing. |
 
@@ -79,3 +82,8 @@ Run `repo-wiki <subcommand> --help` for the flags of each.
 - [Privacy and security](privacy-security.md): what is scanned and what is
   excluded.
 - [AKMS export](akms-export.md): `export-akms` flags, output and locking.
+- [context](context.md), [impact](impact.md) and [changes](changes.md): code
+  intelligence over the symbol graph, for exploring a symbol, checking who depends
+  on it before an edit, and checking a diff before a commit.
+- [Reading impact and risk](reading-impact.md): depths, confident and possible
+  links, the risk rule, and what the graph cannot see.

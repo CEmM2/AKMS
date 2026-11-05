@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Successful approach",
+  "description": "An approach that worked, and why.",
+  "type": "object",
+  "required": [
+    "task",
+    "approach"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "task": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What was being done."
+    },
+    "approach": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What worked."
+    },
+    "why_it_worked": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why it worked."
+    },
+    "conditions": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Conditions under which it worked."
+    },
+    "evidence": {
+      "type": "string",
+      "minLength": 1,
+      "description": "How success was checked."
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When it was observed (RFC 3339; format is an annotation only)"
+    }
+  },
+  "x-akms-records": {
+    "name": "successful-approach",
+    "version": 1,
+    "title": "Successful approach",
+    "description": "An approach that worked, and why.",
+    "rules": {
+      "search_text": [
+        "/task",
+        "/approach",
+        "/why_it_worked"
+      ],
+      "label": "/approach",
+      "time_field": "/observed_at",
+      "summary_template": "Worked for {task}: {approach}"
+    }
+  }
+}

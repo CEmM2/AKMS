@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decision",
+  "description": "A decision with its alternatives and rationale.",
+  "type": "object",
+  "required": [
+    "decision",
+    "rationale"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "decision": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What was decided."
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why."
+    },
+    "alternatives": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Options considered and not taken."
+    },
+    "context": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The situation that called for a decision."
+    },
+    "decided_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who decided."
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When it was decided (RFC 3339; format is an annotation only)"
+    },
+    "revisit_when": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What would reopen the decision."
+    }
+  },
+  "x-akms-records": {
+    "name": "decision",
+    "version": 1,
+    "title": "Decision",
+    "description": "A decision with its alternatives and rationale.",
+    "rules": {
+      "search_text": [
+        "/decision",
+        "/rationale",
+        "/context",
+        "/alternatives"
+      ],
+      "label": "/decision",
+      "time_field": "/decided_at",
+      "summary_template": "Decision: {decision}"
+    }
+  }
+}
