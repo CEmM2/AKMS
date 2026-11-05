@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from akms_records import __version__
+from akms_records.bridge import DEFAULT_MIN_REVIEW, MIN_REVIEW_CHOICES, REVIEW_CHOICES
 from akms_records.canonical import loads_strict
 from akms_records.consolidate import (
     DEFAULT_TIMEOUT,
@@ -312,6 +313,45 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="PATH",
         help="the root CONFIG's paths are relative to (default: --repo)",
+    )
+
+    promote = sub.add_parser(
+        "promote",
+        help="write a reviewed record as an AKMS project-local node (needs [akms])",
+    )
+    _store_options(promote)
+    promote.add_argument("record_id")
+    promote.add_argument(
+        "--review",
+        choices=REVIEW_CHOICES,
+        help="explicit approval; promotion is refused without it",
+    )
+    promote.add_argument(
+        "--min-review-state",
+        choices=MIN_REVIEW_CHOICES,
+        default=DEFAULT_MIN_REVIEW,
+        help=f"the review state a record needs (default: {DEFAULT_MIN_REVIEW})",
+    )
+    promote.add_argument(
+        "--scope-ok",
+        action="store_true",
+        help="allow a record of an agent or shared scope",
+    )
+    promote.add_argument(
+        "--allow-sensitive", action="store_true", help="allow a sensitive record"
+    )
+    promote.add_argument(
+        "--allow-imported",
+        action="store_true",
+        help="allow an imported failure lesson (failure-memory already routes it)",
+    )
+    promote.add_argument(
+        "--update",
+        action="store_true",
+        help="append a newer revision to the node that holds an older one",
+    )
+    promote.add_argument(
+        "--domain", help="the node's domain (default: the scope's ID, in lower case)"
     )
 
     recall = sub.add_parser("recall", help="search the scope's records (index)")
@@ -872,6 +912,22 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return {"status": summary["status"], "_quiet": True}
     if args.command == "import":
         return _import_command(args, store, actor=actor)
+    if args.command == "promote":
+        from akms_records.bridge import promote
+
+        return promote(
+            store,
+            args.record_id,
+            review=args.review,
+            repo=args.repo if args.repo is not None else Path.cwd(),
+            actor=actor,
+            min_review_state=args.min_review_state,
+            scope_ok=args.scope_ok,
+            allow_sensitive=args.allow_sensitive,
+            allow_imported=args.allow_imported,
+            update=args.update,
+            domain=args.domain,
+        )
     raise RecordsError(f"unknown command {args.command!r}", code="usage")
 
 

@@ -23,15 +23,29 @@ def test_version_matches_distribution():
 
 
 def test_does_not_import_akms_or_failure_memory():
+    """Only the bridge names akms, and only inside a function."""
     pattern = re.compile(
         r"^\s*(?:import|from)\s+(akms|akms_failure_memory)(?:\.|\s|$)", re.M
     )
     offenders = [
         path.name
         for path in SOURCE.rglob("*.py")
-        if pattern.search(path.read_text("utf-8"))
+        if path.name != "bridge.py" and pattern.search(path.read_text("utf-8"))
     ]
     assert offenders == []
+    top_level = re.compile(r"^(?:import|from)\s+(?:akms|frontmatter)(?:\.|\s|$)", re.M)
+    assert not top_level.search((SOURCE / "bridge.py").read_text("utf-8"))
+
+
+def test_importing_the_package_and_its_cli_loads_no_akms():
+    code = (
+        "import sys, akms_records, akms_records.bridge, akms_records.cli, "
+        "akms_records.failure_memory\n"
+        "bad = [m for m in sys.modules if m.split('.')[0] in "
+        "('akms', 'akms_failure_memory', 'frontmatter')]\n"
+        "assert not bad, bad\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def test_windows_probe_does_not_use_os_kill(monkeypatch):

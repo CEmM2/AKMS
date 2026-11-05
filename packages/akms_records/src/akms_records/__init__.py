@@ -10,10 +10,13 @@ A derived SQLite index (FTS5) answers scoped ``recall`` and token-budgeted
 summaries are records too; each assertion cites the source revisions it came
 from, and a summary turns stale when a source changes.
 
-This package does not import ``akms``. The optional ``[akms]`` extra is
-reserved for a later promotion bridge into AKMS project-local nodes.
+Importing this package does not import ``akms``. The optional ``[akms]`` extra
+enables ``promote``, which writes a reviewed record as an AKMS project-local
+node; ``import_failure_memory`` reads a failure-memory registry without
+needing that package at all.
 """
 
+from akms_records.bridge import promote
 from akms_records.consolidate import (
     command_summarizer,
     consolidate,
@@ -70,6 +73,7 @@ __all__ = [
     "import_failure_memory",
     "list_consolidations",
     "manifest_nodes",
+    "promote",
     "refresh_consolidation",
     "store_root",
     "wake",
