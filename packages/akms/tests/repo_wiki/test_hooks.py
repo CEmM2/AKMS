@@ -164,7 +164,7 @@ def fake_fm_python(tmp_path: Path) -> str:
     script = tmp_path / "fm-python"
     record = tmp_path / "fm-calls.txt"
     script.write_text(f'#!/bin/sh\necho "$5" >> {record}\n', encoding="utf-8")
-    os.chmod(script, 0o755)
+    os.chmod(script, 0o700)
     return script.as_posix()
 
 
@@ -204,12 +204,12 @@ def test_existing_shell_hook_keeps_its_content_and_mode(repo: Path) -> None:
     path = hooks_dir(repo) / "post-commit"
     original = "#!/usr/bin/env bash\nset -e\necho mine\nexit 0\n"
     path.write_text(original, encoding="utf-8")
-    os.chmod(path, 0o750)
+    os.chmod(path, 0o500)
     assert install_hooks(repo)["hooks"]["post-commit"] == "inserted"
     text = path.read_text("utf-8")
     assert text.startswith("#!/usr/bin/env bash\n# >>> akms-repo-wiki hook >>>")
     assert text.endswith("echo mine\nexit 0\n")
-    assert stat.S_IMODE(path.stat().st_mode) == 0o750
+    assert stat.S_IMODE(path.stat().st_mode) == 0o500
     assert uninstall_hooks(repo)["hooks"]["post-commit"] == "removed"
     assert path.read_text("utf-8") == original
 
@@ -233,13 +233,13 @@ def test_unsafe_hooks_are_refused(
         path.symlink_to(target)
     elif setup == "python":
         path.write_text("#!/usr/bin/env python3\nprint(1)\n", encoding="utf-8")
-        os.chmod(path, 0o755)
+        os.chmod(path, 0o700)
     elif setup == "not_executable":
         path.write_text("#!/bin/sh\n", encoding="utf-8")
-        os.chmod(path, 0o644)
+        os.chmod(path, 0o600)
     else:
         path.write_text("#!/bin/sh\n# >>> akms-repo-wiki hook >>>\n", encoding="utf-8")
-        os.chmod(path, 0o755)
+        os.chmod(path, 0o700)
     before = {h: (hooks_dir(repo) / h).exists() for h in HOOK_NAMES}
     assert main(["--repo-root", str(repo), "hooks", "install", "--json"]) == 1
     assert json.loads(capsys.readouterr().out)["error"]["code"] == code
@@ -251,7 +251,7 @@ def test_tracked_hooks_are_refused(repo: Path) -> None:
     (repo / "githooks").mkdir()
     tracked = repo / "githooks" / "post-commit"
     tracked.write_text("#!/bin/sh\n", encoding="utf-8")
-    os.chmod(tracked, 0o755)
+    os.chmod(tracked, 0o700)
     git(repo, "add", "githooks/post-commit")
     git(repo, "commit", "-q", "-m", "hooks")
     git(repo, "config", "core.hooksPath", "githooks")
