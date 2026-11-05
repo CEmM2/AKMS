@@ -1,0 +1,18 @@
+{
+  "format": "akms-records-rules/v1",
+  "rules": {
+    "label": "/decision",
+    "search_text": [
+      "/decision",
+      "/rationale",
+      "/context",
+      "/alternatives"
+    ],
+    "summary_template": "Decision: {decision}",
+    "time_field": "/decided_at"
+  },
+  "rules_sha256": "fa65a455e8f176a54cb12d19770a7be02d892a3e293c93d8ed6afd63518b6cc2",
+  "schema_ref": "decision/v1",
+  "set_at": "2026-11-03T10:00:00.000000Z",
+  "set_by": "tester"
+}

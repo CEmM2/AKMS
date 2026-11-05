@@ -344,6 +344,26 @@ jobs:
           .venv-records/bin/akms-records schema templates
           .venv-records/bin/python -c \
             "import importlib.util as u, akms_records; assert u.find_spec('akms') is None; print('akms-records without akms: OK')"
+          uv pip install --python .venv-records/bin/python pytest
+          .venv-records/bin/python -m pytest tests/public_smoke/records -q -rs
+
+      # The promotion bridge, installed through the extra and nothing else: both
+      # write paths, against an empty vault that must stay empty.
+      - name: Clean-install akms-records with its akms extra
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv .venv-records-akms --python 3.12
+          RECORDS_URI=$(python - <<'PY'
+          from pathlib import Path
+          print(next(Path('dist').glob('akms_records-*.whl')).resolve().as_uri())
+          PY
+          )
+          uv pip install --python .venv-records-akms/bin/python \
+            "akms-records[akms] @ ${RECORDS_URI}" \
+            dist/akms-*.whl \
+            pytest
+          .venv-records-akms/bin/python -m pytest tests/public_smoke/records -q -rs
 
       - name: Run installed public smoke suites
         run: .venv-wheel/bin/python -m pytest tests/public_smoke -q

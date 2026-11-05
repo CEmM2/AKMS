@@ -57,6 +57,7 @@ from akms_records.citations import (
 from akms_records.envelope import (
     MAX_REFS,
     MAX_SUMMARY,
+    PROMOTED_KIND,
     Record,
     check_actor,
     normalize_tags,
@@ -217,11 +218,18 @@ def gather(store: RecordStore, topic: dict[str, Any]) -> list[tuple[Record, Reca
 
 
 def inputs_digest(sources: Sequence[Record]) -> str:
-    """The digest of the source revisions a topic gathered."""
+    """The digest of the source revisions a topic gathered.
+
+    It covers each source's content revision, so a promotion link (which
+    changes no content) leaves the digest and its summaries as they were.
+    """
     return digest(
         sorted(
             (
-                {"ref": citation(r.record_id, r.revision), "head_sha256": r.head_sha256}
+                {
+                    "ref": citation(r.record_id, r.content_revision),
+                    "head_sha256": r.content_sha256,
+                }
                 for r in sources
             ),
             key=lambda item: item["ref"],
@@ -426,6 +434,8 @@ def _ref_list(source_refs: Any) -> list[str]:
         raise _invalid("a summary needs at least one source", "no_sources")
     refs: list[str] = []
     for index, item in enumerate(source_refs):
+        if isinstance(item, dict) and item.get("kind") == PROMOTED_KIND:
+            continue  # a promoted summary's link is not one of its sources
         if not isinstance(item, dict) or item.get("kind") != SOURCE_KIND:
             raise _invalid(
                 f"source_refs[{index}] is not a record source",
@@ -492,7 +502,7 @@ def source_state(store: RecordStore, ref: str, erased: set[str]) -> dict[str, An
         return {**out, "state": "superseded", "superseded_by": record.superseded_by}
     if record.lifecycle == "retracted":
         return {**out, "state": "retracted"}
-    if record.revision > revision:
+    if record.content_revision > revision:
         return {**out, "state": "amended"}
     if record.revision < revision:
         return {**out, "state": "missing"}
@@ -800,7 +810,7 @@ def describe(record: Record) -> dict[str, Any]:
         "topic": payload.get("topic"),
         "method": payload.get("method"),
         "provider": payload.get("provider"),
-        "sources": len(record.source_refs),
+        "sources": sum(r.get("kind") == SOURCE_KIND for r in record.source_refs),
         "assertions": len(payload.get("assertions", [])),
     }
 

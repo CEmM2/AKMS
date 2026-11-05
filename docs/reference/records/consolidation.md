@@ -239,7 +239,9 @@ format adds a `- consolidation: <status>` line.
 
 `wake` may show a summary instead of its sources when that costs fewer
 tokens. A stale summary is never shown, and the summary must be eligible for
-the agent; see [recall and wake](recall-and-wake.md#summaries-in-wake).
+the agent; see [recall and wake](recall-and-wake.md#summaries-in-wake). A summary
+whose sources were all promoted or imported is left out with them. A promotion link
+on a source does not make its summaries stale, because it changes no content.
 
 ## Commands
 
