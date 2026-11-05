@@ -225,6 +225,9 @@ def world(make_store, home, clock, repo):
     }
 
 
+DAY = "2026-11-03"  # the fixed clock's day
+
+
 def run_wake(world, agent="alpha", task="decision", budget=2000, **options):
     # These tests cover isolation, deduplication, priority and budgets over
     # records written by "t", so they opt into every unreviewed record; the
@@ -304,7 +307,7 @@ def test_wake_deduplicates_chains_and_identical_summaries(world):
     }
 
 
-def test_wake_priority_review_state_then_match_then_recency(world):
+def test_wake_priority_tier_then_match_then_recency(world):
     project = world["project"]
     confirmed = add(project, "Unrelated", review_state="user_confirmed")
     reviewed = add(project, "Mesh refinement plan", review_state="agent_reviewed")
@@ -313,9 +316,51 @@ def test_wake_priority_review_state_then_match_then_recency(world):
     recent = add(project, "Something else")
     result = run_wake(world, task="mesh refinement", scopes=["project:example"])
     order = entry_ids(result)
-    assert order[:2] == [confirmed, reviewed]
+    # The task match outranks user_confirmed inside the reviewed tier.
+    assert order[:2] == [reviewed, confirmed]
     assert order.index(match_old) < order.index(match_new) < order.index(recent)
     assert order.index(recent) < order.index(world["names"]["project"])  # newer first
+
+
+def test_wake_treats_reviewed_states_as_one_tier(world):
+    project = world["project"]
+    for number in range(4):
+        add(project, f"Unrelated standing rule {number}", review_state="user_confirmed")
+    needed = add(project, "Crack tip mesh decision", review_state="agent_reviewed")
+    own = add(project, "Crack tip mesh crack tip mesh note")
+    result = run_wake(world, task="crack tip mesh", scopes=["project:example"])
+    assert result.entries[0].record_id == needed
+    # An unreviewed record that matches better still comes after the reviewed tier.
+    states = [entry.review_state for entry in result.entries]
+    reviewed = sum(state != "unreviewed" for state in states)
+    assert all(state != "unreviewed" for state in states[:reviewed])
+    assert entry_ids(result).index(own) == reviewed
+
+
+def test_wake_without_any_task_match_is_tier_recency_id(world):
+    project = world["project"]
+    old = add(project, "First reviewed", review_state="user_confirmed")
+    new = add(project, "Second reviewed", review_state="agent_reviewed")
+    note = add(project, "Own unreviewed")
+    order = entry_ids(run_wake(world, task="zzzqqq", scopes=["project:example"]))
+    assert order.index(new) < order.index(old) < order.index(note)
+    assert all(e.match == 0.0 for e in run_wake(world, task="zzzqqq").entries)
+    assert order == entry_ids(
+        run_wake(world, task="zzzqqq", scopes=["project:example"])
+    )
+
+
+def test_a_wake_entry_spends_little_on_metadata(world):
+    project = world["project"]
+    add(project, "A short decision", review_state="user_confirmed")
+    result = run_wake(world, task="decision", scopes=["project:example"])
+    entry = next(e for e in result.entries if "short decision" in e.summary)
+    overhead = entry.tokens - estimate_tokens(entry.summary)
+    assert overhead <= 32, entry.text
+    assert entry.text.count("\n") == 6  # blank, heading, metadata, a fence of three
+    for shown in (entry.record_id, "project:example", entry.schema_ref):
+        assert shown in entry.text
+    assert entry.origin["kind"] in entry.text and "user_confirmed" in entry.text
 
 
 def test_wake_budget_is_never_exceeded_and_the_report_adds_up(world):
@@ -418,9 +463,12 @@ def test_wake_layout_survives_hostile_records(world):
     outside, blocks = parse_markdown(markdown)
     allowed = re.compile(
         r"(|# akms-records wake|## Records|## Truncation report"
-        r"|### [0-9]+\. rec-[0-9]{8}-[0-9a-z]{8} \(revision [0-9]+\)"
-        r"|- (agent|scopes|budget_tokens|scope|schema|origin|review_state"
-        r"|recorded_at|tags|included|omitted_by_budget|excluded|record IDs): .*)"
+        r"|### [0-9]+\. rec-[0-9]{8}-[0-9a-z]{8}@[0-9]+"
+        r"|(project|agent|shared):\S+ [a-z0-9-]+/v[0-9]+ "
+        r'(human|human-confirmed|agent|tool|import) "[^\n]*" '
+        r"(unreviewed|agent_reviewed|user_confirmed) [0-9]{4}-[0-9]{2}-[0-9]{2}"
+        r"|- (agent|scopes|budget_tokens|included|omitted_by_budget|excluded"
+        r"|record IDs): .*)"
     )
     assert outside[2] == f"> {NOTICE}"
     for line in outside[:2] + outside[3:]:
@@ -428,19 +476,17 @@ def test_wake_layout_survives_hostile_records(world):
     headings = [line for line in outside if line.startswith("#")]
     assert headings == (
         ["# akms-records wake", "## Records"]
-        + [
-            f"### {e.position}. {e.record_id} (revision {e.revision})"
-            for e in result.entries
-        ]
+        + [f"### {e.position}. {e.record_id}@{e.revision}" for e in result.entries]
         + ["## Truncation report"]
     )
     summaries = [
         e.summary.replace("\r\n", "\n").replace("\r", "\n") for e in result.entries
     ]
     assert blocks == summaries
-    origins = [line for line in outside if line.startswith("- origin: ")]
-    reviews = [line for line in outside if line.startswith("- review_state: ")]
-    assert len(origins) == len(reviews) == len(result.entries)
+    metadata = [line for line in outside if line.endswith(f" {DAY}")]
+    assert len(metadata) == len(result.entries)
+    for line, entry in zip(metadata, result.entries, strict=True):
+        assert entry.origin["kind"] in line and entry.review_state in line
 
 
 def test_recall_text_layout_survives_hostile_records(store):

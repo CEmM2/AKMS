@@ -331,7 +331,7 @@ def test_cli_flags(project, repo, home, tmp_path, capsys):
     code, out = cli(capsys, *base, "--exclude-nodes", str(tmp_path / "bad.json"))
     assert code == 2 and json.loads(out)["error"]["code"] == "manifest_invalid"
     code, out = cli(capsys, *base, "--format", "markdown")
-    assert code == 0 and "promoted 1, imported 1, in_loadout 0" in out
+    assert code == 0 and "excluded: promoted 1, imported 1\n" in out
 
 
 # ----------------------------------------------------------------------- summaries

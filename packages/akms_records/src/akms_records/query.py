@@ -660,43 +660,52 @@ def _wake_header(agent: str, scopes: Sequence[str], budget: int) -> str:
 
 
 def _wake_footer(included: int, omitted: int, excluded: dict[str, int]) -> str:
-    counts = ", ".join(f"{kind} {excluded[kind]}" for kind in EXCLUSION_KINDS)
+    """The truncation report. Exclusions with a count of zero are left out."""
+    counts = ", ".join(
+        f"{kind} {excluded[kind]}" for kind in EXCLUSION_KINDS if excluded[kind]
+    )
     return (
         "\n"
         "## Truncation report\n"
         "\n"
         f"- included: {included}\n"
         f"- omitted_by_budget: {omitted}\n"
-        f"- excluded: {counts}\n"
-        "- record IDs: in the JSON output, with the sources each summary covers\n"
+        f"- excluded: {counts or 'none'}\n"
+        "- record IDs: in the JSON output\n"
     )
 
 
 def _wake_entry(position: int, candidate: _Candidate) -> str:
+    """One entry: a heading, one metadata line, and the record text in a fence.
+
+    The metadata line is positional: scope, schema, origin kind and actor, review
+    state and the day recorded. Everything else is in the JSON form. Each value is
+    a slug or a JSON literal, so record text cannot start another line here.
+    """
     origin = candidate.origin
     head = (
-        f"\n### {position}. {candidate.record_id} (revision {candidate.revision})\n"
-        "\n"
-        f"- scope: {candidate.scope}\n"
-        f"- schema: {candidate.schema_ref}\n"
-        f"- origin: {origin['kind']} {literal(origin['actor_id'])}\n"
-        f"- review_state: {candidate.review_state}\n"
-        f"- recorded_at: {candidate.recorded_at}\n"
-        f"- tags: {tag_list(candidate.tags)}\n"
+        f"\n### {position}. {candidate.record_id}@{candidate.revision}\n"
+        f"{candidate.scope} {candidate.schema_ref} {origin['kind']} "
+        f"{literal(origin['actor_id'])} {candidate.review_state} "
+        f"{candidate.recorded_at[:10]}\n"
     )
     info = candidate.consolidation
     if info is None:
-        return head + "\n" + fence(candidate.summary)
+        return head + fence(candidate.summary, "")
     from akms_records.consolidate import assertion_lines
 
     body, cites = assertion_lines(info)
     return (
-        head + f"- consolidation: valid, {info['method']}, "
+        head + f"consolidation: valid, {info['method']}, "
         f"{len(info['assertions'])} assertions from {len(candidate.cites)} records\n"
-        + f"- citations: {cites}\n"
-        + "\n"
-        + fence(body)
+        + f"citations: {cites}\n"
+        + fence(body, "")
     )
+
+
+def _tier(review_rank: int) -> int:
+    """Wake's ordering tier: 1 for any reviewed record, 0 for an unreviewed one."""
+    return 1 if review_rank >= REVIEW_RANK["agent_reviewed"] else 0
 
 
 def _summary_key(summary: str) -> str:
@@ -847,14 +856,15 @@ def wake(
     summary only once it is itself reviewed; neither when all its sources are
     held back as above (it then takes their reason). When an eligible summary costs
     fewer tokens than the eligible sources it cites, it is shown at its own
-    priority (its effective review rank, then match, then recency) and those
+    priority (the tier of its effective review rank, then match, then recency) and those
     sources are excluded as ``covered``; otherwise the summary is excluded as
     a ``duplicate``. If an included summary does not fit the budget, its
     sources compete again.
 
-    Priority: review state (``user_confirmed`` first; reviewed records always
-    above unreviewed ones), then BM25 match with any word of ``task``, then
-    ``recorded_at`` (newest first), then record ID. Deduplicated: superseded
+    Priority: the reviewed tier (``agent_reviewed`` and ``user_confirmed``
+    together) above unreviewed records; within a tier, BM25 match with any word of
+    ``task``, then ``recorded_at`` (newest first), then record ID. With no match at
+    all that leaves tier, recency, record ID. Deduplicated: superseded
     records and records that a newer visible record names as superseded are
     left out (only chain heads remain), and of several records with the same
     summary only the first is kept. Entries are taken in priority order while
@@ -971,7 +981,7 @@ def wake(
     # Priority order, built from the last key to the first (sorts are stable).
     candidates.sort(key=lambda c: c.record_id)
     candidates.sort(key=lambda c: c.recorded_at, reverse=True)
-    candidates.sort(key=lambda c: (-c.review_rank, -c.match))
+    candidates.sort(key=lambda c: (-_tier(c.review_rank), -c.match))
     order = {c.record_id: (c.recorded_at, c.record_id) for c in candidates}
     replaced = {
         older
@@ -1069,10 +1079,10 @@ def _place_summaries(
     Each summary, best first, covers the cited sources that are still in
     ``kept`` and not covered by a summary before it. It is used when its
     entry costs fewer tokens than those sources' entries together, and then
-    keeps its own queue position: its effective review rank (an extractive
-    summary's lowest source rank, a provider summary's own), then match,
-    then recency. So a summary never rises above a record of a higher review
-    rank, whatever it covers. Otherwise it is excluded as a ``duplicate``.
+    keeps its own queue position: the tier of its effective review rank (an
+    extractive summary's lowest source rank, a provider summary's own), then
+    match, then recency. So a summary never rises above a record of a higher
+    tier, whatever it covers. Otherwise it is excluded as a ``duplicate``.
     """
     position_of = {c.record_id: n for n, c in enumerate(kept)}
     probe = max(len(kept), 1)  # one position for all cost estimates

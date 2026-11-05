@@ -203,7 +203,10 @@ examples, not privileged types.
   records on demand.
 - **Wake:** given an agent, a task description, and a hard token limit, return
   prioritized, deduplicated records and summaries with stable identifiers and a
-  truncation report. Token counts use the AKMS loadout estimator, so a record
+  truncation report. Review state decides what is eligible and which tier a record
+  is in (reviewed above unreviewed); within a tier, task match decides the order,
+  because a wake's job is what this task needs, and an evaluation showed a store's
+  `user_confirmed` records otherwise fill the budget regardless of the task. Token counts use the AKMS loadout estimator, so a record
   budget and a loadout budget mean the same thing. It never includes another
   agent's private records. It reads only the record store. Promoted records and
   imported failure lessons are left out by default, because the loadout and

@@ -140,11 +140,20 @@ review first, or an explicit `recall`.
 | `duplicate` | A record that a newer visible record names in a `supersedes` source reference (a successor whose supersede event never landed), every record whose summary equals (ignoring case and spacing) the summary of a record ranked above it, and a summary that would not save tokens over its sources |
 | `covered` | Sources of a summary that is included instead of them |
 
-**Priority.** Review state first (`user_confirmed`, then `agent_reviewed`,
-then `unreviewed`), so reviewed records always rank above the agent's own
-unreviewed ones; then the BM25 match against any word of `--task` (words are
-extracted and quoted, at most 64), then `recorded_at` (newest first), then
-record ID.
+**Priority.** Two tiers, the reviewed records (`agent_reviewed` and
+`user_confirmed` together) and then the agent's own unreviewed ones. Within a tier:
+the BM25 match against any word of `--task` (words are extracted and quoted, at most
+64), then `recorded_at` (newest first), then record ID. With no match at all, that
+leaves tier, recency and record ID, so the order is always fully determined.
+
+Why: a wake's job is to surface what this task needs. Review state already decides
+what may appear, so it should not also decide what fits. When `user_confirmed` always
+came first, a store with more such records than fit a budget never showed anything
+else: on a 597-record evaluation corpus, 500 of 501 entries at 2k tokens were
+`user_confirmed`, and only 25 % of the facts the tasks needed were included. Ranking
+the reviewed tier by task match, with the shorter entries below, took that to 52 %. An
+unreviewed record still never outranks a reviewed one, because it is the agent's own
+note, not a checked one.
 
 ## One context budget across systems
 
@@ -208,11 +217,11 @@ content, so it does not make a summary stale.
 
 An eligible summary is used when its entry costs fewer tokens than the
 entries of the eligible sources it cites. It is then shown at its own
-priority, ranked like any record by its effective review state (for an
-extractive summary the lowest among its sources, for a provider summary its
+priority, ranked like any record by the tier of its effective review state (for
+an extractive summary the lowest among its sources, for a provider summary its
 own), then task match, then recency, and those sources are left out as
 `covered`, so nothing is shown twice. A summary therefore never ranks above
-a record of a higher review state, even when it covers a reviewed source. A summary that would not save tokens is left out as
+a record of a higher tier, even when it covers a reviewed source. A summary that would not save tokens is left out as
 `duplicate` and its sources are shown. If the summary does not fit the
 remaining budget, it is omitted and its sources compete for the budget again.
 The report's `covered_by_summary` maps each included summary to the sources it
@@ -221,18 +230,11 @@ stands in for.
 A summary entry adds two metadata lines and fences its assertions, numbered:
 
 ````markdown
-### 1. rec-20261104-c0n5d8ab (revision 1)
-
-- scope: project:example
-- schema: consolidation/v1
-- origin: tool "scout"
-- review_state: unreviewed
-- recorded_at: 2026-11-04T09:00:00.000000Z
-- tags: mesh
-- consolidation: valid, extractive, 2 assertions from 3 records
-- citations: [1] rec-20261103-k3f9m2xa@2, rec-20261104-p4q8r1sd@1; [2] rec-20261104-z7a2c9ve@1
-
-```text
+### 1. rec-20261104-c0n5d8ab@1
+project:example consolidation/v1 tool "scout" unreviewed 2026-11-04
+consolidation: valid, extractive, 2 assertions from 3 records
+citations: [1] rec-20261103-k3f9m2xa@2, rec-20261104-p4q8r1sd@1; [2] rec-20261104-z7a2c9ve@1
+```
 [1] Decision: Refine the mesh near the crack tip
 [2] Decision: Keep the coarse mesh far field
 ```
@@ -314,16 +316,9 @@ so they compare best within one root.
 
 ## Records
 
-### 1. rec-20261103-k3f9m2xa (revision 2)
-
-- scope: project:example
-- schema: decision/v1
-- origin: agent "scout"
-- review_state: user_confirmed
-- recorded_at: 2026-11-03T16:00:00.000000Z
-- tags: surrogate
-
-```text
+### 1. rec-20261103-k3f9m2xa@2
+project:example decision/v1 agent "scout" user_confirmed 2026-11-03
+```
 Decision: Keep the existing surrogate model
 ```
 
@@ -331,9 +326,15 @@ Decision: Keep the existing surrogate model
 
 - included: 1
 - omitted_by_budget: 0
-- excluded: visibility 0, lifecycle 2, review_state 1, sensitivity 0, duplicate 0, stale 0, covered 0, promoted 0, imported 0, in_loadout 0
-- record IDs: in the JSON output, with the sources each summary covers
+- excluded: lifecycle 2, review_state 1
+- record IDs: in the JSON output
 ````
+
+An entry is its record ID and revision, one metadata line and the fenced text. The
+line is positional: scope, schema, origin kind and actor, review state, and the day
+recorded. Tags and full timestamps are in the JSON form only, because at about half
+of a wake's budget, metadata was crowding out the facts. The report lists only the
+exclusions that happened.
 
 ## Rendering is data, not instructions
 
@@ -347,8 +348,8 @@ claims to be instructions. The text and Markdown layouts guarantee that:
   another entry or the truncation report.
 - **Line breaks are normalized** to `\n` before fencing, so a carriage return
   cannot start a line outside the fence.
-- **Metadata stays on its line.** Scope, schema, record ID, review state,
-  tags and a summary's citations are slugs; an origin's actor and source
+- **Metadata stays on its line.** Scope, schema, record ID, review state, tags,
+  dates and a summary's citations are slugs; an origin's actor and source
   references are written as JSON string literals. A summary's assertions are
   fenced like any record text.
 - **The layout is fixed.** Headings, keys and their order never depend on
