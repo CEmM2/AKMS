@@ -1,4 +1,13 @@
-"""Local SQLite-backed document index."""
+"""Local SQLite-backed document index.
+
+**Erasure.** The connection runs with ``PRAGMA secure_delete=ON`` and the FTS5
+table with its ``secure-delete`` option, so a removed or replaced document's
+text is overwritten rather than left in free space. Where the SQLite library
+predates FTS5 ``secure-delete`` (3.42), a write that removed text also runs the
+FTS5 ``optimize`` command and ``VACUUM``. A database in WAL mode is
+checkpointed with ``TRUNCATE`` after such a write; the index itself uses the
+default rollback journal, which SQLite removes at commit.
+"""
 
 from __future__ import annotations
 
@@ -98,7 +107,10 @@ class SQLiteIndexBackend:
         ensure_parent(path)
         self.connection = sqlite3.connect(path)
         self.connection.row_factory = sqlite3.Row
+        # Overwrite deleted content instead of leaving it in free pages.
+        self.connection.execute("PRAGMA secure_delete=ON")
         self._init_schema()
+        self.fts_secure_delete = self._enable_fts_secure_delete()
 
     def close(self) -> None:
         self.connection.close()
@@ -127,6 +139,35 @@ class SQLiteIndexBackend:
         )
         self.connection.commit()
 
+    def _enable_fts_secure_delete(self) -> bool:
+        """Turn on FTS5 ``secure-delete``; ``False`` where SQLite lacks it (< 3.42)."""
+        row = self.connection.execute(
+            "SELECT v FROM documents_fts_config WHERE k = 'secure-delete'"
+        ).fetchone()
+        if row is not None and str(row[0]) == "1":
+            return True
+        try:
+            with self.connection:
+                self.connection.execute(
+                    "INSERT INTO documents_fts(documents_fts, rank) "
+                    "VALUES('secure-delete', 1)"
+                )
+        except sqlite3.OperationalError:
+            return False
+        return True
+
+    def _erase_removed_text(self) -> None:
+        """Run after a committed write that deleted or replaced documents."""
+        if not self.fts_secure_delete:
+            with self.connection:
+                self.connection.execute(
+                    "INSERT INTO documents_fts(documents_fts) VALUES('optimize')"
+                )
+            self.connection.execute("VACUUM")
+        mode = self.connection.execute("PRAGMA journal_mode").fetchone()[0]
+        if str(mode).lower() == "wal":
+            self.connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
     def index_documents(
         self, documents: list[IndexDocument], *, changed_only: bool = False
     ) -> IndexSummary:
@@ -139,15 +180,20 @@ class SQLiteIndexBackend:
                     "SELECT doc_id, content_hash FROM documents"
                 )
             }
+            replaced = 0
             for doc in documents:
                 if changed_only and existing.get(doc.doc_id) == doc.content_hash:
                     summary.skipped_unchanged += 1
                     continue
+                if doc.doc_id in existing:
+                    replaced += 1
                 self._upsert_document(doc)
                 summary.indexed += 1
             for doc_id in sorted(set(existing) - incoming_ids):
                 self._delete_document(doc_id)
                 summary.deleted += 1
+        if replaced or summary.deleted:
+            self._erase_removed_text()
         return summary
 
     def _upsert_document(self, doc: IndexDocument) -> None:
