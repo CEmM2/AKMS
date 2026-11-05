@@ -285,6 +285,17 @@ development is intentionally not replayed.
   lesson ID fails with `annotation_id`. It does not change generated nodes,
   routes or the registry digest. `registry migrate --to 2` copies it into the
   new directory.
+- `loadout.full_mode_max_tokens` (default 40,000; `null` turns it off) bounds
+  what a required-aware full-mode loadout inlines. Required and coactivated
+  content is uncapped and a code mirror is a whole source file, so with mirror
+  bodies loaded such a loadout reaches about 315,000 tokens at the 90th
+  percentile and 1.3 million at most on a large downstream project. Past the
+  budget, the remaining
+  code mirrors are served as summary and path, in deterministic order. No node
+  is dropped, other required content stays inline, and the loadout says which
+  mirrors were downgraded and why. A loadout within the budget is byte-identical
+  to before, and routing mode is unchanged. See
+  `docs/reference/akms/user-guide/generating-loadouts.md`.
 
 ### Changed
 - Loadouts render coactivated (`load_with`) nodes as their `## Summary`
