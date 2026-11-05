@@ -77,7 +77,7 @@ cannot be `established`.
 | Command | Purpose |
 |---|---|
 | `recall [--query WORDS] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--agent ID] [--limit N] [--full] [--format json\|text]` | Search the scope through the index; ranked by BM25, then newest first. |
-| `wake --agent ID --task TEXT --budget-tokens N [--scope S]... [--include-sensitive] [--include-unreviewed] [--review-state MIN] [--format json\|markdown] [--generated-at]` | Prioritised, deduplicated records for an agent within a hard token budget, with a truncation report. By default: reviewed records plus the agent's own unreviewed ones; `--include-unreviewed` adds everyone's. |
+| `wake --agent ID --task TEXT --budget-tokens N [--scope S]... [--include-sensitive] [--include-unreviewed] [--include-promoted] [--include-imported] [--exclude-nodes MANIFEST] [--review-state MIN] [--format json\|markdown] [--generated-at]` | Prioritised, deduplicated records for an agent within a hard token budget, with a truncation report. By default: reviewed records plus the agent's own unreviewed ones, without promoted records and imported failure lessons; `--include-unreviewed` adds everyone's. |
 
 Both are described in [recall and wake](recall-and-wake.md), including the
 visibility and eligibility rules and the output shapes.
@@ -112,6 +112,15 @@ and adds `{"kind": "supersedes", "ref": RECORD}` to its `source_refs`, so a
 retry with the same `--event-id` repeats neither write. Only active records
 can be amended, superseded or retracted.
 
+## Promotion
+
+| Command | Purpose |
+|---|---|
+| `promote RECORD --review approved [--min-review-state MIN] [--scope-ok] [--allow-sensitive] [--allow-imported] [--update] [--domain D]` | Write a reviewed record as an AKMS project-local node and link it (needs `akms-records[akms]`). |
+
+See [promotion and import](promotion-and-import.md) for the two paths, every refusal
+and the crash order.
+
 ## Maintenance
 
 | Command | Purpose |
@@ -120,6 +129,7 @@ can be amended, superseded or retracted.
 | `doctor [--fix [--force-tmp]]` | Check the store root; with `--fix`, also repair what is safe. |
 | `export [--output FILE] [--include-sensitive] [--skip-broken]` | Write the scope as JSONL. |
 | `import FILE` | Replay an export into the scope. |
+| `import --from-failure-memory CONFIG [--failure-memory-repo PATH]` | Read a failure-memory registry into `failure-lesson/v1` records, without writing back. See [the importer](promotion-and-import.md#import-from-failure-memory). |
 | `index rebuild` | Rebuild the store root's [search index](search-index.md) from the files. |
 | `index check` | Compare the index with the files; `status: drift` (exit 1) lists `missing`, `extra` and `stale` records. Changes nothing. |
 | `index reconcile` | Replay every record and fix what differs. |
@@ -210,11 +220,15 @@ equal `--scope`.
 | `budget_too_small` | The wake budget cannot hold the header and truncation report (`details.minimum_tokens`) |
 | `citation_invalid` | A summary assertion is uncited or cites something it may not (`details.problem`) |
 | `consolidation_write` | A summary was written or changed outside `consolidate` |
-| `consolidation_schema`, `reserved_schema` | `consolidation/v1` differs from the built-in, or another schema used the reserved name |
+| `consolidation_schema`, `reserved_schema` | `consolidation/v1` differs from the built-in, or another schema used a reserved name (`consolidation`, `failure-lesson`) |
 | `empty_topic`, `topic_too_large` | The topic gathers no records, or more than 64 |
 | `summary_exists` | An active summary of the same topic exists (`details.record_id`); refresh it |
 | `summary_invalid`, `not_a_summary` | The summary cannot be refreshed; the record is not a summary |
 | `summarizer_required`, `summarizer_failed`, `summarizer_timeout`, `summarizer_output_invalid` | Provider errors: none given, it failed or exited non-zero, it ran too long, or its output is not the expected JSON |
 | `fts5_unavailable` | Python's `sqlite3` has no FTS5; recall, wake and index commands need it |
 | `index_unavailable`, `index_format` | The index file cannot be opened, or has another format (rebuild it) |
+| `manifest_missing`, `manifest_invalid` | `wake --exclude-nodes` found no file, or not a v1 resolution manifest |
+| `reserved_source_ref`, `source_refs_full` | A writer set the `promoted-to` reference kind that only `promote` writes; a record has no room for its promotion link |
+| `akms_unavailable`, `review_required`, `review_below_threshold`, `scope_not_project`, `record_retracted`, `record_superseded`, `record_erased`, `schema_mismatch`, `record_sensitive`, `summary_unreviewed`, `summary_stale`, `imported_not_promotable`, `policy_drift`, `global_vault_target`, `already_promoted`, `node_not_updatable`, `node_exists`, `promote_locked`, `promote_graph_failed`, `promote_write_failed`, `node_not_loaded`, `promote_ledger_exhausted` | [Promotion refusals](promotion-and-import.md#refusals) |
+| `failure_memory_config`, `failure_memory_registry` | The failure-memory config or registry cannot be read as documented; nothing was written |
 | `internal_error` | An unexpected failure |

@@ -26,6 +26,39 @@ Setting a promotion policy asks for interactive confirmation, but a process
 that can drive a terminal could answer it. That is why every change is
 logged.
 
+## Promotion
+
+- **The approval is a statement, not a proof.** `--review approved` and
+  `amend --review-state user_confirmed` are for cooperating agents and people. A
+  process that can run the CLI can pass them. The node's Sources section and the
+  link event name the actor, so a wrong promotion can be traced.
+- **A node does not follow its record.** Amending, retracting or superseding a
+  promoted record changes nothing in the node. `--update` appends a newer revision;
+  anything else is a hand edit of the node. The record's `wake` exclusion stays
+  until then.
+- **`erase` cannot reach the node.** Its report names the node under `not_reached`,
+  and removing the text from it is up to you, as with pushed git history.
+- **A lock, not a transaction.** `update_graph` keeps no lock of its own, so promote
+  takes one per repository. It cannot stop another process that calls AKMS directly
+  while it runs. A lock left by a dead process is removed by the next promote.
+- **Payload size.** A node holds the whole payload rendering. A large payload means
+  a large node, which every loadout that selects it pays for.
+- **Sessions.** `update_graph` adds a session entry and a ledger line to
+  `local_state.yaml` for each default-path promotion. The human path adds neither.
+
+## The failure-memory importer
+
+- **A copy, not a source.** The registry stays the authority. A record can be behind
+  the registry until the next import, and a lesson removed upstream stays until a
+  person retracts it.
+- **Annotations and `_field_spec` are not imported**, since they are not lesson
+  fields.
+- **Two clones importing on different days** create separate records for one lesson;
+  later imports report the extra under `duplicate_records`.
+- **Erased lessons are recognized by their record ID**, which derives from the
+  lesson. An ID that took more than four allocation attempts is not recognized,
+  and a re-import would create the record again; 40 random bits make that rare.
+
 ## Summaries are derived content
 
 A [summary](consolidation.md) is written by a tool, `unreviewed`, from records

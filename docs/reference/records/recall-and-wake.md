@@ -7,7 +7,8 @@
 `recall` searches one scope's records. `wake` picks the records an agent
 should see when it starts a task, within a hard token budget. Both read the
 [search index](search-index.md), never call an LLM, and never rebuild the
-AKMS graph.
+AKMS graph. They read only record stores: never a failure-memory registry, and
+never an AKMS node.
 
 ## recall
 
@@ -92,6 +93,7 @@ with a `- consolidation: <status>` line for a summary.
 akms-records wake --agent ID --task TEXT --budget-tokens N
     [--scope project:ID | shared:ID]... [--repo PATH]
     [--include-sensitive] [--include-unreviewed] [--review-state MIN]
+    [--include-promoted] [--include-imported] [--exclude-nodes MANIFEST]
     [--format json|markdown] [--generated-at]
 ```
 
@@ -129,6 +131,9 @@ review first, or an explicit `recall`.
 |---|---|
 | `visibility` | Records of a scope that is not visible |
 | `lifecycle` | Superseded and retracted records |
+| `in_loadout` | Records [promoted](promotion-and-import.md) into a node the `--exclude-nodes` manifest selected |
+| `promoted` | Other promoted records, unless `--include-promoted` |
+| `imported` | [Imported failure lessons](promotion-and-import.md#import-from-failure-memory) (`failure-lesson/v1`), unless `--include-imported`, which also admits them while `unreviewed` |
 | `review_state` | `rejected` records, records below `--review-state`, unreviewed records that are not the agent's own (unless `--include-unreviewed`), and summaries that are not eligible (below) |
 | `sensitivity` | `sensitive` records, unless `--include-sensitive` |
 | `stale` | Summaries that are stale or invalid |
@@ -140,6 +145,41 @@ then `unreviewed`), so reviewed records always rank above the agent's own
 unreviewed ones; then the BM25 match against any word of `--task` (words are
 extracted and quoted, at most 64), then `recorded_at` (newest first), then
 record ID.
+
+## One context budget across systems
+
+An agent's task context can come from three places: the AKMS loadout, failure-memory
+lessons (which the loadout carries as required or coactivated entries, routed by
+path), and `wake`. They should not pay twice for the same text, so `wake` keeps to its
+own side:
+
+- **It reads only the records store**, under its hard `--budget-tokens` cap. It never
+  pulls a failure-memory lesson or an AKMS node. A test runs it under an audit hook
+  to show which files it opens.
+- **Promoted records are left out** (`promoted`), because the loadout serves their
+  node when the task needs it. `--include-promoted` takes them back for a host that
+  does not use loadouts.
+- **Imported failure lessons are left out** (`imported`), because failure-memory
+  routes them exactly, by path. `--include-imported` takes them back.
+- **`--exclude-nodes MANIFEST`** takes an AKMS resolution manifest (`akms resolve-task`
+  writes one) and drops any record whose promoted node it selected (`in_loadout`),
+  with or without `--include-promoted`. So `--include-promoted --exclude-nodes M`
+  means: promoted records, except those this loadout already holds. A missing file
+  is `manifest_missing`, and anything but a v1 manifest is `manifest_invalid`.
+- `recall` still reaches all of them.
+
+**Split one budget.** The host owns a single context budget for the task, and gives
+each system a share of it. The loadout measured about 2.6k tokens at p50 and 11.5k
+at p90, and it varies with the task; `wake` is exactly the cap the host sets, and 1–2k
+is typical. Both count with the same estimator, `max(1, len(text) // 4)`, so the
+numbers add up. A host with a 16k budget might resolve the loadout first, then call
+`wake` with what is left, capped at 2k:
+
+```bash
+akms resolve-task --task-json task.json --routes routes.json --manifest manifest.json
+akms-records wake --agent scout --task "review model directions" \
+  --budget-tokens 2000 --scope project:example --exclude-nodes manifest.json
+```
 
 ## Summaries in wake
 
@@ -153,6 +193,18 @@ record ID.
   `user_confirmed` (`amend --review-state`), because a paraphrase can
   introduce claims. Until then it is recall-only and counted under
   `review_state`, even with `--include-unreviewed`.
+- **All sources held back** (promoted, imported or in the loadout): never, whatever
+  the method. Its text is what the loadout or failure-memory already serves. It is
+  counted under its sources' reason, the first of `promoted`, `in_loadout` and
+  `imported` among them.
+- **Some sources held back:** an extractive summary is out, since not every source
+  is eligible, under the same reason when those are all it lacks; its eligible
+  sources stand on their own. A reviewed provider summary stays, because it may say
+  more than the held sources do.
+
+Including the sources (`--include-promoted`, `--include-imported`) makes such a
+summary eligible again under the rules above. A promotion link is not a change of
+content, so it does not make a summary stale.
 
 An eligible summary is used when its entry costs fewer tokens than the
 entries of the eligible sources it cites. It is then shown at its own
@@ -230,7 +282,10 @@ gives the least that works. The JSON output describes the same selection.
       "sensitivity": {"count": 0, "ids": []},
       "duplicate": {"count": 0, "ids": []},
       "stale": {"count": 0, "ids": []},
-      "covered": {"count": 0, "ids": []}
+      "covered": {"count": 0, "ids": []},
+      "promoted": {"count": 0, "ids": []},
+      "imported": {"count": 0, "ids": []},
+      "in_loadout": {"count": 0, "ids": []}
     },
     "covered_by_summary": {}
   }
@@ -276,7 +331,7 @@ Decision: Keep the existing surrogate model
 
 - included: 1
 - omitted_by_budget: 0
-- excluded: visibility 0, lifecycle 2, review_state 1, sensitivity 0, duplicate 0, stale 0, covered 0
+- excluded: visibility 0, lifecycle 2, review_state 1, sensitivity 0, duplicate 0, stale 0, covered 0, promoted 0, imported 0, in_loadout 0
 - record IDs: in the JSON output, with the sources each summary covers
 ````
 
@@ -319,7 +374,7 @@ to the Markdown) for callers that want one.
 ## Python API
 
 ```python
-from akms_records import RecordStore, wake
+from akms_records import RecordStore, manifest_nodes, wake
 
 store = RecordStore.open("project:example", repo=".")
 result = store.recall("surrogate", tags=["model"], limit=10, full=True)
@@ -329,7 +384,10 @@ print(result.render_text())
 
 woken = wake(agent="scout", task="review model directions", budget_tokens=1200,
              scopes=["project:example"], repo=".",
-             include_unreviewed=False)  # the default
+             include_unreviewed=False,  # the default
+             include_promoted=False,  # the default
+             include_imported=False,  # the default
+             exclude_nodes=manifest_nodes("resolution-manifest.json"))
 print(woken.used_tokens, [entry.record_id for entry in woken.entries])
 print(woken.render_markdown())
 data = woken.to_json()
