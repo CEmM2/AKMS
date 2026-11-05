@@ -324,20 +324,33 @@ development is intentionally not replayed.
   ...) and the cache and build-output ones, and such files could reach the
   generated pages, the search index and exported mirrors. `scanner.exclude`
   now adds to the built-in patterns. The new `scanner.use_default_excludes:
-  false` drops the ordinary built-ins (tool state, environments, caches,
-  build and data output), but the secret and credential set always applies;
-  no setting removes it. That set is now also matched against the file name
-  at any depth, so a nested `.env.local` or `credentials.toml` is skipped
-  too. `scanner.include` still replaces the default include list. `init` no
-  longer writes the exclude list out, and a config that still carries the
-  full list an older `init` wrote keeps exactly the same effect. Invalid
-  `scanner.include`, `scanner.exclude` or `scanner.use_default_excludes`
-  values now fail config loading, and `repo-wiki scan --json` reports the
-  applied list under `exclude`. If a custom list let secret files in, the
-  next `build` removes their pages, index entries and IR cache records, and a
-  full `export-akms --prune` removes their mirrors. Deleted index rows can
-  leave bytes behind in the SQLite file, so delete `.repo_wiki/index/` and
-  rebuild as well.
+  false` drops the ordinary built-ins (environments, caches, build and data
+  output). Two sets always apply and no setting removes them: the secret and
+  credential set, and a tool-state set: `.git` at any depth (including a
+  worktree or submodule `.git` file), everything under `.repo_wiki/` (the
+  scanner no longer reads `config.yaml`, `SPEC.md` or the overlays; the index
+  still reads overlays itself), the configured `generation.output_dir` and
+  the export lock files. Their patterns without a `/` are also matched
+  against the file name at any depth, so a nested `.env.local` or
+  `credentials.toml` is skipped too. `scanner.include` still replaces the
+  default include list. `init` no longer writes the exclude list out; a
+  config that still carries the full list an older `init` wrote keeps every
+  pattern it had. Invalid `scanner.include`, `scanner.exclude` or
+  `scanner.use_default_excludes` values now fail config loading, and
+  `repo-wiki scan --json` reports the applied list under `exclude`. The
+  code graph's new-source check and `repo-wiki changes` now apply the same
+  exclusions as `build`. If a custom list let secret files in, the next
+  `build` removes their pages, index entries and IR cache records, and a full
+  `export-akms --prune` removes their mirrors.
+- `repo-wiki`'s search index erases removed text. It now runs with SQLite
+  `secure_delete` and, on SQLite 3.42 or later, the FTS5 `secure-delete`
+  option; with an older SQLite, a write that removes text runs FTS5
+  `optimize` and `VACUUM`. Deleted and replaced pages used to stay readable
+  in the file's free space. An index written by an earlier version is
+  compacted once when first opened, so rebuilding is enough: there is no
+  need to delete `.repo_wiki/index/`. `build` also updated the index before
+  removing the pages of deleted sources, which kept them searchable until
+  the next run; it now indexes afterwards.
 - `akms status` no longer lists nodes reached through `load_with` as
   orphans. A node that names others in `load_with`, or that another node
   names there, is reached by coactivation even without edges; a

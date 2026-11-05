@@ -57,17 +57,16 @@ repo-wiki scan
 ```
 
 ```text
-Eligible files: 3
+Eligible files: 1
 Skipped files: 2
-.repo_wiki/SPEC.md
-.repo_wiki/config.yaml
 src/shapes/area.py
 ```
 
 `scan` shows what the next steps will read, before anything is written. The
-`.repo_wiki/` files are eligible but are not parsed: only Python has an
-extractor enabled by default. Add `--json` for the full list with a reason for every
-skipped file (`excluded`, `not_included`, `too_large`, `binary`, `symlink`).
+two skipped entries are the `.git/` and `.repo_wiki/` directories, which are
+never scanned. Add `--json` for the full list with a reason for every skipped
+file (`excluded`, `not_included`, `too_large`, `binary`, `symlink`) and the
+exclude patterns applied.
 
 ## Build
 
@@ -132,8 +131,6 @@ SOURCE_DATE_EPOCH=1767225600 repo-wiki export-akms --output . --phase 1
 
 ```text
 written: .knowledge/code-mirror/src/shapes/area.md
-skipped (unsupported_language): .repo_wiki/SPEC.md
-skipped (unsupported_language): .repo_wiki/config.yaml
 ```
 
 This projects each supported source file into one Markdown document with AKMS
@@ -150,8 +147,6 @@ SOURCE_DATE_EPOCH=1767225600 repo-wiki export-akms --output . --phase 1 --change
 ```
 
 ```text
-skipped (unsupported_language): .repo_wiki/SPEC.md
-skipped (unsupported_language): .repo_wiki/config.yaml
 skipped (unchanged): src/shapes/area.py
 ```
 

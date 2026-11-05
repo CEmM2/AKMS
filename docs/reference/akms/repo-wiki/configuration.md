@@ -38,7 +38,7 @@ including [`export-akms`](akms-export.md).
 |---|---|---|
 | `scanner.include` | `**/*.py`, `**/*.md`, `**/*.yaml`, `**/*.yml`, `**/*.toml` | Glob patterns a file must match to be eligible. A list you write replaces the default list. The globs of each enabled non-Python language (see [`languages`](#languages)) are added to a non-empty list. An empty list accepts every file. |
 | `scanner.exclude` | none | Patterns that remove a file or prune a directory, added to the [built-in exclude patterns](privacy-security.md#built-in-exclude-patterns). Checked before the file is read. Duplicates of a built-in pattern are ignored. |
-| `scanner.use_default_excludes` | `true` | With `false`, the ordinary built-in excludes (tool state, environments, caches, build and data output) are not applied. The secret and credential patterns always are; no setting removes them. |
+| `scanner.use_default_excludes` | `true` | With `false`, the ordinary built-in excludes (environments, caches, build and data output) are not applied. The tool-state patterns (`.git`, `.repo_wiki/`, the generated-page directory) and the secret and credential patterns always are; no setting removes them. |
 | `scanner.max_file_size_kb` | `512` | Larger files are skipped as `too_large`. |
 | `scanner.respect_gitignore` | `true` | Also skip anything matched by the repository's root `.gitignore`. See [the limits of this](privacy-security.md#gitignore). |
 
@@ -85,7 +85,7 @@ Controls what `build` writes.
 
 | Key | Default | Effect |
 |---|---|---|
-| `generation.output_dir` | `.repo_wiki/generated` | Directory for generated pages, relative to the repository root. The index reads from it, and the scanner's default excludes cover only the default location. |
+| `generation.output_dir` | `.repo_wiki/generated` | Directory for generated pages, relative to the repository root. The index reads from it, and the scanner always skips it. |
 | `generation.generate_module_docs` | `true` | Write one page per module under `modules/`. |
 | `generation.generate_symbol_docs` | `true` | Write one page per symbol under `symbols/`. |
 | `generation.generate_repo_map` | `true` | Write `repo_map.md`. |
