@@ -197,6 +197,7 @@ def gather(store: RecordStore, topic: dict[str, Any]) -> list[tuple[Record, Reca
         review_state=topic["review_state"],
         limit=MAX_LIMIT,
         with_status=False,
+        match="all",  # a topic is what every source contains; no fallback
     )
     hits = [hit for hit in result.hits if not is_consolidation(hit.schema_ref)]
     if len(result.hits) >= MAX_LIMIT or len(hits) > MAX_SOURCES:

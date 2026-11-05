@@ -40,6 +40,7 @@ from akms_records.query import (
     WakeEntry,
     WakeResult,
     manifest_nodes,
+    recall_scopes,
     wake,
 )
 from akms_records.schemas import RegisteredSchema, SchemaRegistry
@@ -75,6 +76,7 @@ __all__ = [
     "list_consolidations",
     "manifest_nodes",
     "promote",
+    "recall_scopes",
     "refresh_consolidation",
     "store_root",
     "wake",

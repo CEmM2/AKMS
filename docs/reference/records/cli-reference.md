@@ -19,10 +19,10 @@ akms-records [--version] [--json-errors] <command> ...
   when the command failed. A failure prints `error[<code>]: <message>` on stderr,
   or `{"status": "error", "error": {"code": ..., "message": ...}}` on stdout
   with `--json-errors`.
-- **Scope.** Every command except `schema templates` and `wake` takes
+- **Scope.** Every command except `schema templates`, `recall` and `wake` takes
   `--scope project:<id>|agent:<id>|shared:<id>`, plus `--repo PATH` for
-  project scope (default: the current directory). `wake` takes `--agent` and
-  any number of `--scope` options.
+  project scope (default: the current directory). `recall` takes any number of
+  `--scope` options, and `wake` takes `--agent` and any number of them.
 - **Actor.** `--actor NAME` records who acted. The default is
   `$AKMS_RECORDS_ACTOR`, then the operating-system user name.
 - **Idempotency.** Write commands take `--event-id ID`. Running the same
@@ -95,7 +95,7 @@ sensitivity are not content and keep the state, and `promote`'s link changes not
 
 | Command | Purpose |
 |---|---|
-| `recall [--query WORDS] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--agent ID] [--limit N] [--full] [--format json\|text]` | Search the scope through the index; ranked by BM25, then newest first. |
+| `recall [--scope S]... [--agent ID [--visible]] [--query WORDS] [--match auto\|all\|any] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--limit N] [--full] [--format json\|text]` | Search one or more scopes through the index: every word, else any word, ranked by BM25, then newest first. |
 | `wake --agent ID --task TEXT --budget-tokens N [--scope S]... [--include-sensitive] [--include-unreviewed] [--include-promoted] [--include-imported] [--exclude-nodes MANIFEST] [--review-state MIN] [--format json\|markdown] [--generated-at]` | Prioritised, deduplicated records for an agent within a hard token budget, with a truncation report. By default: reviewed records plus the agent's own unreviewed ones, without promoted records and imported failure lessons; `--include-unreviewed` adds everyone's. |
 
 Both are described in [recall and wake](recall-and-wake.md), including the

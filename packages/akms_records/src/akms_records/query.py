@@ -59,6 +59,8 @@ if TYPE_CHECKING:
 RECALL_FORMAT = "akms-records-recall/v1"
 WAKE_FORMAT = "akms-records-wake/v1"
 MIN_REVIEW_STATES = ("unreviewed", "agent_reviewed", "user_confirmed")
+MATCH_MODES = ("auto", "all", "any")
+RRF_K = 60  # the usual constant of reciprocal rank fusion
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 1000
 MAX_QUERY_TERMS = 64
@@ -258,10 +260,16 @@ class RecallHit:
 class RecallResult:
     """The results of one recall, best first."""
 
-    scope: str
+    scope: str | None  # None when several scopes were read; see ``scopes``
     query: str | None
     filters: dict[str, Any]
     hits: tuple[RecallHit, ...]
+    match: str | None = None
+    scopes: tuple[str, ...] = ()
+
+    @property
+    def scope_names(self) -> tuple[str, ...]:
+        return self.scopes or (str(self.scope),)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -269,7 +277,9 @@ class RecallResult:
             "format": RECALL_FORMAT,
             "notice": NOTICE,
             "scope": self.scope,
+            "scopes": list(self.scope_names),
             "query": self.query,
+            "match": self.match,
             "filters": dict(self.filters),
             "count": len(self.hits),
             "results": [hit.to_json() for hit in self.hits],
@@ -281,14 +291,16 @@ class RecallResult:
             "\n",
             f"> {NOTICE}\n",
             "\n",
-            f"- scope: {self.scope}\n",
+            f"- scope: {', '.join(self.scope_names)}\n",
             f"- query: {literal(self.query)}\n",
+            f"- match: {self.match or 'none'}\n",
             f"- results: {len(self.hits)}\n",
         ]
         for position, hit in enumerate(self.hits, start=1):
             parts.append(
                 f"\n## {position}. {hit.record_id} (revision {hit.revision})\n\n"
             )
+            parts.append(f"- scope: {hit.scope}\n")
             parts.append(f"- schema: {hit.schema_ref}\n")
             parts.append(
                 f"- origin: {hit.origin['kind']} {literal(hit.origin['actor_id'])}\n"
@@ -324,12 +336,16 @@ def recall(
     limit: int = DEFAULT_LIMIT,
     full: bool = False,
     with_status: bool = True,
+    match: str = "auto",
 ) -> RecallResult:
     """Recall records of ``store``'s scope from the index.
 
     With ``query``, records must contain every word of it and are ranked by
     BM25; ties, and every result without a query, are ordered by
-    ``recorded_at`` (newest first), then record ID. ``since`` (inclusive) and
+    ``recorded_at`` (newest first), then record ID. If no record has every word,
+    the query runs again for records with any of them, and the result's ``match``
+    says which it was (``all`` or ``any``). ``match="all"`` or ``"any"`` asks for one
+    of them without the other. ``since`` (inclusive) and
     ``until`` (exclusive) apply to the schema's time field where the record
     has one, and to ``recorded_at`` otherwise. By default only active records
     (chain heads) are returned, never rejected ones, and no sensitive ones.
@@ -348,7 +364,8 @@ def recall(
     for tag in tag_list_:
         if not isinstance(tag, str) or not tag:
             raise _usage("tags must be non-empty text")
-    fts = match_all(query) if query is not None else None
+    if match not in MATCH_MODES:
+        raise _usage("match must be one of " + ", ".join(MATCH_MODES))
     where = ["r.scope = ?"]
     params: list[Any] = [str(store.scope)]
     lifecycles = ["active"]
@@ -391,41 +408,56 @@ def recall(
         "r.review_state, r.lifecycle, r.origin_kind, r.origin_actor, "
         "r.source_refs, r.superseded_by, r.supersedes"
     )
-    if fts is not None:
-        sql = (
-            f"SELECT {columns}, snippet(records_fts, -1, ?, ?, ?, ?), round(bm25(records_fts), 9) "
-            "FROM records_fts JOIN records r ON r.rid = records_fts.rowid "
-            f"WHERE records_fts MATCH ? AND {' AND '.join(where)} "
-            "ORDER BY round(bm25(records_fts), 9), r.recorded_at DESC, r.record_id LIMIT ?"
-        )
-        args = [
-            SNIPPET_OPEN,
-            SNIPPET_CLOSE,
-            SNIPPET_ELLIPSIS,
-            SNIPPET_TOKENS,
-            fts,
-            *params,
-            limit,
-        ]
-    else:
-        sql = (
-            f"SELECT {columns}, records_fts.text, NULL "
-            "FROM records r JOIN records_fts ON records_fts.rowid = r.rid "
-            f"WHERE {' AND '.join(where)} "
-            "ORDER BY r.recorded_at DESC, r.record_id LIMIT ?"
-        )
-        args = [*params, limit]
     index = store.index_for_read()
-    rows: list[Any] = []
-    if index is not None:
+
+    def fetch(fts: str | None) -> list[Any]:
+        if fts is not None:
+            sql = (
+                f"SELECT {columns}, snippet(records_fts, -1, ?, ?, ?, ?), round(bm25(records_fts), 9) "
+                "FROM records_fts JOIN records r ON r.rid = records_fts.rowid "
+                f"WHERE records_fts MATCH ? AND {' AND '.join(where)} "
+                "ORDER BY round(bm25(records_fts), 9), r.recorded_at DESC, r.record_id LIMIT ?"
+            )
+            args = [
+                SNIPPET_OPEN,
+                SNIPPET_CLOSE,
+                SNIPPET_ELLIPSIS,
+                SNIPPET_TOKENS,
+                fts,
+                *params,
+                limit,
+            ]
+        else:
+            sql = (
+                f"SELECT {columns}, records_fts.text, NULL "
+                "FROM records r JOIN records_fts ON records_fts.rowid = r.rid "
+                f"WHERE {' AND '.join(where)} "
+                "ORDER BY r.recorded_at DESC, r.record_id LIMIT ?"
+            )
+            args = [*params, limit]
+        if index is None:
+            return []
         try:
-            rows = index.db.execute(sql, args).fetchall()
+            return index.db.execute(sql, args).fetchall()
         except sqlite3.OperationalError as exc:
             raise _usage(f"the query cannot be run: {exc}", "invalid_query") from None
+
+    used: str | None = None
+    if query is None:
+        rows = fetch(None)
+    else:
+        all_words = match_all(query)  # refuses a query with no searchable words
+        any_word = match_any(query)
+        if match == "any" and any_word is not None:
+            used, rows = "any", fetch(any_word)
+        else:
+            used, rows = "all", fetch(all_words)
+            if match == "auto" and not rows and any_word not in (None, all_words):
+                used, rows = "any", fetch(any_word)
     hits = []
     for row in rows:
         snippet = row[17]
-        if fts is None:
+        if query is None:
             text = " ".join(str(snippet or "").split())
             snippet = (
                 text[:SNIPPET_CHARS] + SNIPPET_ELLIPSIS
@@ -480,7 +512,97 @@ def recall(
         "limit": limit,
         "full": full,
     }
-    return RecallResult(str(store.scope), query, filters, tuple(hits))
+    return RecallResult(str(store.scope), query, filters, tuple(hits), used)
+
+
+def recall_scopes(
+    scopes: Sequence[Scope | str],
+    *,
+    query: str | None = None,
+    agent: str | None = None,
+    visible: bool = False,
+    repo: str | Path | None = None,
+    home: str | Path | None = None,
+    limit: int = DEFAULT_LIMIT,
+    match: str = "auto",
+    **options: Any,
+) -> RecallResult:
+    """Recall several scopes as one ranked list. Each hit names its scope.
+
+    ``visible`` adds ``agent:<agent>``, so the scopes are what ``wake`` reads for that
+    agent. As with :func:`recall`, an agent may not read another agent's scope.
+
+    A scope's BM25 scores come from its own index and do not compare across indexes,
+    so the lists merge by reciprocal rank (``1 / (60 + rank)``), then newest first,
+    then record ID. That order is fully determined, and each scope's best hits reach
+    the top however its index scores them. Without a query the order is newest first,
+    then record ID. The match mode is one for all scopes: every word everywhere, and
+    any word everywhere only if no scope has a hit.
+    """
+    if visible and agent is None:
+        raise _usage("the visible scopes need an agent")
+    parsed = {Scope.parse(s) if isinstance(s, str) else s for s in scopes}
+    if visible and agent is not None:
+        parsed.add(_check_agent(agent))
+    if not parsed:
+        raise _usage("give at least one scope")
+    for scope in parsed:
+        check_visibility(scope, agent)
+    if match not in MATCH_MODES:
+        raise _usage("match must be one of " + ", ".join(MATCH_MODES))
+    if type(limit) is not int or not 1 <= limit <= MAX_LIMIT:
+        raise _usage(f"limit must be an integer from 1 to {MAX_LIMIT}")
+    from akms_records.store import RecordStore
+
+    ordered = sorted(parsed)
+    stores = [RecordStore.open(scope, repo=repo, home=home) for scope in ordered]
+    try:
+
+        def run(mode: str) -> list[RecallResult]:
+            return [
+                recall(
+                    store,
+                    query=query,
+                    agent=agent,
+                    limit=limit,
+                    match=mode,
+                    **options,
+                )
+                for store in stores
+            ]
+
+        results = run("all" if match == "auto" else match)
+        if (
+            match == "auto"
+            and query is not None
+            and not any(result.hits for result in results)
+            and match_any(query) not in (None, match_all(query))
+        ):
+            results = run("any")
+    finally:
+        for store in stores:
+            store.close()
+    first = results[0]
+    if len(results) == 1:
+        return first
+    score: dict[str, float] = {}
+    hits: dict[str, RecallHit] = {}
+    for result in results:
+        for position, hit in enumerate(result.hits, start=1):
+            score[hit.record_id] = 1.0 / (RRF_K + position)
+            hits[hit.record_id] = hit
+    merged = sorted(hits, key=lambda rid: rid)
+    merged.sort(key=lambda rid: hits[rid].recorded_at, reverse=True)
+    if query is not None:
+        merged.sort(key=lambda rid: -score[rid])
+    return RecallResult(
+        None,
+        query,
+        first.filters,
+        tuple(hits[rid] for rid in merged[:limit]),
+        first.match,
+        tuple(str(scope) for scope in ordered),
+    )
 
 
 def _summary_status(store: RecordStore, record_id: str) -> dict[str, Any]:
@@ -1215,5 +1337,6 @@ __all__ = [
     "match_all",
     "match_any",
     "recall",
+    "recall_scopes",
     "wake",
 ]
