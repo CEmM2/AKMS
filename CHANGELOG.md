@@ -357,6 +357,19 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `repo-wiki` scanner patterns treat a `**/` segment as matching no directory too,
+  in one place, so `scan`, `build`, the index, `changes`, the staleness check and
+  `export-akms` agree. The default `**/*.py`-style includes used to miss every file
+  in the repository root, while `export-akms` added root forms of its own, which
+  are now gone. After upgrading, a root `.py` file (and a root file of an enabled
+  language) gets graph nodes and generated pages at the next `build`, and until
+  that build `context` and `impact` report the graph as stale, as for any new
+  source. Root `.md`, `.yaml`, `.yml` and `.toml` files now appear in `scan`, as the
+  same files below the root always did; they get no graph nodes, pages, index
+  entries or mirrors. Mirrors do not change: `export-akms` already covered the root.
+  A custom `scanner.include` still replaces the default and now reaches the root
+  the same way, and an exclude such as `**/name` now also matches at the root.
+  Secret and credential names stay excluded at the root, whatever the includes.
 - `repo-wiki` records `as` import aliases inside a function (`from pkg.cli import
   main as run_cli`, `import pkg.tools as tools`) and resolves calls through them
   with function scope: the alias shadows a module-level name of the same spelling,

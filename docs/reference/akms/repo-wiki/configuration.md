@@ -42,6 +42,12 @@ including [`export-akms`](akms-export.md).
 | `scanner.max_file_size_kb` | `512` | Larger files are skipped as `too_large`. |
 | `scanner.respect_gitignore` | `true` | Also skip anything matched by the repository's root `.gitignore`. See [the limits of this](privacy-security.md#gitignore). |
 
+In any pattern, a `**/` segment can match no directory at all, so `**/*.py`
+matches `setup.py` in the repository root as well as `src/a.py`, and `src/**/*.py`
+matches `src/a.py`. This holds for `scanner.include`, `scanner.exclude` and
+`.gitignore` patterns, and every subcommand matches files the same way. A pattern
+such as `**/generated/**` therefore also removes a top-level `generated/`.
+
 A file is eligible only if it passes the exclude patterns, matches an include
 pattern, is within the size limit, and is not binary (a NUL byte or invalid
 UTF-8 in the first 8 KiB marks a file as binary). Symbolic links are never

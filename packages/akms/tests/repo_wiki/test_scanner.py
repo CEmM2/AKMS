@@ -1,7 +1,11 @@
 import json
+import subprocess
 from pathlib import Path
 
+import pytest
+
 from akms.repo_wiki.cli import main
+from akms.repo_wiki.code_graph import GraphUnavailableError, load_code_graph
 from akms.repo_wiki.config import default_config, effective_excludes, load_config
 from akms.repo_wiki.scanner import (
     LANGUAGE_BY_SUFFIX,
@@ -142,7 +146,6 @@ def _seed_secret_repo(root: Path) -> None:
     (root / "private" / "notes.py").write_text(f'NOTE = "{SECRET_TOKEN}"\n')
     (root / "build").mkdir()
     (root / "build" / "generated.py").write_text("BUILT = 1\n")
-    # Below the root: the default ``**/*.py``-style includes do match these.
     (root / "src" / "secrets.yaml").write_text(f"token: {SECRET_TOKEN}\n")
     (root / "src" / "db_secret.py").write_text(f'TOKEN = "{SECRET_TOKEN}"\n')
     (root / "conf").mkdir()
@@ -359,3 +362,183 @@ def test_change_analysis_and_graph_staleness_use_the_same_excludes(tmp_path: Pat
     assert {"src/app.py", "private/notes.py"} <= new
     assert not {"src/db_secret.py", "build/generated.py"} & new
     assert not any(path.startswith(".repo_wiki/") for path in new)
+
+
+@pytest.mark.parametrize(
+    ("path", "pattern", "expected"),
+    [
+        ("a.py", "**/*.py", True),
+        ("src/a.py", "**/*.py", True),
+        ("src/deep/a.py", "**/*.py", True),
+        ("src/a.py", "src/**/*.py", True),
+        ("src/deep/a.py", "src/**/*.py", True),
+        ("lib/a.py", "src/**/*.py", False),
+        ("a.py", "src/**/*.py", False),
+        ("a/b/c.py", "**/b/**/*.py", True),
+        ("b/c.py", "**/b/**/*.py", True),
+        ("c.py", "**/b/**/*.py", False),
+        ("generated/x.py", "**/generated/**", True),
+        ("src/generated/x.py", "**/generated/**", True),
+        ("a.txt", "**/*.py", False),
+        # Not a directory segment: stays an ordinary glob.
+        ("a.py", "x**/*.py", False),
+    ],
+)
+def test_a_double_star_segment_can_match_no_directory(path, pattern, expected):
+    assert matches_pattern(path, pattern) is expected
+
+
+def test_default_includes_reach_root_files_of_every_type(tmp_path: Path):
+    names = ["setup.py", "README.md", "pyproject.toml", "ci.yaml", "mkdocs.yml"]
+    for name in [*names, "notes.txt"]:
+        (tmp_path / name).write_text("x = 1\n", encoding="utf-8")
+    sources, skipped = scan_repository(tmp_path, load_config(tmp_path))
+    assert sorted(source.path for source in sources) == sorted(names)
+    assert {item.path: item.reason for item in skipped}["notes.txt"] == "not_included"
+
+
+def test_enabled_language_globs_reach_root_files(tmp_path: Path):
+    (tmp_path / "lib.rs").write_text("fn main() {}\n", encoding="utf-8")
+    config = load_config(tmp_path)
+    assert "lib.rs" not in {s.path for s in scan_repository(tmp_path, config)[0]}
+    config["languages"] = {"rust": {"enabled": True}}
+    assert "lib.rs" in {s.path for s in scan_repository(tmp_path, config)[0]}
+
+
+def test_a_custom_include_still_replaces_and_reaches_the_root(tmp_path: Path):
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "b.md").write_text("# b\n", encoding="utf-8")
+    _write_scanner_config(tmp_path, '  include:\n    - "**/*.py"\n')
+    sources, _ = scan_repository(tmp_path, load_config(tmp_path))
+    assert [source.path for source in sources] == ["a.py"]
+
+
+def test_an_exclude_reaches_the_root_too(tmp_path: Path):
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "b.py").write_text("x = 1\n", encoding="utf-8")
+    _write_scanner_config(tmp_path, '  exclude:\n    - "**/a.py"\n')
+    sources, skipped = scan_repository(tmp_path, load_config(tmp_path))
+    assert [source.path for source in sources] == ["b.py"]
+    assert {item.path: item.reason for item in skipped}["a.py"] == "excluded"
+
+
+ROOT_SECRET_FILES = (
+    ".env",
+    ".env.local",
+    "prod.env",
+    "secrets.yaml",
+    "secrets.yml",
+    "secrets.json",
+    "app.secrets",
+    "db_secret.py",
+    "db_secret.toml",
+    "api_secrets.yaml",
+    "credentials.toml",
+    "credentials.yaml",
+    "credentials.py",
+    "tls.key",
+    "tls.pem",
+)
+
+
+@pytest.mark.parametrize("use_default_excludes", [True, False])
+def test_root_secret_files_stay_excluded_at_every_include(
+    tmp_path: Path, use_default_excludes: bool
+):
+    for name in ROOT_SECRET_FILES:
+        (tmp_path / name).write_text(f"token = '{SECRET_TOKEN}'\n", encoding="utf-8")
+    (tmp_path / "app.py").write_text("VALUE = 1\n", encoding="utf-8")
+    _write_scanner_config(
+        tmp_path,
+        f"  use_default_excludes: {str(use_default_excludes).lower()}\n"
+        '  include:\n    - "**/*"\n',
+    )
+    sources, skipped = scan_repository(tmp_path, load_config(tmp_path))
+    assert "app.py" in {source.path for source in sources}
+    assert not set(ROOT_SECRET_FILES) & {source.path for source in sources}
+    reasons = {item.path: item.reason for item in skipped}
+    assert all(reasons[name] == "excluded" for name in ROOT_SECRET_FILES)
+
+
+def test_root_secret_files_never_reach_the_graph_or_mirrors(tmp_path: Path):
+    for name in ROOT_SECRET_FILES:
+        (tmp_path / name).write_text(f"token = '{SECRET_TOKEN}'\n", encoding="utf-8")
+    (tmp_path / "app.py").write_text('"""App."""\n\nVALUE = 1\n', encoding="utf-8")
+    assert main(["--repo-root", str(tmp_path), "build", "--no-summaries"]) == 0
+    assert (
+        main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "export-akms",
+                "--output",
+                "out",
+                "--phase",
+                "1",
+                "--generated-at",
+                "2026-03-07T12:00:00+00:00",
+            ]
+        )
+        == 0
+    )
+    written = [
+        path
+        for root in (tmp_path / ".repo_wiki", tmp_path / "out")
+        for path in root.rglob("*")
+        if path.is_file()
+    ]
+    assert any(path.name == "app.md" for path in written)
+    for path in written:
+        assert SECRET_TOKEN.encode() not in path.read_bytes()
+
+
+@pytest.mark.parametrize(
+    "name", ["setup.py", "conftest.py", "__main__.py", "__init__.py"]
+)
+def test_a_root_python_file_gets_a_graph_node_and_a_mirror(tmp_path: Path, name: str):
+    (tmp_path / name).write_text(
+        "def helper():\n    return 1\n\n\ndef run():\n    return helper()\n",
+        encoding="utf-8",
+    )
+    assert main(["--repo-root", str(tmp_path), "build", "--no-summaries"]) == 0
+    graph = json.loads(
+        (tmp_path / ".repo_wiki/generated/symbol_graph.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert f"python:{name}::run" in graph["nodes"]
+    code = load_code_graph(tmp_path).graph
+    callers = code.in_edges[f"python:{name}::helper"]
+    assert [edge.source for edge in callers] == [f"python:{name}::run"]
+    assert (
+        main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "export-akms",
+                "--output",
+                "out",
+                "--phase",
+                "1",
+                "--generated-at",
+                "2026-03-07T12:00:00+00:00",
+            ]
+        )
+        == 0
+    )
+    assert list((tmp_path / "out/.knowledge/code-mirror").glob("*.md"))
+
+
+def test_a_new_root_python_file_makes_the_graph_stale_and_a_rebuild_clears_it(
+    tmp_path: Path,
+):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/a.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    assert main(["--repo-root", str(tmp_path), "build", "--no-summaries"]) == 0
+    (tmp_path / "new.py").write_text("y = 1\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "new.py"], check=True)
+    with pytest.raises(GraphUnavailableError, match="stale"):
+        load_code_graph(tmp_path)
+    assert main(["--repo-root", str(tmp_path), "build", "--no-summaries"]) == 0
+    assert "new" in load_code_graph(tmp_path).graph.nodes
