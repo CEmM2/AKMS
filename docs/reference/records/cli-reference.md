@@ -116,10 +116,15 @@ can be amended, superseded or retracted.
 
 | Command | Purpose |
 |---|---|
-| `promote RECORD --review approved [--min-review-state MIN] [--scope-ok] [--allow-sensitive] [--allow-imported] [--update] [--domain D]` | Write a reviewed record as an AKMS project-local node and link it (needs `akms-records[akms]`). |
+| `promote RECORD --review approved [--min-review-state MIN] [--scope-ok] [--allow-sensitive] [--allow-imported] [--update] [--domain D] [--yes]` | Write a reviewed record as an AKMS project-local node and link it (needs `akms-records[akms]`). |
 
-See [promotion and import](promotion-and-import.md) for the two paths, every refusal
-and the crash order.
+`user_confirmed` is the default threshold; `--min-review-state agent_reviewed` is
+an opt-in. A write labelled `source: human` asks for confirmation on an interactive
+terminal, or takes `--yes`, and without either it is refused with
+`confirmation_required`, not sent down the default path. `--yes` makes the step
+deliberate; it does not prove a person took it. See
+[promotion and import](promotion-and-import.md) for the two paths, every refusal and
+the crash order.
 
 ## Maintenance
 
@@ -213,7 +218,9 @@ equal `--scope`.
 | `schema_ref_refused` | The schema has a non-local reference, `$id` or another dialect |
 | `schema_exists` | That `name/vN` is registered with different content |
 | `schema_tampered` | A registered schema no longer matches its digest |
-| `invalid_policy`, `confirmation_required`, `not_confirmed` | Promotion-policy errors |
+| `invalid_policy` | A promotion-policy value is not acceptable |
+| `confirmation_required`, `not_confirmed` | `schema policy set` or a human-policy `promote` had no terminal and no `--yes`, or was not answered yes; nothing written |
+| `confirmation_stale` | The record, node or policy changed while a human-policy `promote` was being confirmed; nothing written |
 | `export_corrupt`, `digest_mismatch` | An export failed its integrity checks |
 | `link_unsupported` | The filesystem has no hard links |
 | `invalid_query` | A recall query has no searchable words, or cannot be run |

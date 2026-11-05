@@ -22,11 +22,12 @@ akms-records promote RECORD --scope SCOPE [--repo PATH] [--actor NAME]
     --review approved
     [--min-review-state agent_reviewed|user_confirmed]
     [--scope-ok] [--allow-sensitive] [--allow-imported]
-    [--update] [--domain DOMAIN]
+    [--update] [--domain DOMAIN] [--yes]
 ```
 
 `--review approved` is the explicit approval, and promotion is refused without
-it. `--repo` names the project whose knowledge directory receives the node
+it. A record must be `user_confirmed`; `--min-review-state agent_reviewed` is an
+opt-in to promoting records that only an agent has reviewed. `--repo` names the project whose knowledge directory receives the node
 (default: the current directory).
 
 ### Two paths
@@ -34,7 +35,7 @@ it. `--repo` names the project whose knowledge directory receives the node
 | Path | When | Written with | Labels |
 |---|---|---|---|
 | Default | No policy, an agent-sourced policy, or a record that is not `user_confirmed` | `update_graph` with a `NewKnowledge` | `source: agent`, `status: tentative`, `confidence: 0.50` |
-| Human policy | The schema's [stored policy](schemas-and-templates.md#promotion-policy) is `source: human` and the record is `user_confirmed` | A validated `LocalNodeFrontmatter` file, then a graph rebuild | `source: human` with the policy's status and confidence |
+| Human policy | The schema's [stored policy](schemas-and-templates.md#promotion-policy) is `source: human` and the record is `user_confirmed`; [needs confirmation](#confirming-a-human-policy-write) | A validated `LocalNodeFrontmatter` file, then a graph rebuild | `source: human` with the policy's status and confidence |
 
 The default path may report `dedup_appended` instead of `created`: `update_graph`
 appends to a similar tentative node in the same domain when their similarity
@@ -45,6 +46,43 @@ policy stays on this path, so its confidence does not raise the fixed `0.50`.
 with its log is refused (`policy_drift`), since a change outside the log is what
 the log exists to expose.
 
+### Confirming a human-policy write
+
+A write that labels text `source: human` needs one more step than `--review
+approved`, the same step as `schema policy set`:
+
+- **On an interactive terminal**, promote shows what it will write and asks. Only
+  `y` or `yes` goes ahead; anything else is `not_confirmed` and writes nothing.
+
+  ```text
+  Write node rec-20261103-k3f9m2xa from rec-20261103-k3f9m2xa@2 with source=human, status=established, confidence=0.8? [y/N]
+  ```
+
+- **`--yes`** confirms without a prompt.
+- **Neither** is `confirmation_required`, before anything is written.
+
+The refusal names both options, and it does not fall back to the default path. If
+it did, the same command would quietly write a different kind of node depending on
+where it ran. The way to the default path is the record and the policy themselves:
+a schema with no `source: human` policy, or a record that is not `user_confirmed`.
+That path needs no confirmation.
+
+Appending to a human-sourced node with `--update` is a human-policy write too, and
+needs the same confirmation. Completing the link of a node that is already written
+is not, because nothing new gets the label, so
+[crash recovery](#if-it-crashes) works without a terminal. If the record, its node
+or its policy changes while the prompt waits, the run stops with
+`confirmation_stale`, so a person never approves one thing and gets another.
+
+The node's Sources section records the method (`- confirmation: tty` or `yes`), and
+the result reports it as `confirmation`.
+
+!!! warning "What confirmation proves"
+    `--yes` makes the step deliberate. It does not prove a person took it: any
+    process that can run the CLI can pass it, and one driving a terminal can answer
+    the prompt. Like the policy log, this holds for cooperating agents and leaves a
+    trace; it is not a security boundary.
+
 ### What the node holds
 
 The node's ID is the record ID, its title the record's label (or the start of
@@ -54,8 +92,8 @@ scope's ID in lower case, unless `--domain` says otherwise. The body is:
 - the record summary and a JSON rendering of the payload, each fenced, because
   [record text is data](recall-and-wake.md#rendering-is-data-not-instructions);
 - a `Sources` section: record ID and revision (`rec-…@3`), schema reference and
-  digest, scope, time, origin, review state, who promoted it, and the record's
-  own source references.
+  digest, scope, time, origin, review state, who promoted it, how a human-policy
+  write was confirmed, and the record's own source references.
 
 The v2 node models have no field for a record ID, and they are unchanged. The
 Sources section is the provenance.
@@ -68,7 +106,8 @@ Each is a typed error with exit status 2; nothing is written.
 |---|---|
 | `akms_unavailable` | `akms` is not installed: `pip install 'akms-records[akms]'` |
 | `review_required` | `--review approved` was not given |
-| `review_below_threshold` | The record is below the threshold. The default is `user_confirmed`; `--min-review-state agent_reviewed` lowers it, and nothing lowers it further |
+| `review_below_threshold` | The record is below the threshold, `user_confirmed` by default. `--min-review-state agent_reviewed` is the only opt-in; nothing lowers it further |
+| `confirmation_required`, `not_confirmed`, `confirmation_stale` | A [human-policy write](#confirming-a-human-policy-write) had no terminal and no `--yes`, was not answered yes, or changed during the prompt |
 | `scope_not_project` | The record is in an agent or shared scope; pass `--scope-ok` |
 | `record_retracted`, `record_superseded`, `record_erased` | The record is not current |
 | `schema_mismatch` | The schema is missing or tampered with, the record's digest differs, or the payload no longer validates |
@@ -88,7 +127,9 @@ Why these defaults:
 
 - **The threshold is `user_confirmed`.** The command says a person approved
   this, so the record should show it. A node also costs tokens in every loadout
-  that selects it, so refusing is the cheap mistake.
+  that selects it, so refusing is the cheap mistake. A project that wants agents to
+  promote their own reviewed records opts in with `--min-review-state
+  agent_reviewed`; those nodes stay `source: agent`, `status: tentative`.
 - **Sensitive records need a flag.** Sensitive records are left out of recall,
   wake and exports by default. A node goes into loadouts and git, and `erase`
   cannot reach it.
@@ -107,7 +148,7 @@ Why these defaults:
 | Same revision again | `already_promoted`, status `ok`: no second node, no second amend. `node_present` says whether the node file still exists; a node removed by hand is reported, not recreated |
 | A newer revision | Refused with `already_promoted`, naming the node, because a node's readers may rely on what it said. `--update` appends the new revision to that node (action `updated`) and moves the link |
 | A newer revision with `--update` on an agent node | Through `update_graph`'s exact-ID deduplication, while the node is `tentative` |
-| A newer revision with `--update` on a human node | Appended directly. The node keeps its labels, whatever the policy now says |
+| A newer revision with `--update` on a human node | Appended directly, [once confirmed](#confirming-a-human-policy-write). The node keeps its labels, whatever the policy now says |
 
 ### The link
 
@@ -136,8 +177,8 @@ the next run.
 | Crash | The next run |
 |---|---|
 | Before the node is written | Starts over |
-| After the node, before `update_graph` finished its overlay or graph | Finds the node, rebuilds the graph, writes the link: action `link_completed` |
-| After the graph, before the link | Finds the node, writes the link: action `link_completed` |
+| After the node, before `update_graph` finished its overlay or graph | Finds the node, rebuilds the graph, writes the link: action `link_completed`, no confirmation needed |
+| After the graph, before the link | Finds the node, writes the link: action `link_completed`, no confirmation needed |
 | After the link, before the result was printed | `already_promoted` |
 
 The run finds the node by scanning `local-nodes` for the record's `Sources` line,
@@ -212,9 +253,15 @@ changes nothing. Errors are `failure_memory_config` and `failure_memory_registry
 ## Python
 
 ```python
-from akms_records import RecordStore, import_failure_memory, promote
+from akms_records import RecordStore, confirm_yes, import_failure_memory, promote
 
 store = RecordStore.open("project:example", repo=".")
 promote(store, "rec-20261103-k3f9m2xa", review="approved", repo=".", actor="me")
 import_failure_memory(store, ".knowledge/failure-memory.toml", repo=".", actor="me")
 ```
+
+`promote` takes `confirm`, which defaults to not confirmed, so a human-policy write
+from Python is refused unless the caller asks otherwise. It is a callable that gets
+what will be written and returns how it was confirmed, or raises to refuse;
+`confirm_yes` is the `--yes` of the API. The library never reads a terminal: only
+the CLI turns one into a confirmation.

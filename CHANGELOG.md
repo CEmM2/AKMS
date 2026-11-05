@@ -21,7 +21,10 @@ development is intentionally not replayed.
   `update_graph` as `source: agent`, `status: tentative`, possibly appended by
   deduplication. Under a schema's stored `source: human` policy, a `user_confirmed`
   record becomes a validated `LocalNodeFrontmatter` file with the policy's status and
-  confidence. Records below `user_confirmed`, retracted, superseded or erased
+  confidence, after confirmation on an interactive terminal or with `--yes`; without
+  either it is refused (`confirmation_required`), never sent down the default path.
+  `--yes` makes the step deliberate but does not prove a person took it. Records below
+  `user_confirmed` (`--min-review-state agent_reviewed` is the opt-in), retracted, superseded or erased
   records, agent or shared scopes, schema mismatches, sensitive records, unreviewed
   or stale summaries and imported lessons are refused with stable codes, some with an
   explicit flag to allow them. The node is written first and the link last, so a

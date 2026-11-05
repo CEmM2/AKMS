@@ -190,8 +190,9 @@ the actor, the time and the previous value. Without a policy the default is
 
 [`promote`](promotion-and-import.md#two-paths) applies a `source: human` policy
 only to `user_confirmed` records, with its explicit `--review approved`, and writes
-the node with the policy's status and confidence. It reads the policy and cannot
-change it. An agent-sourced policy keeps a promotion on the default path, whose
+the node with the policy's status and confidence once
+[confirmed](promotion-and-import.md#confirming-a-human-policy-write) on a terminal or
+with `--yes`. It reads the policy and cannot change it. An agent-sourced policy keeps a promotion on the default path, whose
 labels are fixed.
 
 ## Built-in schemas

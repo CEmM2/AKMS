@@ -28,10 +28,12 @@ logged.
 
 ## Promotion
 
-- **The approval is a statement, not a proof.** `--review approved` and
-  `amend --review-state user_confirmed` are for cooperating agents and people. A
-  process that can run the CLI can pass them. The node's Sources section and the
-  link event name the actor, so a wrong promotion can be traced.
+- **The approval is a statement, not a proof.** `--review approved`, `--yes` and
+  `amend --review-state user_confirmed` are for cooperating agents and people. They
+  make each step deliberate, but a process that can run the CLI can pass them, and
+  one driving a terminal can answer the prompt. The node's Sources section and the
+  link event name the actor and how a write was confirmed, so a wrong promotion
+  can be traced.
 - **A node does not follow its record.** Amending, retracting or superseding a
   promoted record changes nothing in the node. `--update` appends a newer revision;
   anything else is a hand edit of the node. The record's `wake` exclusion stays
