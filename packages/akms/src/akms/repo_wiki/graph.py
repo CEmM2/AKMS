@@ -1,4 +1,11 @@
-"""Best-effort relationship graph generation."""
+"""Best-effort relationship graph generation.
+
+``calls`` and ``inherits`` edges here are matched by name alone, and stay that way so
+``symbol_graph v1`` bytes do not change for existing readers. The file also keeps every
+called name, which is what ``akms.repo_wiki.code_graph`` re-resolves with scopes, imports,
+``self`` and receivers when it loads. ``context``, ``impact``, ``changes``, ``flows`` and
+``retrieve`` all read that resolution; only external readers of the file see these edges.
+"""
 
 from __future__ import annotations
 

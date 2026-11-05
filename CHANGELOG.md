@@ -357,6 +357,13 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `repo-wiki query` context expansion now follows the same call links as `context`
+  and `impact` instead of the bare-name matches stored in `symbol_graph.json`. On
+  this repository the two agreed on the callees of only 59% of symbols: stored
+  edges miss every `self.method()` call and pick the first candidate for a name
+  defined twice. `symbol_graph.json`, `flows.json` and mirrors are unchanged, and a
+  symbol the resolver does not know keeps its stored edges. Confident links are
+  expanded first. It costs about 0.2 seconds per query on a graph of 8,000 symbols.
 - `repo-wiki` scanner patterns treat a `**/` segment as matching no directory too,
   in one place, so `scan`, `build`, the index, `changes`, the staleness check and
   `export-akms` agree. The default `**/*.py`-style includes used to miss every file

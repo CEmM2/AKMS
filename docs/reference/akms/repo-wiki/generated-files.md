@@ -36,6 +36,14 @@ field) has `nodes` keyed by ID and a sorted `edges` list. Each edge has `source`
 `resolution` (`CONFIDENT`, `HEURISTIC`, `UNRESOLVED`), `dst_id`, `dst_name` and, for
 HEURISTIC edges, `dst_candidates`.
 
+The file stores `calls` and `inherits` as a match on the bare name, so `resolution`
+there says how many symbols in the repository have that name, not what the call
+reaches. `self._step()` is `UNRESOLVED`, and a name defined twice is `HEURISTIC` even
+when an import settles it. The file keeps every called name, and `context`, `impact`,
+`changes`, `flows` and the context expansion of `query` all re-resolve those names
+with scopes, imports, `self` and receivers when they load it. Treat the stored
+resolution as a hint if you read the file yourself.
+
 These fields are optional. Each is written only when it has a value, so a graph
 without them is still valid `symbol_graph v1` and readers must not require them:
 

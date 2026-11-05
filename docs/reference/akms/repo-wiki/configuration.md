@@ -120,7 +120,7 @@ Controls `query`. The index returns `top_k_initial` candidates; the best
 | `retrieval.expand_children` | `true` | Add the members of each result. |
 | `retrieval.expand_callees` | `true` | Add the symbols each result calls. |
 | `retrieval.expand_callers` | `true` | Add the symbols that call each result. |
-| `retrieval.expand_heuristic_edges` | `true` | Follow call edges that matched several candidates by name. With `false`, only edges that resolved to exactly one target are followed. |
+| `retrieval.expand_heuristic_edges` | `true` | Follow call edges that could not be narrowed to one target. With `false`, only confident edges are followed. Confident edges come first either way. |
 | `retrieval.include_tests` | `true` | Add test modules (paths containing `test`) that mention a result. |
 
 ## `flows`
