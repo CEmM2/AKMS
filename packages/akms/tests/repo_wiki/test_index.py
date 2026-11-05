@@ -209,3 +209,43 @@ def test_index_connection_runs_with_secure_delete(tmp_path: Path):
         assert backend.fts_secure_delete is (sqlite3.sqlite_version_info >= (3, 42))
     finally:
         backend.close()
+
+
+def test_index_written_without_secure_delete_is_scrubbed_on_first_open(
+    tmp_path: Path, monkeypatch
+):
+    """An index an older version wrote keeps deleted text until it is reopened."""
+    with monkeypatch.context() as legacy:
+        # Behave like the earlier backend: no secure delete, no one-time scrub.
+        original_connect = sqlite3.connect
+
+        def connect(*args, **kwargs):
+            connection = original_connect(*args, **kwargs)
+            connection.execute("PRAGMA secure_delete=OFF")
+            return connection
+
+        legacy.setattr(sqlite3, "connect", connect)
+        legacy.setattr(SQLiteIndexBackend, "__init__", _legacy_init)
+        legacy.setattr(SQLiteIndexBackend, "_erase_removed_text", lambda self: None)
+        leak = _seed_erasure_repo(tmp_path)
+        assert main(["--repo-root", str(tmp_path), "build", "--no-summaries"]) == 0
+        leak.unlink()
+        assert main(["--repo-root", str(tmp_path), "build", "--no-summaries"]) == 0
+        # The residue this test is about really is there.
+        assert any(ERASED_TOKEN.encode() in data for _, data in _index_bytes(tmp_path))
+
+    assert main(["--repo-root", str(tmp_path), "index"]) == 0
+    for name, data in _index_bytes(tmp_path):
+        assert ERASED_TOKEN.encode() not in data, name
+    assert search_index(tmp_path, "VALUE")
+
+
+def _legacy_init(self, path: Path) -> None:
+    from akms.repo_wiki.paths import ensure_parent
+
+    self.path = path
+    ensure_parent(path)
+    self.connection = sqlite3.connect(path)
+    self.connection.row_factory = sqlite3.Row
+    self._init_schema()
+    self.fts_secure_delete = False

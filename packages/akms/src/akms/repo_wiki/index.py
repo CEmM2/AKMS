@@ -6,7 +6,10 @@ text is overwritten rather than left in free space. Where the SQLite library
 predates FTS5 ``secure-delete`` (3.42), a write that removed text also runs the
 FTS5 ``optimize`` command and ``VACUUM``. A database in WAL mode is
 checkpointed with ``TRUNCATE`` after such a write; the index itself uses the
-default rollback journal, which SQLite removes at commit.
+default rollback journal, which SQLite removes at commit. An index written
+before these settings (``user_version`` 0) is compacted once, with ``optimize``
+and ``VACUUM``, the first time it is opened, which scrubs text its earlier
+deletions left behind.
 """
 
 from __future__ import annotations
@@ -26,6 +29,8 @@ from akms.repo_wiki.scanner import is_excluded, read_gitignore
 from akms.repo_wiki.simple_yaml import load_yaml
 
 INDEX_PATH = ".repo_wiki/index/repo_wiki.sqlite3"
+# ``PRAGMA user_version`` once an index has been scrubbed of pre-secure-delete residue.
+ERASURE_USER_VERSION = 1
 
 
 @dataclass(slots=True)
@@ -111,6 +116,7 @@ class SQLiteIndexBackend:
         self.connection.execute("PRAGMA secure_delete=ON")
         self._init_schema()
         self.fts_secure_delete = self._enable_fts_secure_delete()
+        self._scrub_legacy_residue()
 
     def close(self) -> None:
         self.connection.close()
@@ -155,6 +161,19 @@ class SQLiteIndexBackend:
         except sqlite3.OperationalError:
             return False
         return True
+
+    def _scrub_legacy_residue(self) -> None:
+        """Compact an index written without secure delete, once."""
+        version = self.connection.execute("PRAGMA user_version").fetchone()[0]
+        if int(version) >= ERASURE_USER_VERSION:
+            return
+        if self.connection.execute("SELECT 1 FROM documents LIMIT 1").fetchone():
+            with self.connection:
+                self.connection.execute(
+                    "INSERT INTO documents_fts(documents_fts) VALUES('optimize')"
+                )
+            self.connection.execute("VACUUM")
+        self.connection.execute(f"PRAGMA user_version = {ERASURE_USER_VERSION}")
 
     def _erase_removed_text(self) -> None:
         """Run after a committed write that deleted or replaced documents."""
