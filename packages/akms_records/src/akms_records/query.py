@@ -60,6 +60,7 @@ RECALL_FORMAT = "akms-records-recall/v1"
 WAKE_FORMAT = "akms-records-wake/v1"
 MIN_REVIEW_STATES = ("unreviewed", "agent_reviewed", "user_confirmed")
 MATCH_MODES = ("auto", "all", "any")
+SEMANTIC_POOL = 20  # qmd's vector search looks at no more than this per query
 RRF_K = 60  # the usual constant of reciprocal rank fusion
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 1000
@@ -228,6 +229,7 @@ class RecallHit:
     bm25: float | None
     record: dict[str, Any] | None = None
     consolidation: dict[str, Any] | None = None
+    found_by: str | None = None  # text, vector or both; set by a semantic recall
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -253,6 +255,8 @@ class RecallHit:
         }
         if self.record is not None:
             out["record"] = self.record
+        if self.found_by is not None:
+            out["found_by"] = self.found_by
         return out
 
 
@@ -266,6 +270,7 @@ class RecallResult:
     hits: tuple[RecallHit, ...]
     match: str | None = None
     scopes: tuple[str, ...] = ()
+    semantic: bool = False
 
     @property
     def scope_names(self) -> tuple[str, ...]:
@@ -280,6 +285,7 @@ class RecallResult:
             "scopes": list(self.scope_names),
             "query": self.query,
             "match": self.match,
+            "semantic": self.semantic,
             "filters": dict(self.filters),
             "count": len(self.hits),
             "results": [hit.to_json() for hit in self.hits],
@@ -294,6 +300,7 @@ class RecallResult:
             f"- scope: {', '.join(self.scope_names)}\n",
             f"- query: {literal(self.query)}\n",
             f"- match: {self.match or 'none'}\n",
+            f"- semantic: {'yes' if self.semantic else 'no'}\n",
             f"- results: {len(self.hits)}\n",
         ]
         for position, hit in enumerate(self.hits, start=1):
@@ -301,6 +308,8 @@ class RecallResult:
                 f"\n## {position}. {hit.record_id} (revision {hit.revision})\n\n"
             )
             parts.append(f"- scope: {hit.scope}\n")
+            if hit.found_by is not None:
+                parts.append(f"- found by: {hit.found_by}\n")
             parts.append(f"- schema: {hit.schema_ref}\n")
             parts.append(
                 f"- origin: {hit.origin['kind']} {literal(hit.origin['actor_id'])}\n"
@@ -337,6 +346,8 @@ def recall(
     full: bool = False,
     with_status: bool = True,
     match: str = "auto",
+    semantic: bool = False,
+    embed_sensitive: bool = False,
 ) -> RecallResult:
     """Recall records of ``store``'s scope from the index.
 
@@ -345,7 +356,15 @@ def recall(
     ``recorded_at`` (newest first), then record ID. If no record has every word,
     the query runs again for records with any of them, and the result's ``match``
     says which it was (``all`` or ``any``). ``match="all"`` or ``"any"`` asks for one
-    of them without the other. ``since`` (inclusive) and
+    of them without the other.
+
+    ``semantic`` also searches a local vector index through the optional ``qmd`` tool
+    (see :mod:`akms_records.semantic`) and merges the two lists by reciprocal rank,
+    then newest first, then record ID; each hit's ``found_by`` says which list it came
+    from. Vector hits pass the same filters as every other hit. ``embed_sensitive``
+    lets sensitive records into that index, which ``include_sensitive`` does not.
+
+    ``since`` (inclusive) and
     ``until`` (exclusive) apply to the schema's time field where the record
     has one, and to ``recorded_at`` otherwise. By default only active records
     (chain heads) are returned, never rejected ones, and no sensitive ones.
@@ -366,6 +385,9 @@ def recall(
             raise _usage("tags must be non-empty text")
     if match not in MATCH_MODES:
         raise _usage("match must be one of " + ", ".join(MATCH_MODES))
+    _check_semantic(query, semantic, embed_sensitive)
+    # Merging needs more than the final page from each list.
+    pool = max(limit, SEMANTIC_POOL) if semantic else limit
     where = ["r.scope = ?"]
     params: list[Any] = [str(store.scope)]
     lifecycles = ["active"]
@@ -425,7 +447,7 @@ def recall(
                 SNIPPET_TOKENS,
                 fts,
                 *params,
-                limit,
+                pool,
             ]
         else:
             sql = (
@@ -434,7 +456,7 @@ def recall(
                 f"WHERE {' AND '.join(where)} "
                 "ORDER BY r.recorded_at DESC, r.record_id LIMIT ?"
             )
-            args = [*params, limit]
+            args = [*params, pool]
         if index is None:
             return []
         try:
@@ -454,10 +476,29 @@ def recall(
             used, rows = "all", fetch(all_words)
             if match == "auto" and not rows and any_word not in (None, all_words):
                 used, rows = "any", fetch(any_word)
+    found_by: dict[str, str] = {}
+    if semantic and query is not None:
+        from akms_records.semantic import nearest
+
+        ranked = nearest(store, query, limit=pool, embed_sensitive=embed_sensitive)
+        index = store.index_for_read()
+        if index is None:
+            near: list[Any] = []
+        else:
+            marks = ", ".join("?" for _ in ranked)
+            near = index.db.execute(
+                f"SELECT {columns}, records_fts.text, NULL "
+                "FROM records r JOIN records_fts ON records_fts.rowid = r.rid "
+                f"WHERE r.record_id IN ({marks}) AND {' AND '.join(where)}",
+                [*ranked, *params],
+            ).fetchall()
+        position = {record_id: place for place, record_id in enumerate(ranked)}
+        near.sort(key=lambda row: position[row[0]])
+        rows, found_by = _fuse(rows, near, limit)
     hits = []
     for row in rows:
         snippet = row[17]
-        if query is None:
+        if row[18] is None:  # no BM25, so no FTS snippet: the start of the text
             text = " ".join(str(snippet or "").split())
             snippet = (
                 text[:SNIPPET_CHARS] + SNIPPET_ELLIPSIS
@@ -497,6 +538,7 @@ def recall(
                 bm25=row[18],
                 record=record,
                 consolidation=consolidation,
+                found_by=found_by.get(row[0]),
             )
         )
     filters = {
@@ -512,7 +554,38 @@ def recall(
         "limit": limit,
         "full": full,
     }
-    return RecallResult(str(store.scope), query, filters, tuple(hits), used)
+    return RecallResult(
+        str(store.scope), query, filters, tuple(hits), used, semantic=semantic
+    )
+
+
+def _check_semantic(query: str | None, semantic: bool, embed_sensitive: bool) -> None:
+    if semantic and query is None:
+        raise _usage("a semantic recall needs a query")
+    if embed_sensitive and not semantic:
+        raise _usage("embed_sensitive only applies to a semantic recall")
+
+
+def _fuse(
+    text_rows: Sequence[Any], vector_rows: Sequence[Any], limit: int
+) -> tuple[list[Any], dict[str, str]]:
+    """Merge two ranked lists by reciprocal rank, keeping the text list's snippet."""
+    score: dict[str, float] = {}
+    chosen: dict[str, Any] = {}
+    found_by: dict[str, str] = {}
+    for rows, name in ((text_rows, "text"), (vector_rows, "vector")):
+        for position, row in enumerate(rows, start=1):
+            record_id = row[0]
+            score[record_id] = score.get(record_id, 0.0) + 1.0 / (RRF_K + position)
+            chosen.setdefault(record_id, row)
+            found_by[record_id] = "both" if record_id in found_by else name
+    merged = sorted(chosen)
+    merged.sort(key=lambda record_id: chosen[record_id][4], reverse=True)
+    merged.sort(key=lambda record_id: -score[record_id])
+    kept = merged[:limit]
+    return [chosen[record_id] for record_id in kept], {
+        record_id: found_by[record_id] for record_id in kept
+    }
 
 
 def recall_scopes(
@@ -525,6 +598,8 @@ def recall_scopes(
     home: str | Path | None = None,
     limit: int = DEFAULT_LIMIT,
     match: str = "auto",
+    semantic: bool = False,
+    embed_sensitive: bool = False,
     **options: Any,
 ) -> RecallResult:
     """Recall several scopes as one ranked list. Each hit names its scope.
@@ -537,8 +612,11 @@ def recall_scopes(
     then record ID. That order is fully determined, and each scope's best hits reach
     the top however its index scores them. Without a query the order is newest first,
     then record ID. The match mode is one for all scopes: every word everywhere, and
-    any word everywhere only if no scope has a hit.
+    any word everywhere only if no scope has a hit. ``semantic`` and
+    ``embed_sensitive`` are as in :func:`recall`, each scope with its own vector index;
+    the match mode is settled by the text search alone, before any vectors are read.
     """
+    _check_semantic(query, semantic, embed_sensitive)
     if visible and agent is None:
         raise _usage("the visible scopes need an agent")
     parsed = {Scope.parse(s) if isinstance(s, str) else s for s in scopes}
@@ -558,7 +636,7 @@ def recall_scopes(
     stores = [RecordStore.open(scope, repo=repo, home=home) for scope in ordered]
     try:
 
-        def run(mode: str) -> list[RecallResult]:
+        def run(mode: str, *, vectors: bool = False) -> list[RecallResult]:
             return [
                 recall(
                     store,
@@ -566,6 +644,8 @@ def recall_scopes(
                     agent=agent,
                     limit=limit,
                     match=mode,
+                    semantic=vectors,
+                    embed_sensitive=vectors and embed_sensitive,
                     **options,
                 )
                 for store in stores
@@ -579,6 +659,9 @@ def recall_scopes(
             and match_any(query) not in (None, match_all(query))
         ):
             results = run("any")
+        if semantic:
+            settled = results[0].match
+            results = run(settled if settled is not None else match, vectors=True)
     finally:
         for store in stores:
             store.close()
@@ -602,6 +685,7 @@ def recall_scopes(
         tuple(hits[rid] for rid in merged[:limit]),
         first.match,
         tuple(str(scope) for scope in ordered),
+        semantic,
     )
 
 

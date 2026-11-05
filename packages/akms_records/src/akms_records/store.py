@@ -80,6 +80,7 @@ from akms_records.errors import (
 )
 from akms_records.fsio import TMP_RE, append_line, fsync_dir, write_exclusive
 from akms_records.index import INDEX_DIRNAME, INDEX_FILENAME, RecordIndex
+from akms_records.semantic import drop_index, holds_any
 from akms_records.ids import (
     RECORD_ID_RE,
     check_event_id,
@@ -1385,7 +1386,25 @@ class RecordStore:
         }
 
     def _purge_index(self, record_id: str, not_reached: list[str]) -> dict[str, Any]:
-        """Remove an erased record from this worktree's index, bytes included."""
+        """Remove an erased record from this worktree's indexes, bytes included.
+
+        The optional semantic index cannot drop one document's text, so it is deleted
+        whole. That comes second: a build reads from the full-text index.
+        """
+        report = self._purge_text_index(record_id, not_reached)
+        semantic = drop_index(self.root)
+        if semantic == "not_reached":
+            not_reached.append(
+                "this store's semantic index, which another process was using; "
+                "run doctor --fix, or delete .index/semantic"
+            )
+        if semantic != "absent":
+            report["semantic"] = semantic
+        return report
+
+    def _purge_text_index(
+        self, record_id: str, not_reached: list[str]
+    ) -> dict[str, Any]:
         if not self.index_path.is_file():
             return {"status": "absent"}
         try:
@@ -1634,6 +1653,8 @@ class RecordStore:
                     repairs["erasures_reapplied"].append(record_id)
                 else:
                     found["erased_but_present"].append(record_id)
+        if fix and holds_any(self.root, erased) and drop_index(self.root) == "deleted":
+            repairs["semantic_index_deleted"] = [INDEX_DIRNAME + "/semantic"]
         schema_digests: dict[str, str] = {}
         for ref, loaded in self.schemas.iter_checked():
             if isinstance(loaded, RecordsError):

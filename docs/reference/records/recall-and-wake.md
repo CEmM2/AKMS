@@ -4,7 +4,7 @@
     Command names, options and output fields may change before a stable
     release.
 
-`recall` searches one scope's records. `wake` picks the records an agent
+`recall` searches one or more scopes' records. `wake` picks the records an agent
 should see when it starts a task, within a hard token budget. Both read the
 [search index](search-index.md), never call an LLM, and never rebuild the
 AKMS graph. They read only record stores: never a failure-memory registry, and
@@ -19,7 +19,8 @@ akms-records recall --scope SCOPE [--scope SCOPE]... [--repo PATH]
     [--since TIME] [--until TIME]
     [--review-state unreviewed|agent_reviewed|user_confirmed]
     [--include-retracted] [--include-superseded] [--include-sensitive]
-    [--match auto|all|any] [--limit N] [--full] [--format json|text]
+    [--match auto|all|any] [--semantic [--embed-sensitive]]
+    [--limit N] [--full] [--format json|text]
 ```
 
 | Option | Meaning |
@@ -29,6 +30,8 @@ akms-records recall --scope SCOPE [--scope SCOPE]... [--repo PATH]
 | `--visible` | With `--agent`, also read the agent's own scope, so the scopes are what `wake` reads for it. `--scope` is then optional. |
 | `--query` | Plain words, looked for in the summary, the tags and the schema's search text: records with every word, or if there are none, records with any word (see [matching](#matching)). Each word is quoted before it reaches FTS5, so operators (`OR`, `NEAR`, `*`, `^`, `col:`) are ordinary words and no input can break the query. A query without any letter or digit is refused (`invalid_query`). |
 | `--match` | `auto` (default), `all` for every word only, or `any` for any word only. |
+| `--semantic` | Also search a local vector index, through the optional `qmd` tool. See [Semantic search](#semantic-search). Off by default. |
+| `--embed-sensitive` | With `--semantic`, allow `sensitive` records into that index. |
 | `--schema` | `name` (every version) or `name/vN`. |
 | `--tag` | A tag the record must carry. Repeat it to require several. |
 | `--since`, `--until` | ISO 8601 date or date-time. `--since` is inclusive, `--until` exclusive; a date means midnight UTC, a time without an offset is UTC. They apply to the schema's `time_field` when the record has a parseable value there, and to `recorded_at` otherwise. |
@@ -105,6 +108,57 @@ only want valid ones.
 
 `--format text` prints the same results in the [fixed layout](#rendering-is-data-not-instructions),
 with a `- consolidation: <status>` line for a summary.
+
+## Semantic search
+
+`recall --semantic` adds a nearest-neighbour search over local embeddings to the text
+search. It is off by default, adds no Python dependency, and is experimental: whether
+it improves recall is for an evaluation to decide. On the corpus measured so far the
+any-word fallback gave most of the gain, and vectors cost keyword queries a good deal of
+ranking quality and every query seconds rather than milliseconds (see
+[limits](limits.md#semantic-search)). `wake` does not use it.
+
+It needs the [`qmd`](https://github.com/tobi/qmd) command (tested with 2.1.0) and its
+embedding model on this machine. Without them, recall fails with `qmd_missing` or
+`semantic_model_missing`; plain recall needs neither. The model is looked for in qmd's
+own cache folder, or at the path in `AKMS_RECORDS_QMD_MODEL`.
+
+**Nothing leaves the machine, and no LLM runs.** A search runs
+`qmd query 'vec: ...' --no-rerank`, which only embeds the query with the local model.
+`qmd vsearch` and a plain `qmd query` are avoided on purpose: both run a text-generating
+model to expand the query, and qmd downloads any model it lacks. qmd is handed the
+embedding model as a file path, so there is nothing to download; a missing model stops
+with the error above instead.
+
+**The index belongs to the store.** It lives in `.index/semantic/`, beside the
+full-text index, owner-only, ignored by git and safe to delete. Like the full-text
+index it covers the whole store root. qmd's database, configuration and cache folders
+all point inside it, so your own qmd index and settings are neither read nor changed.
+The first `--semantic` recall in a store builds it, and later ones add what is new,
+so a recall can take much longer than usual after many writes. Only one process
+builds at a time.
+
+**Erasing a record deletes the whole index.** qmd keeps a document's text in its
+database after the document goes away, so one document cannot be removed reliably. The
+next `--semantic` recall builds the index again from what remains, and it does the same
+when a record has left for another reason, such as becoming `sensitive`. If another
+process holds the index for over a minute, `erase` lists it under `not_reached`, and
+`doctor --fix` or the next semantic recall removes it.
+
+**Sensitive records are not embedded** unless `--embed-sensitive` is passed, and they
+leave again the first time it is not passed, which means a rebuild. `--include-sensitive`
+decides what a recall shows, and does not allow embedding.
+
+**Results.** Vector results and text results merge by reciprocal rank, then newest
+first, then record ID. Each result's `found_by` says `text`, `vector` or `both`, and
+the result's `semantic` is `true`. qmd only supplies an order: records are read from the
+search index under the same filters as any recall, so vector results obey `--scope`,
+`--review-state`, `--include-*` and the rest. `match` still describes the text search
+alone. A vector search always returns its nearest records, even when none is close.
+
+**Determinism.** The order repeats for a given index and model on a given machine.
+Embeddings are floating point, so a rebuild on other hardware may give slightly
+different vectors, and so may reorder close neighbours.
 
 ## wake
 

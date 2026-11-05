@@ -307,7 +307,7 @@ user-defined schemas.
 | Make the record service an AKMS core dependency, or an `akms records` subcommand | Rejected | Violates the runtime-independent contract principle of ADR 0001; core has no plugin mechanism. |
 | One canonical SQLite file or one JSONL ledger per scope | Rejected for project scope | Neither merges in git: a binary database cannot, and one append-only file conflicts on every parallel append. |
 | Store canonical records in a cloud sync folder | Rejected | Sync semantics are not a reliable multi-writer transactional store. |
-| Make vector embeddings mandatory | Rejected | Extra dependencies and cost without demonstrated benefit over metadata, full text, and summaries. |
+| Make vector embeddings mandatory | Rejected | Extra dependencies and cost without demonstrated benefit over metadata, full text, and summaries. `recall --semantic` offers them as an opt-in through the external `qmd` tool, with no new dependency, so they can be measured. |
 
 ## Consequences
 

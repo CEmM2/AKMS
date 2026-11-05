@@ -95,7 +95,7 @@ sensitivity are not content and keep the state, and `promote`'s link changes not
 
 | Command | Purpose |
 |---|---|
-| `recall [--scope S]... [--agent ID [--visible]] [--query WORDS] [--match auto\|all\|any] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--limit N] [--full] [--format json\|text]` | Search one or more scopes through the index: every word, else any word, ranked by BM25, then newest first. |
+| `recall [--scope S]... [--agent ID [--visible]] [--query WORDS] [--match auto\|all\|any] [--semantic [--embed-sensitive]] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--limit N] [--full] [--format json\|text]` | Search one or more scopes through the index: every word, else any word, ranked by BM25, then newest first. |
 | `wake --agent ID --task TEXT --budget-tokens N [--scope S]... [--include-sensitive] [--include-unreviewed] [--include-promoted] [--include-imported] [--exclude-nodes MANIFEST] [--review-state MIN] [--format json\|markdown] [--generated-at]` | Prioritised, deduplicated records for an agent within a hard token budget, with a truncation report. By default: reviewed records plus the agent's own unreviewed ones, without promoted records and imported failure lessons; `--include-unreviewed` adds everyone's. |
 
 Both are described in [recall and wake](recall-and-wake.md), including the
@@ -179,7 +179,8 @@ The result follows `failure-memory doctor`: a `status` of `ok` or `error`
 (`ok`, `warning` or `error`), `severity`, `repairable` (whether `--fix`
 handles it) and the `items` it found. `repairs` lists what `--fix` changed
 (`tmp_removed`, `empty_dirs_removed`, `erasures_reapplied`,
-`summaries_erased`, `index_reconciled`), `mode` is `report` or `fix`, and
+`summaries_erased`, `index_reconciled`, and `semantic_index_deleted` when the
+[semantic index](recall-and-wake.md#semantic-search) held an erased record), `mode` is `report` or `fix`, and
 `records_checked` counts the records replayed. `--actor` names who `--fix`
 logs as erasing a summary.
 
@@ -230,6 +231,10 @@ equal `--scope`.
 | `scope_violation` | The record belongs to another scope |
 | `stale_revision` | `--expect-revision` is no longer the head; nothing written |
 | `not_active` | The record is superseded or retracted |
+| `qmd_missing` | `recall --semantic` needs the `qmd` command, which is not on `PATH` |
+| `semantic_model_missing` | `recall --semantic` needs qmd's embedding model as a local file; nothing is downloaded |
+| `semantic_failed` | `qmd` failed, timed out or printed something unexpected |
+| `semantic_locked` | Another process kept the semantic index busy for too long |
 | `review_reassert` | An agent changed a record's content and named `user_confirmed` in the same amend; nothing written |
 | `event_id_reused` | The event ID was already used for a different kind of event, or in another scope |
 | `replay_error` | The record's files do not replay (`details.replay_code` says why) |

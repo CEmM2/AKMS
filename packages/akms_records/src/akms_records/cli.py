@@ -402,6 +402,17 @@ def _parser() -> argparse.ArgumentParser:
         default="auto",
         help="auto (default): every word, then any word if that finds nothing",
     )
+    recall.add_argument(
+        "--semantic",
+        action="store_true",
+        help="also search a local vector index, built per store with the optional "
+        "external qmd tool",
+    )
+    recall.add_argument(
+        "--embed-sensitive",
+        action="store_true",
+        help="with --semantic, allow sensitive records into that index",
+    )
     recall.add_argument("--schema", help="<name> or <name>/v<N>")
     recall.add_argument(
         "--tag",
@@ -643,6 +654,8 @@ def _recall_command(args: argparse.Namespace) -> dict[str, Any]:
         limit=args.limit,
         full=args.full,
         match=args.match,
+        semantic=args.semantic,
+        embed_sensitive=args.embed_sensitive,
     )
     if args.format == "text":
         return {"status": "ok", "_text": result.render_text()}
