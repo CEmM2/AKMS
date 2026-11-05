@@ -935,7 +935,12 @@ class RecordStore:
         actor: str,
         event_id: str | None = None,
     ) -> WriteResult:
-        """Append an amendment. Fields absent from ``document`` keep their value."""
+        """Append an amendment. Fields absent from ``document`` keep their value.
+
+        One exception: a summary that came from the schema's template follows a new
+        payload, so a replaced text stops showing and stops matching. See
+        :meth:`_summary_after`.
+        """
         fields = parse_record_document(document, scope=self.scope, partial=True)
         if not fields:
             raise RecordsError(
@@ -961,6 +966,8 @@ class RecordStore:
             ):
                 raise self._refuse_summary_write("amend")
             schema.validate_payload(merged["payload"])
+            if "summary" not in fields and merged["payload"] != record.payload:
+                merged["summary"] = self._summary_after(record, merged)
             return {
                 "envelope": {
                     "schema_ref": schema.ref,
@@ -984,6 +991,48 @@ class RecordStore:
             actor=actor,
             event_id=event_id,
         )
+
+    def _summary_after(self, record: Record, merged: dict[str, Any]) -> str:
+        """The summary after a payload change that did not name a summary.
+
+        The event format has no mark for where a summary came from, so it is worked
+        out: a summary that equals what a template of this record's schemas, current
+        or logged, gives one of its past payloads came from a template, and follows
+        the new payload. Anything else was written by someone and stays until it is
+        changed. A written summary that happens to equal the template's text follows
+        too, which loses nothing. So does one left behind by an amend from before
+        this rule, the next time the payload changes.
+        """
+        if record.summary not in self._template_summaries(record):
+            return record.summary
+        try:
+            rules = self.schemas.rules(merged["schema_ref"])
+        except RecordsError:
+            return record.summary
+        return render_summary(rules, merged["payload"]) or record.summary
+
+    def _template_summaries(self, record: Record) -> set[str]:
+        """What each known template of this record gives each of its past payloads."""
+        bodies = [
+            event["body"]
+            for event in self.history(record.record_id)
+            if event["kind"] in ("create", "amend")
+        ]
+        rule_sets: list[Any] = []
+        for ref in {body["envelope"]["schema_ref"] for body in bodies}:
+            try:
+                rule_sets.append(self.schemas.rules(ref))
+                for entry in self.schemas.rules_log(ref):
+                    rule_sets.extend([entry.get("previous"), entry.get("value")])
+            except RecordsError:
+                continue
+        return {
+            text
+            for rules in rule_sets
+            if isinstance(rules, dict)
+            for body in bodies
+            if (text := render_summary(rules, body["payload"]))
+        }
 
     def record_promotion(
         self,

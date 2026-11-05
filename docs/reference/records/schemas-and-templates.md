@@ -171,6 +171,23 @@ full. All templates set `additionalProperties: false`.
 Source references are recorded as given. A missing or wrong reference stays
 visible; it is never upgraded into verified evidence.
 
+## Summaries and amends
+
+A summary from `summary_template` follows the payload: when an amend changes the
+payload and names no summary, the template runs again, so `recall` and `wake` stop
+showing the replaced text and its words stop matching. A summary someone wrote stays
+until someone changes it.
+
+The event format has no mark for where a summary came from, and none was added. A
+summary counts as the template's when it equals what a template of the record's
+schemas, current or in the rules log, gives one of the record's past payloads. A
+written summary that happens to read the same follows too, which loses nothing.
+
+Existing records need no migration, and their event files do not change. A record
+that was amended before this rule and still shows its old template text keeps showing
+it until its payload next changes, when it is regenerated; `amend --summary` fixes it
+sooner.
+
 ## Promotion policy
 
 A person may give a schema a promotion policy:

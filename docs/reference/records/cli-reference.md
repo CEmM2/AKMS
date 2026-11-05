@@ -65,7 +65,7 @@ cannot be `established`.
 | Command | Purpose |
 |---|---|
 | `add --file DOC [--schema REF]` | Create a record. |
-| `amend RECORD --expect-revision N [--file DOC]` | Amend fields; fields not given keep their value. |
+| `amend RECORD --expect-revision N [--file DOC]` | Amend fields; fields not given keep their value, except that a summary from the schema's template follows a new payload (see [templates](schemas-and-templates.md#summaries-and-amends)). |
 | `supersede RECORD --expect-revision N (--by OTHER \| --file DOC [--schema REF]) [--reason TEXT]` | Mark a record superseded by an existing record, or by a new one created from `DOC`. |
 | `retract RECORD --expect-revision N --reason TEXT` | Mark a record retracted. |
 | `show RECORD` | The current state: `record` (envelope and payload) and `state` (update time, head digest, successor, reason). |
