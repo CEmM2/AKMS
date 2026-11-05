@@ -141,6 +141,8 @@ MAX_REASON = 1000
 CASCADE_REASON = "cascade: a summary that cites an erased record"
 # What a plain amend may change on a summary; the rest is consolidate's job.
 SUMMARY_AMENDABLE = frozenset({"review_state", "tags", "sensitivity"})
+PERSON_ORIGINS = frozenset({"human", "human-confirmed"})
+REVIEWED_STATES = frozenset({"agent_reviewed", "user_confirmed"})
 NOT_REACHED = (
     "git history: commits, packs and remotes that already contain the record",
     "other clones and unmerged branches (run doctor --fix after a merge to re-apply)",
@@ -300,6 +302,51 @@ def _with_refs(
             code="source_refs_full",
         )
     return merged
+
+
+def review_state_after(
+    record: Record, merged: dict[str, Any], *, asked: str | None, actor: str
+) -> str:
+    """The review state after an amend: a review does not outlive the text it was of.
+
+    A **content change** is a new payload, summary or origin: what a reviewer read
+    and who it is said to come from. Tags, source references and sensitivity are not.
+
+    The **person** a record belongs to keeps its state. That is an actor equal to
+    ``origin.actor_id`` on a record whose ``origin.kind`` is ``human`` or
+    ``human-confirmed``, as the record stood before this amend. Every other actor is
+    treated as an agent, because actor names say nothing else: a person changing
+    someone else's record confirms it again afterwards, as a separate amend.
+
+    When an agent changes content, a reviewed record becomes ``unreviewed``, since the
+    review was of other text. ``rejected`` stays, or an edit could launder a rejection.
+    Naming ``agent_reviewed`` or ``unreviewed`` in the same amend is honest and
+    allowed. Naming ``user_confirmed`` is refused (``review_reassert``): a person's
+    confirmation of text they have not seen cannot arrive with the edit.
+    """
+    changed = any(
+        merged[name] != current
+        for name, current in (
+            ("payload", record.payload),
+            ("summary", record.summary),
+            ("origin", record.origin),
+        )
+    )
+    person = (
+        record.origin["kind"] in PERSON_ORIGINS and record.origin["actor_id"] == actor
+    )
+    if not changed or person:
+        return merged["review_state"]
+    if asked == "user_confirmed":
+        raise RecordsError(
+            f"{actor} changed the content of {record.record_id} and named "
+            "user_confirmed in the same amend; nothing was written. Amend the content, "
+            "then have a person confirm the new text in a separate amend",
+            code="review_reassert",
+        )
+    if asked is not None or record.review_state not in REVIEWED_STATES:
+        return merged["review_state"]
+    return "unreviewed"
 
 
 def history_citations(events: list[dict[str, Any]]) -> set[str]:
@@ -937,9 +984,10 @@ class RecordStore:
     ) -> WriteResult:
         """Append an amendment. Fields absent from ``document`` keep their value.
 
-        One exception: a summary that came from the schema's template follows a new
-        payload, so a replaced text stops showing and stops matching. See
-        :meth:`_summary_after`.
+        Two exceptions. A summary that came from the schema's template follows a new
+        payload, so a replaced text stops showing and stops matching; see
+        :meth:`_summary_after`. And a review does not outlive the text it was of; see
+        :func:`review_state_after`.
         """
         fields = parse_record_document(document, scope=self.scope, partial=True)
         if not fields:
@@ -968,6 +1016,10 @@ class RecordStore:
             schema.validate_payload(merged["payload"])
             if "summary" not in fields and merged["payload"] != record.payload:
                 merged["summary"] = self._summary_after(record, merged)
+            if not self._summary_writer:
+                merged["review_state"] = review_state_after(
+                    record, merged, asked=fields.get("review_state"), actor=actor
+                )
             return {
                 "envelope": {
                     "schema_ref": schema.ref,

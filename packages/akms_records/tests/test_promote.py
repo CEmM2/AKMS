@@ -26,7 +26,11 @@ from akms_records.portable import export_records, import_records  # noqa: E402
 from akms_records.schemas import load_template  # noqa: E402
 from akms_records.store import read_event_files  # noqa: E402
 
-CONFIRMED = {"review_state": "user_confirmed"}
+# A person's record, so that actor "t" keeps its review through an amend.
+CONFIRMED = {
+    "review_state": "user_confirmed",
+    "origin": {"kind": "human-confirmed", "actor_id": "t"},
+}
 
 
 def tree(path: Path) -> dict[str, bytes]:
@@ -121,7 +125,7 @@ def test_default_path_writes_an_agent_tentative_node(project, repo, no_network):
     assert f"- record: `{rid}@1`" in body
     assert "- schema: `decision/v1`" in body
     assert f"- schema_sha256: `{project.get(rid).schema_sha256}`" in body
-    assert 'origin: agent "t"' in body
+    assert 'origin: human-confirmed "t"' in body
     assert '"ref": "#42"' in body
     graph = load_graph(local_knowledge_dir(repo) / "graph" / "graph.json")
     assert graph.nodes[rid]["node_origin"] == "local"
@@ -1141,7 +1145,16 @@ def test_cli_promote_end_to_end(project, repo, capsys, monkeypatch):
     code, out = cli(capsys, "recall", *base)
     assert out["count"] == 1
     amended = cli(
-        capsys, "amend", rid, *base, "--expect-revision", "2", "--summary", "New"
+        capsys,
+        "amend",
+        rid,
+        *base,
+        "--actor",
+        "t",
+        "--expect-revision",
+        "2",
+        "--summary",
+        "New",
     )
     assert amended[0] == 0
     code, out = cli(capsys, "promote", rid, *base, "--review", "approved")

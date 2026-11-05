@@ -72,6 +72,25 @@ cannot be `established`.
 | `history RECORD` | Every event, oldest first. |
 | `list` | The scope's records, by reading the files (not the index), plus any that fail to replay. |
 
+**A review does not outlive the text it was of.** When an agent changes a record's
+content (its payload, summary or origin), a reviewed record becomes `unreviewed`, so
+it stops being offered to other agents as checked. Tags, source references and
+sensitivity are not content and keep the state, and `promote`'s link changes nothing.
+`rejected` stays `rejected`.
+
+- **Who keeps the state:** the person the record belongs to, meaning an actor equal
+  to `origin.actor_id` on a record whose `origin.kind` is `human` or `human-confirmed`.
+  Every other actor counts as an agent, because actor names say nothing else. A person
+  changing someone else's record confirms it again in a separate amend.
+- **Naming a state in the same amend:** `unreviewed` and `agent_reviewed` are allowed,
+  since an agent can say it reviewed its own edit. `user_confirmed` is refused with
+  `review_reassert` and nothing is written.
+- **The limit:** this is a rule for cooperating agents. An agent can pass a person's
+  name as `--actor`, or set `user_confirmed` in a later amend. The second step shows in
+  `history`, with the actor. Without `$AKMS_RECORDS_ACTOR`, the default actor is the
+  operating-system user, the same for a person and any agent they run, so set it for
+  agents.
+
 ## Recall and wake
 
 | Command | Purpose |
@@ -211,6 +230,7 @@ equal `--scope`.
 | `scope_violation` | The record belongs to another scope |
 | `stale_revision` | `--expect-revision` is no longer the head; nothing written |
 | `not_active` | The record is superseded or retracted |
+| `review_reassert` | An agent changed a record's content and named `user_confirmed` in the same amend; nothing written |
 | `event_id_reused` | The event ID was already used for a different kind of event, or in another scope |
 | `replay_error` | The record's files do not replay (`details.replay_code` says why) |
 | `invalid_schema`, `invalid_rules` | The schema or its extraction rules are not acceptable (for example a pointer to an undeclared property) |

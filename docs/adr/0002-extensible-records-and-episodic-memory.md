@@ -219,6 +219,9 @@ examples, not privileged types.
   metadata. The default is extractive and uses no LLM; an explicitly selected
   provider is recorded with its input versions. Raw history and summaries stay
   distinct.
+- **Reviews apply to text:** an agent's change to a record's payload, summary or
+  origin makes a reviewed record `unreviewed`, and it cannot name `user_confirmed` in
+  the same amend. The person a record belongs to keeps its state.
 - **Correct or forget:** append correction, supersession, or retraction events
   for normal history. A separately authorized erasure removes protected content
   from the canonical files, the index, summaries, and exports under the

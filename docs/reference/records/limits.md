@@ -26,6 +26,13 @@ Setting a promotion policy asks for interactive confirmation, but a process
 that can drive a terminal could answer it. That is why every change is
 logged.
 
+## Review state
+
+An agent's content change resets a review, and only `origin` tells a person from an
+agent; see the [CLI reference](cli-reference.md#records). After such a reset the
+record is `unreviewed`, so other agents no longer get it from `wake` until someone
+reviews it again, while `recall` still finds it. Old revisions stay in `history`.
+
 ## Promotion
 
 - **The approval is a statement, not a proof.** `--review approved`, `--yes` and

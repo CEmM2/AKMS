@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from akms_records import wake
+from akms_records import RecordsError, wake
 from akms_records.schemas import load_template
 
 
@@ -130,3 +132,170 @@ def test_regenerating_keeps_the_events_before_it_and_a_replay_agrees(store):
     assert pairs[0][1] == first
     assert pairs[1][0]["body"]["envelope"]["summary"] == "Decision: Use no lock"
     assert store.doctor()["status"] == "ok"
+
+
+# ------------------------------------------------------------------ review state
+def owned(store, state="user_confirmed", kind="human-confirmed"):
+    return add(
+        store,
+        actor="owner",
+        review_state=state,
+        origin={"kind": kind, "actor_id": "owner"},
+    )
+
+
+@pytest.mark.parametrize("state", ["user_confirmed", "agent_reviewed"])
+def test_an_agents_payload_change_resets_a_review(store, state):
+    rid = owned(store, state)
+    store.amend(rid, new_payload(), expected_revision=1, actor="some-agent")
+    record = store.get(rid)
+    assert record.review_state == "unreviewed"
+    assert record.origin == {"kind": "human-confirmed", "actor_id": "owner"}
+
+
+def test_an_agents_summary_or_origin_change_resets_a_review(store):
+    rid = owned(store)
+    store.amend(rid, {"summary": "Other words"}, expected_revision=1, actor="agent")
+    assert store.get(rid).review_state == "unreviewed"
+    other = owned(store)
+    store.amend(
+        other,
+        {"origin": {"kind": "human", "actor_id": "agent"}},
+        expected_revision=1,
+        actor="agent",
+    )
+    assert store.get(other).review_state == "unreviewed"
+
+
+def test_an_agent_cannot_make_itself_the_person_in_one_amend(store):
+    rid = owned(store)
+    store.amend(
+        rid,
+        {**new_payload(), "origin": {"kind": "human", "actor_id": "agent"}},
+        expected_revision=1,
+        actor="agent",
+    )
+    assert store.get(rid).review_state == "unreviewed"
+
+
+def test_the_records_person_keeps_the_state(store):
+    for kind in ("human", "human-confirmed"):
+        rid = owned(store, kind=kind)
+        store.amend(rid, new_payload(), expected_revision=1, actor="owner")
+        assert store.get(rid).review_state == "user_confirmed"
+
+
+def test_an_agent_origin_never_counts_as_a_person(store):
+    rid = add(store, actor="scout", review_state="user_confirmed")
+    assert store.get(rid).origin == {"kind": "agent", "actor_id": "scout"}
+    store.amend(rid, new_payload(), expected_revision=1, actor="scout")
+    assert store.get(rid).review_state == "unreviewed"
+
+
+def test_amends_that_change_no_content_keep_the_state(store):
+    rid = owned(store)
+    revision = 1
+    for fields in (
+        {"tags": ["x"]},
+        {"source_refs": [{"kind": "issue", "ref": "#1"}]},
+        {"sensitivity": "public"},
+        {"payload": store.get(rid).payload},
+        {"summary": store.get(rid).summary},
+    ):
+        store.amend(rid, fields, expected_revision=revision, actor="some-agent")
+        revision += 1
+        assert store.get(rid).review_state == "user_confirmed", fields
+
+
+def test_a_rejection_survives_an_agents_edit(store):
+    rid = owned(store, "rejected")
+    store.amend(rid, new_payload(), expected_revision=1, actor="some-agent")
+    assert store.get(rid).review_state == "rejected"
+
+
+def test_an_unreviewed_record_stays_unreviewed(store):
+    rid = add(store)
+    store.amend(rid, new_payload(), expected_revision=1, actor="a")
+    assert store.get(rid).review_state == "unreviewed"
+
+
+def test_an_agent_cannot_reassert_user_confirmed_with_its_edit(store):
+    rid = owned(store)
+    with pytest.raises(RecordsError) as caught:
+        store.amend(
+            rid,
+            {**new_payload(), "review_state": "user_confirmed"},
+            expected_revision=1,
+            actor="some-agent",
+        )
+    assert caught.value.code == "review_reassert"
+    assert store.get(rid).revision == 1
+    assert store.get(rid).payload["decision"] == "Use a global store lock"
+
+
+@pytest.mark.parametrize("named", ["agent_reviewed", "unreviewed"])
+def test_an_agent_can_state_a_lesser_review_with_its_edit(store, named):
+    rid = owned(store)
+    store.amend(
+        rid,
+        {**new_payload(), "review_state": named},
+        expected_revision=1,
+        actor="some-agent",
+    )
+    assert store.get(rid).review_state == named
+
+
+def test_the_records_person_can_name_user_confirmed_with_an_edit(store):
+    rid = owned(store, "agent_reviewed")
+    store.amend(
+        rid,
+        {**new_payload(), "review_state": "user_confirmed"},
+        expected_revision=1,
+        actor="owner",
+    )
+    assert store.get(rid).review_state == "user_confirmed"
+
+
+def test_confirming_later_in_a_separate_amend_is_visible_in_history(store):
+    rid = owned(store)
+    store.amend(rid, new_payload(), expected_revision=1, actor="some-agent")
+    store.amend(
+        rid, {"review_state": "user_confirmed"}, expected_revision=2, actor="owner"
+    )
+    assert store.get(rid).review_state == "user_confirmed"
+    assert [event["actor"] for event in store.history(rid)] == [
+        "owner",
+        "some-agent",
+        "owner",
+    ]
+
+
+def test_a_promotion_link_resets_nothing(store):
+    rid = add(store, actor="scout", review_state="user_confirmed")
+    store.record_promotion(
+        rid,
+        node_id="a-node",
+        revision=1,
+        path="default",
+        expected_revision=1,
+        actor="some-agent",
+    )
+    record = store.get(rid)
+    assert record.review_state == "user_confirmed"
+    assert record.promoted_to["node_id"] == "a-node"
+    assert record.summary == "Decision: Use a global store lock"
+
+
+def test_a_cli_amend_follows_the_same_rule(store, repo, capsys, tmp_path):
+    from akms_records.cli import main
+
+    rid = owned(store)
+    doc = tmp_path / "doc.json"
+    doc.write_text(json.dumps(new_payload()), encoding="utf-8")
+    base = ["--scope", "project:example", "--repo", str(repo)]
+    args = ["amend", rid, *base, "--file", str(doc), "--expect-revision", "1"]
+    code = main([*args, "--actor", "some-agent", "--review-state", "user_confirmed"])
+    assert code == 2 and "error[review_reassert]" in capsys.readouterr().err
+    assert main([*args, "--actor", "some-agent"]) == 0
+    capsys.readouterr()
+    assert store.get(rid).review_state == "unreviewed"
