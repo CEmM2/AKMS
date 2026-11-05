@@ -1,4 +1,16 @@
-"""Local SQLite-backed document index."""
+"""Local SQLite-backed document index.
+
+**Erasure.** The connection runs with ``PRAGMA secure_delete=ON`` and the FTS5
+table with its ``secure-delete`` option, so a removed or replaced document's
+text is overwritten rather than left in free space. Where the SQLite library
+predates FTS5 ``secure-delete`` (3.42), a write that removed text also runs the
+FTS5 ``optimize`` command and ``VACUUM``. A database in WAL mode is
+checkpointed with ``TRUNCATE`` after such a write; the index itself uses the
+default rollback journal, which SQLite removes at commit. An index written
+before these settings (``user_version`` 0) is compacted once, with ``optimize``
+and ``VACUUM``, the first time it is opened, which scrubs text its earlier
+deletions left behind.
+"""
 
 from __future__ import annotations
 
@@ -9,14 +21,16 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Protocol
 
-from akms.repo_wiki.config import init_repo_wiki, load_config
+from akms.repo_wiki.config import effective_excludes, init_repo_wiki, load_config
 from akms.repo_wiki.hashing import sha256_text
 from akms.repo_wiki.paths import ensure_parent, repo_relative
 from akms.repo_wiki.render_markdown import repo_commit
-from akms.repo_wiki.scanner import matches_any, read_gitignore
+from akms.repo_wiki.scanner import is_excluded, read_gitignore
 from akms.repo_wiki.simple_yaml import load_yaml
 
 INDEX_PATH = ".repo_wiki/index/repo_wiki.sqlite3"
+# ``PRAGMA user_version`` once an index has been scrubbed of pre-secure-delete residue.
+ERASURE_USER_VERSION = 1
 
 
 @dataclass(slots=True)
@@ -98,7 +112,11 @@ class SQLiteIndexBackend:
         ensure_parent(path)
         self.connection = sqlite3.connect(path)
         self.connection.row_factory = sqlite3.Row
+        # Overwrite deleted content instead of leaving it in free pages.
+        self.connection.execute("PRAGMA secure_delete=ON")
         self._init_schema()
+        self.fts_secure_delete = self._enable_fts_secure_delete()
+        self._scrub_legacy_residue()
 
     def close(self) -> None:
         self.connection.close()
@@ -127,6 +145,48 @@ class SQLiteIndexBackend:
         )
         self.connection.commit()
 
+    def _enable_fts_secure_delete(self) -> bool:
+        """Turn on FTS5 ``secure-delete``; ``False`` where SQLite lacks it (< 3.42)."""
+        row = self.connection.execute(
+            "SELECT v FROM documents_fts_config WHERE k = 'secure-delete'"
+        ).fetchone()
+        if row is not None and str(row[0]) == "1":
+            return True
+        try:
+            with self.connection:
+                self.connection.execute(
+                    "INSERT INTO documents_fts(documents_fts, rank) "
+                    "VALUES('secure-delete', 1)"
+                )
+        except sqlite3.OperationalError:
+            return False
+        return True
+
+    def _scrub_legacy_residue(self) -> None:
+        """Compact an index written without secure delete, once."""
+        version = self.connection.execute("PRAGMA user_version").fetchone()[0]
+        if int(version) >= ERASURE_USER_VERSION:
+            return
+        if self.connection.execute("SELECT 1 FROM documents LIMIT 1").fetchone():
+            with self.connection:
+                self.connection.execute(
+                    "INSERT INTO documents_fts(documents_fts) VALUES('optimize')"
+                )
+            self.connection.execute("VACUUM")
+        self.connection.execute(f"PRAGMA user_version = {ERASURE_USER_VERSION}")
+
+    def _erase_removed_text(self) -> None:
+        """Run after a committed write that deleted or replaced documents."""
+        if not self.fts_secure_delete:
+            with self.connection:
+                self.connection.execute(
+                    "INSERT INTO documents_fts(documents_fts) VALUES('optimize')"
+                )
+            self.connection.execute("VACUUM")
+        mode = self.connection.execute("PRAGMA journal_mode").fetchone()[0]
+        if str(mode).lower() == "wal":
+            self.connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
     def index_documents(
         self, documents: list[IndexDocument], *, changed_only: bool = False
     ) -> IndexSummary:
@@ -139,15 +199,20 @@ class SQLiteIndexBackend:
                     "SELECT doc_id, content_hash FROM documents"
                 )
             }
+            replaced = 0
             for doc in documents:
                 if changed_only and existing.get(doc.doc_id) == doc.content_hash:
                     summary.skipped_unchanged += 1
                     continue
+                if doc.doc_id in existing:
+                    replaced += 1
                 self._upsert_document(doc)
                 summary.indexed += 1
             for doc_id in sorted(set(existing) - incoming_ids):
                 self._delete_document(doc_id)
                 summary.deleted += 1
+        if replaced or summary.deleted:
+            self._erase_removed_text()
         return summary
 
     def _upsert_document(self, doc: IndexDocument) -> None:
@@ -360,7 +425,8 @@ def discover_index_documents(repo_root: Path) -> list[IndexDocument]:
             docs.append(parsed)
     for path in sorted(overlays.rglob("*.md")) if overlays.exists() else []:
         rel = repo_relative(path, root)
-        if source_is_excluded(rel, root, config):
+        # Overlays live under .repo_wiki/, so the tool-state set must not apply.
+        if source_is_excluded(rel, root, config, tool_state=False):
             continue
         parsed = document_from_markdown(root, path, rel, human_authored=True)
         if parsed:
@@ -368,13 +434,16 @@ def discover_index_documents(repo_root: Path) -> list[IndexDocument]:
     return docs
 
 
-def source_is_excluded(path: str, repo_root: Path, config: dict[str, object]) -> bool:
+def source_is_excluded(
+    path: str, repo_root: Path, config: dict[str, object], *, tool_state: bool = True
+) -> bool:
     scanner = config["scanner"] if isinstance(config["scanner"], dict) else {}
-    exclude = [str(v) for v in scanner.get("exclude", [])]
     gitignore_patterns = (
         read_gitignore(repo_root) if scanner.get("respect_gitignore", True) else []
     )
-    return matches_any(path, exclude) or matches_any(path, gitignore_patterns)
+    return is_excluded(
+        path, effective_excludes(config, tool_state=tool_state), gitignore_patterns
+    )
 
 
 def document_from_markdown(

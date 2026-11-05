@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Consolidation",
+  "description": "A source-linked summary of records in one scope. Written only by akms-records consolidate; every assertion cites the record revisions it came from.",
+  "type": "object",
+  "required": [
+    "topic",
+    "method",
+    "provider",
+    "inputs_sha256",
+    "assertions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "topic": {
+      "type": "object",
+      "description": "The cluster: a scope plus a tag set and/or a query.",
+      "required": [
+        "name",
+        "scope",
+        "tags",
+        "query",
+        "review_state"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "An optional display name for the topic."
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 3,
+          "description": "The scope the sources were gathered from (kind:id)."
+        },
+        "tags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Tags every source carries."
+        },
+        "query": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "Words every source contains, as recall --query."
+        },
+        "review_state": {
+          "enum": [
+            "unreviewed",
+            "agent_reviewed",
+            "user_confirmed"
+          ],
+          "description": "The minimum review state of a source."
+        }
+      }
+    },
+    "method": {
+      "enum": [
+        "extractive",
+        "provider"
+      ]
+    },
+    "provider": {
+      "description": "The summarizer that wrote the assertions; null for extractive.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "name",
+            "version"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        }
+      ]
+    },
+    "inputs_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Digest of the source revisions the topic gathered."
+    },
+    "assertions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "sources"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "sources": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^rec-[0-9]{8}-[0-9a-hjkmnp-tv-z]{8}@[1-9][0-9]{0,5}$"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-akms-records": {
+    "name": "consolidation",
+    "version": 1,
+    "title": "Consolidation",
+    "description": "A source-linked summary written by akms-records consolidate.",
+    "rules": {
+      "search_text": [
+        "/topic/name",
+        "/topic/query",
+        "/topic/tags"
+      ],
+      "label": "/topic/name"
+    }
+  }
+}

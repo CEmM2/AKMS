@@ -1,27 +1,33 @@
 # Configuration
 
 `repo-wiki` reads `.repo_wiki/config.yaml` in the repository root.
-`repo-wiki init` creates it with every default written out; you only need to
+`repo-wiki init` creates it with every default written out, except the
+built-in exclude patterns, which apply without being listed. You only need to
 keep the keys you change.
 
 ## How the file is read
 
-- The file is merged over the built-in defaults. Mappings merge key by key.
-  **Lists and scalars replace the default entirely**, so a `scanner.exclude`
-  or `scanner.include` list you write is the whole list, not an addition to
-  the default one. Copy the defaults you want to keep.
+- The file is merged over the built-in defaults. Mappings merge key by key,
+  and a scalar or list you write replaces the default, with one exception:
+  **`scanner.exclude` adds to the built-in exclude patterns** rather than
+  replacing them. `scanner.include` does replace the default include list.
 - The parser reads a YAML subset: nested mappings, scalars and lists of
-  scalars. Write booleans as `true` or `false`. Comments must be on their own
-  line; a `#` after a value becomes part of the value.
+  scalars. Write booleans as `true` or `false`. Write each list item on its
+  own `- item` line; `[]` is the empty list, and a flow list such as
+  `[a, b]` is read as a single string. Comments must be on their own line; a
+  `#` after a value becomes part of the value.
 - A missing file means all defaults. Unknown keys are ignored.
 - These checks fail the command before it does any work: `scanner.max_file_size_kb`
-  must be a positive number, `generation.output_dir` must be set, and
+  must be a positive number, `scanner.include` and `scanner.exclude` must be
+  lists, `scanner.use_default_excludes` must be `true` or `false`,
+  `generation.output_dir` must be set, and
   `summaries.provider` other than `local` requires
   `summaries.allow_source_code_upload: true`. Even then, no remote provider is
   implemented, so a non-`local` provider fails when summaries are generated.
 
 Run `repo-wiki scan` after editing `scanner.*` or `languages.*` to see the
-effect.
+effect. `repo-wiki scan --json` also prints `exclude`, the complete list of
+exclude patterns applied.
 
 ## `scanner`
 
@@ -30,8 +36,9 @@ including [`export-akms`](akms-export.md).
 
 | Key | Default | Effect |
 |---|---|---|
-| `scanner.include` | `**/*.py`, `**/*.md`, `**/*.yaml`, `**/*.yml`, `**/*.toml` | Glob patterns a file must match to be eligible. The globs of each enabled non-Python language (see [`languages`](#languages)) are added to a non-empty list. An empty list accepts every file. |
-| `scanner.exclude` | Build output, caches, data directories and secret-bearing files; see [Privacy and security](privacy-security.md#default-exclude-patterns) | Patterns that remove a file or prune a directory. Checked before the file is read. |
+| `scanner.include` | `**/*.py`, `**/*.md`, `**/*.yaml`, `**/*.yml`, `**/*.toml` | Glob patterns a file must match to be eligible. A list you write replaces the default list. The globs of each enabled non-Python language (see [`languages`](#languages)) are added to a non-empty list. An empty list accepts every file. |
+| `scanner.exclude` | none | Patterns that remove a file or prune a directory, added to the [built-in exclude patterns](privacy-security.md#built-in-exclude-patterns). Checked before the file is read. Duplicates of a built-in pattern are ignored. |
+| `scanner.use_default_excludes` | `true` | With `false`, the ordinary built-in excludes (environments, caches, build and data output) are not applied. The tool-state patterns (`.git`, `.repo_wiki/`, the generated-page directory) and the secret and credential patterns always are; no setting removes them. |
 | `scanner.max_file_size_kb` | `512` | Larger files are skipped as `too_large`. |
 | `scanner.respect_gitignore` | `true` | Also skip anything matched by the repository's root `.gitignore`. See [the limits of this](privacy-security.md#gitignore). |
 
@@ -78,7 +85,7 @@ Controls what `build` writes.
 
 | Key | Default | Effect |
 |---|---|---|
-| `generation.output_dir` | `.repo_wiki/generated` | Directory for generated pages, relative to the repository root. The index reads from it, and the scanner's default excludes cover only the default location. |
+| `generation.output_dir` | `.repo_wiki/generated` | Directory for generated pages, relative to the repository root. The index reads from it, and the scanner always skips it. |
 | `generation.generate_module_docs` | `true` | Write one page per module under `modules/`. |
 | `generation.generate_symbol_docs` | `true` | Write one page per symbol under `symbols/`. |
 | `generation.generate_repo_map` | `true` | Write `repo_map.md`. |

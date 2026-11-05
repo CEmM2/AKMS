@@ -173,6 +173,10 @@ nav:
         - Generated Files: reference/akms/repo-wiki/generated-files.md
         - Privacy and Security: reference/akms/repo-wiki/privacy-security.md
         - AKMS Export: reference/akms/repo-wiki/akms-export.md
+        - context: reference/akms/repo-wiki/context.md
+        - impact: reference/akms/repo-wiki/impact.md
+        - changes: reference/akms/repo-wiki/changes.md
+        - Reading Impact and Risk: reference/akms/repo-wiki/reading-impact.md
       - API Reference:
         - Schema:
           - Models: reference/akms/api/schema/models.md
@@ -220,6 +224,15 @@ nav:
       - Operator Policy: reference/failure-memory/operator-policy.md
       - Adoption Guide: reference/failure-memory/adoption.md
       - Internals: reference/failure-memory/internals.md
+    - Records (Experimental):
+      - reference/records/index.md
+      - CLI Reference: reference/records/cli-reference.md
+      - Recall and Wake: reference/records/recall-and-wake.md
+      - Consolidation: reference/records/consolidation.md
+      - Search Index: reference/records/search-index.md
+      - Storage Format: reference/records/storage-format.md
+      - Schemas and Templates: reference/records/schemas-and-templates.md
+      - Limits: reference/records/limits.md
     - akms-learn:
       - reference/akms-learn/index.md
       - Usage: reference/akms-learn/usage.md
@@ -249,9 +262,12 @@ nav:
 
   - Specification:
     - AKMS v2 Specification: specification/AKMS_v2_specification.md
+    - Addendum 0001 — Health reporting reachability: specification/addenda/0001-health-reporting-reachability.md
 
   - Decisions:
     - Projection and Evidence Contract Surface: adr/0001-projection-and-evidence-contract-surface.md
+    - Extensible Records and Episodic Memory: adr/0002-extensible-records-and-episodic-memory.md
+    - Reachability in Health Reporting: adr/0003-reachability-in-health-reporting.md
 
   - Project:
     - Limitations: limitations.md

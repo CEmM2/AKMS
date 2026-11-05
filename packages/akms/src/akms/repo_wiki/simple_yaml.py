@@ -14,6 +14,8 @@ def dump_yaml(data: Mapping[str, object], indent: int = 0) -> str:
         if isinstance(value, Mapping):
             lines.append(f"{pad}{key}:")
             lines.append(dump_yaml(value, indent + 2).rstrip())
+        elif isinstance(value, list) and not value:
+            lines.append(f"{pad}{key}: []")
         elif isinstance(value, list):
             lines.append(f"{pad}{key}:")
             for item in value:
@@ -94,6 +96,8 @@ def parse_scalar(value: str) -> object:
         return True
     if value == "false":
         return False
+    if value == "[]":
+        return []
     if value.startswith('"'):
         return json.loads(value)
     if value.startswith("'"):

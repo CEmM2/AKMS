@@ -16,6 +16,125 @@ development is intentionally not replayed.
   lock-only change; `uv audit` reports no known vulnerabilities.
 
 ### Added
+- New experimental package `akms-records` (console script `akms-records`): a
+  schema-driven, provenance-aware record store. Records are a fixed envelope
+  (ID, revision, schema ref and digest, scope, time, origin, source refs,
+  summary, tags, sensitivity, review state, lifecycle) around a payload that a
+  registered JSON Schema (Draft 2020-12) describes; payloads cannot shadow
+  envelope fields. History is append-only `create`, `amend`, `supersede` and
+  `retract` events, one hash-chained, sealed file per revision under
+  `<repo>/.knowledge/records/` for project scope and
+  `~/.knowledge/records/<kind>/<id>/` (or `AKMS_RECORDS_HOME`) for agent and
+  shared scopes. Writes take no lock: an exclusive hard link makes a stale
+  revision fail and a retried event a no-op. Parallel work on different
+  records merges cleanly in git; a same-revision conflict is reported. Schema
+  references never leave the schema and `format` is an annotation only.
+  Extraction rules (search text, label, time field, summary template) are
+  stored beside the schema outside its digest, so `schema rules set` can
+  change them without a new schema version; every change is logged. It also
+  stores per-schema promotion policies (with a change log), erases records
+  with a content-free log that `doctor --fix` re-applies after merges
+  (`doctor` alone only reports), and
+  exports and imports a scope as digest-checked JSONL. Eight built-in
+  templates ship as plain schema files. It does not depend on `akms`; the
+  `[akms]` extra is reserved for a later promotion bridge. Promotion is not
+  part of this release. See `docs/reference/records/`.
+- `akms-records` recall and wake, over a derived SQLite FTS5 index at
+  `<store root>/.index/records.sqlite` (never committed, always rebuildable).
+  `recall` filters one scope by schema, tags (all must match), a time range
+  on the schema's time field or `recorded_at`, a minimum review state, and
+  plain-word queries (quoted for FTS5, so no input can break a query); it
+  ranks by BM25 with deterministic tie-breaks and returns summaries,
+  provenance and snippets, with `--full` for whole records. `wake --agent
+  --task --budget-tokens` returns the agent's own records plus the project
+  and shared scopes it names, never another agent's, prioritised by review
+  state, task match and recency, deduplicated across supersession chains and
+  identical summaries, within a hard budget counted with the AKMS loadout
+  estimator, and with a truncation report of what was omitted or excluded and
+  why. Sensitive records need `--include-sensitive`; rejected records are
+  never shown. Text and Markdown output put record text in fences it cannot
+  close, under a fixed layout and a notice that records are data, not
+  instructions. Output is byte-identical for the same store and inputs. Every
+  write through the API updates the index (only to a higher revision); a cheap
+  check before each read catches git checkouts, merges, crashed writers and
+  rules changes, and `index rebuild|check|reconcile` and `doctor [--fix]`
+  cover the rest. Erasure removes a record from the index with SQLite secure
+  delete, FTS5 `secure-delete` and a WAL checkpoint, leaving none of its
+  bytes in the database files.
+- `akms-records` wake eligibility: by default `wake` takes reviewed records
+  (`agent_reviewed`, `user_confirmed`) from every visible scope plus the
+  agent's own unreviewed records (its `agent:` scope, and project or shared
+  records whose `origin.actor_id` is the agent). Other agents' and tools'
+  unreviewed records are left out and counted under `excluded.review_state`;
+  they stay reachable through `recall`. `--include-unreviewed` takes every
+  unreviewed visible record, and `--review-state` still tightens. Reviewed
+  records always rank above the agent's own unreviewed ones. Wake output is
+  injected into every session start, so unreviewed notes from others would
+  otherwise be repeated and reinforced.
+- `akms-records consolidate create|status|refresh|list`: opt-in topic
+  summaries (a scope plus tags and/or a query) stored as ordinary records of
+  a built-in `consolidation/v1` schema, so they get events, git merging,
+  export, the index and erasure like any record. Every assertion cites the
+  `<record_id>@<revision>` it came from; a validator refuses an uncited
+  assertion, a citation outside the summary's sources or at another
+  revision, another scope's record, another summary, and (for the default
+  extractive method) any text that is not the cited source's own. The
+  extractive method uses no model and gives byte-identical payloads for the
+  same sources. The provider method takes a callable
+  (`consolidate(..., summarizer=...)`) or `--summarizer-cmd ARGV...` (no
+  shell, JSON on stdin and stdout, a timeout, typed errors) and records the
+  provider and an `inputs_sha256`. A summary is `stale` when a source is
+  amended, superseded, retracted or erased, or the topic would now gather
+  other records; `refresh` rewrites it as an amendment with an expected
+  revision. Erasing a record erases every summary that cites it (logged as a
+  content-free cascade), and `doctor --fix` erases summaries a merge brings
+  back. `recall` shows a summary's validity; `wake` shows a valid, eligible
+  summary instead of its sources when that saves tokens (extractive: every
+  cited source eligible; provider: the summary itself reviewed), lists its
+  citations, and reports the sources it covers. See
+  `docs/reference/records/consolidation.md`.
+- `repo-wiki` answers code-intelligence questions from its symbol graph, with
+  no server and no model: `repo-wiki context SYMBOL` shows a symbol's
+  definition, callers, callees and module imports; `repo-wiki impact SYMBOL`
+  lists its dependents grouped by depth (d=1 will break, d=2 likely affected,
+  d=3 may need testing) with a LOW/MEDIUM/HIGH/CRITICAL risk; and
+  `repo-wiki changes [--base REF | --staged | --worktree]` maps a git diff,
+  including renames, deletions and untracked files, to the symbols it touches
+  and their direct callers, flagging callers of deleted symbols. Python calls
+  are resolved through scopes, imports, `self` and base classes; links that rest
+  only on a name match are reported separately as possible and never raise the
+  risk. All three take `--json`, refuse a stale graph unless `--allow-stale` is
+  given, and exit 3 for a graph problem and 4 for an unknown or ambiguous
+  symbol.
+- A bundled `repo-wiki-code-intel` agent skill teaches when to run each
+  command: `context` when exploring, `impact` before editing a function, class
+  or method, and `changes` before committing.
+- `failure-memory hooks install|uninstall|status` installs `post-checkout`,
+  `post-commit`, `post-merge` and `post-rewrite` git hooks, so a checkout or
+  a plain `git commit` no longer leaves generated lessons or code mirrors
+  missing or stale. The hooks go where git
+  runs them (`git rev-parse --git-path hooks`, so `core.hooksPath` and linked
+  worktrees are respected). A missing hook is created owner-only (`0700`;
+  widen it yourself where other users' commits must run it); an existing
+  shell hook keeps its mode and gets a marked block after its `#!` line and
+  is otherwise kept byte for byte;
+  hooks in other languages, symlinked, non-executable or tracked hooks are
+  refused, not edited. Install is idempotent and uninstall removes only the
+  block. The global vault, project root and config path are kept in git
+  config under `akms-failure-memory.*`. The hooks call `failure-memory hooks
+  run`, which skips file checkouts and the steps of a rebase (refreshing once
+  at its end), refreshes a multi-commit cherry-pick or revert once after its
+  last commit and an amend once, honours `AKMS_FAILURE_MEMORY_HOOKS=0`, skips
+  with a warning when the project lock is busy, and always exits 0. Running
+  install again over an install without `post-commit` adds it.
+- `failure-memory refresh if-stale [--since <ref>]` refreshes only what is
+  stale: lessons recompile when `check` reports drift, mirrors are exported
+  through the exporter's git selection for the sources that changed since
+  `--since` or the last recorded `if-stale` run (a full export, with the
+  reason in the result, when there is no usable base), and the graph is
+  rebuilt when either changed. It always stamps the current UTC time and
+  never rewrites outputs marked `committed`. Projects that do not use it or
+  the hooks see no change.
 - `akms-failure-memory` can allocate collision-free lesson IDs:
   `validation.id_style = "dated"` gives `L<YYYYMMDD>-<4 Crockford base32>`
   IDs, so lessons added on two branches no longer collide. `"sequential"`
@@ -87,8 +206,14 @@ development is intentionally not replayed.
   Code Mirrors". A mirror is stale when its source file was committed after
   the mirror's `generated_at`, was edited after it and not yet committed, or
   no longer exists. The check reads the mirror files and git history, so it
-  needs no change to the frozen mirror schema, and it reports nothing
-  outside a git repository. Refreshing the mirror clears the entry.
+  needs no change to the frozen mirror schema. Refreshing the mirror clears
+  the entry. When the repository has code mirrors the section always
+  appears: `Stale Code Mirrors: 0` with the number checked when all are
+  current, and `Stale Code Mirrors: not checked` with the reason outside a
+  git repository or when git fails, so a clean run is told apart from a
+  skipped one. The JSON report carries the same facts under
+  `mirror_freshness` (`mirrors`, `checked`, `skipped`) beside the
+  `stale_mirrors` list.
 - `akms-failure-memory` can index lessons as cards. With
   `[compatibility].lesson_index_version = "failure-lesson-index/v1"`,
   `compile` writes `lesson_index.json` and `lesson_index.md` beside the route
@@ -192,6 +317,65 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `repo-wiki`: a `scanner.exclude` list in `.repo_wiki/config.yaml` no longer
+  replaces the built-in exclude patterns. It replaced the whole list, so
+  adding one pattern silently dropped the secret and credential patterns
+  (`.env`, keys, certificates, `*_secret`, `secrets.yaml`, `credentials.*`,
+  ...) and the cache and build-output ones, and such files could reach the
+  generated pages, the search index and exported mirrors. `scanner.exclude`
+  now adds to the built-in patterns. The new `scanner.use_default_excludes:
+  false` drops the ordinary built-ins (environments, caches, build and data
+  output). Two sets always apply and no setting removes them: the secret and
+  credential set, and a tool-state set: `.git` at any depth (including a
+  worktree or submodule `.git` file), everything under `.repo_wiki/` (the
+  scanner no longer reads `config.yaml`, `SPEC.md` or the overlays; the index
+  still reads overlays itself), the configured `generation.output_dir` and
+  the export lock files. Their patterns without a `/` are also matched
+  against the file name at any depth, so a nested `.env.local` or
+  `credentials.toml` is skipped too. `scanner.include` still replaces the
+  default include list. `init` no longer writes the exclude list out; a
+  config that still carries the full list an older `init` wrote keeps every
+  pattern it had. Invalid `scanner.include`, `scanner.exclude` or
+  `scanner.use_default_excludes` values now fail config loading, and
+  `repo-wiki scan --json` reports the applied list under `exclude`. The
+  code graph's new-source check and `repo-wiki changes` now apply the same
+  exclusions as `build`. If a custom list let secret files in, the next
+  `build` removes their pages, index entries and IR cache records, and a full
+  `export-akms --prune` removes their mirrors.
+- `repo-wiki`'s search index erases removed text. It now runs with SQLite
+  `secure_delete` and, on SQLite 3.42 or later, the FTS5 `secure-delete`
+  option; with an older SQLite, a write that removes text runs FTS5
+  `optimize` and `VACUUM`. Deleted and replaced pages used to stay readable
+  in the file's free space. An index written by an earlier version is
+  compacted once when first opened, so rebuilding is enough: there is no
+  need to delete `.repo_wiki/index/`. `build` also updated the index before
+  removing the pages of deleted sources, which kept them searchable until
+  the next run; it now indexes afterwards.
+- `akms status` no longer lists nodes reached through `load_with` as
+  orphans. A node that names others in `load_with`, or that another node
+  names there, is reached by coactivation even without edges; a
+  failure-memory project's lessons with related lessons all appeared under
+  **Orphaned Nodes**. Nodes with no edges and no `load_with` link are still
+  listed.
+- `akms status` no longer lists route targets as orphans either. It finds the
+  task route index the way reviewer required-knowledge does, or uses the ones
+  given with the new `--routes PATH` option (repeatable), and a node that a
+  `by_path` or `by_symbol` route names is not an orphan. The section heading
+  now reads "no edges, load_with or route" and names the route index used. A
+  route index that cannot be read or parsed is reported under **Route Index
+  Warnings** instead of failing the report. The report adds `route_index`,
+  `route_indexes` and `route_index_warnings`; existing keys are unchanged.
+  [Addendum 0001](docs/specification/addenda/0001-health-reporting-reachability.md)
+  to §5.7 states the rule and [ADR 0003](docs/adr/0003-reachability-in-health-reporting.md)
+  records why. No schema field changes.
+- Reviewer required-knowledge did not find the route index written by
+  `akms-failure-memory` at its default path,
+  `.knowledge/generated/failure_routes.json`, and fell back to tag-based
+  loadouts. `generated/failure_routes.json` under `.knowledge/` and
+  `knowledge/` is now searched after every earlier location, so repositories
+  that resolved to a route index before still resolve to the same one. The
+  search lives in `akms.task_context.routes.find_task_route_index`, shared by
+  the reviewer and `akms status`.
 - Loadouts: a node with `reading_priority: summary` and no `## Summary`
   section is now rendered in full, as FR-L10c specifies. It used to get its
   first five non-heading lines as a "summary", which for generated nodes is

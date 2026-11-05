@@ -1,5 +1,8 @@
 import json
+import sqlite3
 from pathlib import Path
+
+import pytest
 
 from akms.repo_wiki.cli import main
 from akms.repo_wiki.index import (
@@ -133,3 +136,116 @@ def test_index_skips_generated_docs_for_excluded_source_paths(tmp_path: Path):
 
     manifest = json.loads((tmp_path / ".repo_wiki/manifest.json").read_text())
     assert manifest["repo"]["index_status"] == "skipped"
+
+
+ERASED_TOKEN = "zqxerasedtoken8841"
+
+
+def _index_bytes(root: Path) -> list[tuple[str, bytes]]:
+    index_dir = root / ".repo_wiki" / "index"
+    return [
+        (path.name, path.read_bytes())
+        for path in sorted(index_dir.rglob("*"))
+        if path.is_file()
+    ]
+
+
+def _seed_erasure_repo(root: Path) -> Path:
+    (root / "src").mkdir()
+    (root / "src" / "app.py").write_text('"""App."""\n\nVALUE = 1\n')
+    leak = root / "src" / "leak.py"
+    leak.write_text(
+        f'"""Module {ERASED_TOKEN}."""\n\n\n'
+        f'def leaked():\n    """Return {ERASED_TOKEN}."""\n'
+        f'    return "{ERASED_TOKEN}"\n'
+    )
+    return leak
+
+
+def _assert_erased_after_rebuild(root: Path, remove) -> None:
+    assert main(["--repo-root", str(root), "build", "--no-summaries"]) == 0
+    # Guard against a vacuous pass: the token really was indexed.
+    assert any(ERASED_TOKEN.encode() in data for _, data in _index_bytes(root))
+
+    remove()
+    assert main(["--repo-root", str(root), "build", "--no-summaries"]) == 0
+    assert search_index(root, "VALUE")
+    assert not search_index(root, ERASED_TOKEN)
+    after = _index_bytes(root)
+    assert after
+    for name, data in after:
+        assert ERASED_TOKEN.encode() not in data, name
+
+
+@pytest.mark.parametrize("how", ["delete", "exclude"])
+def test_index_leaves_no_bytes_of_removed_documents(tmp_path: Path, how: str):
+    """A document dropped from the index is erased from every file on disk."""
+    leak = _seed_erasure_repo(tmp_path)
+
+    def remove() -> None:
+        if how == "delete":
+            leak.unlink()
+        else:
+            (tmp_path / ".repo_wiki" / "config.yaml").write_text(
+                "scanner:\n  exclude:\n    - src/leak.py\n", encoding="utf-8"
+            )
+
+    _assert_erased_after_rebuild(tmp_path, remove)
+
+
+def test_index_erasure_without_fts5_secure_delete(tmp_path: Path, monkeypatch):
+    """Where FTS5 lacks secure-delete (SQLite < 3.42), optimize and VACUUM erase."""
+    monkeypatch.setattr(
+        SQLiteIndexBackend, "_enable_fts_secure_delete", lambda self: False
+    )
+    leak = _seed_erasure_repo(tmp_path)
+    _assert_erased_after_rebuild(tmp_path, leak.unlink)
+
+
+def test_index_connection_runs_with_secure_delete(tmp_path: Path):
+    backend = SQLiteIndexBackend(tmp_path / ".repo_wiki/index/repo_wiki.sqlite3")
+    try:
+        assert backend.connection.execute("PRAGMA secure_delete").fetchone()[0] == 1
+        assert backend.fts_secure_delete is (sqlite3.sqlite_version_info >= (3, 42))
+    finally:
+        backend.close()
+
+
+def test_index_written_without_secure_delete_is_scrubbed_on_first_open(
+    tmp_path: Path, monkeypatch
+):
+    """An index an older version wrote keeps deleted text until it is reopened."""
+    with monkeypatch.context() as legacy:
+        # Behave like the earlier backend: no secure delete, no one-time scrub.
+        original_connect = sqlite3.connect
+
+        def connect(*args, **kwargs):
+            connection = original_connect(*args, **kwargs)
+            connection.execute("PRAGMA secure_delete=OFF")
+            return connection
+
+        legacy.setattr(sqlite3, "connect", connect)
+        legacy.setattr(SQLiteIndexBackend, "__init__", _legacy_init)
+        legacy.setattr(SQLiteIndexBackend, "_erase_removed_text", lambda self: None)
+        leak = _seed_erasure_repo(tmp_path)
+        assert main(["--repo-root", str(tmp_path), "build", "--no-summaries"]) == 0
+        leak.unlink()
+        assert main(["--repo-root", str(tmp_path), "build", "--no-summaries"]) == 0
+        # The residue this test is about really is there.
+        assert any(ERASED_TOKEN.encode() in data for _, data in _index_bytes(tmp_path))
+
+    assert main(["--repo-root", str(tmp_path), "index"]) == 0
+    for name, data in _index_bytes(tmp_path):
+        assert ERASED_TOKEN.encode() not in data, name
+    assert search_index(tmp_path, "VALUE")
+
+
+def _legacy_init(self, path: Path) -> None:
+    from akms.repo_wiki.paths import ensure_parent
+
+    self.path = path
+    ensure_parent(path)
+    self.connection = sqlite3.connect(path)
+    self.connection.row_factory = sqlite3.Row
+    self._init_schema()
+    self.fts_secure_delete = False

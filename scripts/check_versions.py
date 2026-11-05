@@ -16,6 +16,7 @@ PACKAGE_FILES = {
     "akms-learn": ROOT / "packages" / "akms_learn" / "pyproject.toml",
     "akms-nodes-gen": ROOT / "packages" / "akms_nodes_gen" / "pyproject.toml",
     "akms-failure-memory": ROOT / "packages" / "akms_failure_memory" / "pyproject.toml",
+    "akms-records": ROOT / "packages" / "akms_records" / "pyproject.toml",
     "compmech-reference-pack": (
         ROOT / "packages" / "compmech_reference_pack" / "pyproject.toml"
     ),
@@ -24,7 +25,8 @@ PACKAGE_FILES = {
 # Packages whose `__version__` literal is meant to mirror the distribution
 # version: `akms.__version__` feeds failure-memory toolchain fingerprints and
 # `akms --version`; `akms_failure_memory.__version__` backs
-# `failure-memory --version`. 0.3.1 bumped the pyproject files and left both
+# `failure-memory --version`; `akms_records.__version__` backs
+# `akms-records --version`. 0.3.1 bumped the pyproject files and left both
 # literals at 0.3.0, so this check exists to make that drift a release error.
 # `compmech_reference_pack.__version__` is deliberately absent: it is the
 # domain-pack contract version reported to akms-learn, not the wheel version.
@@ -37,6 +39,9 @@ INIT_FILES = {
         / "src"
         / "akms_failure_memory"
         / "__init__.py"
+    ),
+    "akms-records": (
+        ROOT / "packages" / "akms_records" / "src" / "akms_records" / "__init__.py"
     ),
 }
 
@@ -85,7 +90,9 @@ def main() -> int:
     # publish a package that installs, or accepts, the wrong sibling release.
     # Unbounded sibling requirements are errors too, so a future breaking
     # release cannot slip under an older companion.
-    sibling = r"(akms(?:-learn|-failure-memory|-nodes-gen)?|compmech-reference-pack)"
+    sibling = (
+        r"(akms(?:-learn|-failure-memory|-nodes-gen|-records)?|compmech-reference-pack)"
+    )
     sibling_req = re.compile(r'"' + sibling + r'(\[[^\]]*\])?([^"]*)"')
     bounds = re.compile(r"^>=([0-9][^,]*),<([0-9].*)$")
     core = versions.get("akms")

@@ -2,14 +2,113 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from akms.repo_wiki.simple_yaml import dump_yaml, load_yaml
 
 CONFIG_DIR = ".repo_wiki"
 CONFIG_FILE = "config.yaml"
 SPEC_FILE = "SPEC.md"
+
+# Version-control and repo-wiki state. Always applied; no configuration key removes
+# them. None of it is source, and generated pages, the index and the caches hold
+# copies of source. ``.git`` matches at any depth, so it also covers the ``.git``
+# file of a worktree or submodule and a nested repository's ``.git`` directory.
+# ``.repo_wiki/**`` covers everything repo-wiki keeps there (config.yaml, SPEC.md,
+# generated/, index/, ir_cache/, cache/, locks/, hooks/, manifest.json,
+# build_errors.json) and the overlays, which the index reads directly rather than
+# through the scanner. ``.repo_wiki/generated/**`` and ``.repo_wiki/index/**``
+# are subsumed but kept, so the set holds every pattern older versions of
+# ``init`` wrote. The export lock files sit next to an export's output tree.
+TOOL_STATE_EXCLUDE_PATTERNS: tuple[str, ...] = (
+    ".git",
+    ".git/**",
+    ".repo_wiki/**",
+    ".repo_wiki/generated/**",
+    ".repo_wiki/index/**",
+    ".repo2md-export.lock",
+    ".repo2md-export-*.lock",
+)
+
+# Ordinary default excludes: environments, caches, build and data output.
+# ``scanner.exclude`` adds to these; ``scanner.use_default_excludes: false`` drops them.
+DEFAULT_EXCLUDE_PATTERNS: tuple[str, ...] = (
+    ".venv/**",
+    "venv/**",
+    "env/**",
+    "__pycache__/**",
+    ".mypy_cache/**",
+    ".pytest_cache/**",
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    "*.egg-info/**",
+    "data/**",
+    "outputs/**",
+    "checkpoints/**",
+    "wandb/**",
+)
+
+# Secret and credential files. The scanner always applies these, also against the
+# file name at any depth; no configuration key removes them.
+SECRET_EXCLUDE_PATTERNS: tuple[str, ...] = (
+    ".env",
+    ".env.*",
+    "*.env",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx",
+    "*_secret",
+    "*_secret.*",
+    "*_secrets",
+    "*_secrets.*",
+    "*.secret",
+    "*.secrets",
+    "secrets.yaml",
+    "secrets.yml",
+    "secrets.json",
+    "credentials",
+    "credentials.*",
+    "credentials.json",
+    "credentials.yaml",
+    "credentials.yml",
+    "id_rsa",
+    "id_ed25519",
+    "id_dsa",
+    "id_ecdsa",
+    ".netrc",
+    "*.netrc",
+)
+
+# Slash-free fixed patterns, also matched against the file name at any depth.
+PROTECTED_NAME_PATTERNS: tuple[str, ...] = tuple(
+    pattern
+    for pattern in (*TOOL_STATE_EXCLUDE_PATTERNS, *SECRET_EXCLUDE_PATTERNS)
+    if "/" not in pattern
+)
+
+# ``scanner.include`` replaces this list: narrowing what is scanned is not a safety issue.
+DEFAULT_INCLUDE_PATTERNS: tuple[str, ...] = (
+    "**/*.py",
+    "**/*.md",
+    "**/*.yaml",
+    "**/*.yml",
+    "**/*.toml",
+)
+
+CONFIG_HEADER = (
+    "# repo-wiki configuration, merged over the built-in defaults key by key.\n"
+    "# scanner.exclude adds patterns to the built-in default excludes\n"
+    "# (environments, caches, build and data output); it does not replace them.\n"
+    "# scanner.use_default_excludes: false drops those defaults. Version-control\n"
+    "# and repo-wiki state (.git, .repo_wiki/) and secret and credential patterns\n"
+    "# (.env files, keys, certificates, *_secret, credentials, ...) are always\n"
+    "# excluded and cannot be removed by configuration.\n"
+    "# scanner.include replaces the default include list.\n"
+)
 
 
 def default_config(repo_root: Path | None = None) -> dict[str, object]:
@@ -51,56 +150,13 @@ def default_config(repo_root: Path | None = None) -> dict[str, object]:
             "top_k_initial": 30,
             "top_k_reranked": 8,
         },
+        # No ``exclude`` key: user patterns are additions to DEFAULT_EXCLUDE_PATTERNS.
+        # Leaving it out also keeps an older repo-wiki on its built-in list.
         "scanner": {
-            "exclude": [
-                ".git/**",
-                ".repo_wiki/generated/**",
-                ".repo_wiki/index/**",
-                ".venv/**",
-                "venv/**",
-                "env/**",
-                "__pycache__/**",
-                ".mypy_cache/**",
-                ".pytest_cache/**",
-                "node_modules/**",
-                "dist/**",
-                "build/**",
-                "*.egg-info/**",
-                "data/**",
-                "outputs/**",
-                "checkpoints/**",
-                "wandb/**",
-                ".env",
-                ".env.*",
-                "*.env",
-                "*.pem",
-                "*.key",
-                "*.p12",
-                "*.pfx",
-                "*_secret",
-                "*_secret.*",
-                "*_secrets",
-                "*_secrets.*",
-                "*.secret",
-                "*.secrets",
-                "secrets.yaml",
-                "secrets.yml",
-                "secrets.json",
-                "credentials",
-                "credentials.*",
-                "credentials.json",
-                "credentials.yaml",
-                "credentials.yml",
-                "id_rsa",
-                "id_ed25519",
-                "id_dsa",
-                "id_ecdsa",
-                ".netrc",
-                "*.netrc",
-            ],
-            "include": ["**/*.py", "**/*.md", "**/*.yaml", "**/*.yml", "**/*.toml"],
+            "include": list(DEFAULT_INCLUDE_PATTERNS),
             "max_file_size_kb": 512,
             "respect_gitignore": True,
+            "use_default_excludes": True,
         },
         "summaries": {
             "allow_source_code_upload": False,
@@ -140,6 +196,63 @@ def load_config(repo_root: Path | None = None) -> dict[str, object]:
     return config
 
 
+def effective_excludes(
+    config: Mapping[str, object], *, tool_state: bool = True
+) -> list[str]:
+    """The exclude patterns the scanner applies, in a stable order.
+
+    The tool-state set comes first, with the configured ``generation.output_dir``,
+    then the ordinary defaults (unless ``scanner.use_default_excludes`` is
+    ``false``), then the secret set, then the ``scanner.exclude`` entries. A
+    duplicate keeps its first position, so a config that still lists the
+    copied-out list older versions of ``init`` wrote adds nothing.
+    ``tool_state=False`` leaves the tool-state set out, for the index's own
+    walk of ``.repo_wiki/overlays/``.
+    """
+
+    scanner = config.get("scanner")
+    if not isinstance(scanner, Mapping):
+        scanner = {}
+    patterns: list[str] = []
+    if tool_state:
+        patterns.extend(TOOL_STATE_EXCLUDE_PATTERNS)
+        output_dir = _generated_dir_pattern(config)
+        if output_dir is not None:
+            patterns.append(output_dir)
+    # Only an explicit ``false`` drops the ordinary defaults.
+    if scanner.get("use_default_excludes", True) is not False:
+        patterns.extend(DEFAULT_EXCLUDE_PATTERNS)
+    patterns.extend(SECRET_EXCLUDE_PATTERNS)
+    patterns.extend(_pattern_list(scanner, "exclude"))
+    return list(dict.fromkeys(patterns))
+
+
+def _generated_dir_pattern(config: Mapping[str, object]) -> str | None:
+    """``<generation.output_dir>/**`` for a repository-relative output directory."""
+    generation = config.get("generation")
+    if not isinstance(generation, Mapping):
+        return None
+    raw = generation.get("output_dir")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    path = PurePosixPath(raw.strip().replace("\\", "/"))
+    if path.is_absolute() or ".." in path.parts or str(path) in {"", "."}:
+        return None
+    return f"{path.as_posix()}/**"
+
+
+def _pattern_list(scanner: Mapping[str, object], key: str) -> list[str]:
+    value = scanner.get(key, [])
+    # A bare ``key:`` with no items reads as an empty mapping in the YAML subset.
+    if value is None or value == {}:
+        return []
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(
+            f"scanner.{key} must be a list of patterns, one '- pattern' per line"
+        )
+    return [str(item) for item in value]
+
+
 def validate_config(config: dict[str, object]) -> None:
     scanner = _mapping(config, "scanner")
     generation = _mapping(config, "generation")
@@ -147,6 +260,10 @@ def validate_config(config: dict[str, object]) -> None:
     max_size = scanner["max_file_size_kb"]
     if not isinstance(max_size, (int, float, str)) or int(max_size) <= 0:
         raise ValueError("scanner.max_file_size_kb must be positive")
+    for key in ("exclude", "include"):
+        _pattern_list(scanner, key)
+    if not isinstance(scanner.get("use_default_excludes", True), bool):
+        raise ValueError("scanner.use_default_excludes must be true or false")
     if not generation.get("output_dir"):
         raise ValueError("generation.output_dir is required")
     if summaries.get("provider") != "local" and not summaries.get(
@@ -175,7 +292,9 @@ def init_repo_wiki(repo_root: Path | None = None) -> list[Path]:
         created.append(overlays)
     cfg = config_path(root)
     if not cfg.exists():
-        cfg.write_text(dump_yaml(default_config(root)), encoding="utf-8")
+        cfg.write_text(
+            CONFIG_HEADER + dump_yaml(default_config(root)), encoding="utf-8"
+        )
         created.append(cfg)
     spec = wiki / SPEC_FILE
     if not spec.exists():

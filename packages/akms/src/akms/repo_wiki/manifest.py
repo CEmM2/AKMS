@@ -671,8 +671,6 @@ def build_repo(
         graph = build_symbol_graph(complete_modules)
         write_symbol_graph(graph, output_dir / "symbol_graph.json")
 
-    index_summary = None if no_index else update_index(repo_root, force=force)
-
     current_by_path = {source.path: source for source in routable}
     modules_for_prune = {
         path: module
@@ -716,6 +714,9 @@ def build_repo(
             ValueError,
         ) as exc:
             _logger.warning("summary cache prune failed: %s", exc)
+
+    # Index after reconciliation, so pages of deleted sources are already gone.
+    index_summary = None if no_index else update_index(repo_root, force=force)
 
     manifest.repo.update(
         {
