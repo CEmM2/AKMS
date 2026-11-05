@@ -53,6 +53,7 @@ def records(*args: str, env: dict[str, str] | None = None, cwd: Path | None = No
         text=True,
         env=env,
         cwd=cwd,
+        stdin=subprocess.DEVNULL,
     )
 
 
@@ -156,8 +157,12 @@ def test_promote_with_the_extra_on_both_paths(tmp_path, monkeypatch):
     second = {**DECISION, "payload": {"decision": "A second", "rationale": "other"}}
     document.write_text(json.dumps(second), encoding="utf-8")
     other = ok(records("add", "--file", str(document), *base))["record_id"]
-    human = ok(records("promote", other, *base, "--review", "approved"))
+    refused = records("promote", other, *base, "--review", "approved")
+    assert refused.returncode == 2
+    assert "error[confirmation_required]" in refused.stderr
+    human = ok(records("promote", other, *base, "--review", "approved", "--yes"))
     assert human["path"] == "human-policy"
+    assert human["confirmation"] == "yes"
     assert human["node"]["status"] == "established"
     assert list(vault.iterdir()) == []
     from akms.graph.build_graph import load_graph

@@ -21,7 +21,13 @@ from pathlib import Path
 from typing import Any
 
 from akms_records import __version__
-from akms_records.bridge import DEFAULT_MIN_REVIEW, MIN_REVIEW_CHOICES, REVIEW_CHOICES
+from akms_records.bridge import (
+    Confirm,
+    DEFAULT_MIN_REVIEW,
+    MIN_REVIEW_CHOICES,
+    REVIEW_CHOICES,
+    confirm_yes,
+)
 from akms_records.canonical import loads_strict
 from akms_records.consolidate import (
     DEFAULT_TIMEOUT,
@@ -353,6 +359,12 @@ def _parser() -> argparse.ArgumentParser:
     promote.add_argument(
         "--domain", help="the node's domain (default: the scope's ID, in lower case)"
     )
+    promote.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm a human-policy write without a prompt; for a person running "
+        "it without a terminal, never for an agent",
+    )
 
     recall = sub.add_parser("recall", help="search the scope's records (index)")
     _store_options(recall)
@@ -660,6 +672,34 @@ def _document(args: argparse.Namespace, *, actor: str) -> dict[str, Any]:
     return document
 
 
+def _ask(prompt: str) -> None:
+    """Ask on the terminal; anything but an explicit yes refuses."""
+    print(prompt, end="", file=sys.stderr, flush=True)
+    answer = sys.stdin.readline().strip().lower()
+    if answer not in ("y", "yes"):
+        raise RecordsError("not confirmed; nothing changed", code="not_confirmed")
+
+
+def _ask_for_promotion(write: dict[str, Any]) -> str:
+    labels = (
+        f"source={write['source']}, status={write['status']}, "
+        f"confidence={write['confidence']}"
+    )
+    what = f"{write['record_id']}@{write['revision']}"
+    if write["action"] == "append":
+        _ask(f"Append {what} to node {write['node_id']}, which keeps {labels}? [y/N] ")
+    else:
+        _ask(f"Write node {write['node_id']} from {what} with {labels}? [y/N] ")
+    return "tty"
+
+
+def _promotion_confirm(args: argparse.Namespace) -> Confirm | None:
+    """How this run can confirm a human-path write; ``None`` when it cannot."""
+    if args.yes:
+        return confirm_yes
+    return _ask_for_promotion if sys.stdin.isatty() else None
+
+
 def _confirm_policy(args: argparse.Namespace) -> None:
     if args.yes:
         return
@@ -669,14 +709,10 @@ def _confirm_policy(args: argparse.Namespace) -> None:
             "terminal to confirm; a person may pass --yes instead",
             code="confirmation_required",
         )
-    prompt = (
+    _ask(
         f"Set the promotion policy of {args.name} to source={args.source}, "
         f"status={args.status}, confidence={args.confidence}? [y/N] "
     )
-    print(prompt, end="", file=sys.stderr, flush=True)
-    answer = sys.stdin.readline().strip().lower()
-    if answer not in ("y", "yes"):
-        raise RecordsError("not confirmed; nothing changed", code="not_confirmed")
 
 
 def _describe(
@@ -927,6 +963,7 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
             allow_imported=args.allow_imported,
             update=args.update,
             domain=args.domain,
+            confirm=_promotion_confirm(args),
         )
     raise RecordsError(f"unknown command {args.command!r}", code="usage")
 

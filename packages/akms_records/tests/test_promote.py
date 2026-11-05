@@ -19,7 +19,7 @@ from akms.schema.models import LocalNodeFrontmatter  # noqa: E402
 from akms.schema.validators import parse_node_frontmatter  # noqa: E402
 
 from akms_records import RecordsError, RecordStore, Scope, consolidate  # noqa: E402
-from akms_records.bridge import find_nodes, _load_akms, promote  # noqa: E402
+from akms_records.bridge import confirm_yes, find_nodes, _load_akms, promote  # noqa: E402
 from akms_records.cli import main  # noqa: E402
 from akms_records.envelope import PROMOTED_KIND  # noqa: E402
 from akms_records.portable import export_records, import_records  # noqa: E402
@@ -175,7 +175,7 @@ def test_human_policy_writes_a_validated_node(project, repo):
     policy_dir = project.schemas.root / "decision"
     policy_before = tree(policy_dir)
     rid = add(project, tags=["mesh"], **CONFIRMED)
-    result = run(project, rid, repo)
+    result = run(project, rid, repo, confirm=confirm_yes)
     assert result["action"] == "created"
     assert result["path"] == "human-policy"
     assert result["policy"]["applied"] is True
@@ -200,7 +200,7 @@ def test_human_policy_writes_a_validated_node(project, repo):
 def test_human_policy_tentative_keeps_its_confidence(project, repo):
     set_policy(project, status="tentative", confidence=0.65)
     rid = add(project, **CONFIRMED)
-    result = run(project, rid, repo)
+    result = run(project, rid, repo, confirm=confirm_yes)
     assert result["node"] == {
         "source": "human",
         "status": "tentative",
@@ -245,6 +245,312 @@ def test_policy_cannot_be_set_through_the_promote_command(capsys):
         main(["promote", "x", "--scope", "project:a", "--status", "established"])
     assert caught.value.code == 2
     capsys.readouterr()
+
+
+# ------------------------------------------------------------- the confirmation
+def knowledge_files(repo: Path) -> dict[str, bytes]:
+    """Everything under the knowledge directory except the record store."""
+    root = local_knowledge_dir(repo)
+    return {
+        name: data
+        for name, data in tree(root).items()
+        if not name.startswith("records")
+    }
+
+
+class FakeTerminal:
+    def __init__(self, answer: str) -> None:
+        self.answer = answer
+        self.read = False
+
+    def isatty(self) -> bool:
+        return True
+
+    def readline(self) -> str:
+        self.read = True
+        return self.answer
+
+
+class NoTerminal:
+    def isatty(self) -> bool:
+        return False
+
+    def readline(self) -> str:
+        raise AssertionError("no terminal to read")
+
+
+def human_cli(repo, rid, *extra):
+    return [
+        "promote",
+        rid,
+        "--scope",
+        "project:example",
+        "--repo",
+        str(repo),
+        "--review",
+        "approved",
+        *extra,
+    ]
+
+
+def test_the_human_path_is_refused_without_confirmation(project, repo):
+    set_policy(project)
+    rid = add(project, **CONFIRMED)
+    before = tree(project.root)
+    with pytest.raises(RecordsError) as caught:
+        run(project, rid, repo)
+    assert caught.value.code == "confirmation_required"
+    assert "--yes" in str(caught.value) and "terminal" in str(caught.value)
+    assert "fall back" in str(caught.value)
+    assert knowledge_files(repo) == {}
+    assert tree(project.root) == before
+    assert project.get(rid).revision == 1
+    # Nothing was written at all: no lock directory either.
+    assert not (project.root / ".index" / "promote.lock").exists()
+
+
+def test_the_cli_refuses_without_a_terminal_or_yes(project, repo, capsys, monkeypatch):
+    set_policy(project)
+    rid = add(project, **CONFIRMED)
+    monkeypatch.setattr("sys.stdin", NoTerminal())
+    code = main(["--json-errors", *human_cli(repo, rid)])
+    error = json.loads(capsys.readouterr().out)["error"]
+    assert code == 2 and error["code"] == "confirmation_required"
+    assert error["details"]["node_id"] == rid
+    assert knowledge_files(repo) == {}
+    assert project.get(rid).promoted_to is None
+
+
+def test_the_cli_yes_confirms_and_records_it(project, repo, capsys, monkeypatch):
+    set_policy(project)
+    rid = add(project, **CONFIRMED)
+    monkeypatch.setattr("sys.stdin", NoTerminal())
+    assert main(human_cli(repo, rid, "--yes")) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["path"] == "human-policy"
+    assert result["confirmation"] == "yes"
+    assert result["node"]["status"] == "established"
+    assert "- confirmation: yes" in body_of(node_files(repo)[0])
+
+
+@pytest.mark.parametrize("answer", ["y\n", "yes\n", "YES\n"])
+def test_a_terminal_yes_shows_the_labels_and_records_it(
+    project, repo, capsys, monkeypatch, answer
+):
+    set_policy(project, status="established", confidence=0.8)
+    rid = add(project, **CONFIRMED)
+    terminal = FakeTerminal(answer)
+    monkeypatch.setattr("sys.stdin", terminal)
+    assert main(human_cli(repo, rid)) == 0
+    captured = capsys.readouterr()
+    assert terminal.read
+    for shown in (rid, "source=human", "status=established", "confidence=0.8"):
+        assert shown in captured.err
+    assert json.loads(captured.out)["confirmation"] == "tty"
+    assert "- confirmation: tty" in body_of(node_files(repo)[0])
+
+
+@pytest.mark.parametrize("answer", ["n\n", "\n", "", "maybe\n", "yes please\n"])
+def test_anything_but_yes_on_a_terminal_writes_nothing(
+    project, repo, capsys, monkeypatch, answer
+):
+    set_policy(project)
+    rid = add(project, **CONFIRMED)
+    monkeypatch.setattr("sys.stdin", FakeTerminal(answer))
+    code = main(["--json-errors", *human_cli(repo, rid)])
+    assert code == 2
+    assert json.loads(capsys.readouterr().out)["error"]["code"] == "not_confirmed"
+    assert knowledge_files(repo) == {}
+    assert project.get(rid).promoted_to is None
+
+
+def test_the_python_api_never_reads_a_terminal(project, repo, monkeypatch):
+    set_policy(project)
+    rid = add(project, **CONFIRMED)
+    terminal = FakeTerminal("yes\n")
+    monkeypatch.setattr("sys.stdin", terminal)
+    with pytest.raises(RecordsError) as caught:
+        run(project, rid, repo)
+    assert caught.value.code == "confirmation_required"
+    assert terminal.read is False
+    assert run(project, rid, repo, confirm=confirm_yes)["confirmation"] == "yes"
+
+
+def test_a_confirm_callable_sees_the_write_and_may_refuse(project, repo):
+    set_policy(project, status="tentative", confidence=0.6)
+    rid = add(project, **CONFIRMED)
+    seen = []
+
+    def refuse(write):
+        seen.append(write)
+        raise RecordsError("no", code="not_confirmed")
+
+    with pytest.raises(RecordsError) as caught:
+        run(project, rid, repo, confirm=refuse)
+    assert caught.value.code == "not_confirmed"
+    assert seen == [
+        {
+            "record_id": rid,
+            "revision": 1,
+            "action": "create",
+            "node_id": rid,
+            "source": "human",
+            "status": "tentative",
+            "confidence": 0.6,
+        }
+    ]
+    assert knowledge_files(repo) == {}
+    with pytest.raises(RecordsError) as caught:
+        run(project, rid, repo, confirm=lambda _write: "certainly")
+    assert caught.value.code == "usage"
+    assert knowledge_files(repo) == {}
+
+
+def test_a_policy_changed_during_the_prompt_is_stale(project, repo):
+    set_policy(project, status="established", confidence=0.8)
+    rid = add(project, **CONFIRMED)
+
+    def change_it(_write):
+        set_policy(project, status="tentative", confidence=0.3)
+        return "tty"
+
+    with pytest.raises(RecordsError) as caught:
+        run(project, rid, repo, confirm=change_it)
+    assert caught.value.code == "confirmation_stale"
+    assert node_files(repo) == []
+
+
+def test_the_default_path_needs_no_confirmation(project, repo, capsys, monkeypatch):
+    rid = add(project, **CONFIRMED)
+    monkeypatch.setattr("sys.stdin", NoTerminal())
+
+    def never(_write):
+        raise AssertionError("the default path must not ask")
+
+    result = run(project, rid, repo, confirm=never)
+    assert result["path"] == "default" and result["confirmation"] is None
+    assert "- confirmation:" not in body_of(node_files(repo)[0])
+    other = add(project, "A record of another kind entirely", **CONFIRMED)
+    assert main(human_cli(repo, other)) == 0
+    assert json.loads(capsys.readouterr().out)["path"] == "default"
+
+
+def test_a_human_policy_with_an_unconfirmed_record_stays_on_the_default_path(
+    project, repo, capsys, monkeypatch
+):
+    set_policy(project)
+    rid = add(project, review_state="agent_reviewed")
+    monkeypatch.setattr("sys.stdin", NoTerminal())
+    args = human_cli(repo, rid, "--min-review-state", "agent_reviewed")
+    assert main(args) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["path"] == "default"
+    assert result["node"]["source"] == "agent"
+
+
+def test_update_onto_a_human_node_needs_confirmation(
+    project, repo, capsys, monkeypatch
+):
+    set_policy(project)
+    rid = add(project, **CONFIRMED)
+    run(project, rid, repo, confirm=confirm_yes)
+    project.amend(rid, {"summary": "Corrected"}, expected_revision=2, actor="t")
+    before = knowledge_files(repo)
+    monkeypatch.setattr("sys.stdin", NoTerminal())
+    args = human_cli(repo, rid, "--update")
+    code = main(["--json-errors", *args])
+    assert code == 2
+    error = json.loads(capsys.readouterr().out)["error"]
+    assert error["code"] == "confirmation_required"
+    assert knowledge_files(repo) == before
+    assert project.get(rid).revision == 3
+
+    monkeypatch.setattr("sys.stdin", FakeTerminal("n\n"))
+    assert main(args) == 2
+    capsys.readouterr()
+    assert knowledge_files(repo) == before
+
+    monkeypatch.setattr("sys.stdin", FakeTerminal("y\n"))
+    assert main(args) == 0
+    captured = capsys.readouterr()
+    assert f"to node {rid}" in captured.err and "keeps source=human" in captured.err
+    result = json.loads(captured.out)
+    assert result["action"] == "updated" and result["confirmation"] == "tty"
+    body = body_of(node_files(repo)[0])
+    assert "- confirmation: yes" in body and "- confirmation: tty" in body
+
+
+def test_update_onto_an_agent_node_needs_no_confirmation(project, repo):
+    rid = add(project, **CONFIRMED)
+    run(project, rid, repo)
+    project.amend(rid, {"summary": "Corrected"}, expected_revision=2, actor="t")
+    result = run(project, rid, repo, update=True)
+    assert result["action"] == "updated" and result["confirmation"] is None
+
+
+def test_crash_recovery_needs_no_terminal_and_no_confirmation(
+    project, repo, capsys, monkeypatch
+):
+    set_policy(project)
+    rid = add(project, **CONFIRMED)
+
+    def crash(*_args, **_kwargs):
+        raise OSError("simulated crash before the link")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(RecordStore, "record_promotion", crash)
+        with pytest.raises(OSError):
+            run(project, rid, repo, confirm=confirm_yes)
+    assert project.get(rid).promoted_to is None
+    node = node_files(repo)[0].read_bytes()
+    monkeypatch.setattr("sys.stdin", NoTerminal())
+    assert main(human_cli(repo, rid)) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["action"] == "link_completed"
+    assert result["path"] == "human-policy"
+    assert result["confirmation"] is None
+    assert result["node"]["source"] == "human"
+    assert node_files(repo)[0].read_bytes() == node
+    assert "- confirmation: yes" in body_of(node_files(repo)[0])
+    assert project.get(rid).promoted_to["path"] == "human-policy"
+
+
+def test_crash_recovery_of_an_update_needs_no_confirmation(project, repo, monkeypatch):
+    set_policy(project)
+    rid = add(project, **CONFIRMED)
+    run(project, rid, repo, confirm=confirm_yes)
+    project.amend(rid, {"summary": "Corrected"}, expected_revision=2, actor="t")
+
+    def crash(*_args, **_kwargs):
+        raise OSError("simulated crash before the link")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(RecordStore, "record_promotion", crash)
+        with pytest.raises(OSError):
+            run(project, rid, repo, update=True, confirm=confirm_yes)
+    node = node_files(repo)[0].read_bytes()
+    result = run(project, rid, repo, update=True)
+    assert result["action"] == "link_completed"
+    assert node_files(repo)[0].read_bytes() == node
+    assert project.get(rid).promoted_to["revision"] == 3
+
+
+def test_a_crash_before_the_write_still_needs_confirmation(project, repo, monkeypatch):
+    set_policy(project)
+    rid = add(project, **CONFIRMED)
+    import akms_records.bridge as bridge
+
+    def crash(*_args, **_kwargs):
+        raise OSError("simulated crash before the write")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(bridge, "write_exclusive", crash)
+        with pytest.raises(OSError):
+            run(project, rid, repo, confirm=confirm_yes)
+    assert node_files(repo) == []
+    with pytest.raises(RecordsError) as caught:
+        run(project, rid, repo)
+    assert caught.value.code == "confirmation_required"
 
 
 # ----------------------------------------------------------------- the refusals
@@ -445,10 +751,10 @@ def test_a_newer_revision_needs_update(project, repo):
 def test_update_keeps_a_human_nodes_labels(project, repo):
     set_policy(project, status="established", confidence=0.8)
     rid = add(project, **CONFIRMED)
-    run(project, rid, repo)
+    run(project, rid, repo, confirm=confirm_yes)
     project.amend(rid, {"summary": "Corrected"}, expected_revision=2, actor="t")
     set_policy(project, status="tentative", confidence=0.3)
-    result = run(project, rid, repo, update=True)
+    result = run(project, rid, repo, update=True, confirm=confirm_yes)
     assert result["action"] == "updated"
     assert result["node"] == {
         "source": "human",
@@ -528,7 +834,7 @@ def test_crash_on_the_human_path_completes_on_rerun(project, repo, monkeypatch):
     with monkeypatch.context() as patch:
         patch.setattr(RecordStore, "record_promotion", crash)
         with pytest.raises(OSError):
-            run(project, rid, repo)
+            run(project, rid, repo, confirm=confirm_yes)
     result = run(project, rid, repo)
     assert result["action"] == "link_completed"
     assert result["path"] == "human-policy"
@@ -610,7 +916,7 @@ def test_the_human_path_will_not_overwrite_another_file(project, repo):
     other = folder / f"{rid}.md"
     other.write_text("not this record", encoding="utf-8")
     with pytest.raises(RecordsError) as caught:
-        run(project, rid, repo)
+        run(project, rid, repo, confirm=confirm_yes)
     assert caught.value.code == "node_exists"
     assert other.read_text(encoding="utf-8") == "not this record"
     assert project.get(rid).promoted_to is None
@@ -629,7 +935,7 @@ def test_a_node_the_graph_does_not_load_is_never_linked(project, repo, vault, po
     )
     for _attempt in (1, 2):
         with pytest.raises(RecordsError) as caught:
-            run(project, rid, repo)
+            run(project, rid, repo, confirm=confirm_yes)
         assert caught.value.code == "node_not_loaded"
         assert project.get(rid).promoted_to is None
 
@@ -738,10 +1044,13 @@ def test_no_path_writes_the_global_vault(project, repo, vault):
     assert tree(vault) == before
     set_policy(project)
     human = add(project, "Through the human policy", **CONFIRMED)
-    assert run(project, human, repo)["path"] == "human-policy"
+    assert run(project, human, repo, confirm=confirm_yes)["path"] == "human-policy"
     assert tree(vault) == before
     project.amend(human, {"summary": "Newer"}, expected_revision=2, actor="t")
-    assert run(project, human, repo, update=True)["action"] == "updated"
+    assert (
+        run(project, human, repo, update=True, confirm=confirm_yes)["action"]
+        == "updated"
+    )
     assert tree(vault) == before
     graph = load_graph(local_knowledge_dir(repo) / "graph" / "graph.json")
     assert graph.nodes["global-node"]["node_origin"] == "global"

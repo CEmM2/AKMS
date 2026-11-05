@@ -13,6 +13,16 @@ here calls an LLM. Two paths write the node:
   written with the policy's status and confidence, then the graph is rebuilt.
   This only reads the policy: nothing here can set or change one.
 
+**Confirmation.** A write that labels text ``source: human`` needs one more step
+than the approval flag: creating a node on the human path, or appending to a
+human-sourced node with ``--update``. Without a ``confirm`` callable it is refused
+with ``confirmation_required`` before anything is written, and it never falls back
+to the default path, so nobody gets a tentative node when they asked for a human
+one, or the reverse. This module never reads a terminal: only the CLI turns one
+into a confirmation. The method (``tty`` or ``yes``) goes in the node's Sources.
+Completing the link of a node already written labels nothing new, so it needs no
+confirmation, and crash recovery works without a terminal.
+
 Both write only under the project's knowledge directory. A knowledge directory
 that overlaps the global vault is refused before anything is written.
 
@@ -37,9 +47,9 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
@@ -65,8 +75,19 @@ PATH_HUMAN = "human-policy"
 MAX_TITLE = 120
 LEDGER_ATTEMPTS = 8
 LOCK_NAME = "promote.lock"
+CONFIRM_METHODS = ("tty", "yes")
 _MARKER = re.compile(r"- record: `(rec-[0-9]{8}-[0-9a-hjkmnp-tv-z]{8})@([1-9][0-9]*)`")
 _FENCE = re.compile(r"(`{3,})(.*)")
+
+
+# Given what a human-path write will label, returns how it was confirmed (one of
+# CONFIRM_METHODS), or raises to refuse.
+Confirm = Callable[[dict[str, Any]], str]
+
+
+def confirm_yes(_write: dict[str, Any]) -> str:
+    """Confirm without asking: what ``--yes`` means, for a deliberate caller."""
+    return "yes"
 
 
 def _refuse(message: str, code: str, **details: Any) -> RecordsError:
@@ -258,11 +279,15 @@ def _tags(record: Record) -> list[str]:
     return list(dict.fromkeys([*record.tags, name]))
 
 
-def node_body(record: Record, *, revision: int, actor: str) -> str:
+def node_body(
+    record: Record, *, revision: int, actor: str, confirmation: str | None = None
+) -> str:
     """The node's Markdown: summary, payload rendering and Sources.
 
     Summary and payload are fenced, as in recall and wake: record text is data.
+    ``confirmation`` is how a human-path write was confirmed, if it was one.
     """
+    confirmed = f"- confirmation: {confirmation}\n" if confirmation else ""
     references = [ref for ref in record.source_refs if ref.get("kind") != PROMOTED_KIND]
     payload = json.dumps(record.payload, ensure_ascii=False, indent=2, sort_keys=True)
     return (
@@ -286,6 +311,7 @@ def node_body(record: Record, *, revision: int, actor: str) -> str:
         f"- origin: {record.origin['kind']} {literal(record.origin['actor_id'])}\n"
         f"- review_state: {record.review_state}\n"
         f"- promoted_by: {literal(actor)}\n"
+        f"{confirmed}"
         f"- source_refs: {literal(references)}\n"
     )
 
@@ -435,13 +461,19 @@ class _Job:
     repo: Path
     knowledge: Path
     actor: str
+    confirmation: str | None = None
 
     @property
     def revision(self) -> int:
         return self.record.content_revision
 
     def body(self) -> str:
-        return node_body(self.record, revision=self.revision, actor=self.actor)
+        return node_body(
+            self.record,
+            revision=self.revision,
+            actor=self.actor,
+            confirmation=self.confirmation,
+        )
 
     def verify_loaded(self, node_id: str) -> None:
         graph = self.akms.load_graph(self.knowledge / "graph" / "graph.json")
@@ -550,8 +582,7 @@ class _Job:
 
     def update_existing(self, hit: NodeHit) -> tuple[str, str, dict[str, Any]]:
         """Add a newer revision to the node that holds an older one."""
-        source, status = hit.metadata.get("source"), hit.metadata.get("status")
-        if source == "human" and status in ("tentative", "established"):
+        if _is_human_node(hit):
             # Appended directly; the node's labels stay as they are.
             post = self.akms.frontmatter.load(str(hit.path))
             self.akms.parse_node(dict(post.metadata), is_local=True, path=str(hit.path))
@@ -560,13 +591,6 @@ class _Job:
             replace_file(hit.path, data)
             self.rebuild(hit.node_id)
             return "updated", hit.node_id, {}
-        if status != "tentative":
-            raise _refuse(
-                f"node {hit.node_id} is {source}/{status}; it no longer takes "
-                "automated additions, so edit it by hand",
-                "node_not_updatable",
-                node_id=hit.node_id,
-            )
         action, node_id, details = self.through_update_graph(
             suggested_id=hit.node_id,
             title=str(hit.metadata.get("title", hit.node_id)),
@@ -608,6 +632,7 @@ class _Job:
             },
             "policy": policy,
             "details": details,
+            "confirmation": self.confirmation,
             "link": written.to_json(),
         }
 
@@ -633,31 +658,44 @@ def _previous_node(hits: list[NodeHit], link: dict[str, Any] | None) -> NodeHit 
     return hits[0] if hits else None
 
 
-def _run(job: _Job, *, update: bool, domain: str | None) -> dict[str, Any]:
-    """Decide what this promotion is, under the lock, and do it."""
+def _is_human_node(hit: NodeHit) -> bool:
+    """Whether ``--update`` appends directly; a node that takes no addition refuses."""
+    source, status = hit.metadata.get("source"), hit.metadata.get("status")
+    if source == "human" and status in ("tentative", "established"):
+        return True
+    if status != "tentative":
+        raise _refuse(
+            f"node {hit.node_id} is {source}/{status}; it no longer takes "
+            "automated additions, so edit it by hand",
+            "node_not_updatable",
+            node_id=hit.node_id,
+        )
+    return False
+
+
+@dataclass(frozen=True)
+class _Plan:
+    """What this promotion will do. ``human`` is what a confirmation is about."""
+
+    kind: str  # already_promoted, complete, update, human or default
+    hit: NodeHit | None = None
+    link: dict[str, Any] | None = None
+    node_present: bool = False
+    policy: dict[str, Any] = field(default_factory=dict)
+    human: dict[str, Any] | None = None
+
+
+def _plan(job: _Job, *, update: bool) -> _Plan:
+    """Decide what this promotion is. Reads only; refuses what it may not do."""
     record, revision = job.record, job.revision
     link = record.promoted_to
     hits = find_nodes(job.akms, job.knowledge, record.record_id)
     if link is not None and link["revision"] == revision:
-        return {
-            **job.base(),
-            "action": "already_promoted",
-            "node_id": link["node_id"],
-            "path": link["path"],
-            "node_present": any(hit.node_id == link["node_id"] for hit in hits),
-            "link": None,
-        }
-    keeps_labels = {"applied": False, "reason": "existing_node_keeps_labels"}
+        present = any(hit.node_id == link["node_id"] for hit in hits)
+        return _Plan("already_promoted", link=link, node_present=present)
     exact = next((hit for hit in hits if revision in hit.revisions), None)
     if exact is not None:  # an earlier run wrote the node and died before the link
-        job.rebuild(exact.node_id)
-        return job.link(
-            action="link_completed",
-            node_id=exact.node_id,
-            path=_path_of(exact),
-            policy=keeps_labels,
-            details={},
-        )
+        return _Plan("complete", hit=exact)
     previous = _previous_node(hits, link)
     known = previous.node_id if previous else link["node_id"] if link else None
     if known is not None and not update:
@@ -669,27 +707,101 @@ def _run(job: _Job, *, update: bool, domain: str | None) -> dict[str, Any]:
             revision=revision,
         )
     _check_link_fits(record)
+    target = {"record_id": record.record_id, "revision": revision}
     if previous is not None:
-        action, node_id, details = job.update_existing(previous)
+        human = None
+        if _is_human_node(previous):
+            human = {
+                **target,
+                "action": "append",
+                "node_id": previous.node_id,
+                "source": previous.metadata.get("source"),
+                "status": previous.metadata.get("status"),
+                "confidence": previous.metadata.get("confidence"),
+            }
+        return _Plan("update", hit=previous, human=human)
+    policy = _policy_decision(job.store, record)
+    if not policy["applied"]:
+        return _Plan("default", policy=policy)
+    human = {
+        **target,
+        "action": "create",
+        "node_id": record.record_id,
+        "source": policy["source"],
+        "status": policy["status"],
+        "confidence": policy["confidence"],
+    }
+    return _Plan("human", policy=policy, human=human)
+
+
+def _confirmation(human: dict[str, Any], confirm: Confirm | None) -> str:
+    """How a human-path write was confirmed, or a refusal. Writes nothing."""
+    if confirm is None:
+        raise _refuse(
+            f"this would write node {human['node_id']} labelled "
+            f"source={human['source']}, status={human['status']}, "
+            f"confidence={human['confidence']}, which needs confirmation: run on an "
+            "interactive terminal or pass --yes. It does not fall back to the "
+            "default agent/tentative path",
+            "confirmation_required",
+            node_id=human["node_id"],
+        )
+    method = confirm(human)
+    if method not in CONFIRM_METHODS:
+        raise _refuse(
+            "confirm must return one of " + ", ".join(CONFIRM_METHODS), "usage"
+        )
+    return method
+
+
+def _execute(job: _Job, plan: _Plan, *, domain: str | None) -> dict[str, Any]:
+    """Carry out a plan, under the lock."""
+    record = job.record
+    keeps_labels = {"applied": False, "reason": "existing_node_keeps_labels"}
+    if plan.kind == "already_promoted":
+        assert plan.link is not None
+        return {
+            **job.base(),
+            "action": "already_promoted",
+            "node_id": plan.link["node_id"],
+            "path": plan.link["path"],
+            "node_present": plan.node_present,
+            "link": None,
+        }
+    if plan.kind == "complete":
+        assert plan.hit is not None
+        job.rebuild(plan.hit.node_id)
+        return job.link(
+            action="link_completed",
+            node_id=plan.hit.node_id,
+            path=_path_of(plan.hit),
+            policy=keeps_labels,
+            details={},
+        )
+    if plan.kind == "update":
+        assert plan.hit is not None
+        action, node_id, details = job.update_existing(plan.hit)
         return job.link(
             action=action,
             node_id=node_id,
-            path=_path_of(previous),
+            path=_path_of(plan.hit),
             policy=keeps_labels,
             details=details,
         )
-    policy = _policy_decision(job.store, record)
     node_domain = domain if domain is not None else job.store.scope.id.lower()
     title = _title(job.store, record)
-    if policy["applied"]:
+    if plan.kind == "human":
         job.write_human_node(
-            node_id=record.record_id, title=title, domain=node_domain, policy=policy
+            node_id=record.record_id,
+            title=title,
+            domain=node_domain,
+            policy=plan.policy,
         )
         return job.link(
             action="created",
             node_id=record.record_id,
             path=PATH_HUMAN,
-            policy=policy,
+            policy=plan.policy,
             details={},
         )
     action, node_id, details = job.through_update_graph(
@@ -699,7 +811,7 @@ def _run(job: _Job, *, update: bool, domain: str | None) -> dict[str, Any]:
         action=action,
         node_id=node_id,
         path=PATH_DEFAULT,
-        policy=policy,
+        policy=plan.policy,
         details=details,
     )
 
@@ -718,8 +830,15 @@ def promote(
     allow_imported: bool = False,
     update: bool = False,
     domain: str | None = None,
+    confirm: Confirm | None = None,
 ) -> dict[str, Any]:
     """Promote a reviewed record into a project-local node; see the module docstring.
+
+    ``confirm`` is called with what a human-path write will label, before anything
+    is written and before the lock is taken, since it may wait for a person. It
+    returns ``tty`` or ``yes``, or raises to refuse. The default is not confirmed:
+    such a write is refused with ``confirmation_required``. The default path never
+    calls it. :func:`confirm_yes` confirms without asking.
 
     Raises :class:`~akms_records.errors.RecordsError` with a stable code for each
     refusal, listed in the CLI reference.
@@ -748,20 +867,35 @@ def promote(
         "allow_sensitive": allow_sensitive,
         "allow_imported": allow_imported,
     }
-    _check_eligible(store, store.get(record_id), **options)
+    first = store.get(record_id)
+    _check_eligible(store, first, **options)
     check_not_global_vault(akms, knowledge)
+    planned = _plan(
+        _Job(akms, store, first, repo_path, knowledge, actor), update=update
+    )
+    method = _confirmation(planned.human, confirm) if planned.human else None
     with _promote_lock(knowledge):
         record = store.get(record_id)  # the checks must hold for what the lock sees
         _check_eligible(store, record, **options)
-        job = _Job(akms, store, record, repo_path, knowledge, actor)
-        return _run(job, update=update, domain=domain)
+        job = _Job(akms, store, record, repo_path, knowledge, actor, method)
+        plan = _plan(job, update=update)
+        if plan.human != planned.human:
+            raise _refuse(
+                f"the record, its node or its policy changed while {record_id} was "
+                "being confirmed; nothing was written. Run promote again",
+                "confirmation_stale",
+            )
+        return _execute(job, plan, domain=domain)
 
 
 __all__ = [
     "DEFAULT_MIN_REVIEW",
     "MIN_REVIEW_CHOICES",
     "REVIEW_CHOICES",
+    "CONFIRM_METHODS",
+    "Confirm",
     "check_not_global_vault",
+    "confirm_yes",
     "find_nodes",
     "node_body",
     "promote",

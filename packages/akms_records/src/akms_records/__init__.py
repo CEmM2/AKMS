@@ -16,7 +16,7 @@ node; ``import_failure_memory`` reads a failure-memory registry without
 needing that package at all.
 """
 
-from akms_records.bridge import promote
+from akms_records.bridge import confirm_yes, promote
 from akms_records.consolidate import (
     command_summarizer,
     consolidate,
@@ -68,6 +68,7 @@ __all__ = [
     "WriteResult",
     "__version__",
     "command_summarizer",
+    "confirm_yes",
     "consolidate",
     "consolidation_status",
     "import_failure_memory",
