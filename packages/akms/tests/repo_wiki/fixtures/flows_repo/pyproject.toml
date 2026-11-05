@@ -1,0 +1,8 @@
+[project]
+name = "flows-sample"
+version = "0.0.1"
+
+[project.scripts]
+tool = "pkg.app:main"
+tool-alias = "pkg.app:main"
+broken = "pkg.missing:main"

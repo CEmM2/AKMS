@@ -38,6 +38,17 @@ def _as_metadata(value: object) -> dict[str, object]:
     return {str(k): v for k, v in cast(dict[Any, Any], value).items()}
 
 
+def _as_name_lists(value: object) -> dict[str, list[str]]:
+    """``{name: [names]}`` from a JSON value; anything else reads as empty."""
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(k): [str(v) for v in _as_iter(items)]
+        for k, items in cast(dict[Any, Any], value).items()
+        if isinstance(items, list)
+    }
+
+
 @dataclass(slots=True)
 class SourceFile:
     path: str
@@ -110,12 +121,23 @@ class Symbol:
     imports: list[str] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
     metadata: dict[str, object] = field(default_factory=dict)
+    # Local name -> constructor/annotation names it is bound to, for names used as call
+    # receivers (``x = Cls(); x.m()``, a parameter ``x: Cls``). On a class: attribute name
+    # -> names, for ``self.x.m()`` / ``cls.x.m()``. Python only; empty elsewhere.
+    receivers: dict[str, list[str]] = field(default_factory=dict)
+    # Module-level names this symbol indexes (``TABLE[key]``, ``TABLE.get(key)``) that may
+    # be dispatch tables. Python only; empty elsewhere.
+    table_refs: list[str] = field(default_factory=list)
+    # Names this symbol registers as command handlers (argparse ``set_defaults(func=f)``).
+    cli_handlers: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         d = asdict(self)
         d["language"] = self.language.value
-        if not self.metadata:
-            d.pop("metadata", None)
+        # Optional fields are left out when empty, so payloads without them stay unchanged.
+        for key in ("metadata", "receivers", "table_refs", "cli_handlers"):
+            if not d.get(key):
+                d.pop(key, None)
         return d
 
     @classmethod
@@ -151,6 +173,9 @@ class Symbol:
             imports=[str(v) for v in _as_iter(data.get("imports"))],
             calls=[str(v) for v in _as_iter(data.get("calls"))],
             metadata=_as_metadata(data.get("metadata")),
+            receivers=_as_name_lists(data.get("receivers")),
+            table_refs=[str(v) for v in _as_iter(data.get("table_refs"))],
+            cli_handlers=[str(v) for v in _as_iter(data.get("cli_handlers"))],
         )
 
 
@@ -164,9 +189,15 @@ class ParsedModule:
     errors: list[BuildError] = field(default_factory=list)
     # Local name -> absolute dotted import target, at module scope (Python only).
     import_bindings: dict[str, str] = field(default_factory=dict)
+    # Module-level dict literals whose values are all module-level or imported names:
+    # table name -> sorted value names (Python only).
+    dispatch_tables: dict[str, list[str]] = field(default_factory=dict)
+    # Call names made when the module runs as a script: inside a top-level
+    # ``if __name__ == "__main__":`` block, or anywhere at module level in ``__main__.py``.
+    main_calls: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        data: dict[str, object] = {
             "source_file": self.source_file.to_dict(),
             "module": self.module,
             "docstring": self.docstring,
@@ -175,6 +206,13 @@ class ParsedModule:
             "symbols": [symbol.to_dict() for symbol in self.symbols],
             "errors": [error.to_dict() for error in self.errors],
         }
+        if self.dispatch_tables:
+            data["dispatch_tables"] = {
+                k: list(v) for k, v in sorted(self.dispatch_tables.items())
+            }
+        if self.main_calls:
+            data["main_calls"] = list(self.main_calls)
+        return data
 
     @classmethod
     def from_dict(
@@ -217,6 +255,8 @@ class ParsedModule:
                 if isinstance(bindings, dict)
                 else {}
             ),
+            dispatch_tables=_as_name_lists(data.get("dispatch_tables")),
+            main_calls=[str(v) for v in _as_iter(data.get("main_calls"))],
         )
 
 

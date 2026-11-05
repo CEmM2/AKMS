@@ -13,13 +13,16 @@ repo-wiki context Store.save
 python:pkg/core.py::Store.save  (method)
   pkg/core.py:L20-L21
   def save(self, item)
-Callers: 0 confident, 1 possible
-  ? python:pkg/service.py::persist  pkg/service.py:L11-L13  [HEURISTIC attribute, 1 of 2 candidates]
+Callers: 1 confident, 1 possible
+  python:pkg/service.py::persist  pkg/service.py:L11-L13  [CONFIDENT receiver]
+  ? python:pkg/service.py::persist_any  pkg/service.py:L20-L22  [HEURISTIC attribute, 1 of 2 candidates]
 Callees: 1 confident, 0 possible
   python:pkg/core.py::Store._write  pkg/core.py:L23-L24  [CONFIDENT self]
 Module pkg.core: imports 0 repository module(s) and 0 external name(s); imported by 2
   imported by pkg.service
   imported by tests.test_core
+Flows through it: 1
+  pkg.service.persist  [root; 5 steps; depth 3]  at d=1  flow:0bc38b6af8b6
 ```
 
 Lines marked `?` are possible links, not facts. See
@@ -65,6 +68,7 @@ repo-wiki context: 'parse' matches 2 symbols; pass one of the IDs listed
 | Unresolved and external calls | Call names that match nothing in the repository, and calls into modules outside it (`json.dumps`). |
 | Module | The repository modules its module imports, the external imports, and the modules that import it. |
 | Resolution counts | How many links of each kind were found. |
+| Flows | The [execution flows](flows.md) the symbol is a step in: how many, the five where it sits shallowest, and the flow it is the entry of. Left out when `flows.enabled` is `false`. |
 
 ## JSON
 
@@ -75,24 +79,30 @@ repo-wiki context: 'parse' matches 2 symbols; pass one of the IDs listed
              "end_line": 21, "signature": "def save(self, item)", "docstring": null,
              "dotted_name": "pkg.core.Store.save", "parent": "python:pkg/core.py::Store",
              "...": "..."},
-  "callers": {"confident": [], "possible": [{"id": "...", "edge": {...}}]},
+  "callers": {"confident": [{"id": "...", "edge": {...}}],
+              "possible": [{"id": "...", "edge": {...}}]},
   "callees": {"confident": [...], "possible": []},
   "bases": {...}, "subclasses": {...}, "members": [],
   "unresolved_calls": [], "external_calls": [],
   "module": {"id": "pkg.core", "path": "pkg/core.py", "imports": [],
              "external_imports": [], "importers": ["pkg.service", "tests.test_core"]},
-  "resolution_counts": {"callers": {"CONFIDENT": 0, "HEURISTIC": 1},
+  "resolution_counts": {"callers": {"CONFIDENT": 1, "HEURISTIC": 1},
                         "callees": {"CONFIDENT": 1, "HEURISTIC": 0,
                                     "UNRESOLVED": 0, "EXTERNAL": 0}},
   "graph": {"path": ".repo_wiki/generated/symbol_graph.json", "built_commit": "...",
-            "stale": false, "changed": [], "added": [], "removed": []}
+            "stale": false, "changed": [], "added": [], "removed": []},
+  "flows": {"count": 1, "as_entry": null, "source": "file", "reason": null,
+            "flows": [{"id": "flow:0bc38b6af8b6", "name": "pkg.service.persist",
+                       "kind": "root", "steps": 5, "truncated": false,
+                       "matched": [{"id": "python:pkg/core.py::Store.save", "depth": 1}],
+                       "...": "..."}]}
 }
 ```
 
 Each link carries the node fields (`id`, `kind`, `name`, `qualname`, `path`,
 `start_line`, `end_line`, `module`, `is_test`, `public_entry`) and an `edge`:
-`type`, `resolution`, `basis`, `name`, and `candidates` when a possible link has
-several targets. New keys may be added within `v1`; existing ones keep their
+`type`, `resolution`, `basis`, `name`, `provenance` (`static` or `inferred`), and
+`candidates` when a possible link has several targets. New keys may be added within `v1`; existing ones keep their
 meaning.
 
 ## Exit codes

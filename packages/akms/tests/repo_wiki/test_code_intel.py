@@ -3,7 +3,8 @@
 The ``intel_repo`` fixture has known chains::
 
     leaf <- middle <- run <- public_entry (exported from pkg/__init__) <- main (pkg/cli.py)
-    leaf <- Store._write <- Store.save (self) <~ persist (attribute call, 2 candidates)
+    leaf <- Store._write <- Store.save (self) <- persist (``store = Store()``: receiver)
+    Store.save <~ persist_any (``store.save()`` on a parameter: attribute, 2 candidates)
     leaf <- via_module (``core.leaf`` through ``from pkg import core``)
     leaf <- test_leaf (tests/)
     middle <~ stray (bare name, never imported: name match only)
@@ -141,6 +142,18 @@ def test_unknown_extra_edge_and_node_fields_are_ignored() -> None:
     assert [e.target for e in graph.out_edges["python:m.py::a"]] == ["python:m.py::b"]
 
 
+def test_edges_report_static_provenance_and_tolerate_its_absence(repo: Path) -> None:
+    """symbol_graph v1 edges carry no ``provenance``; every loaded edge reads as static."""
+    data = json.loads(
+        (repo / ".repo_wiki" / "generated" / "symbol_graph.json").read_text("utf-8")
+    )
+    assert all("provenance" not in edge for edge in data["edges"])
+    graph = load_code_graph(repo).graph
+    edge = next(e for e in graph.in_edges[LEAF] if e.source == MIDDLE)
+    assert edge.provenance == "static"
+    assert edge.to_dict()["provenance"] == "static"
+
+
 # ---------------------------------------------------------------------- lookup
 
 
@@ -261,7 +274,13 @@ def test_upstream_impact_groups_dependents_by_depth(
         "python:pkg/core.py::Store.save",
         "python:pkg/service.py::run",
     ]
-    assert ids(d3["confident"]) == ["python:pkg/api.py::public_entry"]
+    assert ids(d3["confident"]) == [
+        "python:pkg/api.py::public_entry",
+        "python:pkg/service.py::persist",
+    ]
+    persist = d3["confident"][1]
+    assert persist["edge"]["basis"] == "receiver"
+    assert persist["edge"]["provenance"] == "inferred"
     assert payload["affected_files"] == ["pkg/api.py", "pkg/core.py", "pkg/service.py"]
     assert payload["affected_test_files"] == ["tests/test_core.py"]
 
@@ -271,22 +290,23 @@ def test_heuristic_links_are_listed_apart_and_never_counted(
 ) -> None:
     _, payload = run_json(repo, capsys, "impact", "leaf")
     assert ids(_level(payload, 2)["possible"]) == ["python:other/helpers.py::stray"]
-    assert ids(_level(payload, 3)["possible"]) == ["python:pkg/service.py::persist"]
+    assert ids(_level(payload, 3)["possible"]) == ["python:pkg/service.py::persist_any"]
     persist = _level(payload, 3)["possible"][0]
     assert persist["edge"]["resolution"] == HEURISTIC
     assert persist["edge"]["basis"] == "attribute"
+    assert persist["edge"]["provenance"] == "static"
     assert persist["edge"]["candidates"] == [
         "python:other/helpers.py::Archive.save",
         "python:pkg/core.py::Store.save",
     ]
     assert payload["possible_files"] == ["other/helpers.py"]
-    assert payload["summary"]["confident"] == 7
+    assert payload["summary"]["confident"] == 8
     assert payload["summary"]["possible"] == 2
     assert payload["summary"]["d1_confident"] == 3  # tests never count
 
     _, save = run_json(repo, capsys, "impact", "Store.save")
-    assert all(not level["confident"] for level in save["levels"])
-    assert ids(_level(save, 1)["possible"]) == ["python:pkg/service.py::persist"]
+    assert ids(_level(save, 1)["confident"]) == ["python:pkg/service.py::persist"]
+    assert ids(_level(save, 1)["possible"]) == ["python:pkg/service.py::persist_any"]
 
 
 def test_depth_and_downstream_direction(
@@ -482,6 +502,7 @@ def test_context_json_shape_is_stable(
         "members",
         "module",
         "resolution_counts",
+        "flows",
     }
     assert payload["schema"] == "repo-wiki/context/v1"
     assert set(payload["symbol"]) == (LINK_KEYS - {"edge"}) | {
@@ -497,6 +518,7 @@ def test_context_json_shape_is_stable(
         "resolution",
         "basis",
         "name",
+        "provenance",
     }
     assert set(payload["module"]) == {
         "id",
@@ -537,6 +559,7 @@ def test_impact_json_shape_is_stable(
         "affected_test_files",
         "possible_files",
         "summary",
+        "flows",
     }
     assert payload["schema"] == "repo-wiki/impact/v1"
     assert set(payload["levels"][0]) == {"depth", "label", "confident", "possible"}

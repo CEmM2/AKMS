@@ -296,6 +296,7 @@ def test_changes_json_shape_is_stable(
         "changed_symbols",
         "module_level_changes",
         "summary",
+        "flows",
     }
     assert payload["schema"] == "repo-wiki/changes/v1"
     assert set(payload["files"][0]) == {
@@ -334,6 +335,7 @@ def test_changes_json_shape_is_stable(
         "risk",
         "risk_with_possible",
         "risk_reasons",
+        "flows_touched",
     }
 
 

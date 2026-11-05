@@ -109,6 +109,46 @@ development is intentionally not replayed.
 - A bundled `repo-wiki-code-intel` agent skill teaches when to run each
   command: `context` when exploring, `impact` before editing a function, class
   or method, and `changes` before committing.
+- `repo-wiki flows` lists static execution flows and `repo-wiki flow FLOW`
+  shows one as a call tree. A flow is an entry point (a console script from
+  any `pyproject.toml`, a `__main__` block, a CLI command found by decorator
+  or argparse `set_defaults(func=...)`, an uncalled public function, or, if
+  enabled, a test) followed breadth-first over confident calls, within depth,
+  fan-out and step caps; capped steps, truncation reasons and cycles are
+  recorded. `build` writes them to `.repo_wiki/generated/flows.json`, a pure
+  function of the symbol graph that records the graph's hash, so readers
+  recompute in memory when it is stale. `context` shows the flows a symbol is
+  in, `impact` the flows through the target and its dependents (reported
+  beside the risk, which is unchanged) and `changes` the flows a diff touches.
+  Settings live under a new `flows:` configuration section.
+  `repo-wiki changes --refresh` runs the incremental build first and reports
+  the flows of the graph before and after it (`flows_before`, `flows_after`),
+  so symbols a diff adds appear in flows; without it the output is
+  unchanged. Builds now take a repo-local lock, and `repo-wiki build` waits
+  for a running one.
+- `repo-wiki hooks install|uninstall|status` manages opt-in git hooks
+  (`post-checkout`, `post-commit`, `post-merge`, `post-rewrite`) that start a
+  detached incremental build after git changes the tree: at most once per git
+  command, once at the end of a rebase or a cherry-pick sequence, never during
+  `git bisect`, and never failing or noticeably slowing git.
+  `AKMS_REPO_WIKI_HOOKS=0` skips them. The blocks follow the failure-memory
+  hooks' conventions with their own markers, so both tools coexist in the
+  same hook files.
+- `repo-wiki` infers two more kinds of call link: a method called on a local
+  bound to a repository class (`x = C()`, `x: C` or a parameter `x: C`, then
+  `x.m()`) links to `C.m`, and so does `self.x.m()` / `cls.x.m()` when the
+  class body or `__init__` binds `x` to `C`; confidently when exactly one
+  target remains, and a function that
+  indexes a module-level dict of callables links to every value as a possible
+  link. Both are marked `provenance: inferred`; method calls on locals bound
+  only to outside classes are now external instead of possible name matches.
+- Symbol graph edges may carry an optional `provenance` (`static`,
+  `observed`, `inferred`), written only when it is not `static`, so existing
+  graphs keep their edge bytes; `context`, `impact` and `changes` report it on
+  every link in their JSON output. The graph also gains optional node fields
+  for receivers, dispatch tables, `__main__` calls, argparse handlers and
+  decorator names. The IR cache schema moves to 5, so the first build after
+  upgrading re-parses every file.
 - `failure-memory hooks install|uninstall|status` installs `post-checkout`,
   `post-commit`, `post-merge` and `post-rewrite` git hooks, so a checkout or
   a plain `git commit` no longer leaves generated lessons or code mirrors

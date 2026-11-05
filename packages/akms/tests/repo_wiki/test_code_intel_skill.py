@@ -32,6 +32,7 @@ def test_skill_is_bundled_with_loadable_frontmatter() -> None:
     data = _frontmatter(skill_md.read_text(encoding="utf-8"))
     assert data["name"] == SKILL
     assert "impact" in data["description"] and "changes" in data["description"]
+    assert "repo-wiki flows" in data["description"]
 
 
 def test_skill_is_listed_like_the_other_bundled_skills() -> None:
@@ -59,7 +60,7 @@ def test_skill_names_only_real_commands_and_flags() -> None:
     sub = next(a for a in parser._actions if a.dest == "command")
     choices = sub.choices  # type: ignore[attr-defined]
     for command, rest in re.findall(
-        r"repo-wiki (context|impact|changes|build)([^\n`]*)", text
+        r"repo-wiki (context|impact|changes|build|flows|flow)([^\n`]*)", text
     ):
         flags = re.findall(r"(--[a-z-]+)", rest)
         known = {

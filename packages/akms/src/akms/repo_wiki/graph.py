@@ -12,9 +12,24 @@ from akms.repo_wiki.paths import ensure_parent
 _GRAPH_SCHEMA_COMMENT = (
     "symbol_graph v1; edge fields: source, target, type, "
     "resolution (CONFIDENT|HEURISTIC|UNRESOLVED), dst_id (str|null), dst_name (str), "
-    "dst_candidates (list[str], HEURISTIC only); "
-    "module node field: bindings ({local name: dotted import target}, Python only)"
+    "dst_candidates (list[str], HEURISTIC only), "
+    "provenance (static|observed|inferred, optional: absent means static); "
+    "module node fields (optional, Python only): bindings ({local name: dotted import "
+    "target}), dispatch ({dict name: [value names]}); symbol node fields (optional, "
+    "Python only): receivers ({local name: [constructor or annotation names]}), "
+    "table_refs ([module-level names indexed]), cli_handlers ([names passed as "
+    "set_defaults(func=...)]); decorators ([decorator names, arguments dropped]); "
+    "module node field (optional): main_calls ([call names run as a script])"
 )
+
+#: Where an edge comes from. ``static``: read from source text (every edge written today).
+#: ``observed``: seen at run time. ``inferred``: derived from a pattern (a typed local
+#: receiver, a dispatch table) rather than a direct call. Only non-static values are
+#: written, so graphs without the field stay byte-identical and v1 readers are unaffected.
+STATIC = "static"
+OBSERVED = "observed"
+INFERRED = "inferred"
+PROVENANCES = (STATIC, OBSERVED, INFERRED)
 
 
 class Resolution(enum.Enum):
@@ -34,8 +49,13 @@ def _make_edge(
     dst_id: str | None,
     resolution: Resolution,
     dst_candidates: list[str] | None = None,
+    provenance: str = STATIC,
 ) -> dict[str, object]:
-    """Return an edge dict; ``dst_candidates`` is attached only for HEURISTIC edges."""
+    """Return an edge dict.
+
+    ``dst_candidates`` is attached only for HEURISTIC edges and ``provenance`` only when it
+    is not ``static``.
+    """
     edge: dict[str, object] = {
         "dst_id": dst_id,
         "dst_name": dst_name,
@@ -46,7 +66,17 @@ def _make_edge(
     }
     if dst_candidates is not None:
         edge["dst_candidates"] = dst_candidates
+    if provenance != STATIC:
+        if provenance not in PROVENANCES:
+            raise ValueError(f"unknown edge provenance {provenance!r}")
+        edge["provenance"] = provenance
     return edge
+
+
+def edge_provenance(edge: dict[str, object]) -> str:
+    """The provenance of an on-disk edge; absent or unknown values read as ``static``."""
+    value = edge.get("provenance", STATIC)
+    return value if isinstance(value, str) and value in PROVENANCES else STATIC
 
 
 def _resolve_from_multimap(
@@ -95,6 +125,12 @@ def build_symbol_graph(parsed_modules: list[ParsedModule]) -> dict[str, object]:
         }
         if parsed.import_bindings:
             nodes[module_id]["bindings"] = dict(parsed.import_bindings)
+        if parsed.dispatch_tables:
+            nodes[module_id]["dispatch"] = {
+                k: list(v) for k, v in sorted(parsed.dispatch_tables.items())
+            }
+        if parsed.main_calls:
+            nodes[module_id]["main_calls"] = list(parsed.main_calls)
         # Module-level `imports` edges: once per module (all symbols share the import list).
         for imported in parsed.imports:
             edges.append(
@@ -152,12 +188,33 @@ def build_symbol_graph(parsed_modules: list[ParsedModule]) -> dict[str, object]:
 
 
 def node_for_symbol(symbol: Symbol) -> dict[str, object]:
-    return {
+    """Graph node of one symbol; optional fields are written only when non-empty."""
+    node: dict[str, object] = {
         "kind": symbol.kind,
         "path": symbol.path,
         "start_line": symbol.start_line,
         "end_line": symbol.end_line,
     }
+    if symbol.receivers:
+        node["receivers"] = {k: list(v) for k, v in sorted(symbol.receivers.items())}
+    if symbol.table_refs:
+        node["table_refs"] = list(symbol.table_refs)
+    if symbol.cli_handlers:
+        node["cli_handlers"] = list(symbol.cli_handlers)
+    decorators = decorator_names(symbol.decorators)
+    if decorators:
+        node["decorators"] = decorators
+    return node
+
+
+def decorator_names(decorators: list[str]) -> list[str]:
+    """``@app.command("x")`` -> ``app.command``: the decorator's dotted name, in order."""
+    names: list[str] = []
+    for text in decorators:
+        name = text.lstrip("@").split("(", 1)[0].strip()
+        if name and name not in names:
+            names.append(name)
+    return names
 
 
 def write_symbol_graph(graph: dict[str, object], path: Path) -> Path:

@@ -33,13 +33,23 @@ def parse_python_file(source_file: SourceFile) -> ParsedModule:
     bindings = extract_import_bindings(
         tree, module, is_package=Path(source_file.path).name == "__init__.py"
     )
+    tables = extract_dispatch_tables(tree, bindings)
+    table_names = frozenset(tables) | frozenset(bindings)
     symbols: list[Symbol] = []
     seen: set[str] = set()
 
     for node in tree.body:
         if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             symbols.extend(
-                parse_definition(node, source_file.path, module, None, imports, seen)
+                parse_definition(
+                    node,
+                    source_file.path,
+                    module,
+                    None,
+                    imports,
+                    seen,
+                    table_names=table_names,
+                )
             )
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             symbols.extend(
@@ -47,7 +57,17 @@ def parse_python_file(source_file: SourceFile) -> ParsedModule:
             )
 
     return ParsedModule(
-        source_file, module, ast.get_docstring(tree), imports, symbols, [], bindings
+        source_file,
+        module,
+        ast.get_docstring(tree),
+        imports,
+        symbols,
+        [],
+        bindings,
+        dispatch_tables=tables,
+        main_calls=extract_main_calls(
+            tree, is_main_module=Path(source_file.path).name == "__main__.py"
+        ),
     )
 
 
@@ -115,6 +135,8 @@ def parse_definition(
     parent: Symbol | None,
     imports: list[str],
     seen: set[str],
+    *,
+    table_names: frozenset[str] = frozenset(),
 ) -> list[Symbol]:
     qualname = f"{parent.qualname}.{node.name}" if parent else node.name
     kind = (
@@ -128,6 +150,8 @@ def parse_definition(
         build_symbol_id(Language.PYTHON, path, qualname), start, seen
     )
     parent_id = parent.symbol_id if parent else None
+    calls = extract_calls(node)
+    is_class = isinstance(node, ast.ClassDef)
     symbol = Symbol(
         symbol_id=symbol_id,
         path=path,
@@ -143,14 +167,31 @@ def parse_definition(
         decorators=[safe_unparse(item) for item in getattr(node, "decorator_list", [])],
         bases=[safe_unparse(item) for item in getattr(node, "bases", [])],
         imports=imports,
-        calls=extract_calls(node),
+        calls=calls,
         span=SourceSpan(path=path, start_line=start, end_line=end),
         language=Language.PYTHON,
+        receivers=(
+            extract_attribute_receivers(node, calls)
+            if isinstance(node, ast.ClassDef)
+            else extract_receivers(node, calls)
+        ),
+        table_refs=[] if is_class else extract_table_refs(node, table_names),
+        cli_handlers=[] if is_class else extract_cli_handlers(node),
     )
     result = [symbol]
     for child in node.body:
         if isinstance(child, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-            result.extend(parse_definition(child, path, module, symbol, imports, seen))
+            result.extend(
+                parse_definition(
+                    child,
+                    path,
+                    module,
+                    symbol,
+                    imports,
+                    seen,
+                    table_names=table_names,
+                )
+            )
     return result
 
 
@@ -216,6 +257,282 @@ def extract_calls(node: ast.AST) -> list[str]:
         if isinstance(child, ast.Call):
             calls.append(call_name(child.func))
     return sorted(dict.fromkeys(call for call in calls if call))
+
+
+def _annotation_name(node: ast.AST | None) -> str:
+    """The class an annotation names: ``C``, ``m.C``, ``"C"``, ``C | None``, ``Optional[C]``."""
+    if node is None:
+        return ""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        try:
+            node = ast.parse(node.value, mode="eval").body
+        except SyntaxError:
+            return ""
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        sides = [
+            side
+            for side in (node.left, node.right)
+            if not (isinstance(side, ast.Constant) and side.value is None)
+        ]
+        return _annotation_name(sides[0]) if len(sides) == 1 else ""
+    if isinstance(node, ast.Subscript) and call_name(node.value) in (
+        "Optional",
+        "typing.Optional",
+    ):
+        return _annotation_name(node.slice)
+    return call_name(node)
+
+
+def extract_receivers(node: ast.AST, calls: list[str]) -> dict[str, list[str]]:
+    """Local names bound by ``x = C(...)``, ``x: C = ...`` or a parameter ``x: C``, then
+    used as ``x.m(...)``.
+
+    Maps each such name to the sorted callable or annotation names it is bound to; whether
+    a name is a class is decided later, against the graph. ``self`` and ``cls`` are left out
+    (they are resolved through the enclosing class).
+    """
+    used = {
+        call.split(".", 1)[0]
+        for call in calls
+        if "." in call and not call.startswith(("self.", "cls."))
+    }
+    if not used:
+        return {}
+    bound: dict[str, set[str]] = {}
+    for child in ast.walk(node):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for arg, annotation in _annotated_parameters(child).items():
+                if arg in used:
+                    bound.setdefault(arg, set()).add(annotation)
+        elif isinstance(child, ast.Assign) and isinstance(child.value, ast.Call):
+            name = call_name(child.value.func)
+            for target in child.targets:
+                if name and isinstance(target, ast.Name) and target.id in used:
+                    bound.setdefault(target.id, set()).add(name)
+        elif isinstance(child, ast.AnnAssign) and isinstance(child.target, ast.Name):
+            if child.target.id not in used:
+                continue
+            name = _annotation_name(child.annotation)
+            if not name and isinstance(child.value, ast.Call):
+                name = call_name(child.value.func)
+            if name:
+                bound.setdefault(child.target.id, set()).add(name)
+    return {k: sorted(v) for k, v in sorted(bound.items())}
+
+
+def _annotated_parameters(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> dict[str, str]:
+    """Parameter name -> annotated class name, for parameters with a usable annotation."""
+    args = node.args
+    found: dict[str, str] = {}
+    for arg in [*args.posonlyargs, *args.args, *args.kwonlyargs]:
+        if arg.arg in ("self", "cls"):
+            continue
+        name = _annotation_name(arg.annotation)
+        if name:
+            found[arg.arg] = name
+    return found
+
+
+def extract_attribute_receivers(
+    node: ast.ClassDef, calls: list[str]
+) -> dict[str, list[str]]:
+    """A class's attributes used as ``self.x.m()`` / ``cls.x.m()``, and what they are bound to.
+
+    Bindings counted: a class-level ``x: C`` or ``x = C(...)``, and in ``__init__``
+    ``self.x = C(...)``, ``self.x: C = ...`` or ``self.x = param`` where ``param: C``.
+    """
+    used = {
+        call.split(".")[1]
+        for call in calls
+        if call.startswith(("self.", "cls.")) and call.count(".") >= 2
+    }
+    if not used:
+        return {}
+    bound: dict[str, set[str]] = {}
+
+    def add(attr: str, name: str) -> None:
+        if name and attr in used:
+            bound.setdefault(attr, set()).add(name)
+
+    for statement in node.body:
+        if isinstance(statement, ast.AnnAssign) and isinstance(
+            statement.target, ast.Name
+        ):
+            add(statement.target.id, _annotation_name(statement.annotation))
+        elif (
+            isinstance(statement, ast.Assign)
+            and len(statement.targets) == 1
+            and isinstance(statement.targets[0], ast.Name)
+            and isinstance(statement.value, ast.Call)
+        ):
+            add(statement.targets[0].id, call_name(statement.value.func))
+        elif (
+            isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and statement.name == "__init__"
+        ):
+            parameters = _annotated_parameters(statement)
+            for child in ast.walk(statement):
+                if isinstance(child, ast.Assign):
+                    targets, value = child.targets, child.value
+                elif isinstance(child, ast.AnnAssign):
+                    targets, value = [child.target], None
+                    target = child.target
+                    if _is_self_attribute(target):
+                        add(target.attr, _annotation_name(child.annotation))  # type: ignore[union-attr]
+                    continue
+                else:
+                    continue
+                for target in targets:
+                    if not _is_self_attribute(target):
+                        continue
+                    if isinstance(value, ast.Call):
+                        add(target.attr, call_name(value.func))  # type: ignore[union-attr]
+                    elif isinstance(value, ast.Name) and value.id in parameters:
+                        add(target.attr, parameters[value.id])  # type: ignore[union-attr]
+    return {k: sorted(v) for k, v in sorted(bound.items())}
+
+
+def _is_self_attribute(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "self"
+    )
+
+
+def extract_table_refs(node: ast.AST, names: frozenset[str]) -> list[str]:
+    """Module-level *names* this definition indexes: ``NAME[key]`` or ``NAME.get(key)``."""
+    if not names:
+        return []
+    found: set[str] = set()
+    for child in ast.walk(node):
+        if (
+            isinstance(child, ast.Subscript)
+            and isinstance(child.value, ast.Name)
+            and isinstance(child.ctx, ast.Load)
+            and child.value.id in names
+        ):
+            found.add(child.value.id)
+        elif (
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Attribute)
+            and child.func.attr == "get"
+            and isinstance(child.func.value, ast.Name)
+            and child.func.value.id in names
+        ):
+            found.add(child.func.value.id)
+    return sorted(found)
+
+
+def _is_main_guard(test: ast.expr) -> bool:
+    """``__name__ == "__main__"`` (either way round)."""
+    if not (
+        isinstance(test, ast.Compare)
+        and len(test.ops) == 1
+        and isinstance(test.ops[0], ast.Eq)
+    ):
+        return False
+    sides = [test.left, test.comparators[0]]
+    names = [s for s in sides if isinstance(s, ast.Name) and s.id == "__name__"]
+    consts = [s for s in sides if isinstance(s, ast.Constant) and s.value == "__main__"]
+    return len(names) == 1 and len(consts) == 1
+
+
+def extract_main_calls(tree: ast.Module, *, is_main_module: bool) -> list[str]:
+    """Call names run when the module is executed as a script (sorted, unique).
+
+    Those in a top-level ``if __name__ == "__main__":`` block; in ``__main__.py`` every
+    module-level statement outside a definition counts.
+    """
+    statements: list[ast.stmt] = []
+    for node in tree.body:
+        if isinstance(node, ast.If) and _is_main_guard(node.test):
+            statements.extend(node.body)
+        elif is_main_module and not isinstance(
+            node,
+            (
+                ast.FunctionDef,
+                ast.AsyncFunctionDef,
+                ast.ClassDef,
+                ast.Import,
+                ast.ImportFrom,
+            ),
+        ):
+            statements.append(node)
+    names: set[str] = set()
+    for statement in statements:
+        for child in ast.walk(statement):
+            if isinstance(child, ast.Call):
+                name = call_name(child.func)
+                if name:
+                    names.add(name)
+    return sorted(names)
+
+
+def extract_cli_handlers(node: ast.AST) -> list[str]:
+    """Names registered as argparse command handlers: ``parser.set_defaults(func=f)``."""
+    found: set[str] = set()
+    for child in ast.walk(node):
+        if (
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Attribute)
+            and child.func.attr == "set_defaults"
+        ):
+            for keyword in child.keywords:
+                if keyword.arg == "func" and isinstance(
+                    keyword.value, (ast.Name, ast.Attribute)
+                ):
+                    name = call_name(keyword.value)
+                    if name:
+                        found.add(name)
+    return sorted(found)
+
+
+#: A dict literal needs at least this many entries to count as a dispatch table.
+DISPATCH_TABLE_MIN_ENTRIES = 2
+
+
+def extract_dispatch_tables(
+    tree: ast.Module, bindings: dict[str, str]
+) -> dict[str, list[str]]:
+    """Module-level ``NAME = {literal: callable_name, ...}`` dicts: name -> sorted values.
+
+    Every key must be a literal and every value a name (or dotted name) whose head is a
+    function or class defined at module level or a name bound by an import. The shape is
+    what counts; the table's name does not matter.
+    """
+    defined = {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    known = defined | set(bindings)
+    tables: dict[str, list[str]] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target, value = node.targets[0], node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            target, value = node.target, node.value
+        else:
+            continue
+        if not isinstance(target, ast.Name) or not isinstance(value, ast.Dict):
+            continue
+        if len(value.keys) < DISPATCH_TABLE_MIN_ENTRIES:
+            continue
+        if not all(
+            isinstance(key, ast.Constant) and key.value is not None
+            for key in value.keys
+        ):
+            continue
+        names = [
+            call_name(item) if isinstance(item, (ast.Name, ast.Attribute)) else ""
+            for item in value.values
+        ]
+        if all(name and name.split(".", 1)[0] in known for name in names):
+            tables[target.id] = sorted(set(names))
+    return dict(sorted(tables.items()))
 
 
 def call_name(node: ast.AST) -> str:

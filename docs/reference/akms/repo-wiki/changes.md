@@ -22,7 +22,15 @@ Changes (worktree vs HEAD, a0fa1a8b16f4): 1 file(s), 2 changed symbol(s)
         ? python:other/helpers.py::stray  other/helpers.py:L13-L14  [HEURISTIC dangling]
 Summary: 2 changed symbol(s) (1 deleted, 1 modified); affected callers: 4 confident, 1 possible; risk HIGH (counting possible links: HIGH)
   3 direct non-test dependent(s); 1 other module(s); 1 caller(s) still reference a deleted or moved symbol
+Flows touched: 3
+  pkg.service.via_module  [root; 2 steps; depth 1]  at d=1  flow:81e076513602
+  pkg.cli.main  [root; 5 steps; depth 4]  through 2 of the symbols  flow:67984a14e9db
+  pkg.service.persist  [root; 5 steps; depth 3]  at d=3  flow:0bc38b6af8b6
 ```
+
+`Flows touched` lists the [execution flows](flows.md) of the graph as it is stored,
+normally built before the change, that contain a changed symbol, or the old ID of a
+moved one. A symbol the diff adds is in no stored flow; pass `--refresh` to see it.
 
 ## Flags
 
@@ -31,6 +39,7 @@ Summary: 2 changed symbol(s) (1 deleted, 1 modified); affected callers: 4 confid
 | `--worktree` | The default. The worktree, staged and unstaged, plus untracked files that git does not ignore, against `HEAD`. |
 | `--staged` | The index against `HEAD`: what `git commit` would record. The new side of each file is read from the index, not the worktree. |
 | `--base REF` | The worktree, plus untracked files, against the merge base of `REF` and `HEAD`: everything your branch changed. |
+| `--refresh` | Run the incremental build first (`build --changed-only --no-summaries --no-index`, about 1 s on the AKMS repository), under the build lock, then report. The flows are then those of the refreshed graph, and the flows of the graph before the refresh are reported beside them. See [Refreshing first](#refreshing-first). |
 | `--json` | Print a `repo-wiki/changes/v1` object instead of text. |
 | `--allow-stale` | Use the graph even when files outside the diff changed since it was built. |
 
@@ -75,6 +84,37 @@ callers.
 | Does not parse, on either side | `parse_error` with the first error; no symbols |
 | Binary | `binary: true` |
 
+## Refreshing first
+
+Without `--refresh`, `changes` reads the stored graph and flows as they are and
+writes nothing. With it, the command first rebuilds the changed files' graph entries
+and `flows.json`, waiting (and saying so on stderr) while another build holds the
+lock, then maps the diff on the refreshed graph. The text output starts with
+`Refreshed the graph first: N file(s) re-parsed in T s` and the flows line becomes:
+
+```text
+Flows touched: 1 in the refreshed graph (before the refresh: 0; only before: 0, only after: 1)
+  pkg.core.added  [root; 2 steps; depth 1]  at d=0  flow:7db2a7cca409
+```
+
+The JSON gains these keys, and only these, with `--refresh`:
+
+| Key | Content |
+|---|---|
+| `refresh` | `seconds`, `parsed` (files re-parsed), `errors` (files that failed to parse). |
+| `flows_before` | Flow participation in the stored graph when the command started, or `null` when there was no graph. |
+| `flows_after` | Flow participation in the refreshed graph. Equal to `flows`, which always describes the graph the command read. |
+| `summary.flows_touched_before`, `summary.flows_touched_after` | Flows with a changed symbol in each graph (`before` is `null` without a prior graph). |
+| `summary.flows_only_before`, `summary.flows_only_after` | Flows touched in one graph and not the other. |
+
+`summary.flows_touched` counts the distinct flows that contain a changed symbol in
+any graph the command read: the stored graph without `--refresh`, both graphs with
+it. Without `--refresh` the output has the same shape as before.
+
+Run `--refresh` after editing and before reporting the impact of new code. With the
+[git hooks](hooks.md) installed the stored graph is usually current after a commit,
+but only `--refresh` guarantees it matches the working tree.
+
 ## Staleness
 
 The files in the diff, and any file with uncommitted changes, are expected to
@@ -109,9 +149,10 @@ makes the command exit 3. Rebuild with
               "affected_callers": {"confident": 4, "possible": 1},
               "dangling_references": 1, "modules_reached": 1,
               "public_entry_points": [], "risk": "HIGH", "risk_with_possible": "HIGH",
-              "risk_reasons": ["..."]},
+              "risk_reasons": ["..."], "flows_touched": 3},
   "graph": {"path": "...", "built_commit": "...", "stale": false,
-            "changed": [], "added": [], "removed": []}
+            "changed": [], "added": [], "removed": []},
+  "flows": {"count": 3, "source": "file", "reason": null, "flows": [...]}
 }
 ```
 
@@ -123,5 +164,5 @@ File `status` is `added`, `modified`, `deleted` or `renamed`. Symbol `status` is
 | Code | Meaning |
 |---|---|
 | 0 | Success, whatever the risk level. |
-| 1 | git failed: not a work tree, or an unknown `--base` ref. |
+| 1 | git failed (not a work tree, an unknown `--base` ref), or `--refresh` found the build lock held for 600 s (`build_lock`). |
 | 3 | The symbol graph is missing, unreadable, or stale outside the diff. |
