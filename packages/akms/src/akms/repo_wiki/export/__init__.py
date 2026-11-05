@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from copy import deepcopy
 from pathlib import Path, PurePosixPath
 
-from akms.repo_wiki.config import load_config
+from akms.repo_wiki.config import load_config, mirror_summary_enabled
 from akms.repo_wiki.export.akms import (
     DEFAULT_KNOWLEDGE_DIR,
     ErrorRecord,
@@ -166,6 +166,7 @@ def _export_akms_locked(
         return result
 
     config = _config_excluding_output(root, output, knowledge_dir)
+    mirror_summary = mirror_summary_enabled(config)
     sources, scanner_skips = scan_repository(root, config)
     _record_undecodable_source_errors(root, scanner_skips, result)
 
@@ -298,7 +299,10 @@ def _export_akms_locked(
                 knowledge_dir=knowledge_dir,
             )
             markdown = render_mirror_markdown(
-                parsed, source_text[source.path], document
+                parsed,
+                source_text[source.path],
+                document,
+                summary=mirror_summary,
             )
         except Exception as exc:
             result.errors.append(

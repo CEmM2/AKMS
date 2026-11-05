@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import os
+import re
 import secrets
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -35,6 +36,15 @@ CODE_MIRROR_FRONTMATTER_FIELDS: Final = (
     "akms_schema",
 )
 """Exact fields accepted by AKMS v2 ``CodeMirrorNodeFrontmatter``."""
+
+MIRROR_SUMMARY_MAX_CHARS: Final = 800
+"""Cap on a mirror's ``## Summary``, the 200 tokens routing mode charges per node."""
+
+_BLANK_LINE: Final = re.compile(r"\n\s*\n")
+_SUMMARY_DOCSTRING_MAX_CHARS: Final = 300
+_SUMMARY_MAX_METHODS: Final = 5
+_SUMMARY_SIGNATURE_MAX_CHARS: Final = 120
+_SUMMARY_CLASS_MAX_CHARS: Final = 200
 
 _SUPPORTED_LANGUAGES: Final = frozenset(language.value for language in Language)
 
@@ -484,12 +494,136 @@ def _markdown_fence(text: str) -> str:
     return "`" * max(3, longest + 1)
 
 
+def _one_line(text: str) -> str:
+    """Collapse all whitespace, so summary text can never start a section or fence."""
+
+    return " ".join(text.split())
+
+
+def _capped(text: str, limit: int) -> str:
+    """Cut ``text`` at a word boundary to at most ``limit`` characters."""
+
+    if len(text) <= limit:
+        return text
+    cut = text[: limit - 3]
+    if " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(" ,;:-") + "..."
+
+
+def _is_public(symbol: Symbol) -> bool:
+    return not symbol.name.startswith("_")
+
+
+def _short_signature(symbol: Symbol) -> str:
+    """Return a symbol's capped one-line signature, without ``def``/``class`` keywords."""
+
+    signature = _one_line(symbol.signature or "") or symbol.name
+    for keyword in ("async def ", "def ", "class ", "fn ", "function ", "struct "):
+        if signature.startswith(keyword):
+            signature = signature[len(keyword) :]
+            break
+    return _capped(signature, _SUMMARY_SIGNATURE_MAX_CHARS)
+
+
+def _summary_class(symbol: Symbol, symbols: list[Symbol]) -> str:
+    """Render a class as its signature and the first few public method names."""
+
+    methods = [
+        child.name
+        for child in symbols
+        if child.parent_id == symbol.symbol_id
+        and child.kind == "method"
+        and _is_public(child)
+    ]
+    item = f"`{_short_signature(symbol)}`"
+    if not methods:
+        return item
+    shown = ", ".join(methods[:_SUMMARY_MAX_METHODS])
+    hidden = len(methods) - _SUMMARY_MAX_METHODS
+    more = f", +{hidden} more" if hidden > 0 else ""
+    return _capped(f"{item} ({shown}{more})", _SUMMARY_CLASS_MAX_CHARS)
+
+
+def _fit_items(items: list[str], budget: int) -> tuple[list[str], int]:
+    """Keep the leading items that fit ``budget`` characters, always naming the rest."""
+
+    kept: list[str] = []
+    used = 0
+    for index, item in enumerate(items):
+        cost = len(item) + 2
+        remaining = len(items) - index - 1
+        reserve = len(f"+{remaining} more") + 2 if remaining else 0
+        if used + cost + reserve > budget:
+            break
+        kept.append(item)
+        used += cost
+    hidden = len(items) - len(kept)
+    if hidden:
+        kept.append(f"+{hidden} more")
+    return kept, used
+
+
+def render_mirror_summary(parsed: ParsedModule) -> str:
+    """Render a mirror's ``## Summary`` body from facts the extractor already holds.
+
+    It is a pure function of one file's parse: the first paragraph of the module
+    docstring and the public top-level classes and functions with their
+    signatures, in source order. Deterministic, at most
+    ``MIRROR_SUMMARY_MAX_CHARS`` characters, and never empty.
+    """
+
+    symbols = sorted(
+        parsed.symbols,
+        key=lambda item: (item.start_line, item.end_line, item.symbol_id),
+    )
+    modules = {item.symbol_id for item in symbols if item.kind == "module"}
+    top_level = [
+        item
+        for item in symbols
+        if _is_public(item) and (item.parent_id is None or item.parent_id in modules)
+    ]
+    classes = [
+        _summary_class(item, symbols) for item in top_level if item.kind == "class"
+    ]
+    functions = [
+        f"`{_short_signature(item)}`" for item in top_level if item.kind == "function"
+    ]
+
+    paragraphs: list[str] = []
+    first_paragraph = _BLANK_LINE.split((parsed.docstring or "").strip(), maxsplit=1)[0]
+    docstring = _one_line(first_paragraph).lstrip("# ")
+    if docstring:
+        paragraphs.append(_capped(docstring, _SUMMARY_DOCSTRING_MAX_CHARS))
+
+    labels = len("Classes: ") + len("Functions: ") + 8
+    budget = MIRROR_SUMMARY_MAX_CHARS - labels - sum(len(p) for p in paragraphs)
+    # Classes may take half the room when there are functions too; what they
+    # leave goes to the functions.
+    kept_classes, used = _fit_items(classes, budget // 2 if functions else budget)
+    kept_functions, _ = _fit_items(functions, budget - used)
+    if kept_classes:
+        paragraphs.append("Classes: " + ", ".join(kept_classes))
+    if kept_functions:
+        paragraphs.append("Functions: " + ", ".join(kept_functions))
+    if not paragraphs:
+        paragraphs.append("No module docstring and no public classes or functions.")
+    return "\n\n".join(paragraphs)
+
+
 def render_mirror_markdown(
     parsed: ParsedModule,
     source_text: str,
     document: MirrorDocument,
+    *,
+    summary: bool = False,
 ) -> str:
-    """Render one deterministic AKMS file-level mirror without filesystem mutation."""
+    """Render one deterministic AKMS file-level mirror without filesystem mutation.
+
+    ``summary`` opens the body with a ``## Summary`` section, which routing mode
+    loads in place of the mirror. It is off by default because mirror bytes are a
+    pinned contract: see ``export.mirror_summary``.
+    """
 
     if sha256_text(source_text) != document.source_hash:
         raise ValueError("source_text does not match MirrorDocument source_hash")
@@ -505,11 +639,15 @@ def render_mirror_markdown(
     symbol_fence = _markdown_fence(symbol_json)
     source_fence = _markdown_fence(source_text)
     source_ending = "" if source_text.endswith("\n") else "\n"
+    summary_section = (
+        f"## Summary\n\n{render_mirror_summary(parsed)}\n\n" if summary else ""
+    )
 
     frontmatter = _dump_frontmatter(document)
     body = (
         f"# {_markdown_path(document.source_path)}\n\n"
         f"_Mirror generated: {document.generated_at} · phase {document.phase}_\n\n"
+        f"{summary_section}"
         "## Symbol Index\n\n"
         f"{symbol_fence}json\n{symbol_json}\n{symbol_fence}\n\n"
         "## Complete Source\n\n"

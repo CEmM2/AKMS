@@ -13,8 +13,10 @@ import pytest
 import akms.repo_wiki.export.akms as akms_export
 from akms.repo_wiki.export.akms import (
     CODE_MIRROR_FRONTMATTER_FIELDS,
+    MIRROR_SUMMARY_MAX_CHARS,
     build_mirror_document,
     render_mirror_markdown,
+    render_mirror_summary,
     write_mirror_document,
 )
 from akms.repo_wiki.hashing import sha256_text
@@ -257,3 +259,143 @@ def test_committed_fixtures_are_byte_stable_after_regeneration():
     )
     assert completed.returncode == 0, completed.stderr
     assert "byte-stable" in completed.stdout
+
+
+def _summary_module(symbols: list[Symbol], docstring: str | None) -> ParsedModule:
+    source_path = "src/vector.py"
+    source_file = SourceFile(
+        path=source_path,
+        abs_path=f"/not-read/{source_path}",
+        language="python",
+        size_bytes=1,
+        content_hash=sha256_text("x"),
+    )
+    return ParsedModule(source_file, "src.vector", docstring, [], symbols)
+
+
+def _symbol(
+    name: str,
+    kind: str,
+    line: int,
+    *,
+    signature: str | None = None,
+    parent: str | None = None,
+) -> Symbol:
+    return Symbol(
+        symbol_id=f"python:src/vector.py::{name}",
+        path="src/vector.py",
+        module="src.vector",
+        name=name,
+        qualname=name,
+        kind=kind,  # type: ignore[arg-type]
+        parent_id=f"python:src/vector.py::{parent}" if parent else None,
+        start_line=line,
+        end_line=line,
+        signature=signature,
+        docstring=None,
+        span=SourceSpan("src/vector.py", line, line),
+    )
+
+
+def test_mirror_bytes_have_no_summary_by_default():
+    python = _parsed_python()
+    default = render_mirror_markdown(python, PYTHON_SOURCE, _document(python))
+    assert "## Summary" not in default
+    assert default == (FIXTURE_DIR / "python_mirror.md").read_text(encoding="utf-8")
+
+
+def test_summary_opens_the_body_ahead_of_the_symbol_index():
+    python = _parsed_python()
+    rendered = render_mirror_markdown(
+        python, PYTHON_SOURCE, _document(python), summary=True
+    )
+    assert (
+        "· phase 2_\n\n"
+        "## Summary\n\n"
+        "Vector helpers.\n\n"
+        "Classes: `Vector(BaseVector)` (scale)\n\n"
+        "## Symbol Index\n\n"
+    ) in rendered
+    assert rendered == render_mirror_markdown(
+        python, PYTHON_SOURCE, _document(python), summary=True
+    )
+    default = render_mirror_markdown(python, PYTHON_SOURCE, _document(python))
+    section = rendered[rendered.index("## Summary") : rendered.index("## Symbol Index")]
+    assert rendered.replace(section, "") == default
+
+
+def test_summary_takes_the_first_docstring_paragraph_on_one_line():
+    module = _summary_module(
+        [], "  ## First line\n   wraps over.\n\nSecond paragraph is left out.\n"
+    )
+    assert render_mirror_summary(module) == "First line wraps over."
+
+
+def test_summary_lists_public_top_level_symbols_in_source_order():
+    module = _summary_module(
+        [
+            _symbol(
+                "later", "function", 30, signature="def later(\n    x: int,\n) -> int"
+            ),
+            _symbol("_hidden", "function", 20, signature="def _hidden()"),
+            _symbol("Base", "class", 1, signature="class Base"),
+            _symbol("run", "method", 2, signature="def run(self)", parent="Base"),
+            _symbol("_step", "method", 3, signature="def _step(self)", parent="Base"),
+            _symbol("Fast", "class", 10, signature="class Fast(Base)"),
+            _symbol("nested", "function", 11, signature="def nested()", parent="Fast"),
+            _symbol("LIMIT", "constant", 40),
+            _symbol("first", "function", 25, signature="async def first()"),
+        ],
+        None,
+    )
+    assert render_mirror_summary(module) == (
+        "Classes: `Base` (run), `Fast(Base)`\n\nFunctions: `first()`, `later( x: int, ) -> int`"
+    )
+
+
+def test_summary_is_never_empty():
+    assert (
+        render_mirror_summary(_summary_module([_symbol("_x", "function", 1)], None))
+        == "No module docstring and no public classes or functions."
+    )
+
+
+def test_summary_is_capped_and_names_what_it_left_out():
+    methods = [
+        _symbol(f"method_{index}", "method", 1000 + index, parent="Huge")
+        for index in range(30)
+    ]
+    module = _summary_module(
+        [
+            _symbol("Huge", "class", 1, signature="class Huge"),
+            *methods,
+            *(
+                _symbol(
+                    f"function_with_a_long_name_{index}",
+                    "function",
+                    2000 + index,
+                    signature=f"def function_with_a_long_name_{index}("
+                    + ", ".join(f"argument_{item}: int" for item in range(40))
+                    + ")",
+                )
+                for index in range(40)
+            ),
+        ],
+        "word " * 200,
+    )
+    summary = render_mirror_summary(module)
+    assert len(summary) <= MIRROR_SUMMARY_MAX_CHARS
+    assert "(method_0, method_1, method_2, method_3, method_4, +25 more)" in summary
+    assert summary.endswith(" more")
+    paragraphs = summary.split("\n\n")
+    assert [p.split(":")[0] for p in paragraphs[1:]] == ["Classes", "Functions"]
+    assert not paragraphs[0].endswith("word word")
+    assert paragraphs[0].endswith("...")
+    assert "`function_with_a_long_name_0(" in paragraphs[2]
+
+
+def test_a_docstring_cannot_add_a_section_or_a_line():
+    module = _summary_module([], "One\u2028## Symbol Index\x85two\r\nthree")
+    summary = render_mirror_summary(module)
+    assert summary == "One ## Symbol Index two three"
+    assert len(summary.splitlines()) == 1
