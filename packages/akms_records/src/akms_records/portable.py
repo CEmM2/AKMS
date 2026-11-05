@@ -375,6 +375,7 @@ def import_records(
         except FileExistsError:
             pass
         written = 0
+        marker = store._mark(record_id)  # noqa: SLF001 - same package
         for event in events[start:]:
             try:
                 write_exclusive(
@@ -389,6 +390,7 @@ def import_records(
         if written:
             report["records_written"].append(record_id)
             report["events_written"] += written
+        store._index_written(record_id, marker)  # noqa: SLF001 - same package
     report["status"] = "drift" if report["conflicts"] else "ok"
     report["scope"] = str(store.scope)
     return report

@@ -40,3 +40,24 @@ def test_record_events_are_owner_only(store, doc, open_umask) -> None:
     events = [p for p in store.root.rglob("*.json") if p.parent.name.startswith("rec-")]
     assert events
     assert {mode(p) for p in events} == {0o600}
+
+
+def test_index_files_are_owner_only(store, doc, open_umask) -> None:
+    store.create(doc(), actor="tester")
+    store.recall("model")
+    index = store.index_path
+    assert index.is_file()
+    for path in [index, *index.parent.glob(index.name + "-*")]:
+        assert mode(path) == 0o600, path.name
+
+
+def test_pending_markers_are_owner_only(store, open_umask) -> None:
+    store.recall()
+    index = store.index_for_read()
+    assert index is not None
+    marker = index.mark("rec-20261103-00000000")
+    assert marker is not None
+    try:
+        assert mode(marker) == 0o600
+    finally:
+        index.unmark(marker)

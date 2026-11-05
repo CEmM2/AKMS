@@ -297,6 +297,20 @@ def _as_text(value: Any) -> str:
     return ""
 
 
+def pointer_value(payload: Any, pointer: Any) -> Any:
+    """The payload value a rules pointer names, or ``None`` when absent."""
+    try:
+        tokens = _pointer_tokens(pointer)
+    except RecordsError:
+        return None
+    return _lookup(payload, tokens)
+
+
+def pointer_text(payload: Any, pointer: Any) -> str:
+    """The text a rules pointer gives ``payload``, as summary templates render it."""
+    return _as_text(pointer_value(payload, pointer))
+
+
 def render_template(template: str, payload: dict[str, Any]) -> str:
     """Fill ``{field}`` and ``{/pointer}`` placeholders from ``payload``.
 
@@ -515,6 +529,14 @@ class SchemaRegistry:
 
     def _dir(self, name: str, version: int) -> Path:
         return self.root / name / f"v{version}"
+
+    def rules_path(self, ref: str) -> Path | None:
+        """Where ``ref``'s rules file would be, or ``None`` for a malformed ref."""
+        try:
+            name, version = parse_ref(ref)
+        except RecordsError:
+            return None
+        return self._dir(name, version) / RULES_FILE
 
     def register(
         self,

@@ -11,15 +11,17 @@ akms-records [--version] [--json-errors] <command> ...
 
 - **Output.** Every command prints one JSON object on stdout with a `status`
   field. `export` without `--output` prints the JSONL on stdout and its
-  summary on stderr.
+  summary on stderr. `recall --format text` and `wake --format markdown`
+  print rendered text instead.
 - **Exit status.** `0` on success; `1` when `status` is `error` or `drift`
   (for example `doctor` found a problem, or `import` met a conflict); `2`
   when the command failed. A failure prints `error[<code>]: <message>` on stderr,
   or `{"status": "error", "error": {"code": ..., "message": ...}}` on stdout
   with `--json-errors`.
-- **Scope.** Every command except `schema templates` takes
+- **Scope.** Every command except `schema templates` and `wake` takes
   `--scope project:<id>|agent:<id>|shared:<id>`, plus `--repo PATH` for
-  project scope (default: the current directory).
+  project scope (default: the current directory). `wake` takes `--agent` and
+  any number of `--scope` options.
 - **Actor.** `--actor NAME` records who acted. The default is
   `$AKMS_RECORDS_ACTOR`, then the operating-system user name.
 - **Idempotency.** Write commands take `--event-id ID`. Running the same
@@ -67,7 +69,17 @@ cannot be `established`.
 | `retract RECORD --expect-revision N --reason TEXT` | Mark a record retracted. |
 | `show RECORD` | The current state: `record` (envelope and payload) and `state` (update time, head digest, successor, reason). |
 | `history RECORD` | Every event, oldest first. |
-| `list` | The scope's records, by reading the files (no index yet), plus any that fail to replay. |
+| `list` | The scope's records, by reading the files (not the index), plus any that fail to replay. |
+
+## Recall and wake
+
+| Command | Purpose |
+|---|---|
+| `recall [--query WORDS] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--agent ID] [--limit N] [--full] [--format json\|text]` | Search the scope through the index; ranked by BM25, then newest first. |
+| `wake --agent ID --task TEXT --budget-tokens N [--scope S]... [--include-sensitive] [--review-state MIN] [--format json\|markdown] [--generated-at]` | Prioritised, deduplicated records for an agent within a hard token budget, with a truncation report. |
+
+Both are described in [recall and wake](recall-and-wake.md), including the
+visibility rules and the output shapes.
 
 `add` and `amend` also take `--summary`, `--tag TAG` (repeatable),
 `--sensitivity public|internal|sensitive`,
@@ -95,11 +107,16 @@ can be amended, superseded or retracted.
 | `doctor [--fix [--force-tmp]]` | Check the store root; with `--fix`, also repair what is safe. |
 | `export [--output FILE] [--include-sensitive] [--skip-broken]` | Write the scope as JSONL. |
 | `import FILE` | Replay an export into the scope. |
+| `index rebuild` | Rebuild the store root's [search index](search-index.md) from the files. |
+| `index check` | Compare the index with the files; `status: drift` (exit 1) lists `missing`, `extra` and `stale` records. Changes nothing. |
+| `index reconcile` | Replay every record and fix what differs. |
 
 **`erase`** writes `{record_id, scope, at, actor, reason}` to
-`_erasures.jsonl` and then deletes the record directory. Never put protected
-content in the reason. The result lists what erasure cannot reach (see
-[limits](limits.md)). `--force` erases a record that does not replay and
+`_erasures.jsonl`, deletes the record directory, and removes the record from
+this worktree's index without leaving its bytes in the database files (the
+result's `index` field; see [search index](search-index.md#erasure)). Never put
+protected content in the reason. The result lists what erasure cannot reach
+(see [limits](limits.md)). `--force` erases a record that does not replay and
 whose scope cannot be read; a record that names another scope is never erased.
 
 **`doctor`** covers every scope in the store root. Without options it only
@@ -111,8 +128,9 @@ The result follows `failure-memory doctor`: a `status` of `ok` or `error`
 (exit code 0 or 1), and a `checks` list. Each check has `check`, `status`
 (`ok`, `warning` or `error`), `severity`, `repairable` (whether `--fix`
 handles it) and the `items` it found. `repairs` lists what `--fix` changed
-(`tmp_removed`, `empty_dirs_removed`, `erasures_reapplied`), `mode` is
-`report` or `fix`, and `records_checked` counts the records replayed.
+(`tmp_removed`, `empty_dirs_removed`, `erasures_reapplied`,
+`index_reconciled`), `mode` is `report` or `fix`, and `records_checked`
+counts the records replayed.
 
 | Check | Severity | Repaired by `--fix` |
 |---|---|---|
@@ -127,6 +145,8 @@ handles it) and the `items` it found. `repairs` lists what `--fix` changed
 | `erasure_log`: unreadable erasure-log lines | error | no |
 | `tmp_in_progress`, `recent_empty_dirs`: a writer may still be working | warning | no |
 | `stray_files`, `noncanonical`: unexpected files, event files that are not byte-canonical | warning | no |
+| `index_drift`: index rows that are `missing`, `extra` or `stale` against the files, or an index in another `format` | error | yes (reconciled) |
+| `index_unavailable`: the index exists but cannot be opened (for example no FTS5) | warning | no |
 
 **`export`** writes a header, every registered schema with its digest, the
 scope's erasure lines, every event, and a footer with counts and a digest of
@@ -168,4 +188,8 @@ equal `--scope`.
 | `invalid_policy`, `confirmation_required`, `not_confirmed` | Promotion-policy errors |
 | `export_corrupt`, `digest_mismatch` | An export failed its integrity checks |
 | `link_unsupported` | The filesystem has no hard links |
+| `invalid_query` | A recall query has no searchable words, or cannot be run |
+| `budget_too_small` | The wake budget cannot hold the header and truncation report (`details.minimum_tokens`) |
+| `fts5_unavailable` | Python's `sqlite3` has no FTS5; recall, wake and index commands need it |
+| `index_unavailable`, `index_format` | The index file cannot be opened, or has another format (rebuild it) |
 | `internal_error` | An unexpected failure |

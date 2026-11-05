@@ -26,8 +26,9 @@
 ```
 
 A store root holds one directory per record and one immutable file per
-revision. The month directory comes from the record ID's date. `.index/` is
-reserved for a derived index that is never committed.
+revision. The month directory comes from the record ID's date. `.index/`
+holds the derived [search index](search-index.md) (`records.sqlite` and its
+`-wal` and `-shm` files, and `pending/` markers), which is never committed.
 
 ## Record IDs
 

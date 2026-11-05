@@ -37,8 +37,30 @@ development is intentionally not replayed.
   (`doctor` alone only reports), and
   exports and imports a scope as digest-checked JSONL. Eight built-in
   templates ship as plain schema files. It does not depend on `akms`; the
-  `[akms]` extra is reserved for a later promotion bridge. Search, recall and
+  `[akms]` extra is reserved for a later promotion bridge. Consolidation and
   promotion are not part of this release. See `docs/reference/records/`.
+- `akms-records` recall and wake, over a derived SQLite FTS5 index at
+  `<store root>/.index/records.sqlite` (never committed, always rebuildable).
+  `recall` filters one scope by schema, tags (all must match), a time range
+  on the schema's time field or `recorded_at`, a minimum review state, and
+  plain-word queries (quoted for FTS5, so no input can break a query); it
+  ranks by BM25 with deterministic tie-breaks and returns summaries,
+  provenance and snippets, with `--full` for whole records. `wake --agent
+  --task --budget-tokens` returns the agent's own records plus the project
+  and shared scopes it names, never another agent's, prioritised by review
+  state, task match and recency, deduplicated across supersession chains and
+  identical summaries, within a hard budget counted with the AKMS loadout
+  estimator, and with a truncation report of what was omitted or excluded and
+  why. Sensitive records need `--include-sensitive`; rejected records are
+  never shown. Text and Markdown output put record text in fences it cannot
+  close, under a fixed layout and a notice that records are data, not
+  instructions. Output is byte-identical for the same store and inputs. Every
+  write through the API updates the index (only to a higher revision); a cheap
+  check before each read catches git checkouts, merges, crashed writers and
+  rules changes, and `index rebuild|check|reconcile` and `doctor [--fix]`
+  cover the rest. Erasure removes a record from the index with SQLite secure
+  delete, FTS5 `secure-delete` and a WAL checkpoint, leaving none of its
+  bytes in the database files.
 - `repo-wiki` answers code-intelligence questions from its symbol graph, with
   no server and no model: `repo-wiki context SYMBOL` shows a symbol's
   definition, callers, callees and module imports; `repo-wiki impact SYMBOL`

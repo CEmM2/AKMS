@@ -34,11 +34,15 @@ them into AKMS knowledge nodes.
   exclusively, so two writers can never both win the same revision, and a
   crashed writer leaves only a temp file that `doctor --fix` removes.
 - **Portable.** `export` and `import` move a scope as JSONL with digest checks.
+- **Fast recall and wake.** A derived SQLite index (FTS5) answers scoped
+  `recall` queries and a token-budgeted `wake` for an agent starting a task,
+  with provenance on every result and record text rendered as fenced data.
+  It is never committed, catches up with git checkouts and merges on its own,
+  and can always be rebuilt. See [recall and wake](recall-and-wake.md) and the
+  [search index](search-index.md).
 
 ## What it does not do (yet)
 
-- No search index, `recall` or token-budgeted `wake`: `list` and `show` read
-  the files directly.
 - No summaries or consolidation.
 - No promotion into AKMS nodes. Per-schema promotion *policies* can already be
   stored, but nothing reads them yet.
@@ -97,6 +101,9 @@ akms-records amend rec-20261103-k3f9m2xa --scope project:example \
   --expect-revision 1 --review-state user_confirmed
 akms-records show rec-20261103-k3f9m2xa --scope project:example
 akms-records history rec-20261103-k3f9m2xa --scope project:example
+akms-records recall --scope project:example --query surrogate
+akms-records wake --agent scout --task "review the surrogate model" \
+  --budget-tokens 1200 --scope project:example --format markdown
 akms-records doctor --scope project:example   # reports; --fix repairs
 ```
 
@@ -119,11 +126,14 @@ created = store.create(
 record = store.get(created.record_id)
 store.amend(created.record_id, {"tags": ["model"]},
             expected_revision=record.revision, actor="me")
+hits = store.recall("keep", tags=["model"]).hits
 ```
 
 ## Pages
 
 - [CLI reference](cli-reference.md)
+- [Recall and wake](recall-and-wake.md)
+- [Search index](search-index.md)
 - [Storage format](storage-format.md)
 - [Schemas and templates](schemas-and-templates.md)
 - [Limits](limits.md)

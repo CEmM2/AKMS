@@ -1,10 +1,12 @@
 """The ``akms-records`` command-line interface (experimental).
 
-Every command prints one JSON object on stdout. Exit status: 0 on success,
-1 when the result's ``status`` is ``error`` or ``drift`` (for example
-``doctor`` found a problem, or ``import`` met a conflict), and 2 when the
-command failed; the error goes to stderr as ``error[<code>]: <message>``, or
-to stdout as JSON with ``--json-errors``.
+Every command prints one JSON object on stdout, except ``recall --format
+text`` and ``wake --format markdown``, which print the rendered text. Exit
+status: 0 on success, 1 when the result's ``status`` is ``error`` or
+``drift`` (for example ``doctor`` or ``index check`` found a problem, or
+``import`` met a conflict), and 2 when the command failed; the error goes to
+stderr as ``error[<code>]: <message>``, or to stdout as JSON with
+``--json-errors``.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from akms_records.canonical import loads_strict
 from akms_records.envelope import ORIGIN_KINDS, REVIEW_STATES, SENSITIVITY_LEVELS
 from akms_records.errors import RecordsError
 from akms_records.policy import POLICY_SOURCES, POLICY_STATUSES
+from akms_records.query import MIN_REVIEW_STATES
 from akms_records.schemas import (
     RULE_KEYS,
     RegisteredSchema,
@@ -283,13 +286,130 @@ def _parser() -> argparse.ArgumentParser:
     imported = sub.add_parser("import", help="replay a JSONL export into the scope")
     _store_options(imported)
     imported.add_argument("path", type=Path)
+
+    recall = sub.add_parser("recall", help="search the scope's records (index)")
+    _store_options(recall)
+    recall.add_argument(
+        "--agent", help="the reading agent; refuses another agent's scope"
+    )
+    recall.add_argument("--query", help="words that must all occur (plain text)")
+    recall.add_argument("--schema", help="<name> or <name>/v<N>")
+    recall.add_argument(
+        "--tag",
+        action="append",
+        dest="tags",
+        default=[],
+        metavar="TAG",
+        help="a tag the record must carry (repeatable; all must match)",
+    )
+    recall.add_argument(
+        "--since", help="time field (or recorded_at) at or after this ISO time"
+    )
+    recall.add_argument("--until", help="time field (or recorded_at) before this")
+    recall.add_argument(
+        "--review-state",
+        choices=MIN_REVIEW_STATES,
+        default="unreviewed",
+        help="minimum review state (rejected records are never shown)",
+    )
+    recall.add_argument("--include-retracted", action="store_true")
+    recall.add_argument(
+        "--include-superseded",
+        action="store_true",
+        help="also superseded records (default: chain heads only)",
+    )
+    recall.add_argument("--include-sensitive", action="store_true")
+    recall.add_argument("--limit", type=int, default=20)
+    recall.add_argument("--full", action="store_true", help="add each full record")
+    recall.add_argument("--format", choices=("json", "text"), default="json")
+
+    wake = sub.add_parser(
+        "wake", help="records for an agent starting a task, within a token budget"
+    )
+    wake.add_argument("--agent", required=True, help="the agent's ID")
+    wake.add_argument("--task", required=True, help="what the agent is about to do")
+    wake.add_argument("--budget-tokens", type=int, required=True)
+    wake.add_argument(
+        "--scope",
+        action="append",
+        dest="scopes",
+        default=[],
+        help="a project:<id> or shared:<id> scope to include (repeatable); "
+        "agent:<agent> is always included",
+    )
+    wake.add_argument(
+        "--repo",
+        type=Path,
+        default=None,
+        help="repository root for project scope (default: the current directory)",
+    )
+    wake.add_argument("--include-sensitive", action="store_true")
+    wake.add_argument(
+        "--review-state",
+        choices=MIN_REVIEW_STATES,
+        default="unreviewed",
+        help="minimum review state (rejected records are never included)",
+    )
+    wake.add_argument("--format", choices=("json", "markdown"), default="json")
+    wake.add_argument(
+        "--generated-at",
+        action="store_true",
+        help="add a generated_at time to the JSON (makes output time-dependent)",
+    )
+
+    index = sub.add_parser("index", help="the derived search index of a store root")
+    index_sub = index.add_subparsers(dest="index_command", required=True)
+    for name, text in (
+        ("rebuild", "rebuild the index from the event files"),
+        ("check", "compare the index with the files; changes nothing"),
+        ("reconcile", "replay every record and fix what differs"),
+    ):
+        command = index_sub.add_parser(name, help=text)
+        _store_options(command)
     return parser
+
+
+_OPENED: list[RecordStore] = []
 
 
 def _open(args: argparse.Namespace) -> RecordStore:
     scope = Scope.parse(args.scope)
     repo = args.repo if args.repo is not None else Path.cwd()
-    return RecordStore.open(scope, repo=repo if scope.kind == "project" else None)
+    store = RecordStore.open(scope, repo=repo if scope.kind == "project" else None)
+    _OPENED.append(store)
+    return store
+
+
+def _wake(args: argparse.Namespace) -> dict[str, Any]:
+    from akms_records.canonical import utc_now
+    from akms_records.query import wake
+
+    repo = args.repo if args.repo is not None else Path.cwd()
+    result = wake(
+        agent=args.agent,
+        task=args.task,
+        budget_tokens=args.budget_tokens,
+        scopes=args.scopes,
+        repo=repo,
+        include_sensitive=args.include_sensitive,
+        review_state=args.review_state,
+    )
+    if args.format == "markdown":
+        return {"status": "ok", "_text": result.render_markdown()}
+    return result.to_json(generated_at=utc_now() if args.generated_at else None)
+
+
+def _index_command(args: argparse.Namespace) -> dict[str, Any]:
+    store = _open(args)
+    if not store.root.is_dir():
+        raise RecordsError(f"no store at {store.root}", code="not_found")
+    index = store.open_index()
+    if args.index_command == "rebuild":
+        return {"status": "ok", "rebuilt": index.rebuild()}
+    if args.index_command == "check":
+        return index.compare()
+    changes = index.reconcile()
+    return {"status": "ok", **changes}
 
 
 def _actor(args: argparse.Namespace) -> str:
@@ -442,7 +562,29 @@ def _schema_command(args: argparse.Namespace) -> dict[str, Any]:
 def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "schema":
         return _schema_command(args)
+    if args.command == "wake":
+        return _wake(args)
+    if args.command == "index":
+        return _index_command(args)
     store = _open(args)
+    if args.command == "recall":
+        result = store.recall(
+            args.query,
+            schema=args.schema,
+            tags=args.tags,
+            since=args.since,
+            until=args.until,
+            review_state=args.review_state,
+            include_retracted=args.include_retracted,
+            include_superseded=args.include_superseded,
+            include_sensitive=args.include_sensitive,
+            agent=args.agent,
+            limit=args.limit,
+            full=args.full,
+        )
+        if args.format == "text":
+            return {"status": "ok", "_text": result.render_text()}
+        return result.to_json()
     actor = _actor(args)
     if args.command == "add":
         if not args.file:
@@ -583,7 +725,13 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001 - the CLI reports every failure the same way
         _print_error(RecordsError(str(exc), code="internal_error"), args.json_errors)
         return 2
-    if not result.pop("_quiet", False):
+    finally:
+        while _OPENED:
+            _OPENED.pop().close()
+    text = result.pop("_text", None)
+    if text is not None:
+        sys.stdout.write(text)
+    elif not result.pop("_quiet", False):
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0 if result.get("status") not in {"error", "drift"} else 1
 
