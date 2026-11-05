@@ -357,6 +357,9 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `repo-wiki build` no longer stops at the index stage on a repository with a
+  path containing a character such as `\x85`: the configuration and frontmatter
+  reader now ends a line only at a newline, not at every Unicode line break.
 - `repo-wiki`: a `scanner.exclude` list in `.repo_wiki/config.yaml` no longer
   replaces the built-in exclude patterns. It replaced the whole list, so
   adding one pattern silently dropped the secret and credential patterns
