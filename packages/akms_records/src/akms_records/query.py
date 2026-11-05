@@ -17,6 +17,15 @@ security boundary.
 **Rendering.** Text output follows :mod:`akms_records.render`: record text is
 fenced data in a fixed layout, under a fixed notice that it is stored
 records, not instructions.
+
+**What wake leaves to others.** Wake opens only record stores, under its hard
+budget. It never reads a failure-memory registry or an AKMS node. A promoted
+record is left out (``promoted``) because the loadout serves its node, and an
+imported failure lesson (``imported``) because failure-memory routes it by
+path; ``include_promoted`` and ``include_imported`` take them back deliberately.
+``exclude_nodes`` names the nodes of a resolution manifest: a promoted record
+whose node is among them is always left out (``in_loadout``). Recall reaches
+all of them.
 """
 
 from __future__ import annotations
@@ -29,7 +38,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from akms_records.citations import is_consolidation
+from akms_records.canonical import loads_strict
+from akms_records.citations import is_consolidation, is_failure_lesson
+from akms_records.envelope import PROMOTED_KIND, promotion_link
 from akms_records.errors import RecordsError, ScopeViolation
 from akms_records.index import REVIEW_RANK, normalize_time
 from akms_records.render import (
@@ -62,7 +73,13 @@ EXCLUSION_KINDS = (
     "duplicate",
     "stale",
     "covered",
+    "promoted",
+    "imported",
+    "in_loadout",
 )
+# Left to the loadout or to failure-memory, so a summary of such records is too.
+HELD_KINDS = ("promoted", "in_loadout", "imported")
+RESOLUTION_MANIFEST_VERSION = "v1"
 _WORD = re.compile(r"[^\W_]+")
 
 
@@ -145,6 +162,43 @@ def check_visibility(scope: Scope, agent: str | None) -> None:
 def _json_list(text: str) -> list[Any]:
     value = json.loads(text)
     return value if isinstance(value, list) else []
+
+
+def manifest_nodes(path: str | Path) -> frozenset[str]:
+    """The node IDs a resolution manifest selected (``akms resolve-task`` writes it).
+
+    Read as plain JSON, so this needs no ``akms``. A missing file is
+    ``manifest_missing``; anything but a v1 manifest is ``manifest_invalid``.
+    """
+    try:
+        raw = Path(path).read_bytes()
+    except FileNotFoundError:
+        raise _usage(f"no resolution manifest at {path}", "manifest_missing") from None
+    except OSError as exc:
+        raise _usage(
+            f"cannot read the manifest {path}: {exc.strerror}", "manifest_invalid"
+        ) from None
+    try:
+        data = loads_strict(raw)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise _usage(f"{path} is not valid JSON: {exc}", "manifest_invalid") from None
+    selected = data.get("selected_nodes") if isinstance(data, dict) else None
+    if (
+        not isinstance(data, dict)
+        or data.get("schema_version") != RESOLUTION_MANIFEST_VERSION
+        or not isinstance(selected, list)
+    ):
+        raise _usage(
+            f"{path} is not a {RESOLUTION_MANIFEST_VERSION} resolution manifest",
+            "manifest_invalid",
+        )
+    nodes: set[str] = set()
+    for item in selected:
+        node_id = item.get("node_id") if isinstance(item, dict) else None
+        if not isinstance(node_id, str) or not node_id:
+            raise _usage(f"{path} has a malformed selected node", "manifest_invalid")
+        nodes.add(node_id)
+    return frozenset(nodes)
 
 
 # ------------------------------------------------------------------ recall
@@ -649,12 +703,21 @@ def _summary_key(summary: str) -> str:
     return " ".join(summary.split()).casefold()
 
 
+def _held_reason(sources: Iterable[str], held: dict[str, str]) -> str | None:
+    """The first held reason among ``sources``, when every one of them is held."""
+    reasons = [held.get(source) for source in sources]
+    if not reasons or None in reasons:
+        return None
+    return next(kind for kind in HELD_KINDS if kind in reasons)
+
+
 def _summary_candidates(
     pending: list[tuple[Path, _Candidate]],
     eligible: dict[str, _Candidate],
     excluded: dict[str, list[str]],
     *,
     min_rank: int,
+    held: dict[str, str],
 ) -> list[_Candidate]:
     """The summaries a wake may show: valid, and eligible for this agent.
 
@@ -662,6 +725,14 @@ def _summary_candidates(
     takes the lowest review rank among them. Provider: the summary itself
     must be reviewed (``agent_reviewed`` or better), since a paraphrase can
     add claims.
+
+    A summary inherits why its sources are held back (``held``). One whose
+    sources are all held is left out for that reason, whatever its method: its
+    text is what the loadout or failure-memory already serves. An extractive
+    summary with some held sources is left out too, for the same reason when
+    those are all it lacks, and its eligible sources stand on their own. A
+    reviewed provider summary with some eligible sources stays: it may say
+    more than the held ones.
     """
     from akms_records.consolidate import consolidation_status
     from akms_records.store import RecordStore
@@ -682,13 +753,19 @@ def _summary_candidates(
         cites = tuple(sorted({ref["record_id"] for ref in status["sources"]}))
         payload = record.payload
         rank = candidate.review_rank
+        all_held = _held_reason(cites, held)
+        if all_held is not None:
+            excluded[all_held].append(candidate.record_id)
+            continue
         if payload["method"] == "provider":
             if rank < max(REVIEW_RANK["agent_reviewed"], min_rank):
                 excluded["review_state"].append(candidate.record_id)
                 continue
         else:
-            if any(source not in eligible for source in cites):
-                excluded["review_state"].append(candidate.record_id)
+            missing = [source for source in cites if source not in eligible]
+            if missing:
+                reason = _held_reason(missing, held) or "review_state"
+                excluded[reason].append(candidate.record_id)
                 continue
             rank = min(eligible[source].review_rank for source in cites)
         out.append(
@@ -709,6 +786,30 @@ def _summary_candidates(
     return out
 
 
+def _hold_reason(
+    schema_ref: str,
+    source_refs: str,
+    *,
+    include_promoted: bool,
+    include_imported: bool,
+    loadout: frozenset[str],
+) -> str | None:
+    """Why wake leaves a record to the loadout or to failure-memory, if it does."""
+    link = (
+        promotion_link(_json_list(source_refs))
+        if PROMOTED_KIND in source_refs
+        else None
+    )
+    if link is not None:
+        if link["node_id"] in loadout:
+            return "in_loadout"
+        if not include_promoted:
+            return "promoted"
+    if is_failure_lesson(schema_ref) and not include_imported:
+        return "imported"
+    return None
+
+
 def wake(
     *,
     agent: str,
@@ -720,6 +821,9 @@ def wake(
     include_sensitive: bool = False,
     review_state: str = "unreviewed",
     include_unreviewed: bool = False,
+    include_promoted: bool = False,
+    include_imported: bool = False,
+    exclude_nodes: Iterable[str] = (),
 ) -> WakeResult:
     """Select records for an agent starting a task, within a token budget.
 
@@ -732,9 +836,16 @@ def wake(
     (``review_state``); ``include_unreviewed`` admits them. ``review_state``
     is a minimum that applies on top. Rejected records are never eligible.
 
+    Left to the loadout or to failure-memory: a record promoted into a node
+    (``promoted``), unless ``include_promoted``; a record of a promoted node in
+    ``exclude_nodes`` (``in_loadout``), always; an imported failure lesson
+    (``imported``), unless ``include_imported``, which also admits it while
+    unreviewed, as nobody reviewed it to import it.
+
     Summaries: a stale or invalid one is excluded (``stale``). An extractive
     summary is eligible only when every source it cites is; a provider
-    summary only once it is itself reviewed. When an eligible summary costs
+    summary only once it is itself reviewed; neither when all its sources are
+    held back as above (it then takes their reason). When an eligible summary costs
     fewer tokens than the eligible sources it cites, it is shown at its own
     priority (its effective review rank, then match, then recency) and those
     sources are excluded as ``covered``; otherwise the summary is excluded as
@@ -755,6 +866,7 @@ def wake(
     if type(budget_tokens) is not int or budget_tokens < 1:
         raise _usage("budget_tokens must be a positive integer")
     min_rank = _min_rank(review_state)
+    loadout = frozenset(exclude_nodes)
     visible = {own}
     for item in scopes:
         scope = Scope.parse(item) if isinstance(item, str) else item
@@ -767,6 +879,7 @@ def wake(
         root = store_root(scope, repo=repo, home=home)
         roots.setdefault(str(root.absolute()), (root, scope))
     excluded: dict[str, list[str]] = {kind: [] for kind in EXCLUSION_KINDS}
+    held: dict[str, str] = {}
     candidates: list[_Candidate] = []
     pending: list[tuple[Path, _Candidate]] = []
     seen_ids: set[str] = set()
@@ -785,7 +898,7 @@ def wake(
             rows = index.db.execute(
                 "SELECT record_id, revision, scope, schema_ref, origin_kind, "
                 "origin_actor, review_state, review_rank, lifecycle, sensitivity, "
-                "recorded_at, tags, summary, supersedes FROM records "
+                "recorded_at, tags, summary, supersedes, source_refs FROM records "
                 "ORDER BY record_id"
             ).fetchall()
             scores: dict[str, float] = {}
@@ -802,20 +915,29 @@ def wake(
             considered += 1
             record_id = row[0]
             summary_row = is_consolidation(row[3])
+            imported = is_failure_lesson(row[3])
             mine = row[2] == str(own) or row[5] == agent
+            admitted = mine or include_unreviewed or (imported and include_imported)
             rank = row[7]
+            hold = _hold_reason(
+                row[3],
+                row[14],
+                include_promoted=include_promoted,
+                include_imported=include_imported,
+                loadout=loadout,
+            )
             if row[2] not in visible_names:
                 excluded["visibility"].append(record_id)
             elif record_id in seen_ids:
                 excluded["duplicate"].append(record_id)
             elif row[8] != "active":
                 excluded["lifecycle"].append(record_id)
+            elif rank != 0 and hold is not None:
+                excluded[hold].append(record_id)
+                held[record_id] = hold
             elif rank == 0 or (
                 not summary_row
-                and (
-                    rank < min_rank
-                    or (rank < reviewed_rank and not (mine or include_unreviewed))
-                )
+                and (rank < min_rank or (rank < reviewed_rank and not admitted))
             ):
                 excluded["review_state"].append(record_id)
             elif row[9] == "sensitive" and not include_sensitive:
@@ -844,7 +966,7 @@ def wake(
             seen_ids.add(record_id)
     eligible = {c.record_id: c for c in candidates}
     candidates.extend(
-        _summary_candidates(pending, eligible, excluded, min_rank=min_rank)
+        _summary_candidates(pending, eligible, excluded, min_rank=min_rank, held=held)
     )
     # Priority order, built from the last key to the first (sorts are stable).
     candidates.sort(key=lambda c: c.record_id)
@@ -997,6 +1119,7 @@ __all__ = [
     "WakeEntry",
     "WakeResult",
     "check_visibility",
+    "manifest_nodes",
     "match_all",
     "match_any",
     "recall",

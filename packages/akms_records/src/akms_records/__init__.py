@@ -36,6 +36,7 @@ from akms_records.query import (
     RecallResult,
     WakeEntry,
     WakeResult,
+    manifest_nodes,
     wake,
 )
 from akms_records.schemas import RegisteredSchema, SchemaRegistry
@@ -68,6 +69,7 @@ __all__ = [
     "consolidation_status",
     "import_failure_memory",
     "list_consolidations",
+    "manifest_nodes",
     "refresh_consolidation",
     "store_root",
     "wake",

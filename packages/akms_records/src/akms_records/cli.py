@@ -383,6 +383,22 @@ def _parser() -> argparse.ArgumentParser:
         default="unreviewed",
         help="minimum review state (rejected records are never included)",
     )
+    wake.add_argument(
+        "--include-promoted",
+        action="store_true",
+        help="also records promoted into AKMS nodes (default: the loadout serves them)",
+    )
+    wake.add_argument(
+        "--include-imported",
+        action="store_true",
+        help="also imported failure lessons (default: failure-memory routes them)",
+    )
+    wake.add_argument(
+        "--exclude-nodes",
+        type=Path,
+        metavar="MANIFEST",
+        help="an AKMS resolution manifest: drop records whose promoted node it selected",
+    )
     wake.add_argument("--format", choices=("json", "markdown"), default="json")
     wake.add_argument(
         "--generated-at",
@@ -527,7 +543,7 @@ def _open(args: argparse.Namespace) -> RecordStore:
 
 def _wake(args: argparse.Namespace) -> dict[str, Any]:
     from akms_records.canonical import utc_now
-    from akms_records.query import wake
+    from akms_records.query import manifest_nodes, wake
 
     repo = args.repo if args.repo is not None else Path.cwd()
     result = wake(
@@ -539,6 +555,11 @@ def _wake(args: argparse.Namespace) -> dict[str, Any]:
         include_sensitive=args.include_sensitive,
         review_state=args.review_state,
         include_unreviewed=args.include_unreviewed,
+        include_promoted=args.include_promoted,
+        include_imported=args.include_imported,
+        exclude_nodes=(
+            manifest_nodes(args.exclude_nodes) if args.exclude_nodes else frozenset()
+        ),
     )
     if args.format == "markdown":
         return {"status": "ok", "_text": result.render_markdown()}
