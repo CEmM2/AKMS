@@ -21,6 +21,13 @@ from pathlib import Path
 from typing import Any
 
 from akms_records import __version__
+from akms_records.bridge import (
+    Confirm,
+    DEFAULT_MIN_REVIEW,
+    MIN_REVIEW_CHOICES,
+    REVIEW_CHOICES,
+    confirm_yes,
+)
 from akms_records.canonical import loads_strict
 from akms_records.consolidate import (
     DEFAULT_TIMEOUT,
@@ -295,9 +302,69 @@ def _parser() -> argparse.ArgumentParser:
     export.add_argument("--include-sensitive", action="store_true")
     export.add_argument("--skip-broken", action="store_true")
 
-    imported = sub.add_parser("import", help="replay a JSONL export into the scope")
+    imported = sub.add_parser(
+        "import",
+        help="replay a JSONL export into the scope, or read failure-memory lessons",
+    )
     _store_options(imported)
-    imported.add_argument("path", type=Path)
+    imported.add_argument("path", type=Path, nargs="?", help="a JSONL export")
+    imported.add_argument(
+        "--from-failure-memory",
+        type=Path,
+        metavar="CONFIG",
+        help="read the lessons of this failure-memory project config (read-only)",
+    )
+    imported.add_argument(
+        "--failure-memory-repo",
+        type=Path,
+        metavar="PATH",
+        help="the root CONFIG's paths are relative to (default: --repo)",
+    )
+
+    promote = sub.add_parser(
+        "promote",
+        help="write a reviewed record as an AKMS project-local node (needs [akms])",
+    )
+    _store_options(promote)
+    promote.add_argument("record_id")
+    promote.add_argument(
+        "--review",
+        choices=REVIEW_CHOICES,
+        help="explicit approval; promotion is refused without it",
+    )
+    promote.add_argument(
+        "--min-review-state",
+        choices=MIN_REVIEW_CHOICES,
+        default=DEFAULT_MIN_REVIEW,
+        help=f"the review state a record needs (default: {DEFAULT_MIN_REVIEW})",
+    )
+    promote.add_argument(
+        "--scope-ok",
+        action="store_true",
+        help="allow a record of an agent or shared scope",
+    )
+    promote.add_argument(
+        "--allow-sensitive", action="store_true", help="allow a sensitive record"
+    )
+    promote.add_argument(
+        "--allow-imported",
+        action="store_true",
+        help="allow an imported failure lesson (failure-memory already routes it)",
+    )
+    promote.add_argument(
+        "--update",
+        action="store_true",
+        help="append a newer revision to the node that holds an older one",
+    )
+    promote.add_argument(
+        "--domain", help="the node's domain (default: the scope's ID, in lower case)"
+    )
+    promote.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm a human-policy write without a prompt; for a person running "
+        "it without a terminal, never for an agent",
+    )
 
     recall = sub.add_parser("recall", help="search the scope's records (index)")
     _store_options(recall)
@@ -367,6 +434,22 @@ def _parser() -> argparse.ArgumentParser:
         choices=MIN_REVIEW_STATES,
         default="unreviewed",
         help="minimum review state (rejected records are never included)",
+    )
+    wake.add_argument(
+        "--include-promoted",
+        action="store_true",
+        help="also records promoted into AKMS nodes (default: the loadout serves them)",
+    )
+    wake.add_argument(
+        "--include-imported",
+        action="store_true",
+        help="also imported failure lessons (default: failure-memory routes them)",
+    )
+    wake.add_argument(
+        "--exclude-nodes",
+        type=Path,
+        metavar="MANIFEST",
+        help="an AKMS resolution manifest: drop records whose promoted node it selected",
     )
     wake.add_argument("--format", choices=("json", "markdown"), default="json")
     wake.add_argument(
@@ -512,7 +595,7 @@ def _open(args: argparse.Namespace) -> RecordStore:
 
 def _wake(args: argparse.Namespace) -> dict[str, Any]:
     from akms_records.canonical import utc_now
-    from akms_records.query import wake
+    from akms_records.query import manifest_nodes, wake
 
     repo = args.repo if args.repo is not None else Path.cwd()
     result = wake(
@@ -524,6 +607,11 @@ def _wake(args: argparse.Namespace) -> dict[str, Any]:
         include_sensitive=args.include_sensitive,
         review_state=args.review_state,
         include_unreviewed=args.include_unreviewed,
+        include_promoted=args.include_promoted,
+        include_imported=args.include_imported,
+        exclude_nodes=(
+            manifest_nodes(args.exclude_nodes) if args.exclude_nodes else frozenset()
+        ),
     )
     if args.format == "markdown":
         return {"status": "ok", "_text": result.render_markdown()}
@@ -584,6 +672,34 @@ def _document(args: argparse.Namespace, *, actor: str) -> dict[str, Any]:
     return document
 
 
+def _ask(prompt: str) -> None:
+    """Ask on the terminal; anything but an explicit yes refuses."""
+    print(prompt, end="", file=sys.stderr, flush=True)
+    answer = sys.stdin.readline().strip().lower()
+    if answer not in ("y", "yes"):
+        raise RecordsError("not confirmed; nothing changed", code="not_confirmed")
+
+
+def _ask_for_promotion(write: dict[str, Any]) -> str:
+    labels = (
+        f"source={write['source']}, status={write['status']}, "
+        f"confidence={write['confidence']}"
+    )
+    what = f"{write['record_id']}@{write['revision']}"
+    if write["action"] == "append":
+        _ask(f"Append {what} to node {write['node_id']}, which keeps {labels}? [y/N] ")
+    else:
+        _ask(f"Write node {write['node_id']} from {what} with {labels}? [y/N] ")
+    return "tty"
+
+
+def _promotion_confirm(args: argparse.Namespace) -> Confirm | None:
+    """How this run can confirm a human-path write; ``None`` when it cannot."""
+    if args.yes:
+        return confirm_yes
+    return _ask_for_promotion if sys.stdin.isatty() else None
+
+
 def _confirm_policy(args: argparse.Namespace) -> None:
     if args.yes:
         return
@@ -593,14 +709,10 @@ def _confirm_policy(args: argparse.Namespace) -> None:
             "terminal to confirm; a person may pass --yes instead",
             code="confirmation_required",
         )
-    prompt = (
+    _ask(
         f"Set the promotion policy of {args.name} to source={args.source}, "
         f"status={args.status}, confidence={args.confidence}? [y/N] "
     )
-    print(prompt, end="", file=sys.stderr, flush=True)
-    answer = sys.stdin.readline().strip().lower()
-    if answer not in ("y", "yes"):
-        raise RecordsError("not confirmed; nothing changed", code="not_confirmed")
 
 
 def _describe(
@@ -835,10 +947,49 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         print(json.dumps(summary, ensure_ascii=False, sort_keys=True), file=sys.stderr)
         return {"status": summary["status"], "_quiet": True}
     if args.command == "import":
+        return _import_command(args, store, actor=actor)
+    if args.command == "promote":
+        from akms_records.bridge import promote
+
+        return promote(
+            store,
+            args.record_id,
+            review=args.review,
+            repo=args.repo if args.repo is not None else Path.cwd(),
+            actor=actor,
+            min_review_state=args.min_review_state,
+            scope_ok=args.scope_ok,
+            allow_sensitive=args.allow_sensitive,
+            allow_imported=args.allow_imported,
+            update=args.update,
+            domain=args.domain,
+            confirm=_promotion_confirm(args),
+        )
+    raise RecordsError(f"unknown command {args.command!r}", code="usage")
+
+
+def _import_command(
+    args: argparse.Namespace, store: RecordStore, *, actor: str
+) -> dict[str, Any]:
+    if (args.path is None) == (args.from_failure_memory is None):
+        raise RecordsError(
+            "give exactly one of an export file or --from-failure-memory",
+            code="usage",
+        )
+    if args.path is not None:
+        if args.failure_memory_repo is not None:
+            raise RecordsError(
+                "--failure-memory-repo needs --from-failure-memory", code="usage"
+            )
         from akms_records.portable import import_records
 
         return import_records(store, args.path, actor=actor)
-    raise RecordsError(f"unknown command {args.command!r}", code="usage")
+    from akms_records.failure_memory import import_failure_memory
+
+    root = args.failure_memory_repo or args.repo or Path.cwd()
+    return import_failure_memory(
+        store, args.from_failure_memory, repo=root, actor=actor
+    )
 
 
 def _print_error(error: RecordsError, as_json: bool) -> None:

@@ -16,6 +16,34 @@ development is intentionally not replayed.
   lock-only change; `uv audit` reports no known vulnerabilities.
 
 ### Added
+- `akms-records promote <record> --review approved` writes a reviewed record as an
+  AKMS project-local node, with the `[akms]` extra. By default it goes through
+  `update_graph` as `source: agent`, `status: tentative`, possibly appended by
+  deduplication. Under a schema's stored `source: human` policy, a `user_confirmed`
+  record becomes a validated `LocalNodeFrontmatter` file with the policy's status and
+  confidence, after confirmation on an interactive terminal or with `--yes`; without
+  either it is refused (`confirmation_required`), never sent down the default path.
+  `--yes` makes the step deliberate but does not prove a person took it. Records below
+  `user_confirmed` (`--min-review-state agent_reviewed` is the opt-in), retracted, superseded or erased
+  records, agent or shared scopes, schema mismatches, sensitive records, unreviewed
+  or stale summaries and imported lessons are refused with stable codes, some with an
+  explicit flag to allow them. The node is written first and the link last, so a
+  re-run after a crash completes the link instead of writing a second node.
+  Promoting the same revision twice changes nothing; a newer revision needs
+  `--update`. The link is a reserved `promoted-to` source reference, so the event
+  format, the envelope and existing records are unchanged. A knowledge directory that
+  overlaps the global vault is refused, and the v2 node models are untouched.
+- `akms-records import --from-failure-memory <config>` reads schema 1 and 2
+  failure-memory registries into records of the built-in schema `failure-lesson/v1`,
+  with no write on that side and no dependency on that package. A re-run writes
+  nothing for an unchanged lesson and amends a changed one; a lesson removed upstream
+  is reported, not retracted.
+- `akms-records wake` keeps to its share of the context budget: promoted records and
+  imported failure lessons are left out by default (`promoted`, `imported`), a summary
+  of such records with them, and `--exclude-nodes <resolution-manifest.json>` drops
+  records whose node a loadout already holds (`in_loadout`). `--include-promoted` and
+  `--include-imported` take them back; `recall` reaches all of them. The JSON report
+  and the Markdown footer gain the three new exclusion kinds.
 - New experimental package `akms-records` (console script `akms-records`): a
   schema-driven, provenance-aware record store. Records are a fixed envelope
   (ID, revision, schema ref and digest, scope, time, origin, source refs,

@@ -1,0 +1,42 @@
+{
+  "actor": "tester",
+  "at": "2026-11-03T10:00:00.000002Z",
+  "body": {
+    "envelope": {
+      "origin": {
+        "actor_id": "tester",
+        "kind": "agent"
+      },
+      "review_state": "user_confirmed",
+      "schema_ref": "decision/v1",
+      "schema_sha256": "eb2409dae0375e2b0941541b05c68370fab1df0d0a8b62a37af790adab7c550d",
+      "scope": {
+        "id": "example",
+        "kind": "project"
+      },
+      "sensitivity": "internal",
+      "source_refs": [
+        {
+          "kind": "issue",
+          "ref": "#1"
+        }
+      ],
+      "summary": "Decision: Written before promotion links",
+      "tags": [
+        "pinned",
+        "amended"
+      ]
+    },
+    "payload": {
+      "decision": "Written before promotion links",
+      "rationale": "a pinned store"
+    }
+  },
+  "event_id": "pinned-two",
+  "event_sha256": "ade11280731c93f234445a11f7112144e3e3dfea47446eeefbe58e1fb76f485d",
+  "format": "akms-records-event/v1",
+  "kind": "amend",
+  "prev_sha256": "acb7e81c0faf001873d1437453db47b1c42747af01070a617e55dde26653ef06",
+  "record_id": "rec-20261103-xeek6nzq",
+  "revision": 2
+}

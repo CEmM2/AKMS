@@ -1,0 +1,14 @@
+{
+  "actor": "tester",
+  "at": "2026-11-03T10:00:00.000004Z",
+  "body": {
+    "reason": "pinned"
+  },
+  "event_id": "pinned-four",
+  "event_sha256": "46cd78dd612001634aba48bc121625d16a4323f92e2ff562453a19bedd4a4d97",
+  "format": "akms-records-event/v1",
+  "kind": "retract",
+  "prev_sha256": "9e22110555100442739d7bcd2619cb2c31d91162747d4f7fce856b4694df8def",
+  "record_id": "rec-20261103-wyxx2se2",
+  "revision": 2
+}
