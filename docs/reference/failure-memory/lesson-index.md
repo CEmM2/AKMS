@@ -21,7 +21,7 @@ lesson_index_version = "failure-lesson-index/v1"
 
 - generated node titles come from the record: the first clause of
   `root_cause`, falling back to `symptom` (and then `location.line_hint`),
-  capped at 96 characters, as `"<ID>: <title>"`. Node IDs, tags, edges,
+  capped at 85 characters at a word boundary, as `"<ID>: <title>"`. Node IDs, tags, edges,
   routes and every other front-matter field stay the same; only the
   `title` field and the body heading change;
 - the node body opens with a `## Summary` section (see
@@ -181,6 +181,21 @@ and `sidecar`, which gives the index path and one of these `status` values:
 - `stale`: it differs, and `compile` will rewrite it;
 - `absent`: it has not been written yet;
 - `disabled`: `lesson_index_version` is not set.
+
+## Changing the title cap
+
+The cap is part of the compiler's output, not of the
+`failure-lesson-index/v1` contract: node IDs, tags, routes and the registry
+digest do not depend on it. When it changes, a project already on the contract
+sees the changed titles as drift, once:
+
+- `failure-memory check` exits 1 with status `drift`, listing the node files and
+  both index files whose titles changed;
+- `failure-memory refresh if-stale` recompiles them where `[generated].lessons` is
+  `disposable`, so the hooks repair it without help;
+- where it is `committed`, `refresh if-stale` skips lessons as it always does, so
+  `check` keeps failing until `failure-memory compile` is run and its output
+  committed.
 
 ## Annotations sidecar
 
