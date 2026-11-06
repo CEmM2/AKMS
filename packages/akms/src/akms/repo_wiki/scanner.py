@@ -6,6 +6,7 @@ import fnmatch
 import json
 from collections import Counter
 from collections.abc import Iterator
+from functools import lru_cache
 from pathlib import Path
 
 from akms.repo_wiki.config import PROTECTED_NAME_PATTERNS, effective_excludes
@@ -176,10 +177,30 @@ def matches_any_dir(path: str, patterns: list[str]) -> bool:
     return matches_any(path, patterns) or matches_any(f"{path}/__dir__", patterns)
 
 
+@lru_cache(maxsize=512)
+def _zero_depth_forms(pattern: str) -> tuple[str, ...]:
+    """*pattern* and its forms with a ``**/`` segment matching no directory.
+
+    ``fnmatch`` needs a literal ``/`` for the one in ``**/``, so without these
+    ``**/*.py`` misses ``a.py`` and ``src/**/*.py`` misses ``src/a.py``.
+    """
+    forms = [pattern]
+    for form in forms:
+        start = form.find("**/")
+        while start != -1:
+            if start == 0 or form[start - 1] == "/":
+                shorter = form[:start] + form[start + 3 :]
+                if shorter not in forms:
+                    forms.append(shorter)
+            start = form.find("**/", start + 3)
+    return tuple(forms)
+
+
 def matches_pattern(path: str, pattern: str) -> bool:
     normalized = pattern.rstrip("/")
-    if fnmatch.fnmatch(path, normalized) or fnmatch.fnmatch(path, f"{normalized}/**"):
-        return True
+    for form in _zero_depth_forms(normalized):
+        if fnmatch.fnmatch(path, form) or fnmatch.fnmatch(path, f"{form}/**"):
+            return True
     if "/" not in normalized and any(part == normalized for part in Path(path).parts):
         return True
     if normalized.startswith("*.") and fnmatch.fnmatch(Path(path).name, normalized):

@@ -366,6 +366,34 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `repo-wiki query` context expansion now follows the same call links as `context`
+  and `impact` instead of the bare-name matches stored in `symbol_graph.json`. On
+  this repository the two agreed on the callees of only 59% of symbols: stored
+  edges miss every `self.method()` call and pick the first candidate for a name
+  defined twice. `symbol_graph.json`, `flows.json` and mirrors are unchanged, and a
+  symbol the resolver does not know keeps its stored edges. Confident links are
+  expanded first. It costs about 0.2 seconds per query on a graph of 8,000 symbols.
+- `repo-wiki` scanner patterns treat a `**/` segment as matching no directory too,
+  in one place, so `scan`, `build`, the index, `changes`, the staleness check and
+  `export-akms` agree. The default `**/*.py`-style includes used to miss every file
+  in the repository root, while `export-akms` added root forms of its own, which
+  are now gone. After upgrading, a root `.py` file (and a root file of an enabled
+  language) gets graph nodes and generated pages at the next `build`, and until
+  that build `context` and `impact` report the graph as stale, as for any new
+  source. Root `.md`, `.yaml`, `.yml` and `.toml` files now appear in `scan`, as the
+  same files below the root always did; they get no graph nodes, pages, index
+  entries or mirrors. Mirrors do not change: `export-akms` already covered the root.
+  A custom `scanner.include` still replaces the default and now reaches the root
+  the same way, and an exclude such as `**/name` now also matches at the root.
+  Secret and credential names stay excluded at the root, whatever the includes.
+- `repo-wiki` records `as` import aliases inside a function (`from pkg.cli import
+  main as run_cli`, `import pkg.tools as tools`) and resolves calls through them
+  with function scope: the alias shadows a module-level name of the same spelling,
+  reaches nested functions, and does not leak to sibling functions. `context`,
+  `impact`, `changes` and `flows` gain the links; the wrong by-name guesses for
+  those calls go away. `symbol_graph.json` gains an optional `import_aliases` field
+  on symbol nodes that have one; it stays `symbol_graph v1`. The extraction cache
+  is rebuilt once. Mirror bytes do not change.
 - `repo-wiki`: a `scanner.exclude` list in `.repo_wiki/config.yaml` no longer
   replaces the built-in exclude patterns. It replaced the whole list, so
   adding one pattern silently dropped the secret and credential patterns
