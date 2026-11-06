@@ -49,7 +49,9 @@ symbols or non-documentation paths provide code evidence.
 
 Required and coactivated content is rendered before advisory content and is not
 hidden by the ordinary advisory token cap. Coactivated nodes render as their
-`## Summary` by default (`loadout.coactivated_reading_priority`); see
+`## Summary` by default (`loadout.coactivated_reading_priority`). In full mode,
+`loadout.full_mode_max_tokens` serves code mirrors as summary and path once
+inline content passes it, and the loadout names them; see
 [Generate loadouts](../reference/akms/user-guide/generating-loadouts.md).
 
 ## Manifest boundary

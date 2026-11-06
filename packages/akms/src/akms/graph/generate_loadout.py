@@ -27,6 +27,10 @@ Optional :class:`~akms.task_context.query.TaskKnowledgeQueryResult` and
 :class:`~akms.task_context.manifest.ResolutionManifest` inputs render required
 knowledge first (uncapped), coactivated next, and advisory last under the
 ordinary token budget. Omitting those arguments preserves legacy output.
+
+Code mirrors are whole source files, so a full-mode loadout that inlines them
+is bounded by ``loadout.full_mode_max_tokens``: past it, the remaining mirrors
+are served as summary and path, and the loadout names them.
 """
 
 from __future__ import annotations
@@ -36,7 +40,7 @@ import subprocess
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import frontmatter
 import networkx as nx
@@ -70,6 +74,8 @@ _CLASS_ORDER = {
     _CLASS_COACTIVATED: 1,
     _CLASS_ADVISORY: 2,
 }
+_UNCAPPED_CLASSES = frozenset({_CLASS_REQUIRED, _CLASS_COACTIVATED})
+_ORIGIN_CODE_MIRROR = "code-mirror"
 
 
 def _retrieve_node_content_qmd(
@@ -356,6 +362,96 @@ def _build_reading_order(
     return order
 
 
+def _node_reading_priority(
+    node_data: dict[str, Any],
+    selection_class: str | None,
+    loadout_config: LoadoutConfig,
+) -> str | None:
+    """Return a node's reading priority; coactivated nodes take the loadout's."""
+    reading_priority = node_data.get("reading_priority")
+    if isinstance(reading_priority, ReadingPriority):
+        reading_priority = reading_priority.value
+    coactivated = (
+        selection_class == _CLASS_COACTIVATED
+        if selection_class is not None
+        else bool(node_data.get("_coactivated"))
+    )
+    if coactivated:
+        # Coactivated nodes take the loadout's coactivated priority.
+        reading_priority = loadout_config.coactivated_reading_priority.value
+    return reading_priority
+
+
+def _effective_read_mode(
+    reading_priority: str | None,
+    mode_str: str,
+    content: str,
+) -> str:
+    """Resolve how one node renders; per-node priority wins over the mode (FR-L10c)."""
+    effective_mode = (reading_priority or mode_str) or "routing"
+    # FR-L10c: a summary-priority node without a `## Summary` section
+    # falls back to full; its first lines are not a summary.
+    if reading_priority == "summary" and content and not _has_summary_section(content):
+        effective_mode = "full"
+    return effective_mode
+
+
+def _full_mode_downgrades(
+    ranked_nodes: list[tuple[str, dict[str, Any]]],
+    mode_str: str,
+    loadout_config: LoadoutConfig,
+    body_of: Callable[[Any], str],
+) -> tuple[dict[str, int], int]:
+    """Pick the code mirrors a full-mode loadout serves as summary and path.
+
+    Only required and coactivated content is uncapped, so only it can balloon.
+    Everything except code mirrors is charged first and stays inline: a mirror
+    can be re-read from its path, a required constraint must not be hidden.
+    Mirrors then take what is left in ranked order, class then node id; the
+    first one that does not fit is downgraded and so is every mirror after it.
+
+    Returns ``({node_id: full_tokens}, inline_tokens_without_the_guard)``. The
+    mapping is empty for every loadout within the budget, so those stay
+    byte-identical.
+    """
+    budget = loadout_config.full_mode_max_tokens
+    if budget is None or mode_str != LoadoutMode.FULL.value:
+        return {}, 0
+
+    fixed_tokens = 0
+    mirrors: list[tuple[str, int]] = []
+    for node_id, node_data in ranked_nodes:
+        selection_class = _normalize_selection_class(node_data.get("_selection_class"))
+        if selection_class not in _UNCAPPED_CLASSES:
+            continue
+        content = body_of(node_data.get("content_ref"))
+        reading_priority = _node_reading_priority(
+            node_data, selection_class, loadout_config
+        )
+        if not content or (
+            _effective_read_mode(reading_priority, mode_str, content) != "full"
+        ):
+            continue
+        tokens = _estimate_content_tokens(content)
+        if node_data.get("node_origin") == _ORIGIN_CODE_MIRROR:
+            mirrors.append((node_id, tokens))
+        else:
+            fixed_tokens += tokens
+
+    inline_tokens = fixed_tokens + sum(tokens for _, tokens in mirrors)
+    if inline_tokens <= budget:
+        return {}, inline_tokens
+
+    downgraded: dict[str, int] = {}
+    spent = fixed_tokens
+    for node_id, tokens in mirrors:
+        if not downgraded and spent + tokens <= budget:
+            spent += tokens
+        else:
+            downgraded[node_id] = tokens
+    return downgraded, inline_tokens
+
+
 def _normalize_selection_class(raw: Any) -> str | None:
     """Return a canonical selection-class string, or None when absent."""
     if raw is None:
@@ -436,6 +532,14 @@ def _render_node_detail(entry: dict[str, Any], parts: list[str]) -> None:
 
     if "content_ref" in entry:
         parts.append(f"**Path:** `{entry['content_ref']}`")
+        parts.append("")
+
+    if "full_mode_downgrade_tokens" in entry:
+        parts.append(
+            "**Downgraded:** over `loadout.full_mode_max_tokens`, so this mirror "
+            f"(~{entry['full_mode_downgrade_tokens']} tokens in full) is summary "
+            "and path only. Read the path for its full content."
+        )
         parts.append("")
 
     if "content" in entry:
@@ -520,7 +624,9 @@ def generate_loadout(
         task_knowledge: Optional exact task-knowledge query result. When set,
             required / coactivated / advisory nodes render as distinct sections
             with reasons, and required content is never truncated by the token
-            budget. When omitted, legacy output is preserved.
+            budget. In full mode, ``loadout.full_mode_max_tokens`` bounds inline
+            content by serving code mirrors as summary and path past it. When
+            omitted, legacy output is preserved.
         resolution_manifest: Optional resolution manifest. When set, its
             fingerprint is recorded in the loadout header for audit linkage.
 
@@ -666,6 +772,37 @@ def generate_loadout(
             if path and path not in qmd_content_by_path and item.get("content"):
                 qmd_content_by_path[path] = item["content"]
 
+    node_bodies: dict[str, str] = {}
+
+    def body_of(content_ref: Any) -> str:
+        """Return a node's body, from qmd when it had a hit, else its file."""
+        if not content_ref:
+            return ""
+        ref = str(content_ref)
+        if ref not in node_bodies:
+            node_bodies[ref] = qmd_content_by_path.get(ref, "") or _load_node_content(
+                content_ref, repo_path
+            )
+        return node_bodies[ref]
+
+    downgrades, unguarded_inline_tokens = _full_mode_downgrades(
+        ranked_nodes, mode_str, loadout_config, body_of
+    )
+    if downgrades:
+        header["full_mode_guard"] = {
+            "downgraded_nodes": sorted(downgrades),
+            "max_tokens": loadout_config.full_mode_max_tokens,
+            "unguarded_inline_tokens": unguarded_inline_tokens,
+        }
+        logger.warning(
+            "Loadout %s: code mirrors served as summary and path: %d; inline "
+            "content would be ~%d tokens, over full_mode_max_tokens=%s",
+            task_id,
+            len(downgrades),
+            unguarded_inline_tokens,
+            loadout_config.full_mode_max_tokens,
+        )
+
     node_entries: list[dict[str, Any]] = []
     total_tokens = 0
     max_tokens = loadout_config.max_loadout_tokens
@@ -691,44 +828,28 @@ def generate_loadout(
             entry["reasons"] = tuple(reasons)
 
         content_ref = node_data.get("content_ref")
-        reading_priority = node_data.get("reading_priority")
-
-        # Determine effective read mode for this node
-        if isinstance(reading_priority, ReadingPriority):
-            reading_priority = reading_priority.value
-        coactivated = (
-            selection_class == _CLASS_COACTIVATED
-            if selection_class is not None
-            else bool(node_data.get("_coactivated"))
+        reading_priority = _node_reading_priority(
+            node_data, selection_class, loadout_config
         )
-        if coactivated:
-            # Coactivated nodes take the loadout's coactivated priority.
-            reading_priority = loadout_config.coactivated_reading_priority.value
         if reading_priority:
             entry["reading_priority"] = str(reading_priority)
         else:
             entry["reading_priority"] = mode_str
 
         # Load content based on mode and reading_priority
-        content = ""
         if content_ref:
             entry["content_ref"] = str(content_ref)
-            content = qmd_content_by_path.get(str(content_ref), "")
-            if not content:
-                content = _load_node_content(content_ref, repo_path)
+        content = body_of(content_ref)
 
         # Resolve effective_mode once per node so per-node
         # reading_priority wins over the loadout-level mode_str per FR-L10c.
         # Precedence: reading_priority (if set) > mode_str.
-        effective_mode = (reading_priority or mode_str) or "routing"
-        # FR-L10c: a summary-priority node without a `## Summary` section
-        # falls back to full; its first lines are not a summary.
-        if (
-            reading_priority == "summary"
-            and content
-            and not _has_summary_section(content)
-        ):
-            effective_mode = "full"
+        effective_mode = _effective_read_mode(reading_priority, mode_str, content)
+        if node_id in downgrades:
+            # Over the full-mode budget: serve this mirror as routing mode would.
+            effective_mode = LoadoutMode.ROUTING.value
+            entry["reading_priority"] = effective_mode
+            entry["full_mode_downgrade_tokens"] = downgrades[node_id]
 
         if effective_mode == "pitfalls-only":
             pitfall_content = _extract_pitfall_sections(content)
@@ -814,6 +935,18 @@ def generate_loadout(
     # Title
     parts.append(f"# Loadout: {task_id}")
     parts.append("")
+
+    if downgrades:
+        parts.append(
+            f"**Full-mode budget exceeded:** inline content would be "
+            f"~{unguarded_inline_tokens} tokens, over "
+            f"`loadout.full_mode_max_tokens` "
+            f"({loadout_config.full_mode_max_tokens}). Code mirrors served as "
+            f"summary and path only: {len(downgrades)}, each marked **Downgraded** "
+            "below and listed under `full_mode_guard` in the header. No node was "
+            "dropped."
+        )
+        parts.append("")
 
     if required_aware:
         required_entries = [
