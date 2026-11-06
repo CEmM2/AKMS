@@ -1,4 +1,4 @@
-"""Citations of record revisions, and the built-in ``consolidation/v1`` schema.
+"""Citations of record revisions, and the built-in schemas.
 
 A summary (see :mod:`akms_records.consolidate`) is an ordinary record of the
 built-in schema ``consolidation/v1``. Its ``source_refs`` hold one
@@ -6,6 +6,9 @@ built-in schema ``consolidation/v1``. Its ``source_refs`` hold one
 each assertion of its payload lists the same ``<record_id>@<revision>``
 strings. These helpers are pure: the store, the index and the consolidation
 module share them without importing one another.
+
+The other built-in schema, ``failure-lesson/v1``, mirrors a lesson of an
+``akms-failure-memory`` registry; see :mod:`akms_records.failure_memory`.
 """
 
 from __future__ import annotations
@@ -23,7 +26,11 @@ CONSOLIDATION_REF = f"{CONSOLIDATION_NAME}/v1"
 SOURCE_KIND = "record"
 CITATION_RE = re.compile(r"(rec-[0-9]{8}-[0-9a-hjkmnp-tv-z]{8})@([1-9][0-9]{0,5})")
 
+FAILURE_LESSON_NAME = "failure-lesson"
+FAILURE_LESSON_REF = f"{FAILURE_LESSON_NAME}/v1"
+
 _BUILTIN: dict[str, Any] | None = None
+_LESSON_BUILTIN: dict[str, Any] | None = None
 
 
 def is_consolidation(schema_ref: Any) -> bool:
@@ -31,6 +38,14 @@ def is_consolidation(schema_ref: Any) -> bool:
     return isinstance(schema_ref, str) and (
         schema_ref == CONSOLIDATION_NAME
         or schema_ref.startswith(CONSOLIDATION_NAME + "/")
+    )
+
+
+def is_failure_lesson(schema_ref: Any) -> bool:
+    """Whether ``schema_ref`` names a version of the built-in lesson schema."""
+    return isinstance(schema_ref, str) and (
+        schema_ref == FAILURE_LESSON_NAME
+        or schema_ref.startswith(FAILURE_LESSON_NAME + "/")
     )
 
 
@@ -95,16 +110,37 @@ def builtin_digest() -> str:
     return schema_digest(builtin_schema())
 
 
+def lesson_schema() -> dict[str, Any]:
+    """The built-in ``failure-lesson/v1`` schema document, with its rules."""
+    global _LESSON_BUILTIN
+    if _LESSON_BUILTIN is None:
+        folder = importlib.resources.files("akms_records") / "builtin"
+        loaded = loads_strict((folder / "failure-lesson.schema.json").read_bytes())
+        assert isinstance(loaded, dict)
+        _LESSON_BUILTIN = loaded
+    return _LESSON_BUILTIN
+
+
+def lesson_digest() -> str:
+    """The schema digest every store must hold for ``failure-lesson/v1``."""
+    return schema_digest(lesson_schema())
+
+
 __all__ = [
     "CITATION_RE",
     "CONSOLIDATION_NAME",
     "CONSOLIDATION_REF",
+    "FAILURE_LESSON_NAME",
+    "FAILURE_LESSON_REF",
     "SOURCE_KIND",
     "builtin_digest",
     "builtin_schema",
     "citation",
     "cited_ids",
     "is_consolidation",
+    "is_failure_lesson",
+    "lesson_digest",
+    "lesson_schema",
     "parse_citation",
     "summary_cites",
 ]

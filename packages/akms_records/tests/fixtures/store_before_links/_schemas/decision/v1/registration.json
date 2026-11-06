@@ -1,0 +1,7 @@
+{
+  "format": "akms-records-schema-registration/v1",
+  "registered_at": "2026-11-03T10:00:00.000000Z",
+  "registered_by": "tester",
+  "schema_ref": "decision/v1",
+  "schema_sha256": "eb2409dae0375e2b0941541b05c68370fab1df0d0a8b62a37af790adab7c550d"
+}

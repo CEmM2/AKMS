@@ -45,7 +45,9 @@ def format_scalar(value: object) -> str:
 def load_yaml(text: str) -> dict[str, object]:
     lines = [
         raw.rstrip()
-        for raw in text.splitlines()
+        # Only "\n" ends a line: str.splitlines also breaks on characters such as
+        # "\x85" that may appear in a path. rstrip removes the "\r" of a CRLF file.
+        for raw in text.split("\n")
         if raw.strip() and not raw.lstrip().startswith("#")
     ]
     root: dict[str, object] = {}
