@@ -315,6 +315,15 @@ development is intentionally not replayed.
   new directory.
 
 ### Changed
+- Record-derived lesson titles under `failure-lesson-index/v1` are capped at 85
+  characters instead of 96. On a large downstream project the longer titles had
+  raised required-lesson tokens by 0.44%, above what trimming the lesson bodies
+  saved; 85 is the longest cap that takes them back below the line-hint titles
+  (508,052 against 508,196), and required recall does not change. Titles still
+  break at a word. A project already on the key sees the changed titles as `check`
+  drift until it recompiles: `refresh if-stale` does that when lessons are
+  `disposable`, and `failure-memory compile` when they are `committed`. Projects
+  without the key are unchanged.
 - Loadouts render coactivated (`load_with`) nodes as their `## Summary`
   instead of in full, by default: new setting
   `loadout.coactivated_reading_priority` (default `summary`; `full` restores
