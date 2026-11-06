@@ -385,6 +385,8 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- Docs: qmd is an external Node package (`npm install -g @tobilu/qmd`), not a Go
+  binary.
 - `repo-wiki build` no longer stops at the index stage on a repository with a
   path containing a character such as `\x85`: the configuration and frontmatter
   reader now ends a line only at a newline, not at every Unicode line break.
