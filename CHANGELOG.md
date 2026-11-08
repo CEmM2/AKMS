@@ -16,6 +16,34 @@ development is intentionally not replayed.
   lock-only change; `uv audit` reports no known vulnerabilities.
 
 ### Added
+- `akms-records promote <record> --review approved` writes a reviewed record as an
+  AKMS project-local node, with the `[akms]` extra. By default it goes through
+  `update_graph` as `source: agent`, `status: tentative`, possibly appended by
+  deduplication. Under a schema's stored `source: human` policy, a `user_confirmed`
+  record becomes a validated `LocalNodeFrontmatter` file with the policy's status and
+  confidence, after confirmation on an interactive terminal or with `--yes`; without
+  either it is refused (`confirmation_required`), never sent down the default path.
+  `--yes` makes the step deliberate but does not prove a person took it. Records below
+  `user_confirmed` (`--min-review-state agent_reviewed` is the opt-in), retracted, superseded or erased
+  records, agent or shared scopes, schema mismatches, sensitive records, unreviewed
+  or stale summaries and imported lessons are refused with stable codes, some with an
+  explicit flag to allow them. The node is written first and the link last, so a
+  re-run after a crash completes the link instead of writing a second node.
+  Promoting the same revision twice changes nothing; a newer revision needs
+  `--update`. The link is a reserved `promoted-to` source reference, so the event
+  format, the envelope and existing records are unchanged. A knowledge directory that
+  overlaps the global vault is refused, and the v2 node models are untouched.
+- `akms-records import --from-failure-memory <config>` reads schema 1 and 2
+  failure-memory registries into records of the built-in schema `failure-lesson/v1`,
+  with no write on that side and no dependency on that package. A re-run writes
+  nothing for an unchanged lesson and amends a changed one; a lesson removed upstream
+  is reported, not retracted.
+- `akms-records wake` keeps to its share of the context budget: promoted records and
+  imported failure lessons are left out by default (`promoted`, `imported`), a summary
+  of such records with them, and `--exclude-nodes <resolution-manifest.json>` drops
+  records whose node a loadout already holds (`in_loadout`). `--include-promoted` and
+  `--include-imported` take them back; `recall` reaches all of them. The JSON report
+  and the Markdown footer gain the three new exclusion kinds.
 - New experimental package `akms-records` (console script `akms-records`): a
   schema-driven, provenance-aware record store. Records are a fixed envelope
   (ID, revision, schema ref and digest, scope, time, origin, source refs,
@@ -287,6 +315,15 @@ development is intentionally not replayed.
   new directory.
 
 ### Changed
+- Record-derived lesson titles under `failure-lesson-index/v1` are capped at 85
+  characters instead of 96. On a large downstream project the longer titles had
+  raised required-lesson tokens by 0.44%, above what trimming the lesson bodies
+  saved; 85 is the longest cap that takes them back below the line-hint titles
+  (508,052 against 508,196), and required recall does not change. Titles still
+  break at a word. A project already on the key sees the changed titles as `check`
+  drift until it recompiles: `refresh if-stale` does that when lessons are
+  `disposable`, and `failure-memory compile` when they are `committed`. Projects
+  without the key are unchanged.
 - Loadouts render coactivated (`load_with`) nodes as their `## Summary`
   instead of in full, by default: new setting
   `loadout.coactivated_reading_priority` (default `summary`; `full` restores
@@ -385,6 +422,11 @@ development is intentionally not replayed.
   those calls go away. `symbol_graph.json` gains an optional `import_aliases` field
   on symbol nodes that have one; it stays `symbol_graph v1`. The extraction cache
   is rebuilt once. Mirror bytes do not change.
+- Docs: qmd is an external Node package (`npm install -g @tobilu/qmd`), not a Go
+  binary.
+- `repo-wiki build` no longer stops at the index stage on a repository with a
+  path containing a character such as `\x85`: the configuration and frontmatter
+  reader now ends a line only at a newline, not at every Unicode line break.
 - `repo-wiki`: a `scanner.exclude` list in `.repo_wiki/config.yaml` no longer
   replaces the built-in exclude patterns. It replaced the whole list, so
   adding one pattern silently dropped the secret and credential patterns

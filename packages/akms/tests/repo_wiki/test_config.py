@@ -292,3 +292,18 @@ def test_yaml_empty_list_round_trips():
     data = {"scanner": {"exclude": [], "include": ["a"]}}
     assert dump_yaml(data) == "scanner:\n  exclude: []\n  include:\n    - a\n"
     assert load_yaml(dump_yaml(data)) == data
+
+
+@pytest.mark.parametrize(
+    "char", ["\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"]
+)
+def test_yaml_keeps_a_value_with_a_unicode_line_break(char: str) -> None:
+    path = f"src/unsafe/a{char}b.py"
+    assert load_yaml(dump_yaml({"path": path, "after": "kept"})) == {
+        "path": path,
+        "after": "kept",
+    }
+
+
+def test_yaml_still_reads_crlf_line_endings() -> None:
+    assert load_yaml("a: 1\r\nb: two\r\n") == {"a": 1, "b": "two"}

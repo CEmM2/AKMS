@@ -1,0 +1,6 @@
+# akms-records: event files are hashed, so git must not convert
+# line endings; the append-only logs merge by union.
+* -text
+_erasures.jsonl merge=union
+_schemas/*/_policy_log.jsonl merge=union
+_schemas/*/*/_rules_log.jsonl merge=union

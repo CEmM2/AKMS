@@ -1,0 +1,36 @@
+{
+  "actor": "tester",
+  "at": "2026-11-03T10:00:00.000003Z",
+  "body": {
+    "envelope": {
+      "origin": {
+        "actor_id": "tester",
+        "kind": "agent"
+      },
+      "review_state": "unreviewed",
+      "schema_ref": "decision/v1",
+      "schema_sha256": "eb2409dae0375e2b0941541b05c68370fab1df0d0a8b62a37af790adab7c550d",
+      "scope": {
+        "id": "example",
+        "kind": "project"
+      },
+      "sensitivity": "internal",
+      "source_refs": [],
+      "summary": "Decision: Retracted before promotion links",
+      "tags": [
+        "pinned"
+      ]
+    },
+    "payload": {
+      "decision": "Retracted before promotion links",
+      "rationale": "a pinned store"
+    }
+  },
+  "event_id": "pinned-three",
+  "event_sha256": "9f55ce4bf0baebf7039208cd73ba277d19f5b442965e980f7bb7f463f7c9f767",
+  "format": "akms-records-event/v1",
+  "kind": "create",
+  "prev_sha256": null,
+  "record_id": "rec-20261103-wyxx2se2",
+  "revision": 1
+}
