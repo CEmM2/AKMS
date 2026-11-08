@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Literal, Protocol
 
+from akms.repo_wiki.code_graph import CONFIDENT, CodeGraph
 from akms.repo_wiki.config import load_config
 from akms.repo_wiki.index import SearchResult, search_index
 from akms.repo_wiki.models import Language
@@ -323,7 +324,7 @@ def expand_context(
 ) -> list[ContextBlock]:
     """Expand context via graph edges: CONFIDENT always, HEURISTIC if allowed, UNRESOLVED never."""
     retrieval = config["retrieval"] if isinstance(config["retrieval"], dict) else {}
-    graph = load_graph(repo_root)
+    graph = with_resolved_calls(load_graph(repo_root))
     blocks: list[ContextBlock] = []
     seen: set[tuple[str, str]] = set()
     for result in results:
@@ -400,6 +401,40 @@ def load_graph(repo_root: Path) -> dict[str, object]:
     if not path.exists():
         return {"nodes": {}, "edges": []}
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def with_resolved_calls(graph: dict[str, object]) -> dict[str, object]:
+    """Swap the stored ``calls`` edges for the ones ``context`` and ``impact`` use.
+
+    ``symbol_graph.json`` stores calls matched by bare name, which is what v1 readers
+    get. The code graph re-resolves the same names with scopes, imports, ``self`` and
+    receivers. A symbol it does not know keeps its stored edges, so a thin or older
+    graph expands as before. Confident edges come first: context blocks are capped.
+    """
+    try:
+        code = CodeGraph.from_symbol_graph(graph).finalize()
+    except (TypeError, ValueError):
+        return graph
+    resolved = [
+        {
+            "source": edge.source,
+            "target": edge.target,
+            "type": "calls",
+            "resolution": edge.resolution,
+        }
+        for bucket in code.out_edges.values()
+        for edge in bucket
+        if edge.type == "calls"
+    ]
+    resolved.sort(
+        key=lambda e: (e["resolution"] != CONFIDENT, e["source"], e["target"])
+    )
+    kept = [
+        edge
+        for edge in graph_edges(graph)
+        if edge.get("type") != "calls" or edge.get("source") not in code.nodes
+    ]
+    return {**graph, "edges": [*kept, *resolved]}
 
 
 def _edge_is_allowed(edge: dict[str, str], *, expand_heuristic_edges: bool) -> bool:
