@@ -98,7 +98,7 @@ counts, because the source text further down may hold such a line too.
 
 A mirror exported without the section, the default, renders as it always has:
 its entry is the path, with `(no content available)` as the summary. Full mode
-does not read mirrors this way and is not affected.
+reads the whole mirror from there; see [Full-mode budget](#full-mode-budget).
 
 ## Full-mode budget
 
@@ -140,11 +140,13 @@ that project (about 32,000 tokens), so lessons alone leave room for a mirror.
 It left 48 of 103 replayed tasks untouched and lowered the 90th percentile of the
 whole loadout from about 315,000 tokens to about 52,000.
 
-The guard only sees mirror bodies that load. An exported mirror's `content_ref`
-is relative to the knowledge directory, and the generator resolves it against the
-repository root and the working directory. When it does not resolve there, the
-entry reads `(content not available — read from path)`, costs next to nothing
-and needs no guard.
+Full mode reads a code mirror from the knowledge directory when its
+`content_ref` does not resolve from the working directory or the repository root,
+which is the case for an exported mirror. A mirror the guard downgrades is
+summarized only by its own `## Summary` section, as in routing mode, and reads
+`(no content available)` without one. A coactivated mirror without that section
+falls back to full, as any summary-priority node does, and counts toward the
+budget. Routing mode does not load mirror bodies.
 
 ## Retrieval and timestamps
 

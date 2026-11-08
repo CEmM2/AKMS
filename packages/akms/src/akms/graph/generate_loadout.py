@@ -269,6 +269,27 @@ def _mirror_summary_source(node_data: dict[str, Any], repo_root: Path | None) ->
     return content if _has_summary_section(head) else ""
 
 
+def _knowledge_dir_mirror(
+    node_data: dict[str, Any], repo_root: Path | None
+) -> Path | None:
+    """Return a code mirror's file when only the knowledge directory holds it.
+
+    None for other nodes, and for a mirror whose ``content_ref`` resolves as
+    given or from the repository root, which load as they always have.
+    """
+    content_ref = node_data.get("content_ref")
+    if (
+        repo_root is None
+        or not content_ref
+        or node_data.get("node_origin") != _ORIGIN_CODE_MIRROR
+    ):
+        return None
+    if Path(content_ref).exists() or (repo_root / content_ref).exists():
+        return None
+    path = local_knowledge_dir(repo_root) / content_ref
+    return path if path.is_file() else None
+
+
 def _extract_summary(content: str, max_sentences: int = 5) -> str:
     """Extract a brief summary from content (first N sentences).
 
@@ -792,6 +813,12 @@ def generate_loadout(
             if path and path not in qmd_content_by_path and item.get("content"):
                 qmd_content_by_path[path] = item["content"]
 
+    mirror_files: dict[str, Path] = {}
+    for _node_id, node_data in ranked_nodes:
+        mirror_file = _knowledge_dir_mirror(node_data, repo_path)
+        if mirror_file is not None:
+            mirror_files[str(node_data["content_ref"])] = mirror_file
+
     node_bodies: dict[str, str] = {}
 
     def body_of(content_ref: Any) -> str:
@@ -800,9 +827,14 @@ def generate_loadout(
             return ""
         ref = str(content_ref)
         if ref not in node_bodies:
-            node_bodies[ref] = qmd_content_by_path.get(ref, "") or _load_node_content(
+            body = qmd_content_by_path.get(ref, "") or _load_node_content(
                 content_ref, repo_path
             )
+            if not body and ref in mirror_files and mode_str == LoadoutMode.FULL.value:
+                # Full mode inlines a mirror from the knowledge directory;
+                # full_mode_max_tokens bounds how many. Routing mode does not.
+                body = _load_node_content(str(mirror_files[ref]))
+            node_bodies[ref] = body
         return node_bodies[ref]
 
     downgrades, unguarded_inline_tokens = _full_mode_downgrades(
@@ -899,8 +931,11 @@ def generate_loadout(
         else:
             # Routing / summary mode: summary + path. Required summaries are
             # always included (they are small); budget still tracks totals.
+            # A mirror read from the knowledge directory is summarized only by
+            # its own section, as in routing mode, not by its source text.
+            source = "" if str(content_ref) in mirror_files else content
             summary = _extract_summary(
-                content or _mirror_summary_source(node_data, repo_path)
+                source or _mirror_summary_source(node_data, repo_path)
             )
             entry["summary"] = summary
             total_tokens += loadout_config.routing_tokens_per_node

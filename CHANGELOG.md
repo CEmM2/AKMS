@@ -417,6 +417,14 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- Full-mode loadouts inline code mirrors. A mirror's `content_ref` is relative to
+  the knowledge directory, and the generator looked for it only from the working
+  directory and the repository root, so on a standard layout every mirror read
+  `(content not available — read from path)`. Full mode now reads it from the
+  knowledge directory, bounded by `loadout.full_mode_max_tokens`, so a full-mode
+  loadout that selects mirrors changes. A coactivated mirror without a
+  `## Summary` section falls back to full, as other summary-priority nodes do.
+  Routing mode is unchanged.
 - `repo-wiki query` context expansion now follows the same call links as `context`
   and `impact` instead of the bare-name matches stored in `symbol_graph.json`. On
   this repository the two agreed on the callees of only 59% of symbols: stored
