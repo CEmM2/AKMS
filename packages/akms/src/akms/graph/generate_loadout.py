@@ -57,6 +57,7 @@ from akms.schema.models import (
 )
 from akms.graph.qmd_cache import get_cached, put_cached
 from akms._resources import seed_qmd_path
+from akms.layout import local_knowledge_dir
 from akms.graph.query_subgraph import compute_query_hash
 from akms.telemetry import traced
 
@@ -247,6 +248,25 @@ def _has_summary_section(content: str) -> bool:
             if line.strip():
                 return True
     return False
+
+
+def _mirror_summary_source(node_data: dict[str, Any], repo_root: Path | None) -> str:
+    """Return a code mirror's body when it was exported with a ``## Summary``.
+
+    A mirror's ``content_ref`` is relative to the knowledge directory, so
+    ``_load_node_content`` does not find it from the repository root. Routing
+    mode reads it from there, and only the section ahead of the symbol index
+    counts: the source text further down may hold such a line too. A mirror
+    without the section yields "" and renders as it did before the section
+    existed.
+    """
+    if repo_root is None or node_data.get("node_origin") != "code-mirror":
+        return ""
+    content = _load_node_content(
+        node_data.get("content_ref"), local_knowledge_dir(repo_root)
+    )
+    head = content.split("\n## Symbol Index", 1)[0]
+    return content if _has_summary_section(head) else ""
 
 
 def _extract_summary(content: str, max_sentences: int = 5) -> str:
@@ -879,7 +899,9 @@ def generate_loadout(
         else:
             # Routing / summary mode: summary + path. Required summaries are
             # always included (they are small); budget still tracks totals.
-            summary = _extract_summary(content)
+            summary = _extract_summary(
+                content or _mirror_summary_source(node_data, repo_path)
+            )
             entry["summary"] = summary
             total_tokens += loadout_config.routing_tokens_per_node
 

@@ -411,6 +411,151 @@ class TestCoactivatedReadingPriority:
         assert "COBODY" in content
 
 
+class TestMirrorSummaryInRoutingMode:
+    """Routing mode loads an exported mirror's ``## Summary``."""
+
+    _BODY = (
+        "# <code>src/foo.py</code>\n\n_Mirror generated: t · phase 1_\n\n"
+        "{summary}## Symbol Index\n\n```json\n[]\n```\n\n"
+        "## Complete Source\n\n```python\nSOURCEBODY\n## Summary\n\nfrom source\n```\n"
+    )
+    _SECTION = "## Summary\n\nFoo does things.\n\nFunctions: `bar()`\n\n"
+
+    def _render(self, tmp_path, monkeypatch, *, summary, mode, selection=None):
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        mirror = tmp_path / ".knowledge/code-mirror/src/foo.md"
+        mirror.parent.mkdir(parents=True, exist_ok=True)
+        mirror.write_text(
+            "---\nid: mirror-src-foo\n---\n"
+            + self._BODY.format(summary=self._SECTION if summary else ""),
+            encoding="utf-8",
+        )
+        data = {
+            "title": "Code Mirror: src/foo.py",
+            "confidence": 1.0,
+            "node_origin": "code-mirror",
+            "content_ref": "code-mirror/src/foo.md",
+        }
+        G = nx.DiGraph()
+        G.add_node("mirror-src-foo", **data)
+        return generate_loadout(
+            G,
+            [],
+            task_id="TSK-MIRROR",
+            phase=1,
+            graph_version="graph-v1",
+            seed_tags=[],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=mode,
+            task_knowledge=_task_knowledge(
+                (
+                    "mirror-src-foo",
+                    selection or SelectionClass.REQUIRED,
+                    ("route",),
+                    data,
+                ),
+            ),
+            repo_root=tmp_path,
+        )
+
+    def test_routing_mode_loads_the_section(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path, monkeypatch, summary=True, mode=LoadoutMode.ROUTING
+        )
+        assert "**Summary:** Foo does things. Functions: `bar()`\n" in content
+        assert "SOURCEBODY" not in content
+
+    def test_coactivated_mirror_loads_the_section(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path,
+            monkeypatch,
+            summary=True,
+            mode=LoadoutMode.ROUTING,
+            selection=SelectionClass.COACTIVATED,
+        )
+        assert "**Summary:** Foo does things. Functions: `bar()`\n" in content
+        assert "SOURCEBODY" not in content
+
+    def test_mirror_without_the_section_renders_as_before(self, tmp_path, monkeypatch):
+        """A "## Summary" line in the source text is not the section."""
+        content = self._render(
+            tmp_path, monkeypatch, summary=False, mode=LoadoutMode.ROUTING
+        )
+        assert "**Summary:** (no content available)" in content
+        assert "from source" not in content
+
+    def test_full_mode_does_not_start_inlining_mirrors(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path, monkeypatch, summary=True, mode=LoadoutMode.FULL
+        )
+        assert "(content not available — read from path)" in content
+        assert "SOURCEBODY" not in content
+
+    def test_legacy_knowledge_directory_is_found(self, tmp_path, monkeypatch):
+        (tmp_path / "knowledge").mkdir()
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        mirror = tmp_path / "knowledge/code-mirror/src/foo.md"
+        mirror.parent.mkdir(parents=True)
+        mirror.write_text(
+            "---\nid: mirror-src-foo\n---\n" + self._BODY.format(summary=self._SECTION),
+            encoding="utf-8",
+        )
+        data = {
+            "title": "t",
+            "confidence": 1.0,
+            "node_origin": "code-mirror",
+            "content_ref": "code-mirror/src/foo.md",
+        }
+        G = nx.DiGraph()
+        G.add_node("mirror-src-foo", **data)
+        content = generate_loadout(
+            G,
+            [],
+            task_id="TSK-MIRROR",
+            phase=1,
+            graph_version="graph-v1",
+            seed_tags=[],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=LoadoutMode.ROUTING,
+            task_knowledge=_task_knowledge(
+                ("mirror-src-foo", SelectionClass.REQUIRED, ("route",), data),
+            ),
+            repo_root=tmp_path,
+        )
+        assert "**Summary:** Foo does things." in content
+
+    def test_lesson_without_content_is_not_looked_up(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        lesson = tmp_path / ".knowledge/code-mirror/l.md"
+        lesson.parent.mkdir(parents=True)
+        lesson.write_text(
+            "---\nid: l\n---\n## Summary\n\nNot for a lesson.\n", encoding="utf-8"
+        )
+        data = {
+            "title": "t",
+            "confidence": 1.0,
+            "node_origin": "local",
+            "content_ref": "code-mirror/l.md",
+        }
+        G = nx.DiGraph()
+        G.add_node("l", **data)
+        content = generate_loadout(
+            G,
+            [],
+            task_id="TSK-MIRROR",
+            phase=1,
+            graph_version="graph-v1",
+            seed_tags=[],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=LoadoutMode.ROUTING,
+            task_knowledge=_task_knowledge(
+                ("l", SelectionClass.REQUIRED, ("route",), data)
+            ),
+            repo_root=tmp_path,
+        )
+        assert "Not for a lesson" not in content
+
+
 class TestFullModeGuard:
     """``loadout.full_mode_max_tokens`` bounds inline required code mirrors."""
 

@@ -114,6 +114,8 @@ CONFIG_HEADER = (
 def default_config(repo_root: Path | None = None) -> dict[str, object]:
     repo_name = (repo_root or Path.cwd()).resolve().name
     return {
+        # Mirror bytes are a pinned contract, so the ## Summary section is opt-in.
+        "export": {"mirror_summary": False},
         "flows": default_flows_config(),
         "generation": {
             "generate_module_docs": True,
@@ -298,6 +300,20 @@ def validate_config(config: dict[str, object]) -> None:
         )
     if "flows" in config:
         validate_flows_config(_mapping(config, "flows"))
+    mirror_summary_enabled(config)
+
+
+def mirror_summary_enabled(config: Mapping[str, object]) -> bool:
+    """Return ``export.mirror_summary``: whether mirrors open with a ``## Summary``."""
+    export = config.get("export")
+    if export is None or export == {}:
+        return False
+    if not isinstance(export, Mapping):
+        raise ValueError("export must be a mapping")
+    value = export.get("mirror_summary", False)
+    if not isinstance(value, bool):
+        raise ValueError("export.mirror_summary must be true or false")
+    return value
 
 
 def validate_flows_config(flows: dict[str, object]) -> None:
