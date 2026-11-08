@@ -123,8 +123,6 @@ is the `receiver` rule above. These are missed, or found only as possible links:
   gives only possible `dispatch` links);
 - string-based imports: `importlib.import_module`, packaging entry points, plugin
   discovery;
-- a function-level import under another name (`from pkg.cli import main as
-  run_cli` inside a function); module-level `as` aliases are resolved;
 - references that are not calls: reading a constant, passing a function without
   calling it, `isinstance` checks, annotations;
 - `super().method()` and calls on the result of another call;
