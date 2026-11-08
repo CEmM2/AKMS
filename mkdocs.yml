@@ -231,6 +231,7 @@ nav:
       - CLI Reference: reference/records/cli-reference.md
       - Recall and Wake: reference/records/recall-and-wake.md
       - Consolidation: reference/records/consolidation.md
+      - Promotion and Import: reference/records/promotion-and-import.md
       - Search Index: reference/records/search-index.md
       - Storage Format: reference/records/storage-format.md
       - Schemas and Templates: reference/records/schemas-and-templates.md

@@ -72,6 +72,25 @@ indent and one trailing newline.
 Revision 1 is always `create`. After `supersede` or `retract` the record
 accepts no further events. The scope never changes.
 
+## Promotion links
+
+A record promoted into an AKMS node carries one source reference of the reserved
+kind `promoted-to`, added by an ordinary `amend` event:
+
+```json
+{"kind": "promoted-to", "ref": "<node_id>@<revision promoted>", "note": "default"}
+```
+
+`note` is the path that wrote the node (`default` or `human-policy`). The link
+lives in `source_refs`, which every reader already handles, so a link needs no new
+event field or envelope key: records without one have the same bytes and seals as
+ever, a store with links replays under any version of this format, and export,
+import and git merges treat it like any other reference.
+
+The revision after the one named in the link holds no new content. Summaries
+treat it that way: a source whose head is its link event is still `current`, and
+a topic's `inputs_sha256` covers the revision before the link.
+
 ## Digests
 
 - **Chain.** `prev_sha256` is the SHA-256 of the previous event's canonical

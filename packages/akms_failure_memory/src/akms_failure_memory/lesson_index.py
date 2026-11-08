@@ -26,7 +26,7 @@ from akms_failure_memory.lesson_ids import lesson_id_sort_key
 
 INDEX_JSON_NAME = "lesson_index.json"
 INDEX_MARKDOWN_NAME = "lesson_index.md"
-TITLE_MAX_LENGTH = 96
+TITLE_MAX_LENGTH = 85
 _FINGERPRINT_PREFIX = "<!-- lesson_index_sha256: "
 _REFERENCE_KEYS = ("commit", "issue", "pr", "plan")
 # A sentence ends at . ! or ? followed by whitespace and a capital, digit,

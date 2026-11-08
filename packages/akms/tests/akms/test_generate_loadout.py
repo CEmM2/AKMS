@@ -726,7 +726,16 @@ class TestDeterministicOrdering:
             agent_role=AgentRole.IMPLEMENTER,
         )
 
-        assert c1 == c2
+        # generated_at is wall-clock seconds; the two calls can straddle one.
+        def without_timestamp(text: str) -> str:
+            assert "generated_at:" in text
+            return "\n".join(
+                line
+                for line in text.splitlines()
+                if not line.startswith("generated_at:")
+            )
+
+        assert without_timestamp(c1) == without_timestamp(c2)
 
 
 class TestBundledResourcePaths:

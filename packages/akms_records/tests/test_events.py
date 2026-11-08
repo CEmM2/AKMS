@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import date
+from pathlib import Path
 
 import pytest
 
-from akms_records import RecordsError, ReplayError, StaleRevision
+from akms_records import RecordsError, RecordStore, ReplayError, Scope, StaleRevision
 from akms_records.canonical import canonical_bytes
 from akms_records.ids import RECORD_ID_RE, record_id_for
+from akms_records.store import read_event_files
 
 
 def tree(root):
@@ -279,3 +282,37 @@ def test_whitespace_only_change_keeps_the_digests(store, doc, items):
     report = store.doctor()
     assert items(report, "noncanonical") == [f"2026-11/{rid}/000001.json"]
     assert report["status"] == "ok"
+
+
+def test_a_store_written_before_promotion_links_replays_byte_identically(tmp_path):
+    """A store this package wrote before links existed: bytes, seals and state."""
+    pinned = Path(__file__).resolve().parent / "fixtures" / "store_before_links"
+    repo = tmp_path / "repo"
+    shutil.copytree(pinned, repo / ".knowledge" / "records")
+    before = {
+        path.relative_to(pinned): path.read_bytes()
+        for path in pinned.rglob("*")
+        if path.is_file()
+    }
+    store = RecordStore.open(Scope.parse("project:example"), repo=repo)
+    records = sorted(
+        (item for item in store.iter_records()), key=lambda record: record.record_id
+    )
+    assert sorted(record.lifecycle for record in records) == ["active", "retracted"]
+    for record in records:
+        assert record.promoted_to is None
+        assert record.content_revision == record.revision
+        assert record.content_sha256 == record.head_sha256
+        assert "promoted_to" not in record.state_json()
+        read_event_files(
+            store.record_dir(record.record_id), record.record_id, strict=True
+        )
+    assert store.doctor()["status"] == "ok"
+    assert len(store.recall("promotion").hits) == 1
+    store.close()
+    after = {
+        path.relative_to(repo / ".knowledge" / "records"): path.read_bytes()
+        for path in (repo / ".knowledge" / "records").rglob("*")
+        if path.is_file() and ".index" not in path.parts
+    }
+    assert after == before
