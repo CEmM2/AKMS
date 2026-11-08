@@ -534,6 +534,11 @@ class TestMirrorSummaryInRoutingMode:
             )
             assert ("SOURCEBODY" in content) is inlined
 
+    def test_path_line_opens_from_the_repository_root(self, tmp_path, monkeypatch):
+        for mode in (LoadoutMode.ROUTING, LoadoutMode.FULL):
+            content = self._render(tmp_path, monkeypatch, summary=True, mode=mode)
+            assert "**Path:** `.knowledge/code-mirror/src/foo.md`" in content
+
     def test_mirror_found_from_the_repository_root_is_unchanged(
         self, tmp_path, monkeypatch
     ):
@@ -549,6 +554,7 @@ class TestMirrorSummaryInRoutingMode:
         )
         assert "ROOTBODY" in content
         assert "SOURCEBODY" not in content
+        assert "**Path:** `code-mirror/src/foo.md`" in content
 
     def test_legacy_knowledge_directory_is_found(self, tmp_path, monkeypatch):
         (tmp_path / "knowledge").mkdir()

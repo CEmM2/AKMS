@@ -425,6 +425,10 @@ development is intentionally not replayed.
   loadout that selects mirrors changes. A coactivated mirror without a
   `## Summary` section falls back to full, as other summary-priority nodes do.
   Routing mode is unchanged.
+- A code mirror's `**Path:**` line in a loadout names it from the repository root
+  (`.knowledge/code-mirror/...`). It showed the `content_ref`, which is relative to
+  the knowledge directory and did not open from the root. In routing mode this line
+  is the only change.
 - `repo-wiki query` context expansion now follows the same call links as `context`
   and `impact` instead of the bare-name matches stored in `symbol_graph.json`. On
   this repository the two agreed on the callees of only 59% of symbols: stored

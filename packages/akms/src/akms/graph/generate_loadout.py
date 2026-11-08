@@ -891,6 +891,10 @@ def generate_loadout(
         # Load content based on mode and reading_priority
         if content_ref:
             entry["content_ref"] = str(content_ref)
+            mirror_file = mirror_files.get(str(content_ref))
+            if mirror_file is not None and repo_path is not None:
+                # The path a reader at the repository root can open.
+                entry["content_ref"] = mirror_file.relative_to(repo_path).as_posix()
         content = body_of(content_ref)
 
         # Resolve effective_mode once per node so per-node

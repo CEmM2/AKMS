@@ -96,6 +96,9 @@ is read from there, and that section is what routing mode loads for it, whether
 the mirror is required or coactivated. Only a section ahead of `## Symbol Index`
 counts, because the source text further down may hold such a line too.
 
+In either mode a mirror's `**Path:**` line names it from the repository root, for
+example `.knowledge/code-mirror/src/foo.md`, so a reader can open it from there.
+
 A mirror exported without the section, the default, renders as it always has:
 its entry is the path, with `(no content available)` as the summary. Full mode
 reads the whole mirror from there; see [Full-mode budget](#full-mode-budget).
