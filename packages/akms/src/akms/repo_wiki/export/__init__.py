@@ -38,7 +38,6 @@ from akms.repo_wiki.locking import (
 from akms.repo_wiki.models import Language, SkippedFile, SourceFile
 from akms.repo_wiki.scanner import (
     LANGUAGE_BY_SUFFIX,
-    LANGUAGE_INCLUDE_GLOBS,
     scan_repository,
 )
 from akms.repo_wiki.simple_yaml import load_yaml
@@ -627,26 +626,6 @@ def _config_excluding_output(
 ) -> dict[str, object]:
     config = deepcopy(load_config(repo_root))
     scanner = config.get("scanner")
-    if isinstance(scanner, dict):
-        included = [str(item) for item in scanner.get("include", [])]
-        language_patterns: list[str] = []
-        languages = config.get("languages")
-        if isinstance(languages, dict):
-            for language, patterns in LANGUAGE_INCLUDE_GLOBS.items():
-                entry = languages.get(language)
-                enabled = (
-                    entry.get("enabled", False)
-                    if isinstance(entry, dict)
-                    else bool(entry)
-                )
-                if enabled:
-                    language_patterns.extend(patterns)
-        root_forms = [
-            pattern[3:]
-            for pattern in [*included, *language_patterns]
-            if pattern.startswith("**/")
-        ]
-        scanner["include"] = list(dict.fromkeys([*included, *root_forms]))
 
     mirror_root = output_root / knowledge_dir / "code-mirror"
     try:

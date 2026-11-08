@@ -147,12 +147,11 @@ akms = [
 testpaths = ["tests"]
 pythonpath = ["src"]
 
-# qmd is an external Go binary (tobi/qmd), not pip-installable, pinned for
+# qmd is an external Node package (tobi/qmd), not pip-installable, pinned for
 # determinism. The runtime wrappers detect it via `command -v qmd` and fall
 # back to grep when it is absent. Install with:
 #
-#     brew install tobi/tobi/qmd
-#     go install github.com/tobi/qmd/cmd/qmd@v1.6.0
+#     npm install -g @tobilu/qmd
 #
 # Bumping the pin requires a changelog entry and re-baselining any loadouts
 # whose shape changed.

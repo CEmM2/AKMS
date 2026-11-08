@@ -62,6 +62,7 @@ RULES_LOG = "_rules_log.jsonl"
 NAME_RE = re.compile(r"[a-z][a-z0-9-]{0,63}")
 REF_RE = re.compile(r"([a-z][a-z0-9-]{0,63})/v([1-9][0-9]{0,5})")
 RESERVED_NAME = "consolidation"  # the built-in summary schema
+RESERVED_LESSON_NAME = "failure-lesson"  # the built-in failure-lesson schema
 RULE_KEYS = ("search_text", "label", "time_field", "summary_template")
 _PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -578,6 +579,15 @@ class SchemaRegistry:
                 raise RecordsError(
                     f"the schema name {RESERVED_NAME!r} is reserved for the "
                     "built-in summary schema consolidation/v1",
+                    code="reserved_schema",
+                )
+        if final_name == RESERVED_LESSON_NAME:
+            from akms_records.citations import lesson_digest
+
+            if final_version != 1 or sha != lesson_digest():
+                raise RecordsError(
+                    f"the schema name {RESERVED_LESSON_NAME!r} is reserved for the "
+                    "built-in lesson schema failure-lesson/v1",
                     code="reserved_schema",
                 )
         target = self._dir(final_name, final_version)

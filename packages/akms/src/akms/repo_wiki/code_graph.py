@@ -172,6 +172,7 @@ class _FileUnit:
     main_calls: list[str] = field(default_factory=list)
     cli_handlers: dict[str, list[str]] = field(default_factory=dict)
     decorators: dict[str, list[str]] = field(default_factory=dict)
+    import_aliases: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -251,6 +252,7 @@ class CodeGraph:
         self.module_by_path: dict[str, str] = {}
         self.bindings: dict[str, dict[str, str]] = {}
         self.receivers: dict[str, dict[str, list[str]]] = {}
+        self.import_aliases: dict[str, dict[str, str]] = {}
         self.dispatch: dict[str, dict[str, list[str]]] = {}
         #: Call names run when a module executes as a script (module ID -> names).
         self.main_calls: dict[str, list[str]] = {}
@@ -353,6 +355,11 @@ class CodeGraph:
             receivers = _name_lists(raw.get("receivers"))
             if receivers:
                 unit.receivers[node_id] = receivers
+            aliases = raw.get("import_aliases")
+            if isinstance(aliases, dict) and aliases:
+                unit.import_aliases[node_id] = {
+                    str(k): str(v) for k, v in aliases.items()
+                }
             table_refs = raw.get("table_refs")
             if isinstance(table_refs, list) and table_refs:
                 unit.table_refs[node_id] = [str(v) for v in table_refs]
@@ -389,6 +396,7 @@ class CodeGraph:
         self.module_by_path = {}
         self.bindings = {}
         self.receivers = {}
+        self.import_aliases = {}
         self.dispatch = {}
         self.main_calls = {}
         self.cli_handlers = {}
@@ -405,6 +413,7 @@ class CodeGraph:
             if unit.main_calls:
                 self.main_calls[unit.module.id] = unit.main_calls
             self.receivers.update(unit.receivers)
+            self.import_aliases.update(unit.import_aliases)
             self.cli_handlers.update(unit.cli_handlers)
             self.decorators.update(unit.decorators)
             for node in unit.symbols:
@@ -773,28 +782,50 @@ class CodeGraph:
                 candidate = f"python:{module_path}::{scope.qualname}.{name}"
                 if candidate in self.nodes:
                     return self._edges(node, candidate, kind, CONFIDENT, "scope", name)
+                alias = self.import_aliases.get(scope.id, {}).get(name)
+                if alias is not None:
+                    return self._imported(node, alias, kind, name)
             scope = self.nodes.get(scope.parent_id) if scope.parent_id else None
         local = f"python:{module_path}::{name}"
         if local in self.nodes:
             return self._edges(node, local, kind, CONFIDENT, "local", name)
         target = self._import_target(node.module_id, name)
         if target is not None:
-            found = self.resolve_dotted(target)
-            if found == _EXTERNAL:
-                return Unresolved(node.id, name, external=True)
-            if found is None:
-                return Unresolved(node.id, name, external=False, attempted=target)
-            return self._edges(node, found, kind, CONFIDENT, "import", name)
+            return self._imported(node, target, kind, name)
         return self._name_match(node, name, kind, strict=True)
+
+    def _imported(
+        self, node: Node, target: str, kind: str, name: str
+    ) -> list[Edge] | Unresolved:
+        """Link *name* to the dotted import *target* it is bound to."""
+        found = self.resolve_dotted(target)
+        if found == _EXTERNAL:
+            return Unresolved(node.id, name, external=True)
+        if found is None:
+            return Unresolved(node.id, name, external=False, attempted=target)
+        return self._edges(node, found, kind, CONFIDENT, "import", name)
+
+    def _scoped_alias(self, node: Node, name: str) -> str | None:
+        """The ``as`` import *name* is bound to in *node* or an enclosing function."""
+        scope: Node | None = node
+        while scope is not None:
+            alias = self.import_aliases.get(scope.id, {}).get(name)
+            if alias is not None:
+                return alias
+            scope = self.nodes.get(scope.parent_id) if scope.parent_id else None
+        return None
 
     def _resolve_head(
         self, node: Node, head: str
     ) -> tuple[str, str, str | None] | None:
         """Resolve the first dotted part: ``(target id or external, basis, dotted path)``."""
+        # A function-level alias shadows a module-level name of the same spelling.
+        target = self._scoped_alias(node, head)
         local = f"python:{node.path}::{head}"
-        if local in self.nodes:
+        if target is None and local in self.nodes:
             return local, "local", None
-        target = self._import_target(node.module_id, head)
+        if target is None:
+            target = self._import_target(node.module_id, head)
         if target is None:
             return None
         found = self.resolve_dotted(target)
@@ -1103,6 +1134,11 @@ def unit_from_parsed(parsed: ParsedModule) -> _FileUnit:
             s.symbol_id: decorator_names(s.decorators)
             for s in parsed.symbols
             if s.decorators
+        },
+        import_aliases={
+            s.symbol_id: dict(s.import_aliases)
+            for s in parsed.symbols
+            if s.import_aliases
         },
     )
 

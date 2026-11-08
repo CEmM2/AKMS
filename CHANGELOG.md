@@ -16,6 +16,34 @@ development is intentionally not replayed.
   lock-only change; `uv audit` reports no known vulnerabilities.
 
 ### Added
+- `akms-records promote <record> --review approved` writes a reviewed record as an
+  AKMS project-local node, with the `[akms]` extra. By default it goes through
+  `update_graph` as `source: agent`, `status: tentative`, possibly appended by
+  deduplication. Under a schema's stored `source: human` policy, a `user_confirmed`
+  record becomes a validated `LocalNodeFrontmatter` file with the policy's status and
+  confidence, after confirmation on an interactive terminal or with `--yes`; without
+  either it is refused (`confirmation_required`), never sent down the default path.
+  `--yes` makes the step deliberate but does not prove a person took it. Records below
+  `user_confirmed` (`--min-review-state agent_reviewed` is the opt-in), retracted, superseded or erased
+  records, agent or shared scopes, schema mismatches, sensitive records, unreviewed
+  or stale summaries and imported lessons are refused with stable codes, some with an
+  explicit flag to allow them. The node is written first and the link last, so a
+  re-run after a crash completes the link instead of writing a second node.
+  Promoting the same revision twice changes nothing; a newer revision needs
+  `--update`. The link is a reserved `promoted-to` source reference, so the event
+  format, the envelope and existing records are unchanged. A knowledge directory that
+  overlaps the global vault is refused, and the v2 node models are untouched.
+- `akms-records import --from-failure-memory <config>` reads schema 1 and 2
+  failure-memory registries into records of the built-in schema `failure-lesson/v1`,
+  with no write on that side and no dependency on that package. A re-run writes
+  nothing for an unchanged lesson and amends a changed one; a lesson removed upstream
+  is reported, not retracted.
+- `akms-records wake` keeps to its share of the context budget: promoted records and
+  imported failure lessons are left out by default (`promoted`, `imported`), a summary
+  of such records with them, and `--exclude-nodes <resolution-manifest.json>` drops
+  records whose node a loadout already holds (`in_loadout`). `--include-promoted` and
+  `--include-imported` take them back; `recall` reaches all of them. The JSON report
+  and the Markdown footer gain the three new exclusion kinds.
 - New experimental package `akms-records` (console script `akms-records`): a
   schema-driven, provenance-aware record store. Records are a fixed envelope
   (ID, revision, schema ref and digest, scope, time, origin, source refs,
@@ -297,8 +325,28 @@ development is intentionally not replayed.
   mirror once. On a large downstream project the section averaged 86 tokens per
   mirror (at most 197), and whole routing-mode loadouts grew by 3.6%. The external
   `repo2md` provider is not changed.
+- `loadout.full_mode_max_tokens` (default 40,000; `null` turns it off) bounds
+  what a required-aware full-mode loadout inlines. Required and coactivated
+  content is uncapped and a code mirror is a whole source file, so with mirror
+  bodies loaded such a loadout reaches about 315,000 tokens at the 90th
+  percentile and 1.3 million at most on a large downstream project. Past the
+  budget, the remaining
+  code mirrors are served as summary and path, in deterministic order. No node
+  is dropped, other required content stays inline, and the loadout says which
+  mirrors were downgraded and why. A loadout within the budget is byte-identical
+  to before, and routing mode is unchanged. See
+  `docs/reference/akms/user-guide/generating-loadouts.md`.
 
 ### Changed
+- Record-derived lesson titles under `failure-lesson-index/v1` are capped at 85
+  characters instead of 96. On a large downstream project the longer titles had
+  raised required-lesson tokens by 0.44%, above what trimming the lesson bodies
+  saved; 85 is the longest cap that takes them back below the line-hint titles
+  (508,052 against 508,196), and required recall does not change. Titles still
+  break at a word. A project already on the key sees the changed titles as `check`
+  drift until it recompiles: `refresh if-stale` does that when lessons are
+  `disposable`, and `failure-memory compile` when they are `committed`. Projects
+  without the key are unchanged.
 - Loadouts render coactivated (`load_with`) nodes as their `## Summary`
   instead of in full, by default: new setting
   `loadout.coactivated_reading_priority` (default `summary`; `full` restores
@@ -369,6 +417,39 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `repo-wiki query` context expansion now follows the same call links as `context`
+  and `impact` instead of the bare-name matches stored in `symbol_graph.json`. On
+  this repository the two agreed on the callees of only 59% of symbols: stored
+  edges miss every `self.method()` call and pick the first candidate for a name
+  defined twice. `symbol_graph.json`, `flows.json` and mirrors are unchanged, and a
+  symbol the resolver does not know keeps its stored edges. Confident links are
+  expanded first. It costs about 0.2 seconds per query on a graph of 8,000 symbols.
+- `repo-wiki` scanner patterns treat a `**/` segment as matching no directory too,
+  in one place, so `scan`, `build`, the index, `changes`, the staleness check and
+  `export-akms` agree. The default `**/*.py`-style includes used to miss every file
+  in the repository root, while `export-akms` added root forms of its own, which
+  are now gone. After upgrading, a root `.py` file (and a root file of an enabled
+  language) gets graph nodes and generated pages at the next `build`, and until
+  that build `context` and `impact` report the graph as stale, as for any new
+  source. Root `.md`, `.yaml`, `.yml` and `.toml` files now appear in `scan`, as the
+  same files below the root always did; they get no graph nodes, pages, index
+  entries or mirrors. Mirrors do not change: `export-akms` already covered the root.
+  A custom `scanner.include` still replaces the default and now reaches the root
+  the same way, and an exclude such as `**/name` now also matches at the root.
+  Secret and credential names stay excluded at the root, whatever the includes.
+- `repo-wiki` records `as` import aliases inside a function (`from pkg.cli import
+  main as run_cli`, `import pkg.tools as tools`) and resolves calls through them
+  with function scope: the alias shadows a module-level name of the same spelling,
+  reaches nested functions, and does not leak to sibling functions. `context`,
+  `impact`, `changes` and `flows` gain the links; the wrong by-name guesses for
+  those calls go away. `symbol_graph.json` gains an optional `import_aliases` field
+  on symbol nodes that have one; it stays `symbol_graph v1`. The extraction cache
+  is rebuilt once. Mirror bytes do not change.
+- Docs: qmd is an external Node package (`npm install -g @tobilu/qmd`), not a Go
+  binary.
+- `repo-wiki build` no longer stops at the index stage on a repository with a
+  path containing a character such as `\x85`: the configuration and frontmatter
+  reader now ends a line only at a newline, not at every Unicode line break.
 - `repo-wiki`: a `scanner.exclude` list in `.repo_wiki/config.yaml` no longer
   replaces the built-in exclude patterns. It replaced the whole list, so
   adding one pattern silently dropped the secret and credential patterns

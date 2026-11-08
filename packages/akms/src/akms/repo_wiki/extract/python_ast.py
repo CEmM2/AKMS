@@ -98,7 +98,7 @@ def extract_import_bindings(
 
     Relative targets are resolved against the package; one that climbs above the root is dropped.
     """
-    package = module.split(".") if is_package else module.split(".")[:-1]
+    package = _package_parts(module, is_package)
     bindings: dict[str, str] = {}
     stack = list(tree.body)
     while stack:
@@ -115,17 +115,54 @@ def extract_import_bindings(
                     head = alias.name.split(".")[0]
                     bindings[head] = head
         elif isinstance(node, ast.ImportFrom):
-            if node.level:
-                if node.level - 1 > len(package):
-                    continue
-                base = package[: len(package) - (node.level - 1)]
-                source = ".".join([*base, *([node.module] if node.module else [])])
-            else:
-                source = node.module or ""
+            source = _import_from_source(node, package)
             for alias in node.names:
                 if alias.name != "*" and source:
                     bindings[alias.asname or alias.name] = f"{source}.{alias.name}"
     return dict(sorted(bindings.items()))
+
+
+def _package_parts(module: str, is_package: bool) -> list[str]:
+    return module.split(".") if is_package else module.split(".")[:-1]
+
+
+def _import_from_source(node: ast.ImportFrom, package: list[str]) -> str:
+    """The absolute module of ``from ... import``; "" when it climbs above the root."""
+    if not node.level:
+        return node.module or ""
+    if node.level - 1 > len(package):
+        return ""
+    base = package[: len(package) - (node.level - 1)]
+    return ".".join([*base, *([node.module] if node.module else [])])
+
+
+def extract_import_aliases(
+    node: ast.FunctionDef | ast.AsyncFunctionDef, module: str, *, is_package: bool
+) -> dict[str, str]:
+    """``as`` names imported in this function's own body -> absolute dotted targets.
+
+    A nested function or class is its own scope and records its own, so a sibling never
+    sees them. Names imported without ``as`` are left to the module's import list. As at
+    module level, a name imported twice (``try``/``except ImportError``) keeps the last.
+    """
+    package = _package_parts(module, is_package)
+    aliases: dict[str, str] = {}
+    pending: list[ast.AST] = list(node.body)
+    while pending:
+        child = pending.pop(0)
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if isinstance(child, ast.Import):
+            for alias in child.names:
+                if alias.asname:
+                    aliases[alias.asname] = alias.name
+        elif isinstance(child, ast.ImportFrom):
+            source = _import_from_source(child, package)
+            for alias in child.names:
+                if alias.asname and alias.name != "*" and source:
+                    aliases[alias.asname] = f"{source}.{alias.name}"
+        pending.extend(ast.iter_child_nodes(child))
+    return dict(sorted(aliases.items()))
 
 
 def parse_definition(
@@ -177,6 +214,13 @@ def parse_definition(
         ),
         table_refs=[] if is_class else extract_table_refs(node, table_names),
         cli_handlers=[] if is_class else extract_cli_handlers(node),
+        import_aliases=(
+            {}
+            if isinstance(node, ast.ClassDef)
+            else extract_import_aliases(
+                node, module, is_package=Path(path).name == "__init__.py"
+            )
+        ),
     )
     result = [symbol]
     for child in node.body:
