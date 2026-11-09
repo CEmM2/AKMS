@@ -42,6 +42,7 @@ A record is not a fact: records stay records unless a person promotes them.
 - SQLite with FTS5 in Python's `sqlite3` (standard builds) for `recall` and
   `wake`
 - A filesystem with hard links (any local disk on Linux, macOS and Windows)
+- Optional: the `qmd` command and its embedding model, for `recall --semantic`
 
 ## First commands
 

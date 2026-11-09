@@ -203,11 +203,16 @@ examples, not privileged types.
   records on demand.
 - **Wake:** given an agent, a task description, and a hard token limit, return
   prioritized, deduplicated records and summaries with stable identifiers and a
-  truncation report. Token counts use the AKMS loadout estimator, so a record
+  truncation report. Review state decides what is eligible and which tier a record
+  is in (reviewed above unreviewed); within a tier, task match decides the order,
+  because a wake's job is what this task needs, and an evaluation showed a store's
+  `user_confirmed` records otherwise fill the budget regardless of the task. Token counts use the AKMS loadout estimator, so a record
   budget and a loadout budget mean the same thing. It never includes another
   agent's private records. It reads only the record store. Promoted records and
   imported failure lessons are left out by default, because the loadout and
-  failure-memory already serve them, and a caller can ask for them deliberately.
+  failure-memory already serve them, and a caller can ask for them deliberately. A
+  reviewed record superseded by a successor nobody has reviewed stays, marked with the
+  successor, so one agent's unchecked replacement cannot make a checked fact vanish.
 - **Rendering is data, not instructions.** Recall and wake output render record
   text as quoted data in a fixed layout, with origin and review state shown, so
   text inside a record cannot pose as instructions or forge a section boundary.
@@ -216,6 +221,9 @@ examples, not privileged types.
   metadata. The default is extractive and uses no LLM; an explicitly selected
   provider is recorded with its input versions. Raw history and summaries stay
   distinct.
+- **Reviews apply to text:** an agent's change to a record's payload, summary or
+  origin makes a reviewed record `unreviewed`, and it cannot name `user_confirmed` in
+  the same amend. The person a record belongs to keeps its state.
 - **Correct or forget:** append correction, supersession, or retraction events
   for normal history. A separately authorized erasure removes protected content
   from the canonical files, the index, summaries, and exports under the
@@ -299,7 +307,7 @@ user-defined schemas.
 | Make the record service an AKMS core dependency, or an `akms records` subcommand | Rejected | Violates the runtime-independent contract principle of ADR 0001; core has no plugin mechanism. |
 | One canonical SQLite file or one JSONL ledger per scope | Rejected for project scope | Neither merges in git: a binary database cannot, and one append-only file conflicts on every parallel append. |
 | Store canonical records in a cloud sync folder | Rejected | Sync semantics are not a reliable multi-writer transactional store. |
-| Make vector embeddings mandatory | Rejected | Extra dependencies and cost without demonstrated benefit over metadata, full text, and summaries. |
+| Make vector embeddings mandatory | Rejected | Extra dependencies and cost without demonstrated benefit over metadata, full text, and summaries. `recall --semantic` offers them as an opt-in through the external `qmd` tool, with no new dependency, so they can be measured. |
 
 ## Consequences
 

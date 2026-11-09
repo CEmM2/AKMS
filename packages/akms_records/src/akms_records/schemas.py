@@ -34,18 +34,15 @@ beside it. The rules are data: nothing in a schema or its rules is executed.
 
 from __future__ import annotations
 
+import functools
 import importlib.resources
 import os
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
-
-import jsonschema_specifications  # the bundled Draft 2020-12 metaschemas
-from jsonschema import Draft202012Validator
-from referencing import Registry
-from referencing.exceptions import NoSuchResource, Unresolvable
 
 from akms_records.canonical import canonical_bytes, compact_line, digest, loads_strict
 from akms_records.envelope import ENVELOPE_KEYS, MAX_SUMMARY
@@ -69,17 +66,32 @@ _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 MAX_ERRORS = 20
 
 
-def _refuse(uri: str) -> Any:
-    raise NoSuchResource(ref=uri)
+@functools.cache
+def _validation() -> SimpleNamespace:
+    """The JSON Schema machinery, imported on first use.
 
+    It is most of this package's import time, and recall and wake rarely need it, so
+    a command that only reads does not pay for it.
 
-# Resolves nothing. Passing it explicitly matters: without a registry,
-# jsonschema fetches http(s) references and reads file: references.
-REFUSING_REGISTRY: Registry[Any] = Registry(retrieve=_refuse)
-# The bundled metaschemas, and nothing else, for checking a schema itself.
-_META_REGISTRY: Registry[Any] = REFUSING_REGISTRY.combine(
-    jsonschema_specifications.REGISTRY
-)
+    ``refusing`` resolves nothing. Passing it explicitly matters: without a registry,
+    jsonschema fetches http(s) references and reads file: references. ``meta`` holds
+    the bundled metaschemas, and nothing else, for checking a schema itself.
+    """
+    import jsonschema_specifications  # the bundled Draft 2020-12 metaschemas
+    from jsonschema import Draft202012Validator
+    from referencing import Registry
+    from referencing.exceptions import NoSuchResource, Unresolvable
+
+    def refuse(uri: str) -> Any:
+        raise NoSuchResource(ref=uri)
+
+    refusing: Registry[Any] = Registry(retrieve=refuse)
+    return SimpleNamespace(
+        Validator=Draft202012Validator,
+        Unresolvable=Unresolvable,
+        refusing=refusing,
+        meta=refusing.combine(jsonschema_specifications.REGISTRY),
+    )
 
 
 def _schema_error(message: str, *, code: str = "invalid_schema", **details: Any):
@@ -425,15 +437,16 @@ class Registration:
 
 def validate_instance(schema: dict[str, Any], instance: Any, *, ref: str) -> None:
     """Validate ``instance``; references are never fetched, formats never checked."""
-    validator = Draft202012Validator(
-        schema, registry=REFUSING_REGISTRY, format_checker=None
+    validation = _validation()
+    validator = validation.Validator(
+        schema, registry=validation.refusing, format_checker=None
     )
     try:
         errors = sorted(
             validator.iter_errors(instance),
             key=lambda error: (list(map(str, error.absolute_path)), error.message),
         )
-    except Unresolvable as exc:
+    except validation.Unresolvable as exc:
         raise RecordsError(
             f"{ref}: schema reference refused: {exc}",
             code="schema_ref_refused",
@@ -467,12 +480,15 @@ def check_schema_document(
             code="schema_ref_refused",
             problems=problems,
         )
-    meta = Draft202012Validator(
-        Draft202012Validator.META_SCHEMA, registry=_META_REGISTRY, format_checker=None
+    validation = _validation()
+    meta = validation.Validator(
+        validation.Validator.META_SCHEMA,
+        registry=validation.meta,
+        format_checker=None,
     )
     try:
         meta_errors = [error.message for error in meta.iter_errors(schema)]
-    except Unresolvable as exc:
+    except validation.Unresolvable as exc:
         raise _schema_error(f"schema refused: {exc}", code="schema_ref_refused")
     if meta_errors:
         raise _schema_error(
@@ -887,7 +903,6 @@ def load_template(name: str) -> dict[str, Any]:
 __all__ = [
     "DIALECT",
     "EXTENSION_KEY",
-    "REFUSING_REGISTRY",
     "RegisteredSchema",
     "Registration",
     "render_summary",

@@ -42,7 +42,7 @@ from akms_records.consolidate import (
 from akms_records.envelope import ORIGIN_KINDS, REVIEW_STATES, SENSITIVITY_LEVELS
 from akms_records.errors import RecordsError
 from akms_records.policy import POLICY_SOURCES, POLICY_STATUSES
-from akms_records.query import MIN_REVIEW_STATES
+from akms_records.query import MATCH_MODES, MIN_REVIEW_STATES
 from akms_records.schemas import (
     RULE_KEYS,
     RegisteredSchema,
@@ -366,12 +366,53 @@ def _parser() -> argparse.ArgumentParser:
         "it without a terminal, never for an agent",
     )
 
-    recall = sub.add_parser("recall", help="search the scope's records (index)")
-    _store_options(recall)
+    recall = sub.add_parser("recall", help="search one or more scopes (index)")
+    recall.add_argument(
+        "--scope",
+        action="append",
+        dest="scopes",
+        default=[],
+        help="project:<id>, agent:<id> or shared:<id>; repeat to search several as "
+        "one ranked list",
+    )
+    recall.add_argument(
+        "--repo",
+        type=Path,
+        default=None,
+        help="repository root for project scope (default: the current directory)",
+    )
+    recall.add_argument(
+        "--actor", default=None, help="accepted for symmetry; recall writes nothing"
+    )
     recall.add_argument(
         "--agent", help="the reading agent; refuses another agent's scope"
     )
-    recall.add_argument("--query", help="words that must all occur (plain text)")
+    recall.add_argument(
+        "--visible",
+        action="store_true",
+        help="also the --agent's own scope, the scopes wake reads for it",
+    )
+    recall.add_argument(
+        "--query",
+        help="plain text; records with every word, or else with any word",
+    )
+    recall.add_argument(
+        "--match",
+        choices=MATCH_MODES,
+        default="auto",
+        help="auto (default): every word, then any word if that finds nothing",
+    )
+    recall.add_argument(
+        "--semantic",
+        action="store_true",
+        help="also search a local vector index, built per store with the optional "
+        "external qmd tool",
+    )
+    recall.add_argument(
+        "--embed-sensitive",
+        action="store_true",
+        help="with --semantic, allow sensitive records into that index",
+    )
     recall.add_argument("--schema", help="<name> or <name>/v<N>")
     recall.add_argument(
         "--tag",
@@ -593,6 +634,34 @@ def _open(args: argparse.Namespace) -> RecordStore:
     return store
 
 
+def _recall_command(args: argparse.Namespace) -> dict[str, Any]:
+    from akms_records.query import recall_scopes
+
+    result = recall_scopes(
+        args.scopes,
+        query=args.query,
+        agent=args.agent,
+        visible=args.visible,
+        repo=args.repo if args.repo is not None else Path.cwd(),
+        schema=args.schema,
+        tags=args.tags,
+        since=args.since,
+        until=args.until,
+        review_state=args.review_state,
+        include_retracted=args.include_retracted,
+        include_superseded=args.include_superseded,
+        include_sensitive=args.include_sensitive,
+        limit=args.limit,
+        full=args.full,
+        match=args.match,
+        semantic=args.semantic,
+        embed_sensitive=args.embed_sensitive,
+    )
+    if args.format == "text":
+        return {"status": "ok", "_text": result.render_text()}
+    return result.to_json()
+
+
 def _wake(args: argparse.Namespace) -> dict[str, Any]:
     from akms_records.canonical import utc_now
     from akms_records.query import manifest_nodes, wake
@@ -811,25 +880,9 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return _index_command(args)
     if args.command == "consolidate":
         return _consolidate_command(args)
-    store = _open(args)
     if args.command == "recall":
-        result = store.recall(
-            args.query,
-            schema=args.schema,
-            tags=args.tags,
-            since=args.since,
-            until=args.until,
-            review_state=args.review_state,
-            include_retracted=args.include_retracted,
-            include_superseded=args.include_superseded,
-            include_sensitive=args.include_sensitive,
-            agent=args.agent,
-            limit=args.limit,
-            full=args.full,
-        )
-        if args.format == "text":
-            return {"status": "ok", "_text": result.render_text()}
-        return result.to_json()
+        return _recall_command(args)
+    store = _open(args)
     actor = _actor(args)
     if args.command == "add":
         if not args.file:

@@ -26,6 +26,19 @@ Setting a promotion policy asks for interactive confirmation, but a process
 that can drive a terminal could answer it. That is why every change is
 logged.
 
+
+## Review state
+
+An agent's content change resets a review, and only `origin` tells a person from an
+agent; see the [CLI reference](cli-reference.md#records). After such a reset the
+record is `unreviewed`, so other agents no longer get it from `wake` until someone
+reviews it again, while `recall` still finds it. Old revisions stay in `history`.
+
+This rests on the actor name. `--actor` and `AKMS_RECORDS_ACTOR` are trusted as given, so
+an agent that claims the name in `origin` keeps the review. Like scope isolation, this
+protects cooperating agents from mistakes; it is a policy, not a security boundary. Each
+event records the actor, so a claim can be traced, but not disproved.
+
 ## Promotion
 
 - **The approval is a statement, not a proof.** `--review approved`, `--yes` and
@@ -161,3 +174,33 @@ keep values exactly as they are.
 Writes `fsync` the event file and its directory. On macOS `fsync` does not
 flush the drive's cache; set `AKMS_RECORDS_FULL_FSYNC=1` for a full flush.
 Crash safety is tested against killed processes, not against power loss.
+
+## Semantic search
+
+`recall --semantic` is opt-in and depends on an external tool, and on settings that tool
+describes as being for its tests: `INDEX_PATH` and `QMD_CONFIG_DIR` keep qmd inside the store, and the
+`vec:` query form with `--no-rerank` keeps it from running a text-generating model. It
+was checked against qmd 2.1.0, with the network denied and the user's qmd folders
+read-only. A later version of qmd could change either, so check again before relying
+on it.
+
+On one 597-record evaluation corpus of three store roots, with 134 queries and a limit
+of 5, measured on one laptop:
+
+| Query | Search | Recall@5 | MRR | Median time |
+|---|---|---|---|---|
+| keywords | text | 0.828 | 0.935 | 5 ms |
+| keywords | text + vectors | 0.850 | 0.590 | 3.9 s |
+| questions | text | 0.679 | 0.462 | 8 ms |
+| questions | text + vectors | 0.746 | 0.494 | 3.2 s |
+
+So vectors found somewhat more for questions, and put the right record much lower for
+keywords, at several hundred times the latency: each store root costs one `qmd` process
+that loads the model. The first build took 15 s and about 16 MB across the three
+roots. This is weak evidence, since the queries were written with the corpus in mind,
+and it is not a recommendation either way.
+
+An erasure means a full rebuild at the next semantic recall, and so does a record
+becoming sensitive. qmd's vector search considers at most 20 chunks per query per store
+root, so a very large root, or one shared by many scopes, can crowd out a scope's
+records before recall filters them.

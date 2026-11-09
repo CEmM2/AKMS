@@ -80,6 +80,7 @@ from akms_records.errors import (
 )
 from akms_records.fsio import TMP_RE, append_line, fsync_dir, write_exclusive
 from akms_records.index import INDEX_DIRNAME, INDEX_FILENAME, RecordIndex
+from akms_records.semantic import drop_index, holds_any
 from akms_records.ids import (
     RECORD_ID_RE,
     check_event_id,
@@ -141,6 +142,8 @@ MAX_REASON = 1000
 CASCADE_REASON = "cascade: a summary that cites an erased record"
 # What a plain amend may change on a summary; the rest is consolidate's job.
 SUMMARY_AMENDABLE = frozenset({"review_state", "tags", "sensitivity"})
+PERSON_ORIGINS = frozenset({"human", "human-confirmed"})
+REVIEWED_STATES = frozenset({"agent_reviewed", "user_confirmed"})
 NOT_REACHED = (
     "git history: commits, packs and remotes that already contain the record",
     "other clones and unmerged branches (run doctor --fix after a merge to re-apply)",
@@ -300,6 +303,51 @@ def _with_refs(
             code="source_refs_full",
         )
     return merged
+
+
+def review_state_after(
+    record: Record, merged: dict[str, Any], *, asked: str | None, actor: str
+) -> str:
+    """The review state after an amend: a review does not outlive the text it was of.
+
+    A **content change** is a new payload, summary or origin: what a reviewer read
+    and who it is said to come from. Tags, source references and sensitivity are not.
+
+    The **person** a record belongs to keeps its state. That is an actor equal to
+    ``origin.actor_id`` on a record whose ``origin.kind`` is ``human`` or
+    ``human-confirmed``, as the record stood before this amend. Every other actor is
+    treated as an agent, because actor names say nothing else: a person changing
+    someone else's record confirms it again afterwards, as a separate amend.
+
+    When an agent changes content, a reviewed record becomes ``unreviewed``, since the
+    review was of other text. ``rejected`` stays, or an edit could launder a rejection.
+    Naming ``agent_reviewed`` or ``unreviewed`` in the same amend is honest and
+    allowed. Naming ``user_confirmed`` is refused (``review_reassert``): a person's
+    confirmation of text they have not seen cannot arrive with the edit.
+    """
+    changed = any(
+        merged[name] != current
+        for name, current in (
+            ("payload", record.payload),
+            ("summary", record.summary),
+            ("origin", record.origin),
+        )
+    )
+    person = (
+        record.origin["kind"] in PERSON_ORIGINS and record.origin["actor_id"] == actor
+    )
+    if not changed or person:
+        return merged["review_state"]
+    if asked == "user_confirmed":
+        raise RecordsError(
+            f"{actor} changed the content of {record.record_id} and named "
+            "user_confirmed in the same amend; nothing was written. Amend the content, "
+            "then have a person confirm the new text in a separate amend",
+            code="review_reassert",
+        )
+    if asked is not None or record.review_state not in REVIEWED_STATES:
+        return merged["review_state"]
+    return "unreviewed"
 
 
 def history_citations(events: list[dict[str, Any]]) -> set[str]:
@@ -935,7 +983,13 @@ class RecordStore:
         actor: str,
         event_id: str | None = None,
     ) -> WriteResult:
-        """Append an amendment. Fields absent from ``document`` keep their value."""
+        """Append an amendment. Fields absent from ``document`` keep their value.
+
+        Two exceptions. A summary that came from the schema's template follows a new
+        payload, so a replaced text stops showing and stops matching; see
+        :meth:`_summary_after`. And a review does not outlive the text it was of; see
+        :func:`review_state_after`.
+        """
         fields = parse_record_document(document, scope=self.scope, partial=True)
         if not fields:
             raise RecordsError(
@@ -961,6 +1015,12 @@ class RecordStore:
             ):
                 raise self._refuse_summary_write("amend")
             schema.validate_payload(merged["payload"])
+            if "summary" not in fields and merged["payload"] != record.payload:
+                merged["summary"] = self._summary_after(record, merged)
+            if not self._summary_writer:
+                merged["review_state"] = review_state_after(
+                    record, merged, asked=fields.get("review_state"), actor=actor
+                )
             return {
                 "envelope": {
                     "schema_ref": schema.ref,
@@ -984,6 +1044,48 @@ class RecordStore:
             actor=actor,
             event_id=event_id,
         )
+
+    def _summary_after(self, record: Record, merged: dict[str, Any]) -> str:
+        """The summary after a payload change that did not name a summary.
+
+        The event format has no mark for where a summary came from, so it is worked
+        out: a summary that equals what a template of this record's schemas, current
+        or logged, gives one of its past payloads came from a template, and follows
+        the new payload. Anything else was written by someone and stays until it is
+        changed. A written summary that happens to equal the template's text follows
+        too, which loses nothing. So does one left behind by an amend from before
+        this rule, the next time the payload changes.
+        """
+        if record.summary not in self._template_summaries(record):
+            return record.summary
+        try:
+            rules = self.schemas.rules(merged["schema_ref"])
+        except RecordsError:
+            return record.summary
+        return render_summary(rules, merged["payload"]) or record.summary
+
+    def _template_summaries(self, record: Record) -> set[str]:
+        """What each known template of this record gives each of its past payloads."""
+        bodies = [
+            event["body"]
+            for event in self.history(record.record_id)
+            if event["kind"] in ("create", "amend")
+        ]
+        rule_sets: list[Any] = []
+        for ref in {body["envelope"]["schema_ref"] for body in bodies}:
+            try:
+                rule_sets.append(self.schemas.rules(ref))
+                for entry in self.schemas.rules_log(ref):
+                    rule_sets.extend([entry.get("previous"), entry.get("value")])
+            except RecordsError:
+                continue
+        return {
+            text
+            for rules in rule_sets
+            if isinstance(rules, dict)
+            for body in bodies
+            if (text := render_summary(rules, body["payload"]))
+        }
 
     def record_promotion(
         self,
@@ -1284,7 +1386,25 @@ class RecordStore:
         }
 
     def _purge_index(self, record_id: str, not_reached: list[str]) -> dict[str, Any]:
-        """Remove an erased record from this worktree's index, bytes included."""
+        """Remove an erased record from this worktree's indexes, bytes included.
+
+        The optional semantic index cannot drop one document's text, so it is deleted
+        whole. That comes second: a build reads from the full-text index.
+        """
+        report = self._purge_text_index(record_id, not_reached)
+        semantic = drop_index(self.root)
+        if semantic == "not_reached":
+            not_reached.append(
+                "this store's semantic index, which another process was using; "
+                "run doctor --fix, or delete .index/semantic"
+            )
+        if semantic != "absent":
+            report["semantic"] = semantic
+        return report
+
+    def _purge_text_index(
+        self, record_id: str, not_reached: list[str]
+    ) -> dict[str, Any]:
         if not self.index_path.is_file():
             return {"status": "absent"}
         try:
@@ -1533,6 +1653,8 @@ class RecordStore:
                     repairs["erasures_reapplied"].append(record_id)
                 else:
                     found["erased_but_present"].append(record_id)
+        if fix and holds_any(self.root, erased) and drop_index(self.root) == "deleted":
+            repairs["semantic_index_deleted"] = [INDEX_DIRNAME + "/semantic"]
         schema_digests: dict[str, str] = {}
         for ref, loaded in self.schemas.iter_checked():
             if isinstance(loaded, RecordsError):

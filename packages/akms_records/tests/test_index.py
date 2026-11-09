@@ -70,6 +70,7 @@ def build_mixed_store(make_store, clock):
             },
             "tags": ["model", "surrogate"],
             "source_refs": [{"kind": "issue", "ref": "#1"}],
+            "origin": {"kind": "human", "actor_id": "t"},
         },
         actor="t",
     ).record_id

@@ -19,10 +19,10 @@ akms-records [--version] [--json-errors] <command> ...
   when the command failed. A failure prints `error[<code>]: <message>` on stderr,
   or `{"status": "error", "error": {"code": ..., "message": ...}}` on stdout
   with `--json-errors`.
-- **Scope.** Every command except `schema templates` and `wake` takes
+- **Scope.** Every command except `schema templates`, `recall` and `wake` takes
   `--scope project:<id>|agent:<id>|shared:<id>`, plus `--repo PATH` for
-  project scope (default: the current directory). `wake` takes `--agent` and
-  any number of `--scope` options.
+  project scope (default: the current directory). `recall` takes any number of
+  `--scope` options, and `wake` takes `--agent` and any number of them.
 - **Actor.** `--actor NAME` records who acted. The default is
   `$AKMS_RECORDS_ACTOR`, then the operating-system user name.
 - **Idempotency.** Write commands take `--event-id ID`. Running the same
@@ -65,18 +65,37 @@ cannot be `established`.
 | Command | Purpose |
 |---|---|
 | `add --file DOC [--schema REF]` | Create a record. |
-| `amend RECORD --expect-revision N [--file DOC]` | Amend fields; fields not given keep their value. |
+| `amend RECORD --expect-revision N [--file DOC]` | Amend fields; fields not given keep their value, except that a summary from the schema's template follows a new payload (see [templates](schemas-and-templates.md#summaries-and-amends)). |
 | `supersede RECORD --expect-revision N (--by OTHER \| --file DOC [--schema REF]) [--reason TEXT]` | Mark a record superseded by an existing record, or by a new one created from `DOC`. |
 | `retract RECORD --expect-revision N --reason TEXT` | Mark a record retracted. |
 | `show RECORD` | The current state: `record` (envelope and payload) and `state` (update time, head digest, successor, reason). |
 | `history RECORD` | Every event, oldest first. |
 | `list` | The scope's records, by reading the files (not the index), plus any that fail to replay. |
 
+**A review does not outlive the text it was of.** When an agent changes a record's
+content (its payload, summary or origin), a reviewed record becomes `unreviewed`, so
+it stops being offered to other agents as checked. Tags, source references and
+sensitivity are not content and keep the state, and `promote`'s link changes nothing.
+`rejected` stays `rejected`.
+
+- **Who keeps the state:** the person the record belongs to, meaning an actor equal
+  to `origin.actor_id` on a record whose `origin.kind` is `human` or `human-confirmed`.
+  Every other actor counts as an agent, because actor names say nothing else. A person
+  changing someone else's record confirms it again in a separate amend.
+- **Naming a state in the same amend:** `unreviewed` and `agent_reviewed` are allowed,
+  since an agent can say it reviewed its own edit. `user_confirmed` is refused with
+  `review_reassert` and nothing is written.
+- **The limit:** this is a rule for cooperating agents. An agent can pass a person's
+  name as `--actor`, or set `user_confirmed` in a later amend. The second step shows in
+  `history`, with the actor. Without `$AKMS_RECORDS_ACTOR`, the default actor is the
+  operating-system user, the same for a person and any agent they run, so set it for
+  agents.
+
 ## Recall and wake
 
 | Command | Purpose |
 |---|---|
-| `recall [--query WORDS] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--agent ID] [--limit N] [--full] [--format json\|text]` | Search the scope through the index; ranked by BM25, then newest first. |
+| `recall [--scope S]... [--agent ID [--visible]] [--query WORDS] [--match auto\|all\|any] [--semantic [--embed-sensitive]] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--limit N] [--full] [--format json\|text]` | Search one or more scopes through the index: every word, else any word, ranked by BM25, then newest first. |
 | `wake --agent ID --task TEXT --budget-tokens N [--scope S]... [--include-sensitive] [--include-unreviewed] [--include-promoted] [--include-imported] [--exclude-nodes MANIFEST] [--review-state MIN] [--format json\|markdown] [--generated-at]` | Prioritised, deduplicated records for an agent within a hard token budget, with a truncation report. By default: reviewed records plus the agent's own unreviewed ones, without promoted records and imported failure lessons; `--include-unreviewed` adds everyone's. |
 
 Both are described in [recall and wake](recall-and-wake.md), including the
@@ -160,7 +179,8 @@ The result follows `failure-memory doctor`: a `status` of `ok` or `error`
 (`ok`, `warning` or `error`), `severity`, `repairable` (whether `--fix`
 handles it) and the `items` it found. `repairs` lists what `--fix` changed
 (`tmp_removed`, `empty_dirs_removed`, `erasures_reapplied`,
-`summaries_erased`, `index_reconciled`), `mode` is `report` or `fix`, and
+`summaries_erased`, `index_reconciled`, and `semantic_index_deleted` when the
+[semantic index](recall-and-wake.md#semantic-search) held an erased record), `mode` is `report` or `fix`, and
 `records_checked` counts the records replayed. `--actor` names who `--fix`
 logs as erasing a summary.
 
@@ -211,6 +231,11 @@ equal `--scope`.
 | `scope_violation` | The record belongs to another scope |
 | `stale_revision` | `--expect-revision` is no longer the head; nothing written |
 | `not_active` | The record is superseded or retracted |
+| `qmd_missing` | `recall --semantic` needs the `qmd` command, which is not on `PATH` |
+| `semantic_model_missing` | `recall --semantic` needs qmd's embedding model as a local file; nothing is downloaded |
+| `semantic_failed` | `qmd` failed, timed out or printed something unexpected |
+| `semantic_locked` | Another process kept the semantic index busy for too long |
+| `review_reassert` | An agent changed a record's content and named `user_confirmed` in the same amend; nothing written |
 | `event_id_reused` | The event ID was already used for a different kind of event, or in another scope |
 | `replay_error` | The record's files do not replay (`details.replay_code` says why) |
 | `invalid_schema`, `invalid_rules` | The schema or its extraction rules are not acceptable (for example a pointer to an undeclared property) |

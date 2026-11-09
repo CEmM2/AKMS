@@ -695,10 +695,10 @@ def test_wake_prefers_a_summary_and_never_shows_its_sources_twice(project, repo,
     }
     markdown = result.render_markdown()
     headings = [line for line in markdown.splitlines() if line.startswith("### ")]
-    assert headings == [f"### 1. {sid} (revision 1)"]
+    assert headings == [f"### 1. {sid}@1"]
     for source in sources:
         assert f"{source}@1" in markdown  # cited in the entry metadata
-    assert "- consolidation: valid, extractive, 5 assertions from 5 records" in markdown
+    assert "consolidation: valid, extractive, 5 assertions from 5 records" in markdown
     # Stale: the summary is excluded and the sources come back.
     project.amend(
         sources[0], {"summary": "Changed"}, expected_revision=1, actor="alpha"
@@ -723,12 +723,12 @@ def test_wake_falls_back_to_sources_when_the_summary_does_not_fit(project, repo,
     assert tight.excluded["covered"] == () and tight.covered_by_summary == {}
 
 
-def test_a_summary_never_ranks_above_a_higher_reviewed_record(project, repo, home):
+def test_a_summary_never_ranks_above_a_higher_tier(project, repo, home):
     long = "mesh refinement near the crack tip " * 4
     confirmed = add(
         project, f"Confirmed {long}", actor="bravo", review_state="user_confirmed"
     )
-    own = add(project, f"Own note {long}", actor="alpha")
+    own = [add(project, f"Own note {n} {long}", actor="alpha") for n in range(3)]
     other = add(
         project,
         "An unrelated confirmed decision",
@@ -737,15 +737,36 @@ def test_a_summary_never_ranks_above_a_higher_reviewed_record(project, repo, hom
     )
     sid = summarize(project, actor="alpha")
     assert {r["ref"] for r in project.get(sid).source_refs} == {
-        f"{confirmed}@1",
-        f"{own}@1",
+        f"{record}@1" for record in [confirmed, *own]
     }
     result = run(repo, home, task="mesh refinement crack")
-    # The summary ranks at its lowest source (unreviewed), below the other
-    # user_confirmed record, although it covers a user_confirmed source that
-    # matches the task better than that record does.
+    # The summary ranks in the tier of its lowest source (unreviewed), below the
+    # other reviewed record, although it covers a user_confirmed source that matches
+    # the task better than that record does.
     assert entry_ids(result) == [other, sid]
-    assert set(result.excluded["covered"]) == {confirmed, own}
+    assert set(result.excluded["covered"]) == {confirmed, *own}
+
+
+def test_a_summary_of_reviewed_sources_ranks_by_match_in_the_reviewed_tier(
+    project, repo, home
+):
+    long = "mesh refinement near the crack tip " * 4
+    sources = [
+        add(project, f"Reviewed {n} {long}", review_state="agent_reviewed")
+        for n in range(3)
+    ]
+    other = add(
+        project,
+        "An unrelated confirmed decision",
+        tags=["other"],
+        review_state="user_confirmed",
+    )
+    sid = summarize(project, actor="alpha")
+    result = run(repo, home, task="mesh refinement crack")
+    # All its sources are reviewed, so it is in the tier of the user_confirmed
+    # record, and ranks above that record on the task match.
+    assert entry_ids(result) == [sid, other]
+    assert set(result.excluded["covered"]) == set(sources)
 
 
 def test_extractive_summary_with_an_ineligible_source_is_excluded(project, repo, home):
@@ -821,17 +842,20 @@ def test_hostile_source_text_stays_fenced_in_wake_and_recall(project, repo, home
     outside, blocks = parse_markdown(result.render_markdown())
     allowed = re.compile(
         r"(|# akms-records wake|## Records|## Truncation report"
-        r"|### [0-9]+\. rec-[0-9]{8}-[0-9a-z]{8} \(revision [0-9]+\)"
-        r"|- (agent|scopes|budget_tokens|scope|schema|origin|review_state"
-        r"|recorded_at|tags|consolidation|citations|included|omitted_by_budget"
-        r"|excluded|record IDs): .*)"
+        r"|### [0-9]+\. rec-[0-9]{8}-[0-9a-z]{8}@[0-9]+"
+        r"|(project|agent|shared):\S+ [a-z0-9-]+/v[0-9]+ "
+        r'(human|human-confirmed|agent|tool|import) "[^\n]*" '
+        r"(unreviewed|agent_reviewed|user_confirmed) [0-9]{4}-[0-9]{2}-[0-9]{2}"
+        r"|consolidation: .*|citations: .*"
+        r"|- (agent|scopes|budget_tokens|included|omitted_by_budget|excluded"
+        r"|record IDs): .*)"
     )
     assert outside[2] == f"> {NOTICE}"
     for line in outside[:2] + outside[3:]:
         assert allowed.fullmatch(line), line
-    citations = next(line for line in outside if line.startswith("- citations: "))
+    citations = next(line for line in outside if line.startswith("citations: "))
     assert re.fullmatch(
-        r"- citations: \[1\] rec-[^;]+(; \[[0-9]+\] rec-[^;]+)*", citations
+        r"citations: \[1\] rec-[^;]+(; \[[0-9]+\] rec-[^;]+)*", citations
     )
     assert len(blocks) == 1
     expected = "\n".join(

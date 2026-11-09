@@ -16,6 +16,18 @@ development is intentionally not replayed.
   lock-only change; `uv audit` reports no known vulnerabilities.
 
 ### Added
+- `akms-records recall --semantic` adds an optional vector search through the external
+  `qmd` tool, with no new Python dependency, merged with the text search by reciprocal
+  rank. It is off by default and whether it helps is still to be evaluated. The index
+  is private to the store (`.index/semantic/`), a search runs no LLM and needs no
+  network, and sensitive records are left out unless `--embed-sensitive` is passed.
+  Erasing a record deletes the whole index, since qmd keeps the text of documents that
+  go away; the next semantic recall rebuilds it. A missing tool or model is a typed
+  error (`qmd_missing`, `semantic_model_missing`).
+- `akms-records recall` reads several scopes as one ranked list: `--scope` repeats, and
+  `--agent ID --visible` adds that agent's own scope, as `wake` does. Lists merge by
+  reciprocal rank, then newest first, then record ID, because BM25 does not compare
+  across indexes, and each hit names its scope.
 - `akms-records promote <record> --review approved` writes a reviewed record as an
   AKMS project-local node, with the `[akms]` extra. By default it goes through
   `update_graph` as `source: agent`, `status: tentative`, possibly appended by
@@ -338,6 +350,20 @@ development is intentionally not replayed.
   `docs/reference/akms/user-guide/generating-loadouts.md`.
 
 ### Changed
+- `akms-records wake` ranks reviewed records (`agent_reviewed` and `user_confirmed`
+  together) above unreviewed ones, and by task match inside each tier, instead of
+  letting review state decide first and match only break ties. Entries lose the lines
+  a reader rarely needs: IDs and provenance stay on one line, and citations appear only
+  for summaries. On a 597-record corpus an entry costs about 65 tokens instead of 110,
+  so a 1000-token budget carries about 13 entries instead of 8.
+- `akms-records recall` falls back to any word when no record has every word, ranked by
+  BM25, and the result's `match` says which it was. `--match all` or `any` asks for one
+  directly, and `consolidate` still needs every word. On 134 evaluation questions in
+  natural language, requiring every word found nothing for 98.5 % of them; recall@5
+  rises from 0.015 to 0.67, and for keyword queries from 0.78 to 0.82. A stop-word list
+  moved question recall by only 0.03, so there is none.
+- `akms-records` loads its JSON Schema libraries on first use, so `recall` and `wake`
+  start in about half the time.
 - Record-derived lesson titles under `failure-lesson-index/v1` are capped at 85
   characters instead of 96. On a large downstream project the longer titles had
   raised required-lesson tokens by 0.44%, above what trimming the lesson bodies
@@ -417,6 +443,19 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `akms-records amend`: a summary produced by the schema's template now follows a
+  payload change. It kept describing the old payload, so recall and wake showed stale
+  text. A summary someone wrote by hand is kept, and a record that is already stale
+  heals at its next payload amend.
+- `akms-records amend`: an agent that changes a record's content can no longer keep a
+  review someone gave the earlier text. Unless the actor is the person who wrote the
+  record, a change to the payload, summary or origin resets the review to `unreviewed`.
+  Naming `user_confirmed` in the same amend is refused (`review_reassert`); `rejected`
+  stays. A reset record leaves other agents' `wake` until it is reviewed again.
+- `akms-records wake`: a reviewed fact no longer disappears when an agent supersedes it
+  with a record nobody has reviewed. The old text stays, marked as superseded, and the
+  successor is quoted beside it until reviewed. If the successor is retracted or
+  rejected, the old text does not stay either. `recall` is unchanged.
 - Full-mode loadouts inline code mirrors. A mirror's `content_ref` is relative to
   the knowledge directory, and the generator looked for it only from the working
   directory and the repository root, so on a standard layout every mirror read
