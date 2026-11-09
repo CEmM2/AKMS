@@ -55,11 +55,13 @@ decimals), then by `recorded_at` (newest first), then by record ID. Without
 a query, by `recorded_at` and record ID only. The order is fully determined.
 
 **Several scopes.** Each scope is searched as usual and every hit names its scope.
-BM25 scores come from each index's own statistics and do not compare across indexes,
-so the lists merge by reciprocal rank (`1 / (60 + rank)`), then newest first, then
-record ID. A hit's `bm25` is still its own index's score. The match mode is one for
-the whole search: `any` only if no scope has a hit for every word. `scope` is then
-`null` and `scopes` lists them. The same isolation rules apply to each scope.
+BM25 scores come from each index's own statistics and do not compare across indexes.
+A hit that contains more of the query's words ranks ahead of one that contains fewer,
+because that count does compare. Within one count the lists merge by reciprocal rank
+(`1 / (60 + rank)`), then newest first, then record ID. A hit's `bm25` is still its
+own index's score. The match mode is one for the whole search: `any` only if no scope
+has a hit for every word. `scope` is then `null` and `scopes` lists them. The same
+isolation rules apply to each scope.
 
 **JSON output:**
 
@@ -217,20 +219,27 @@ review first, or an explicit `recall`.
 | `duplicate` | A record that a newer visible record names in a `supersedes` source reference (a successor whose supersede event never landed), every record whose summary equals (ignoring case and spacing) the summary of a record ranked above it, and a summary that would not save tokens over its sources |
 | `covered` | Sources of a summary that is included instead of them |
 
-**Priority.** Two tiers, the reviewed records (`agent_reviewed` and
-`user_confirmed` together) and then the agent's own unreviewed ones. Within a tier:
-the BM25 match against any word of `--task` (words are extracted and quoted, at most
-64), then `recorded_at` (newest first), then record ID. With no match at all, that
-leaves tier, recency and record ID, so the order is always fully determined.
+**Priority.** Four bands. First, a task match that is reviewed, whose review a later
+amend cleared, or the agent's own note. A matching reviewed record still outranks
+the agent's own matching note. Second, reviewed records and review-cleared records
+that match nothing. Third, other unreviewed matches, which appear only with
+`--include-unreviewed`. Fourth, everything else. Inside a band: the reviewed tier
+(`agent_reviewed` and `user_confirmed` together, and a review-cleared fact with
+them), then the BM25 match against any word of `--task` (words are extracted and
+quoted, at most 512), then `recorded_at` (newest first), then record ID. With no
+match at all, that leaves the reviewed tier, recency and record ID, so the order is
+always fully determined.
 
 Why: a wake's job is to surface what this task needs. Review state already decides
 what may appear, so it should not also decide what fits. When `user_confirmed` always
 came first, a store with more such records than fit a budget never showed anything
 else: on a 597-record evaluation corpus, 500 of 501 entries at 2k tokens were
 `user_confirmed`, and only 25 % of the facts the tasks needed were included. Ranking
-the reviewed tier by task match, with the shorter entries below, took that to 52 %. An
-unreviewed record still never outranks a reviewed one, because it is the agent's own
-note, not a checked one.
+the reviewed tier by task match, with the shorter entries below, took that to 52 %.
+Putting every unreviewed match ahead of a reviewed record that matches nothing would
+bury checked facts, so that stays as it is. The exception is the agent's own note,
+and a fact whose review a later amend cleared: a reviewed record that shares no word
+with the task should not hide them.
 
 ## A replacement nobody has reviewed yet
 
@@ -267,6 +276,29 @@ forge or remove it. In JSON the entry's `superseded_by` holds the successor's
   before.
 - **`recall` does not do this:** it shows current records, and old text there is a
   stale answer. `--include-superseded` asks for it.
+
+## A review a later amend cleared
+
+When an agent amends the payload, summary or origin of a reviewed record, the record
+becomes `unreviewed`: the review was of other text. Default wake would then drop it,
+because the reader is not its author, and a checked fact would vanish on someone
+else's edit. `wake` keeps showing the current text, in a reviewed record's place,
+marked:
+
+````markdown
+### 1. rec-20261103-k3f9m2xa@2
+project:example decision/v1 agent "a" unreviewed 2026-11-03
+review cleared by a later amend; shown until that text is reviewed
+```
+Decision: Use port 9090
+```
+````
+
+The metadata line still says `unreviewed`. The marker sits outside the fence, so
+record text cannot forge or remove it. An explicit unreview that leaves the text
+unchanged does not stay, and a rejection never does. Once the new text is reviewed,
+the record takes the ordinary path. `recall` does not do this: it shows current
+records, with no marker.
 
 ## One context budget across systems
 

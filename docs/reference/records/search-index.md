@@ -1,8 +1,9 @@
 # Search index
 
 !!! warning "Experimental"
-    The index layout carries a format marker (`akms-records-index/v1`) and is
-    rebuilt automatically when it changes.
+    The index layout carries a format marker (`akms-records-index/v2`) and is
+    rebuilt automatically when it changes. `v2` adds `review_cleared`, set when
+    a later amend left a previously reviewed record `unreviewed`.
 
 `recall` and `wake` read a derived SQLite database, one per store root, at
 `<store root>/.index/records.sqlite`. It is never committed (the store's
@@ -19,7 +20,7 @@ include. Without it, `recall`, `wake` and `index` fail with
 
 | Table | Holds |
 |---|---|
-| `records` | One row per record that replays: record ID, head revision and event digest, scope, schema ref, name and digest, the digest of the extraction rules it was indexed with, review state, lifecycle, sensitivity, `recorded_at`, update time, the schema's time field (normalized to UTC) and the time used by `--since`/`--until`, origin, tags, source refs, `superseded_by`, the record IDs it names as `supersedes`, label and summary |
+| `records` | One row per record that replays: record ID, head revision and event digest, scope, schema ref, name and digest, the digest of the extraction rules it was indexed with, review state, lifecycle, sensitivity, `recorded_at`, update time, the schema's time field (normalized to UTC) and the time used by `--since`/`--until`, origin, tags, source refs, `superseded_by`, the record IDs it names as `supersedes`, label, summary and `review_cleared` |
 | `record_tags` | One row per tag, for exact tag filters |
 | `records_fts` | FTS5 (`unicode61` tokenizer) over the summary, the tags and the search text the schema's `search_text` rules select |
 | `files`, `months`, `rules`, `meta` | Bookkeeping for the staleness check |

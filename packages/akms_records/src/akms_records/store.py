@@ -350,6 +350,40 @@ def review_state_after(
     return "unreviewed"
 
 
+def review_was_cleared(events: list[dict[str, Any]]) -> bool:
+    """Whether the current text is unreviewed after a reviewed revision of other text.
+
+    Wake keeps that fact visible. An explicit unreview that leaves the text
+    unchanged does not count, and the current state has to be ``unreviewed``:
+    a later review or a rejection takes the ordinary path.
+    """
+    reviewed: dict[str, Any] | None = None
+    final: dict[str, Any] | None = None
+    for event in events:
+        if event.get("kind") not in ("create", "amend"):
+            continue
+        body = event.get("body")
+        if not isinstance(body, dict):
+            continue
+        envelope = body.get("envelope")
+        if not isinstance(envelope, dict):
+            continue
+        current = {
+            "review_state": envelope.get("review_state"),
+            "payload": body.get("payload"),
+            "summary": envelope.get("summary"),
+            "origin": envelope.get("origin"),
+        }
+        final = current
+        if current["review_state"] in REVIEWED_STATES:
+            reviewed = current
+    if reviewed is None or final is None or final["review_state"] != "unreviewed":
+        return False
+    return any(
+        final[name] != reviewed[name] for name in ("payload", "summary", "origin")
+    )
+
+
 def history_citations(events: list[dict[str, Any]]) -> set[str]:
     """Every record ID any revision of a summary cited (empty for other records)."""
     out: set[str] = set()

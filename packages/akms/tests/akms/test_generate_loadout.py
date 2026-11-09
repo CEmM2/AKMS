@@ -496,6 +496,64 @@ class TestSummaryPriorityFallback:
         assert not _has_summary_section("# Title\n\ntext\n")
 
 
+class TestLocalNodeWithoutContentRef:
+    """A promoted node file has no content_ref. Full mode still reads it."""
+
+    def test_the_local_file_is_inlined_and_named(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        node_dir = tmp_path / ".knowledge" / "local-nodes"
+        node_dir.mkdir(parents=True)
+        (node_dir / "n1.md").write_text(
+            "---\nid: n1\ntitle: N1\n---\n\nThe auditor asks for AUDITORMARKER.\n",
+            encoding="utf-8",
+        )
+        node = {"title": "N1", "confidence": 0.9, "domain": "demo"}
+        graph = nx.DiGraph()
+        graph.add_node("n1", **node)
+        content = generate_loadout(
+            graph,
+            [("n1", node)],
+            task_id="TSK-001",
+            phase=1,
+            graph_version="abc123",
+            seed_tags=["x"],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=LoadoutMode.FULL,
+            repo_root=tmp_path,
+        )
+        assert "AUDITORMARKER" in content
+        assert ".knowledge/local-nodes/n1.md" in content
+        assert "content not available" not in content
+
+    def test_an_explicit_content_ref_is_not_replaced(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        (tmp_path / "n1.md").write_text(
+            "---\nid: n1\n---\nEXPLICITBODY\n", encoding="utf-8"
+        )
+        node_dir = tmp_path / ".knowledge" / "local-nodes"
+        node_dir.mkdir(parents=True)
+        (node_dir / "n1.md").write_text(
+            "---\nid: n1\n---\nLOCALBODY\n", encoding="utf-8"
+        )
+        node = {"title": "N1", "confidence": 0.9, "content_ref": "n1.md"}
+        graph = nx.DiGraph()
+        graph.add_node("n1", **node)
+        content = generate_loadout(
+            graph,
+            [("n1", node)],
+            task_id="TSK-001",
+            phase=1,
+            graph_version="abc123",
+            seed_tags=["x"],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=LoadoutMode.FULL,
+            repo_root=tmp_path,
+        )
+        assert "EXPLICITBODY" in content
+        assert "LOCALBODY" not in content
+        assert "**Path:** `n1.md`" in content
+
+
 # ═══════════════════════════════════════════════════════════════════════
 #  Test: Empty/Edge Cases
 # ═══════════════════════════════════════════════════════════════════════

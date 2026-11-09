@@ -6,7 +6,8 @@ record that replays, for every scope in the root:
 
 * ``records``: the current state's metadata (head revision and digest, scope,
   schema ref and digests, review state, lifecycle, sensitivity, times, origin,
-  tags, source refs, supersession links, label and summary);
+  tags, source refs, supersession links, label, summary, and whether a
+  later amend cleared a review);
 * ``record_tags``: one row per tag, for exact tag filters;
 * ``records_fts``: an FTS5 table over the summary, the tags and the search
   text the schema's extraction rules select;
@@ -76,7 +77,7 @@ from akms_records.schemas import REF_RE, SchemaRegistry, pointer_text, pointer_v
 INDEX_DIRNAME = ".index"
 INDEX_FILENAME = "records.sqlite"
 PENDING_DIRNAME = "pending"
-INDEX_FORMAT = "akms-records-index/v1"
+INDEX_FORMAT = "akms-records-index/v2"
 MONTH_RE = re.compile(r"[0-9]{4}-[0-9]{2}")
 MARKER_RE = re.compile(
     r"(?P<target>rec-[0-9]{8}-[0-9a-hjkmnp-tv-z]{8}|month-[0-9]{4}-[0-9]{2})"
@@ -112,6 +113,7 @@ RECORD_COLUMNS = (
     "supersedes",
     "label",
     "summary",
+    "review_cleared",
 )
 
 _TABLES = ("meta", "records", "record_tags", "files", "months", "rules", "records_fts")
@@ -142,7 +144,8 @@ CREATE TABLE records(
   superseded_by TEXT,
   supersedes TEXT NOT NULL,
   label TEXT,
-  summary TEXT NOT NULL
+  summary TEXT NOT NULL,
+  review_cleared INTEGER NOT NULL
 );
 CREATE INDEX records_scope ON records(scope, lifecycle, recorded_at);
 CREATE INDEX records_schema ON records(schema_ref, rules_sha256);
@@ -235,7 +238,13 @@ class IndexRow:
         return self.values[1]
 
 
-def build_row(record: Record, rules: dict[str, Any], rules_sha256: str) -> IndexRow:
+def build_row(
+    record: Record,
+    rules: dict[str, Any],
+    rules_sha256: str,
+    *,
+    review_cleared: bool = False,
+) -> IndexRow:
     """The index row for ``record`` under ``rules``. Pure: no I/O."""
     payload = record.payload
     search = [
@@ -282,6 +291,7 @@ def build_row(record: Record, rules: dict[str, Any], rules_sha256: str) -> Index
         compact_line(supersedes),
         label or None,
         record.summary,
+        1 if review_cleared else 0,
     )
     return IndexRow(
         values,
@@ -479,7 +489,24 @@ class RecordIndex:
 
     def row_for(self, record: Record) -> IndexRow:
         rules, sha, _ = self._rules_for(record.schema_ref)
-        return build_row(record, rules, sha)
+        return build_row(
+            record, rules, sha, review_cleared=self._review_cleared(record)
+        )
+
+    def _review_cleared(self, record: Record) -> bool:
+        """Whether a later amend left a previously reviewed record unreviewed."""
+        if record.review_state != "unreviewed":
+            return False
+        from akms_records.store import read_event_files, review_was_cleared
+
+        directory = self.root / _month_of(record.record_id) / record.record_id
+        try:
+            events = [
+                event for event, _ in read_event_files(directory, record.record_id)
+            ]
+        except (NotFound, ReplayError, RecordsError):
+            return False
+        return review_was_cleared(events)
 
     # ------------------------------------------------------- row primitives
     def _stored(self, record_id: str) -> tuple[int, IndexRow] | None:

@@ -9,9 +9,10 @@ routing its lessons by path; a record is a searchable copy.
 **Own reader.** This module parses the documented formats itself instead of
 importing ``akms_failure_memory``, which needs ``akms``. That keeps this package
 free of a dependency, on the minimal install too, and a parity test holds the
-reader to failure-memory's own loader. The reader is strict: a field the
-schema does not know is refused rather than dropped, so what is imported is
-always the whole lesson.
+reader to failure-memory's own loader. A lesson field the schema does not know
+is refused rather than dropped, so what is imported is always the whole lesson.
+An extra top-level key on the registry file (a note a project keeps beside
+``lessons``) is ignored.
 
 **Forms.** Schema 1 is one JSON file with ``schema_version``, ``_field_spec`` and
 ``lessons``. Schema 2 is a directory with ``_registry.json`` and one
@@ -132,10 +133,9 @@ def _read_v1(path: Path) -> list[Any]:
     if not path.is_file():
         raise _registry_error(f"registry schema 1 needs a file: {path}")
     raw = _json_object(path)
-    if set(raw) != REGISTRY_V1_KEYS or not isinstance(raw["lessons"], list):
+    if not REGISTRY_V1_KEYS <= set(raw) or not isinstance(raw.get("lessons"), list):
         raise _registry_error(
-            "a schema 1 registry holds only schema_version, _field_spec and a "
-            "lessons list"
+            "a schema 1 registry needs schema_version, _field_spec and a lessons list"
         )
     if type(raw["schema_version"]) is not int or raw["schema_version"] != 1:
         raise _registry_error(f"{path} does not declare registry schema 1")
@@ -157,8 +157,9 @@ def _read_v2(path: Path) -> list[Any]:
         if name == REGISTRY_META:
             meta_seen = True
             meta = _json_object(entry)
-            if set(meta) != REGISTRY_V2_KEYS or (
-                type(meta["schema_version"]) is not int or meta["schema_version"] != 2
+            if not REGISTRY_V2_KEYS <= set(meta) or (
+                type(meta.get("schema_version")) is not int
+                or meta.get("schema_version") != 2
             ):
                 raise _registry_error(f"{name} does not declare registry schema 2")
             continue

@@ -64,7 +64,9 @@ SEMANTIC_POOL = 20  # qmd's vector search looks at no more than this per query
 RRF_K = 60  # the usual constant of reciprocal rank fusion
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 1000
-MAX_QUERY_TERMS = 64
+# Long enough for a changed-path list, and short of SQLite's default
+# expression-depth limit, so a long query searches instead of failing.
+MAX_QUERY_TERMS = 512
 SNIPPET_TOKENS = 16
 SNIPPET_CHARS = 200
 SNIPPET_OPEN, SNIPPET_CLOSE, SNIPPET_ELLIPSIS = "«", "»", "…"
@@ -128,6 +130,30 @@ def match_any(text: str) -> str | None:
     """An FTS5 query matching records that contain any word of ``text``."""
     terms = task_terms(text)
     return " OR ".join(_phrase(term) for term in terms) if terms else None
+
+
+def _term_coverage(query: str, document: str) -> int:
+    """How many distinct query words occur in ``document``.
+
+    The count compares across indexes. A scope's BM25 score does not: each
+    index has its own statistics, so a one-word hit can outscore a full match.
+    """
+    wanted: list[str] = []
+    seen: set[str] = set()
+    for word in query.split():
+        if not _WORD.search(word):
+            continue
+        key = word.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        wanted.append(key)
+        if len(wanted) >= MAX_QUERY_TERMS:
+            break
+    if not wanted:
+        return 0
+    have = {word.casefold() for word in _WORD.findall(document)}
+    return sum(1 for word in wanted if word in have)
 
 
 def _min_rank(review_state: str) -> int:
@@ -230,6 +256,9 @@ class RecallHit:
     record: dict[str, Any] | None = None
     consolidation: dict[str, Any] | None = None
     found_by: str | None = None  # text, vector or both; set by a semantic recall
+    coverage: int = (
+        0  # distinct query words in the indexed text; not part of the output
+    )
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -435,7 +464,7 @@ def recall(
     def fetch(fts: str | None) -> list[Any]:
         if fts is not None:
             sql = (
-                f"SELECT {columns}, snippet(records_fts, -1, ?, ?, ?, ?), round(bm25(records_fts), 9) "
+                f"SELECT {columns}, snippet(records_fts, -1, ?, ?, ?, ?), round(bm25(records_fts), 9), records_fts.text "
                 "FROM records_fts JOIN records r ON r.rid = records_fts.rowid "
                 f"WHERE records_fts MATCH ? AND {' AND '.join(where)} "
                 "ORDER BY round(bm25(records_fts), 9), r.recorded_at DESC, r.record_id LIMIT ?"
@@ -539,6 +568,14 @@ def recall(
                 record=record,
                 consolidation=consolidation,
                 found_by=found_by.get(row[0]),
+                coverage=(
+                    _term_coverage(
+                        query,
+                        f"{row[6] or ''}\n{(row[19] if len(row) > 19 else row[17]) or ''}",
+                    )
+                    if query is not None
+                    else 0
+                ),
             )
         )
     filters = {
@@ -607,11 +644,12 @@ def recall_scopes(
     ``visible`` adds ``agent:<agent>``, so the scopes are what ``wake`` reads for that
     agent. As with :func:`recall`, an agent may not read another agent's scope.
 
-    A scope's BM25 scores come from its own index and do not compare across indexes,
-    so the lists merge by reciprocal rank (``1 / (60 + rank)``), then newest first,
-    then record ID. That order is fully determined, and each scope's best hits reach
-    the top however its index scores them. Without a query the order is newest first,
-    then record ID. The match mode is one for all scopes: every word everywhere, and
+    A scope's BM25 scores come from its own index and do not compare across indexes.
+    A hit that contains more of the query's words ranks ahead of one that contains
+    fewer, because that count does compare. Within one count the lists merge by
+    reciprocal rank (``1 / (60 + rank)``), then newest first, then record ID. That
+    order is fully determined. Without a query the order is newest first, then
+    record ID. The match mode is one for all scopes: every word everywhere, and
     any word everywhere only if no scope has a hit. ``semantic`` and
     ``embed_sensitive`` are as in :func:`recall`, each scope with its own vector index;
     the match mode is settled by the text search alone, before any vectors are read.
@@ -678,6 +716,7 @@ def recall_scopes(
     merged.sort(key=lambda rid: hits[rid].recorded_at, reverse=True)
     if query is not None:
         merged.sort(key=lambda rid: -score[rid])
+        merged.sort(key=lambda rid: -hits[rid].coverage)
     return RecallResult(
         None,
         query,
@@ -728,6 +767,9 @@ class _Candidate:
     cites: tuple[str, ...] = ()
     # For a reviewed record whose successor nobody has reviewed yet.
     superseded_by: dict[str, Any] | None = None
+    matched: bool = False
+    own: bool = False
+    review_cleared: bool = False
 
 
 @dataclass(frozen=True)
@@ -913,6 +955,12 @@ def _wake_entry(position: int, candidate: _Candidate) -> str:
         if successor["summary"] is None:
             return text
         return text + "its successor, not reviewed:\n" + fence(successor["summary"], "")
+    if candidate.review_cleared:
+        return (
+            head
+            + "review cleared by a later amend; shown until that text is reviewed\n"
+            + fence(candidate.summary, "")
+        )
     info = candidate.consolidation
     if info is None:
         return head + fence(candidate.summary, "")
@@ -930,6 +978,34 @@ def _wake_entry(position: int, candidate: _Candidate) -> str:
 def _tier(review_rank: int) -> int:
     """Wake's ordering tier: 1 for any reviewed record, 0 for an unreviewed one."""
     return 1 if review_rank >= REVIEW_RANK["agent_reviewed"] else 0
+
+
+def _wake_band(candidate: _Candidate) -> int:
+    """Where a wake entry sits.
+
+    0. A task match that is reviewed, whose review a later amend cleared, or
+       the agent's own note. Own notes that match the task are not buried
+       under reviewed records that match nothing.
+    1. A reviewed record, or one whose review was cleared, with no task match.
+    2. Another unreviewed record that matches, admitted only with
+       ``include_unreviewed``.
+    3. Everything else.
+    """
+    high = _tier(candidate.review_rank) == 1 or candidate.review_cleared
+    if candidate.matched and (high or candidate.own):
+        return 0
+    if high:
+        return 1
+    if candidate.matched:
+        return 2
+    return 3
+
+
+def _wake_tier(candidate: _Candidate) -> int:
+    """Reviewed place in the order, including a fact whose review was cleared."""
+    if candidate.review_cleared:
+        return 1
+    return _tier(candidate.review_rank)
 
 
 def _summary_key(summary: str) -> str:
@@ -1118,6 +1194,12 @@ def wake(
     reviewed. Retracted records never stay. This rule is for wake only: recall shows
     current records.
 
+    An amend that clears a review is the same kind of gap. The record stays
+    ``unreviewed`` (the review was of other text) and stays in wake, marked,
+    showing the current text, until that text is reviewed. It keeps a reviewed
+    record's place in the order. An explicit unreview that does not change the
+    text does not stay, and a rejection never does.
+
     Left to the loadout or to failure-memory: a record promoted into a node
     (``promoted``), unless ``include_promoted``; a record of a promoted node in
     ``exclude_nodes`` (``in_loadout``), always; an imported failure lesson
@@ -1129,15 +1211,19 @@ def wake(
     summary only once it is itself reviewed; neither when all its sources are
     held back as above (it then takes their reason). When an eligible summary costs
     fewer tokens than the eligible sources it cites, it is shown at its own
-    priority (the tier of its effective review rank, then match, then recency) and those
+    place in the same order as any other record, and those
     sources are excluded as ``covered``; otherwise the summary is excluded as
     a ``duplicate``. If an included summary does not fit the budget, its
     sources compete again.
 
-    Priority: the reviewed tier (``agent_reviewed`` and ``user_confirmed``
-    together) above unreviewed records; within a tier, BM25 match with any word of
-    ``task``, then ``recorded_at`` (newest first), then record ID. With no match at
-    all that leaves tier, recency, record ID. Deduplicated: superseded
+    Priority: a task match that is reviewed, review-cleared, or the agent's own
+    note; then reviewed and review-cleared records that match nothing; then
+    other unreviewed matches; then the rest. Inside a band, the reviewed tier
+    (``agent_reviewed`` and ``user_confirmed`` together, and a review-cleared
+    fact with them) comes before an unreviewed note, then BM25 match with any
+    word of ``task``, then ``recorded_at`` (newest first), then record ID. A
+    matching reviewed record still outranks the agent's own matching note.
+    Other unreviewed records never outrank a reviewed one. Deduplicated: superseded
     records and records that a newer visible record names as superseded are
     left out (only chain heads remain), and of several records with the same
     summary only the first is kept. Entries are taken in priority order while
@@ -1181,8 +1267,8 @@ def wake(
             rows = index.db.execute(
                 "SELECT record_id, revision, scope, schema_ref, origin_kind, "
                 "origin_actor, review_state, review_rank, lifecycle, sensitivity, "
-                "recorded_at, tags, summary, supersedes, source_refs, superseded_by "
-                "FROM records "
+                "recorded_at, tags, summary, supersedes, source_refs, superseded_by, "
+                "review_cleared FROM records "
                 "ORDER BY record_id"
             ).fetchall()
             scores: dict[str, float] = {}
@@ -1202,7 +1288,13 @@ def wake(
             summary_row = is_consolidation(row[3])
             imported = is_failure_lesson(row[3])
             mine = row[2] == str(own) or row[5] == agent
-            admitted = mine or include_unreviewed or (imported and include_imported)
+            review_cleared = bool(row[16])
+            admitted = (
+                mine
+                or include_unreviewed
+                or (imported and include_imported)
+                or review_cleared
+            )
             rank = row[7]
             successor = None
             if row[8] == "superseded" and rank >= reviewed_rank and not summary_row:
@@ -1255,6 +1347,9 @@ def wake(
                     supersedes=tuple(_json_list(row[13])),
                     match=scores.get(record_id, 0.0),
                     superseded_by=successor,
+                    matched=record_id in scores,
+                    own=mine,
+                    review_cleared=review_cleared,
                 )
                 if summary_row:
                     pending.append((root, candidate))
@@ -1268,7 +1363,9 @@ def wake(
     # Priority order, built from the last key to the first (sorts are stable).
     candidates.sort(key=lambda c: c.record_id)
     candidates.sort(key=lambda c: c.recorded_at, reverse=True)
-    candidates.sort(key=lambda c: (-_tier(c.review_rank), -c.match))
+    candidates.sort(key=lambda c: -c.match)
+    candidates.sort(key=lambda c: -_wake_tier(c))
+    candidates.sort(key=_wake_band)
     order = {c.record_id: (c.recorded_at, c.record_id) for c in candidates}
     replaced = {
         older
@@ -1367,10 +1464,10 @@ def _place_summaries(
     Each summary, best first, covers the cited sources that are still in
     ``kept`` and not covered by a summary before it. It is used when its
     entry costs fewer tokens than those sources' entries together, and then
-    keeps its own queue position: the tier of its effective review rank (an
-    extractive summary's lowest source rank, a provider summary's own), then
-    match, then recency. So a summary never rises above a record of a higher
-    tier, whatever it covers. Otherwise it is excluded as a ``duplicate``.
+    keeps its own queue position: the same bands as any other record, then
+    the reviewed tier (an extractive summary's lowest source rank, a provider
+    summary's own), then match, then recency. Otherwise it is excluded as a
+    ``duplicate``.
     """
     position_of = {c.record_id: n for n, c in enumerate(kept)}
     probe = max(len(kept), 1)  # one position for all cost estimates

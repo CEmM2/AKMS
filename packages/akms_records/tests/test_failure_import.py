@@ -406,6 +406,37 @@ def test_bad_sources_are_refused_and_nothing_is_written(
     store.close()
 
 
+def test_an_extra_top_level_registry_key_is_ignored(source):
+    config = write_v1(source, [lesson("L001")])
+    registry = source / "lessons.json"
+    data = json.loads(registry.read_text(encoding="utf-8"))
+    data["_moved_to_elsewhere"] = "a note the project keeps here"
+    registry.write_text(json.dumps(data), encoding="utf-8")
+    loaded = load_lessons(config, source)
+    assert [item["id"] for item in loaded.lessons] == ["L001"]
+
+
+def test_an_extra_registry_meta_key_is_ignored(source):
+    config = write_v2(source, [lesson("L001")])
+    meta_path = source / "lessons" / "_registry.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["_moved_to_elsewhere"] = "a note"
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+    loaded = load_lessons(config, source)
+    assert [item["id"] for item in loaded.lessons] == ["L001"]
+
+
+def test_a_schema_1_registry_still_needs_its_required_keys(source):
+    config = write_v1(source, [lesson("L001")])
+    registry = source / "lessons.json"
+    data = json.loads(registry.read_text(encoding="utf-8"))
+    del data["_field_spec"]
+    registry.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(RecordsError) as caught:
+        load_lessons(config, source)
+    assert caught.value.code == "failure_memory_registry"
+
+
 def test_one_bad_lesson_leaves_the_others_unwritten(make_store, source):
     bad = copy.deepcopy(lesson("L002"))
     del bad["fix"]

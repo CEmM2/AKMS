@@ -787,6 +787,25 @@ def test_the_merge_is_by_rank_not_by_incomparable_scores(world, clock):
     assert set(order[2:]) == set(seconds)
 
 
+def test_a_full_match_outranks_a_one_word_hit_in_another_scope(world, clock):
+    project, shared = world["project"], shared_store(world, clock)
+    best = add(project, "Rotate the signing key every quarter")
+    add(project, "Unrelated note about the weather")
+    one_word = add(shared, "Key names stay lower case")
+    shared.close()
+    hits = several(world, query="rotate signing key quarter", match="any").hits
+    assert [hit.record_id for hit in hits[:2]] == [best, one_word]
+    assert hits[0].coverage > hits[1].coverage
+
+
+def test_a_long_query_searches_instead_of_failing(store):
+    add(store, "Rotate the signing key")
+    words = " ".join(f"word{n}" for n in range(70)) + " rotate"
+    hits = store.recall(words, match="any").hits
+    assert hits
+    assert "rotate" in hits[0].summary.casefold()
+
+
 def test_no_query_merges_newest_first(world, clock):
     project, shared = world["project"], shared_store(world, clock)
     add(project, "One")

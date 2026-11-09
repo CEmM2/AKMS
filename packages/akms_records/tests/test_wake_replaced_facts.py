@@ -237,6 +237,95 @@ def test_the_budget_counts_the_marker_and_the_quote(store, repo, tmp_path):
     assert tight is not None
 
 
+def test_an_own_note_that_matches_outranks_unrelated_reviewed_records(
+    store, repo, tmp_path
+):
+    for number in range(3):
+        add(
+            store,
+            f"Unrelated reviewed choice number {number}",
+            actor="other",
+            review_state="agent_reviewed",
+            origin={"kind": "agent", "actor_id": "other"},
+        )
+    mine = add(
+        store,
+        "Rotate the signing key before the release",
+        actor="me",
+        origin={"kind": "agent", "actor_id": "me"},
+    )
+    result = run(
+        repo, tmp_path, agent="me", task="rotate the signing key", budget=100000
+    )
+    assert entry_ids(result)[0] == mine
+
+
+def test_a_matching_reviewed_record_still_beats_an_own_note(store, repo, tmp_path):
+    mine = add(
+        store,
+        "Rotate the signing key before the release",
+        actor="me",
+        origin={"kind": "agent", "actor_id": "me"},
+    )
+    reviewed = add(
+        store,
+        "Rotate the signing key on a schedule",
+        actor="other",
+        review_state="agent_reviewed",
+        origin={"kind": "agent", "actor_id": "other"},
+    )
+    order = entry_ids(
+        run(repo, tmp_path, agent="me", task="rotate the signing key", budget=100000)
+    )
+    assert order.index(reviewed) < order.index(mine)
+
+
+def test_an_amended_reviewed_fact_stays_in_wake(store, repo, tmp_path):
+    record_id = add(
+        store,
+        "Use port 8080",
+        actor="a",
+        review_state="agent_reviewed",
+        origin={"kind": "agent", "actor_id": "a"},
+    )
+    store.amend(
+        record_id,
+        {"payload": {"decision": "Use port 9090", "rationale": "because"}},
+        expected_revision=1,
+        actor="b",
+    )
+    result = run(repo, tmp_path, agent="reader", task="which port", budget=100000)
+    text = result.render_markdown()
+    assert "9090" in text and "8080" not in text
+    assert "review cleared by a later amend" in text
+    assert store.get(record_id).review_state == "unreviewed"
+    store.amend(
+        record_id,
+        {"review_state": "agent_reviewed"},
+        expected_revision=2,
+        actor="b",
+    )
+    again = run(repo, tmp_path, agent="reader", task="which port", budget=100000)
+    assert "9090" in again.render_markdown()
+    assert "review cleared by a later amend" not in again.render_markdown()
+
+
+def test_an_explicit_unreview_without_a_text_change_leaves_wake(store, repo, tmp_path):
+    record_id = add(
+        store,
+        "Use port 8080",
+        actor="a",
+        review_state="agent_reviewed",
+        origin={"kind": "agent", "actor_id": "a"},
+    )
+    store.amend(
+        record_id, {"review_state": "unreviewed"}, expected_revision=1, actor="b"
+    )
+    result = run(repo, tmp_path, agent="reader", task="which port", budget=100000)
+    assert record_id not in entry_ids(result)
+    assert record_id in result.excluded["review_state"]
+
+
 def test_recall_does_not_show_the_old_record(store, repo, tmp_path):
     old = add(store, "Old fact about the lock", review_state="user_confirmed")
     new = replace(store, old, "New fact about the lock")
