@@ -8,12 +8,16 @@ from unittest.mock import patch
 
 import pytest
 
+from akms.repo_wiki.cli import main
 from akms.repo_wiki.index import SearchResult
 from akms.repo_wiki.retrieve import (
     _edge_is_allowed,
     add_reverse_symbol_neighbors,
     add_symbol_neighbors,
     expand_context,
+    graph_edges,
+    load_graph,
+    with_resolved_calls,
 )
 
 
@@ -575,3 +579,128 @@ class TestP34:
         assert heuristic_id in callee_ids, (
             "HEURISTIC edge must be followed by default (expand_heuristic_edges=True)"
         )
+
+
+class TestResolvedCalls:
+    """Expansion follows the resolver, not the stored name match."""
+
+    SOURCE = """
+class Worker:
+    def _step(self):
+        return 1
+
+    def run(self):
+        return self._step()
+
+
+def other():
+    return 2
+
+
+def helper():
+    return other()
+"""
+    IMPORTING = """
+from pkg.a import helper
+
+
+def helper_again():
+    return helper()
+
+
+def uses_alias():
+    from pkg.a import other as renamed
+
+    return renamed()
+"""
+    SHADOW = """
+def helper():
+    return 3
+"""
+
+    def _graph(self, tmp_path: Path) -> dict[str, object]:
+        (tmp_path / "pkg").mkdir()
+        (tmp_path / "pkg/a.py").write_text(self.SOURCE, encoding="utf-8")
+        (tmp_path / "pkg/b.py").write_text(self.IMPORTING, encoding="utf-8")
+        (tmp_path / "pkg/c.py").write_text(self.SHADOW, encoding="utf-8")
+        assert (
+            main(
+                [
+                    "--repo-root",
+                    str(tmp_path),
+                    "build",
+                    "--no-summaries",
+                    "--no-index",
+                ]
+            )
+            == 0
+        )
+        return load_graph(tmp_path)
+
+    @staticmethod
+    def _calls(graph: dict[str, object], source: str) -> dict[str, str]:
+        return {
+            edge["target"]: edge["resolution"]
+            for edge in graph_edges(graph)
+            if edge["source"] == source and edge["type"] == "calls"
+        }
+
+    def test_the_stored_file_keeps_name_matching(self, tmp_path: Path):
+        graph = self._graph(tmp_path)
+        assert self._calls(graph, "python:pkg/a.py::Worker.run") == {
+            "self._step": "UNRESOLVED"
+        }
+
+    def test_self_calls_become_traversable(self, tmp_path: Path):
+        graph = with_resolved_calls(self._graph(tmp_path))
+        assert self._calls(graph, "python:pkg/a.py::Worker.run") == {
+            "python:pkg/a.py::Worker._step": "CONFIDENT"
+        }
+
+    def test_an_imported_name_links_to_the_imported_definition(self, tmp_path: Path):
+        graph = self._graph(tmp_path)
+        stored = self._calls(graph, "python:pkg/b.py::helper_again")
+        assert stored == {"python:pkg/a.py::helper": "HEURISTIC"}
+        assert self._calls(
+            with_resolved_calls(graph), "python:pkg/b.py::helper_again"
+        ) == {"python:pkg/a.py::helper": "CONFIDENT"}
+
+    def test_a_function_level_alias_links_only_through_the_resolver(
+        self, tmp_path: Path
+    ):
+        graph = self._graph(tmp_path)
+        assert self._calls(graph, "python:pkg/b.py::uses_alias") == {
+            "renamed": "UNRESOLVED"
+        }
+        assert self._calls(
+            with_resolved_calls(graph), "python:pkg/b.py::uses_alias"
+        ) == {"python:pkg/a.py::other": "CONFIDENT"}
+
+    def test_structural_edges_are_kept_and_the_input_is_not_changed(
+        self, tmp_path: Path
+    ):
+        graph = self._graph(tmp_path)
+        before = json.dumps(graph, sort_keys=True)
+        resolved = with_resolved_calls(graph)
+        assert json.dumps(graph, sort_keys=True) == before
+        for kind in ("belongs_to", "defined_in"):
+            kept = [e for e in graph_edges(resolved) if e["type"] == kind]
+            assert kept == [e for e in graph_edges(graph) if e["type"] == kind]
+
+    def test_a_symbol_the_resolver_does_not_know_keeps_its_stored_edges(self):
+        graph = {
+            "nodes": {},
+            "edges": [
+                {
+                    "source": "x",
+                    "target": "y",
+                    "type": "calls",
+                    "resolution": "CONFIDENT",
+                }
+            ],
+        }
+        assert with_resolved_calls(graph)["edges"] == graph["edges"]
+
+    def test_a_malformed_graph_falls_back_to_the_stored_edges(self):
+        graph = {"edges": []}
+        assert with_resolved_calls(graph) is graph

@@ -325,6 +325,29 @@ development is intentionally not replayed.
   lesson ID fails with `annotation_id`. It does not change generated nodes,
   routes or the registry digest. `registry migrate --to 2` copies it into the
   new directory.
+- `export.mirror_summary` in `.repo_wiki/config.yaml` (default `false`) makes
+  `repo-wiki export-akms` open each code mirror with a `## Summary`: the first
+  paragraph of the module docstring and the public top-level classes and
+  functions with their signatures, built only from that file's parse, with no
+  model call, and capped at 800 characters. Routing-mode loadouts load that
+  section for a mirror, so an entry says what the file holds instead of showing
+  only a path. It is off by default because mirror bytes are pinned by the
+  export fixture pack and the `repo2md_fixture_sha256` projects record; off leaves
+  every mirror and every loadout byte-identical. Turning it on rewrites every
+  mirror once. On a large downstream project the section averaged 86 tokens per
+  mirror (at most 197), and whole routing-mode loadouts grew by 3.6%. The external
+  `repo2md` provider is not changed.
+- `loadout.full_mode_max_tokens` (default 40,000; `null` turns it off) bounds
+  what a required-aware full-mode loadout inlines. Required and coactivated
+  content is uncapped and a code mirror is a whole source file, so with mirror
+  bodies loaded such a loadout reaches about 315,000 tokens at the 90th
+  percentile and 1.3 million at most on a large downstream project. Past the
+  budget, the remaining
+  code mirrors are served as summary and path, in deterministic order. No node
+  is dropped, other required content stays inline, and the loadout says which
+  mirrors were downgraded and why. A loadout within the budget is byte-identical
+  to before, and routing mode is unchanged. See
+  `docs/reference/akms/user-guide/generating-loadouts.md`.
 
 ### Changed
 - `akms-records wake` ranks reviewed records (`agent_reviewed` and `user_confirmed`
@@ -341,6 +364,15 @@ development is intentionally not replayed.
   moved question recall by only 0.03, so there is none.
 - `akms-records` loads its JSON Schema libraries on first use, so `recall` and `wake`
   start in about half the time.
+- Record-derived lesson titles under `failure-lesson-index/v1` are capped at 85
+  characters instead of 96. On a large downstream project the longer titles had
+  raised required-lesson tokens by 0.44%, above what trimming the lesson bodies
+  saved; 85 is the longest cap that takes them back below the line-hint titles
+  (508,052 against 508,196), and required recall does not change. Titles still
+  break at a word. A project already on the key sees the changed titles as `check`
+  drift until it recompiles: `refresh if-stale` does that when lessons are
+  `disposable`, and `failure-memory compile` when they are `committed`. Projects
+  without the key are unchanged.
 - Loadouts render coactivated (`load_with`) nodes as their `## Summary`
   instead of in full, by default: new setting
   `loadout.coactivated_reading_priority` (default `summary`; `full` restores
@@ -424,6 +456,39 @@ development is intentionally not replayed.
   with a record nobody has reviewed. The old text stays, marked as superseded, and the
   successor is quoted beside it until reviewed. If the successor is retracted or
   rejected, the old text does not stay either. `recall` is unchanged.
+- `repo-wiki query` context expansion now follows the same call links as `context`
+  and `impact` instead of the bare-name matches stored in `symbol_graph.json`. On
+  this repository the two agreed on the callees of only 59% of symbols: stored
+  edges miss every `self.method()` call and pick the first candidate for a name
+  defined twice. `symbol_graph.json`, `flows.json` and mirrors are unchanged, and a
+  symbol the resolver does not know keeps its stored edges. Confident links are
+  expanded first. It costs about 0.2 seconds per query on a graph of 8,000 symbols.
+- `repo-wiki` scanner patterns treat a `**/` segment as matching no directory too,
+  in one place, so `scan`, `build`, the index, `changes`, the staleness check and
+  `export-akms` agree. The default `**/*.py`-style includes used to miss every file
+  in the repository root, while `export-akms` added root forms of its own, which
+  are now gone. After upgrading, a root `.py` file (and a root file of an enabled
+  language) gets graph nodes and generated pages at the next `build`, and until
+  that build `context` and `impact` report the graph as stale, as for any new
+  source. Root `.md`, `.yaml`, `.yml` and `.toml` files now appear in `scan`, as the
+  same files below the root always did; they get no graph nodes, pages, index
+  entries or mirrors. Mirrors do not change: `export-akms` already covered the root.
+  A custom `scanner.include` still replaces the default and now reaches the root
+  the same way, and an exclude such as `**/name` now also matches at the root.
+  Secret and credential names stay excluded at the root, whatever the includes.
+- `repo-wiki` records `as` import aliases inside a function (`from pkg.cli import
+  main as run_cli`, `import pkg.tools as tools`) and resolves calls through them
+  with function scope: the alias shadows a module-level name of the same spelling,
+  reaches nested functions, and does not leak to sibling functions. `context`,
+  `impact`, `changes` and `flows` gain the links; the wrong by-name guesses for
+  those calls go away. `symbol_graph.json` gains an optional `import_aliases` field
+  on symbol nodes that have one; it stays `symbol_graph v1`. The extraction cache
+  is rebuilt once. Mirror bytes do not change.
+- Docs: qmd is an external Node package (`npm install -g @tobilu/qmd`), not a Go
+  binary.
+- `repo-wiki build` no longer stops at the index stage on a repository with a
+  path containing a character such as `\x85`: the configuration and frontmatter
+  reader now ends a line only at a newline, not at every Unicode line break.
 - `repo-wiki`: a `scanner.exclude` list in `.repo_wiki/config.yaml` no longer
   replaces the built-in exclude patterns. It replaced the whole list, so
   adding one pattern silently dropped the secret and credential patterns

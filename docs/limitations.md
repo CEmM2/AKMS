@@ -45,7 +45,7 @@ external tool; it says nothing about how well-tested the surface is.
 
 ## External tool and provider requirements
 
-- **qmd** (Go binary) powers some search paths; without it those paths fall
+- **qmd** (an external Node package) powers some search paths; without it those paths fall
   back to `grep` with reduced ranking quality.
 - **nlm** (NotebookLM CLI) is required for grounded node generation; without
   it, generation paths that need it report the tool as unavailable.

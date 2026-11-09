@@ -428,3 +428,47 @@ def test_prune_only_touches_the_selected_knowledge_dir(tmp_path: Path, capsys):
 
     assert json.loads(capsys.readouterr().out)["removed"] == []
     assert (legacy_old / "old.md").is_file()
+
+
+def _config(repo_root: Path, text: str) -> None:
+    (repo_root / ".repo_wiki").mkdir()
+    (repo_root / ".repo_wiki/config.yaml").write_text(text, encoding="utf-8")
+
+
+@pytest.mark.integration
+def test_mirror_summary_is_opt_in_and_a_second_export_is_a_no_op(
+    tmp_path: Path, capsys
+):
+    (tmp_path / "message.py").write_text(
+        '"""Say hello."""\n\n\ndef greet(name: str) -> str:\n    return name\n',
+        encoding="utf-8",
+    )
+    mirror = tmp_path / "akms-output/.knowledge/code-mirror/message.md"
+
+    assert main(_argv(tmp_path, "--full", "--json")) == 0
+    default = mirror.read_bytes()
+    assert b"## Summary" not in default
+
+    _config(tmp_path, "export:\n  mirror_summary: true\n")
+    capsys.readouterr()
+    assert main(_argv(tmp_path, "--changed-only", "--json")) == 0
+    # Turning the option on rewrites the mirror once, and only then.
+    assert [
+        record["source_path"]
+        for record in json.loads(capsys.readouterr().out)["written"]
+    ] == ["message.py"]
+    summarized = mirror.read_text(encoding="utf-8")
+    assert (
+        "## Summary\n\nSay hello.\n\nFunctions: `greet(name: str) -> str`\n\n"
+        "## Symbol Index"
+    ) in summarized
+    assert main(_argv(tmp_path, "--changed-only", "--json")) == 0
+    assert json.loads(capsys.readouterr().out)["written"] == []
+
+
+@pytest.mark.integration
+def test_mirror_summary_rejects_a_non_boolean(tmp_path: Path, capsys):
+    (tmp_path / "message.py").write_text("x = 1\n", encoding="utf-8")
+    _config(tmp_path, "export:\n  mirror_summary: sometimes\n")
+    assert main(_argv(tmp_path, "--full", "--json")) != 0
+    assert "export.mirror_summary must be true or false" in capsys.readouterr().out

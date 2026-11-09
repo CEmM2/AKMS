@@ -596,6 +596,10 @@ class LoadoutConfig(BaseModel):
     # Task-context resolution follows load_with from required nodes only,
     # unless this also admits advisory nodes as sources.
     coactivate_from_advisory: bool = False
+    # Full mode only: once inline required and coactivated content would pass
+    # this, the remaining code mirrors are served as summary and path, never
+    # dropped. None turns the guard off.
+    full_mode_max_tokens: int | None = Field(default=40000, ge=1)
 
 
 class GraphConfig(BaseModel):

@@ -145,6 +145,38 @@ the knowledge directory, so it is the same for `.knowledge` and `knowledge`.
 Each file is written to a temporary name and renamed into place, so a reader
 never sees a half-written mirror.
 
+### Mirror summary
+
+With [`export.mirror_summary: true`](configuration.md#export), each mirror opens
+with a `## Summary` section ahead of the symbol index, which routing-mode
+[loadouts](../user-guide/generating-loadouts.md#code-mirrors-in-routing-mode)
+load in place of the mirror:
+
+```markdown
+## Summary
+
+Public, dependency-free contract for exporting repository-wiki mirrors to AKMS.
+
+Classes: `MirrorDocument` (to_dict), `WrittenRecord` (from_document, to_dict)
+
+Functions: `normalize_source_path(source_path: str) -> str`, +10 more
+```
+
+It holds the first paragraph of the module docstring, then the file's public
+top-level classes, each with up to five public method names, and its public
+top-level functions, with their signatures and in source order. What does not
+fit is counted as `+N more`. A file with none of these says so, so the section
+is never empty. It is built only from what the extractor found in that one file,
+with no model call, so it stays deterministic, and a change elsewhere never
+rewrites this mirror. It is capped at 800 characters, the 200 tokens routing mode
+charges per node.
+
+The option is off by default, and off means the bytes are unchanged. Mirror bytes
+are pinned by the export fixture pack and by the `repo2md_fixture_sha256` that
+projects record. Turning it on rewrites every mirror once, including under
+`--changed-only`. On a large downstream project the section averaged 86 tokens
+per mirror (at most 197) and made a mirror 1.4% larger when read in full.
+
 ## JSON result
 
 With `--json`, stdout carries only this object, as compact JSON with sorted
