@@ -412,7 +412,8 @@ class TestCoactivatedReadingPriority:
 
 
 class TestMirrorSummaryInRoutingMode:
-    """Routing mode loads an exported mirror's ``## Summary``."""
+    """Mirrors in the knowledge directory: routing mode loads the ``## Summary``,
+    full mode the whole body."""
 
     _BODY = (
         "# <code>src/foo.py</code>\n\n_Mirror generated: t · phase 1_\n\n"
@@ -421,7 +422,9 @@ class TestMirrorSummaryInRoutingMode:
     )
     _SECTION = "## Summary\n\nFoo does things.\n\nFunctions: `bar()`\n\n"
 
-    def _render(self, tmp_path, monkeypatch, *, summary, mode, selection=None):
+    def _render(
+        self, tmp_path, monkeypatch, *, summary, mode, selection=None, config=None
+    ):
         monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
         mirror = tmp_path / ".knowledge/code-mirror/src/foo.md"
         mirror.parent.mkdir(parents=True, exist_ok=True)
@@ -447,6 +450,7 @@ class TestMirrorSummaryInRoutingMode:
             seed_tags=[],
             agent_role=AgentRole.IMPLEMENTER,
             mode=mode,
+            config=config,
             task_knowledge=_task_knowledge(
                 (
                     "mirror-src-foo",
@@ -484,12 +488,73 @@ class TestMirrorSummaryInRoutingMode:
         assert "**Summary:** (no content available)" in content
         assert "from source" not in content
 
-    def test_full_mode_does_not_start_inlining_mirrors(self, tmp_path, monkeypatch):
+    def test_full_mode_inlines_the_mirror(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path, monkeypatch, summary=False, mode=LoadoutMode.FULL
+        )
+        assert "SOURCEBODY" in content
+        assert "(content not available — read from path)" not in content
+
+    def test_routing_mode_does_not_inline_the_mirror(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path, monkeypatch, summary=False, mode=LoadoutMode.ROUTING
+        )
+        assert "SOURCEBODY" not in content
+
+    def test_full_mode_guard_downgrades_a_loaded_mirror(self, tmp_path, monkeypatch):
+        """Downgraded, a mirror reads as in routing mode: its section only."""
+        config = PropagationConfig()
+        config.loadout.full_mode_max_tokens = 1
+        for summary, expected in (
+            (True, "**Summary:** Foo does things. Functions: `bar()`\n"),
+            (False, "**Summary:** (no content available)"),
+        ):
+            content = self._render(
+                tmp_path,
+                monkeypatch,
+                summary=summary,
+                mode=LoadoutMode.FULL,
+                config=config,
+            )
+            assert "**Downgraded:**" in content
+            assert expected in content
+            assert "SOURCEBODY" not in content
+            assert "from source" not in content
+
+    def test_coactivated_mirror_in_full_mode(self, tmp_path, monkeypatch):
+        """Summary priority keeps the section; without one it falls back to full."""
+        self._BODY = self._BODY.replace("## Summary\n\nfrom source\n", "")
+        for summary, inlined in ((True, False), (False, True)):
+            content = self._render(
+                tmp_path,
+                monkeypatch,
+                summary=summary,
+                mode=LoadoutMode.FULL,
+                selection=SelectionClass.COACTIVATED,
+            )
+            assert ("SOURCEBODY" in content) is inlined
+
+    def test_path_line_opens_from_the_repository_root(self, tmp_path, monkeypatch):
+        for mode in (LoadoutMode.ROUTING, LoadoutMode.FULL):
+            content = self._render(tmp_path, monkeypatch, summary=True, mode=mode)
+            assert "**Path:** `.knowledge/code-mirror/src/foo.md`" in content
+
+    def test_mirror_found_from_the_repository_root_is_unchanged(
+        self, tmp_path, monkeypatch
+    ):
+        """A ref that already resolves loads as before, in either mode."""
+        monkeypatch.chdir(tmp_path)
+        root_copy = tmp_path / "code-mirror/src/foo.md"
+        root_copy.parent.mkdir(parents=True)
+        root_copy.write_text(
+            "---\nid: mirror-src-foo\n---\nROOTBODY\n", encoding="utf-8"
+        )
         content = self._render(
             tmp_path, monkeypatch, summary=True, mode=LoadoutMode.FULL
         )
-        assert "(content not available — read from path)" in content
+        assert "ROOTBODY" in content
         assert "SOURCEBODY" not in content
+        assert "**Path:** `code-mirror/src/foo.md`" in content
 
     def test_legacy_knowledge_directory_is_found(self, tmp_path, monkeypatch):
         (tmp_path / "knowledge").mkdir()
