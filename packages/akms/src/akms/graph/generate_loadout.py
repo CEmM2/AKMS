@@ -269,6 +269,30 @@ def _mirror_summary_source(node_data: dict[str, Any], repo_root: Path | None) ->
     return content if _has_summary_section(head) else ""
 
 
+def _local_node_ref(node_id: str, repo_root: Path | None) -> str | None:
+    """Repo-relative path of a local node written without ``content_ref``.
+
+    Promotion writes ``<knowledge>/local-nodes/<id>.md`` and leaves
+    ``content_ref`` empty. The graph then has the title and no body. The
+    loadout reads that file, and an explicit ``content_ref`` is left alone.
+    """
+    if repo_root is None or "/" in node_id or node_id in {"", ".", ".."}:
+        return None
+    directory = local_knowledge_dir(repo_root) / "local-nodes"
+    direct = directory / f"{node_id}.md"
+    nested = sorted(directory.glob(f"**/{node_id}.md")) if directory.is_dir() else []
+    seen: set[Path] = set()
+    for candidate in (direct, *nested):
+        if candidate in seen or not candidate.is_file():
+            continue
+        seen.add(candidate)
+        try:
+            return candidate.relative_to(repo_root).as_posix()
+        except ValueError:
+            continue
+    return None
+
+
 def _knowledge_dir_mirror(
     node_data: dict[str, Any], repo_root: Path | None
 ) -> Path | None:
@@ -880,6 +904,8 @@ def generate_loadout(
             entry["reasons"] = tuple(reasons)
 
         content_ref = node_data.get("content_ref")
+        if not content_ref:
+            content_ref = _local_node_ref(node_id, repo_path)
         reading_priority = _node_reading_priority(
             node_data, selection_class, loadout_config
         )

@@ -6,6 +6,14 @@ development is intentionally not replayed.
 
 ## [Unreleased]
 
+### Fixed
+- `akms-records wake` ranks a task match that is reviewed, whose review a later amend cleared, or the agent's own note, ahead of reviewed records that share no word with the task. A matching reviewed record still outranks the agent's own matching note, and other unreviewed records still never outrank a reviewed one.
+- A reviewed record that a later amend leaves `unreviewed` stays in the default wake, marked, showing the current text, until that text is reviewed again. An explicit unreview that does not change the text does not stay, and a rejection never does.
+- `akms-records recall` across several scopes ranks a hit that contains more of the query's words ahead of one that contains fewer, then by reciprocal rank, then newest, then record ID.
+- A full-mode loadout reads a project-local node that has no `content_ref` from its file under `local-nodes/` and prints that path. An explicit `content_ref` is unchanged.
+- `akms-records import --from-failure-memory` ignores an extra top-level key on a schema 1 registry or a schema 2 `_registry.json`. The required keys stay required, and a lesson field the schema does not know is still refused.
+- `recall` and `wake` search a query of up to 512 words instead of refusing one past 64. A longer query is still an error. The search index format is `akms-records-index/v2` and is rebuilt automatically; it records whether a later amend cleared a review.
+
 ### Security
 - The lockfile moves past 15 advisories published after 0.3.2: aiohttp
   3.14.5 (eight, including request smuggling in the pure-Python parser),

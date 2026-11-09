@@ -723,7 +723,9 @@ def test_wake_falls_back_to_sources_when_the_summary_does_not_fit(project, repo,
     assert tight.excluded["covered"] == () and tight.covered_by_summary == {}
 
 
-def test_a_summary_never_ranks_above_a_higher_tier(project, repo, home):
+def test_an_own_matching_summary_outranks_a_zero_match_reviewed_record(
+    project, repo, home
+):
     long = "mesh refinement near the crack tip " * 4
     confirmed = add(
         project, f"Confirmed {long}", actor="bravo", review_state="user_confirmed"
@@ -740,10 +742,10 @@ def test_a_summary_never_ranks_above_a_higher_tier(project, repo, home):
         f"{record}@1" for record in [confirmed, *own]
     }
     result = run(repo, home, task="mesh refinement crack")
-    # The summary ranks in the tier of its lowest source (unreviewed), below the
-    # other reviewed record, although it covers a user_confirmed source that matches
-    # the task better than that record does.
-    assert entry_ids(result) == [other, sid]
+    # The summary is this agent's own note and it matches the task, so it
+    # sits above a reviewed record that matches nothing. The sources it
+    # covers are not shown again.
+    assert entry_ids(result) == [sid, other]
     assert set(result.excluded["covered"]) == {confirmed, *own}
 
 

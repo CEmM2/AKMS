@@ -96,7 +96,9 @@ scope's ID in lower case, unless `--domain` says otherwise. The body is:
   write was confirmed, and the record's own source references.
 
 The v2 node models have no field for a record ID, and they are unchanged. The
-Sources section is the provenance.
+Sources section is the provenance. The file has no `content_ref`. A loadout
+reads `<knowledge>/local-nodes/<node id>.md` in that case and prints that path.
+An explicit `content_ref` is left as it is.
 
 ### Refusals
 
@@ -216,7 +218,10 @@ not lesson fields, and are not read.
 **Its own reader.** This package parses the documented formats rather than import
 `akms-failure-memory`, which would bring `akms` with it. The tests hold the reader
 to that package's own loader, and the reader is strict: a lesson field the schema
-does not know is refused, so a lesson never loses a field silently.
+does not know is refused, so a lesson never loses a field silently. An extra
+top-level key on a schema 1 registry, or on a schema 2 `_registry.json`, is
+ignored. The required keys stay required, and a stray file in a schema 2
+directory is still refused.
 
 **The records.** Each lesson becomes a record of the built-in schema
 `failure-lesson/v1`, registered on first use, whose payload is the lesson unchanged:
