@@ -146,3 +146,6 @@ hits = store.recall("keep", tags=["model"]).hits
 - [Storage format](storage-format.md)
 - [Schemas and templates](schemas-and-templates.md)
 - [Limits](limits.md)
+
+- [Authoring, search and review](authoring-and-review.md): schema-aware drafts,
+  no-write validation, explicit review and the bundled agent workflow.

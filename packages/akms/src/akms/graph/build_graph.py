@@ -27,6 +27,7 @@ import networkx as nx
 
 from akms import AKMS_SCHEMA_VERSION
 from akms.layout import local_knowledge_dir
+from akms.graph.record_projections import has_record_projection
 from akms.schema.errors import SchemaValidationError, SchemaVersionError
 from akms.schema.validators import (
     parse_local_state,
@@ -245,6 +246,10 @@ def build_graph(
         attrs = node.model_dump()
         edges = attrs.pop("edges", [])
         attrs["node_origin"] = "local"
+        # Derived graph hint, not a frontmatter field: retain provenance when
+        # a later read finds the file missing, and never trust a cached snippet.
+        if has_record_projection(md_path.read_text(encoding="utf-8")):
+            attrs["_record_projection"] = True
         attrs["confidence_default"] = attrs["confidence"]
         attrs["activations"] = 0
         attrs["last_activated"] = None

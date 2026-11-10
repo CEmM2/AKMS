@@ -16,7 +16,12 @@ node; ``import_failure_memory`` reads a failure-memory registry without
 needing that package at all.
 """
 
-from akms_records.bridge import confirm_yes, promote
+from akms_records.bridge import (
+    confirm_yes,
+    promote,
+    promotion_status,
+    withdraw_promotion,
+)
 from akms_records.consolidate import (
     command_summarizer,
     consolidate,
@@ -47,6 +52,13 @@ from akms_records.schemas import RegisteredSchema, SchemaRegistry
 from akms_records.scope import Scope, store_root
 from akms_records.store import RecordStore, WriteResult
 
+from akms_records.workflows import (
+    draft_document,
+    review_queue,
+    review_record,
+    validate_document,
+)
+
 __version__ = "0.3.2"
 
 __all__ = [
@@ -72,10 +84,16 @@ __all__ = [
     "confirm_yes",
     "consolidate",
     "consolidation_status",
+    "draft_document",
+    "review_queue",
+    "review_record",
+    "validate_document",
     "import_failure_memory",
     "list_consolidations",
     "manifest_nodes",
     "promote",
+    "promotion_status",
+    "withdraw_promotion",
     "recall_scopes",
     "refresh_consolidation",
     "store_root",

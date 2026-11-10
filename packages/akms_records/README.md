@@ -44,6 +44,15 @@ A record is not a fact: records stay records unless a person promotes them.
 - A filesystem with hard links (any local disk on Linux, macOS and Windows)
 - Optional: the `qmd` command and its embedding model, for `recall --semantic`
 
+## Explicit authoring and review
+
+Start with your own registered schema. `draft` prepares an editable document
+without inventing values; `validate` reports missing fields without saving.
+`search` accepts plain text, and `review queue` / `review set` support explicit,
+revision-checked review. JSON remains the default; `show` and the queue also
+offer `--format text`. See the [workflow guide](https://cemm2.github.io/AKMS/reference/records/authoring-and-review.html).
+The package includes an opt-in, schema-neutral agent skill; it installs no hooks.
+
 ## First commands
 
 ```bash

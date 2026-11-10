@@ -135,7 +135,9 @@ can be amended, superseded or retracted.
 
 | Command | Purpose |
 |---|---|
-| `promote RECORD --review approved [--min-review-state MIN] [--scope-ok] [--allow-sensitive] [--allow-imported] [--update] [--domain D] [--yes]` | Write a reviewed record as an AKMS project-local node and link it (needs `akms-records[akms]`). |
+| `promote RECORD --review approved [--min-review-state MIN] [--scope-ok] [--allow-sensitive] [--allow-imported] [--update] [--domain D] [--yes]` | Write a reviewed record as an AKMS project-local node and link it. `--update` replaces this record's verified managed block while preserving unrelated prose (needs `akms-records[akms]`). |
+| `promotion status [RECORD]` | Read-only source/node consistency report; exits 1 for drift. |
+| `promotion withdraw RECORD --reason TEXT (--expect-revision N \| --erased) [--yes]` | Remove only this record’s verified managed projection, without deleting the source. Erased sources require the matching scoped erasure log. Human-node writes retain confirmation rules. |
 
 `user_confirmed` is the default threshold; `--min-review-state agent_reviewed` is
 an opt-in. A write labelled `source: human` asks for confirmation on an interactive
@@ -261,6 +263,12 @@ equal `--scope`.
 | `index_unavailable`, `index_format` | The index file cannot be opened, or has another format (rebuild it) |
 | `manifest_missing`, `manifest_invalid` | `wake --exclude-nodes` found no file, or not a v1 resolution manifest |
 | `reserved_source_ref`, `source_refs_full` | A writer set the `promoted-to` reference kind that only `promote` writes; a record has no room for its promotion link |
-| `akms_unavailable`, `review_required`, `review_below_threshold`, `scope_not_project`, `record_retracted`, `record_superseded`, `record_erased`, `schema_mismatch`, `record_sensitive`, `summary_unreviewed`, `summary_stale`, `imported_not_promotable`, `policy_drift`, `global_vault_target`, `already_promoted`, `node_not_updatable`, `node_exists`, `promote_locked`, `promote_graph_failed`, `promote_write_failed`, `node_not_loaded`, `promote_ledger_exhausted` | [Promotion refusals](promotion-and-import.md#refusals) |
+| `akms_unavailable`, `review_required`, `review_below_threshold`, `scope_not_project`, `record_retracted`, `record_superseded`, `record_erased`, `schema_mismatch`, `record_sensitive`, `summary_unreviewed`, `summary_stale`, `imported_not_promotable`, `policy_drift`, `global_vault_target`, `already_promoted`, `node_not_updatable`, `node_exists`, `promote_locked`, `promote_graph_failed`, `promote_write_failed`, `node_not_loaded`, `promote_ledger_exhausted`, `projection_conflict`, `projection_source_changed`, `projection_source_mismatch`, `source_not_erased` | [Promotion refusals](promotion-and-import.md#refusals) |
 | `failure_memory_config`, `failure_memory_registry` | The failure-memory config or registry cannot be read as documented; nothing was written |
 | `internal_error` | An unexpected failure |
+
+## Authoring and review workflows
+
+See [Authoring, search and review](authoring-and-review.md) for `draft`,
+`validate`, `review queue`, `review set`, payload-only inputs, human-readable
+`show`, and the `search` alias. JSON is still the default output.

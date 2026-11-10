@@ -14,6 +14,7 @@ pytest.importorskip("akms")
 
 import frontmatter  # noqa: E402
 from akms.graph.build_graph import load_graph  # noqa: E402
+from akms.graph.record_projections import parse_projections  # noqa: E402
 from akms.layout import local_knowledge_dir  # noqa: E402
 from akms.schema.models import LocalNodeFrontmatter  # noqa: E402
 from akms.schema.validators import parse_node_frontmatter  # noqa: E402
@@ -95,6 +96,12 @@ def node_files(repo: Path) -> list[Path]:
 
 def body_of(path: Path) -> str:
     return str(frontmatter.load(str(path)).content)
+
+
+def projected_bodies(raw: bytes) -> list[str]:
+    """Crash repair may refresh source fingerprints, never the projected facts."""
+    body = str(frontmatter.loads(raw.decode("utf-8")).content)
+    return [block.body for block in parse_projections(body)]
 
 
 # ------------------------------------------------------------- the default path
@@ -477,11 +484,11 @@ def test_update_onto_a_human_node_needs_confirmation(
     monkeypatch.setattr("sys.stdin", FakeTerminal("y\n"))
     assert main(args) == 0
     captured = capsys.readouterr()
-    assert f"to node {rid}" in captured.err and "keeps source=human" in captured.err
+    assert f"in node {rid}" in captured.err and "keeps source=human" in captured.err
     result = json.loads(captured.out)
     assert result["action"] == "updated" and result["confirmation"] == "tty"
     body = body_of(node_files(repo)[0])
-    assert "- confirmation: yes" in body and "- confirmation: tty" in body
+    assert "- confirmation: yes" not in body and "- confirmation: tty" in body
 
 
 def test_update_onto_an_agent_node_needs_no_confirmation(project, repo):
@@ -514,7 +521,7 @@ def test_crash_recovery_needs_no_terminal_and_no_confirmation(
     assert result["path"] == "human-policy"
     assert result["confirmation"] is None
     assert result["node"]["source"] == "human"
-    assert node_files(repo)[0].read_bytes() == node
+    assert projected_bodies(node_files(repo)[0].read_bytes()) == projected_bodies(node)
     assert "- confirmation: yes" in body_of(node_files(repo)[0])
     assert project.get(rid).promoted_to["path"] == "human-policy"
 
@@ -535,7 +542,7 @@ def test_crash_recovery_of_an_update_needs_no_confirmation(project, repo, monkey
     node = node_files(repo)[0].read_bytes()
     result = run(project, rid, repo, update=True)
     assert result["action"] == "link_completed"
-    assert node_files(repo)[0].read_bytes() == node
+    assert projected_bodies(node_files(repo)[0].read_bytes()) == projected_bodies(node)
     assert project.get(rid).promoted_to["revision"] == 3
 
 
@@ -747,7 +754,7 @@ def test_a_newer_revision_needs_update(project, repo):
     assert project.get(rid).promoted_to["revision"] == 3
     [path] = node_files(repo)
     body = body_of(path)
-    assert f"- record: `{rid}@1`" in body and f"- record: `{rid}@3`" in body
+    assert f"- record: `{rid}@1`" not in body and f"- record: `{rid}@3`" in body
     assert "A corrected summary" in body
     assert run(project, rid, repo, update=True)["action"] == "already_promoted"
 
@@ -803,7 +810,7 @@ def test_crash_between_the_node_and_the_link_completes_on_rerun(
     assert result["node_id"] == rid
     assert project.get(rid).promoted_to["revision"] == 1
     assert node_files(repo) == [path]
-    assert path.read_bytes() == once  # no second node and no appended copy
+    assert projected_bodies(path.read_bytes()) == projected_bodies(once)
     assert run(project, rid, repo)["action"] == "already_promoted"
 
 
@@ -1162,3 +1169,127 @@ def test_cli_promote_end_to_end(project, repo, capsys, monkeypatch):
     assert out["error"]["details"]["node_id"] == rid
     code, out = cli(capsys, "promote", rid, *base, "--review", "approved", "--update")
     assert code == 0 and out["action"] == "updated"
+
+
+# ------------------------------------------------ managed projection migration
+
+
+def test_explicit_update_repairs_a_missing_node(project, repo):
+    from akms_records.bridge import promotion_status
+
+    rid = add(project, **CONFIRMED)
+    run(project, rid, repo)
+    [path] = node_files(repo)
+    path.unlink()
+    result = run(project, rid, repo, update=True)
+    assert result["action"] == "created"
+    assert len(node_files(repo)) == 1
+    assert promotion_status(project, rid, repo=repo)["results"][0]["state"] == "current"
+
+
+def make_legacy(path):
+    post = frontmatter.load(str(path))
+    [block] = parse_projections(str(post.content))
+    post.content = block.body
+    path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
+
+
+def test_exact_legacy_projection_upgrades_only_explicitly(project, repo):
+    from akms_records.bridge import promotion_status
+
+    rid = add(project, **CONFIRMED)
+    run(project, rid, repo)
+    [path] = node_files(repo)
+    make_legacy(path)
+    post = frontmatter.load(str(path))
+    post.content += "\n\nUnrelated manual note.\n"
+    path.write_text(frontmatter.dumps(post), encoding="utf-8")
+    before = path.read_bytes()
+    assert (
+        promotion_status(project, rid, repo=repo)["results"][0]["state"]
+        == "projection_stale"
+    )
+    refused(project, rid, repo, "already_promoted")
+    assert path.read_bytes() == before
+    assert run(project, rid, repo, update=True)["action"] == "updated"
+    [block] = parse_projections(body_of(path))
+    assert block.metadata["record_id"] == rid
+    assert "Unrelated manual note." in body_of(path)
+    assert promotion_status(project, rid, repo=repo)["results"][0]["state"] == "current"
+
+
+def test_manually_edited_legacy_projection_is_not_overwritten(project, repo):
+    rid = add(project, **CONFIRMED)
+    run(project, rid, repo)
+    [path] = node_files(repo)
+    make_legacy(path)
+    path.write_text(path.read_text().replace("within budget", "my manual correction"))
+    before = path.read_bytes()
+    refused(project, rid, repo, "projection_conflict", update=True)
+    assert path.read_bytes() == before
+
+
+def test_legacy_crash_recovery_requires_explicit_upgrade(project, repo, monkeypatch):
+    rid = add(project, **CONFIRMED)
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            RecordStore,
+            "record_promotion",
+            lambda *a, **kw: (_ for _ in ()).throw(OSError("crash")),
+        )
+        with pytest.raises(OSError):
+            run(project, rid, repo)
+    [path] = node_files(repo)
+    make_legacy(path)
+    refused(project, rid, repo, "already_promoted")
+    assert project.get(rid).promoted_to is None
+    assert run(project, rid, repo, update=True)["action"] == "updated"
+    assert project.get(rid).promoted_to["revision"] == 1
+    assert len(parse_projections(body_of(path))) == 1
+
+
+def test_finalize_does_not_silently_reseal_mutated_source_bytes(project, repo):
+    from akms_records.bridge import promotion_status
+
+    rid = add(project, **CONFIRMED)
+    run(project, rid, repo)
+    [path] = node_files(repo)
+    event_path = project.record_dir(rid) / "000001.json"
+    # Semantically identical JSON still changes the byte-level integrity witness.
+    event = json.loads(event_path.read_text())
+    event_path.write_text(json.dumps(event, indent=4) + "\n")
+    assert (
+        promotion_status(project, rid, repo=repo)["results"][0]["state"]
+        == "projection_stale"
+    )
+    before = path.read_bytes()
+    refused(project, rid, repo, "already_promoted")
+    assert path.read_bytes() == before
+    assert run(project, rid, repo, update=True)["action"] == "updated"
+    assert promotion_status(project, rid, repo=repo)["results"][0]["state"] == "current"
+
+
+def test_cli_promotion_status_and_withdraw(project, repo, capsys):
+    rid = add(project, **CONFIRMED)
+    run(project, rid, repo)
+    base = ["--scope", "project:example", "--repo", str(repo)]
+    code, result = cli(capsys, "promotion", "status", rid, *base)
+    assert code == 0 and result["results"][0]["state"] == "current"
+    project.amend(rid, {"summary": "Changed"}, expected_revision=2, actor="t")
+    code, result = cli(capsys, "promotion", "status", rid, *base)
+    assert code == 1 and result["results"][0]["state"] == "source_changed"
+    code, result = cli(
+        capsys,
+        "promotion",
+        "withdraw",
+        rid,
+        *base,
+        "--expect-revision",
+        "3",
+        "--reason",
+        "No longer needed",
+    )
+    assert code == 0 and result["action"] == "withdrawn"
+    assert project.get(rid).promoted_to is None
+    code, result = cli(capsys, "promotion", "status", rid, *base)
+    assert code == 0 and result["results"][0]["state"] == "not_promoted"

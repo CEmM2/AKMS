@@ -56,6 +56,7 @@ from akms.schema.models import (
     ReadingPriority,
 )
 from akms.graph.qmd_cache import get_cached, put_cached
+from akms.graph.record_projections import guard_projection_content
 from akms._resources import seed_qmd_path
 from akms.layout import local_knowledge_dir
 from akms.graph.query_subgraph import compute_query_hash
@@ -781,12 +782,31 @@ def generate_loadout(
     if resolution_manifest is not None:
         header["resolution_fingerprint"] = resolution_manifest.fingerprint
 
+    # Disk is authoritative for managed projections: caches may predate a
+    # record amendment, retraction, erasure, or a manual edit to its block.
+    projection_bodies: dict[str, str] = {}
+    blocked_projections: set[str] = set()
+    for node_id, node_data in ranked_nodes:
+        ref = node_data.get("content_ref") or _local_node_ref(node_id, repo_path)
+        if not ref:
+            if node_data.get("_record_projection"):
+                blocked_projections.add(node_id)
+            continue
+        disk_ref = repo_path / str(ref) if repo_path is not None else Path(ref)
+        disk_body = _load_node_content(str(disk_ref))
+        guard = guard_projection_content(disk_body, repo_path)
+        if guard.managed or node_data.get("_record_projection"):
+            projection_bodies[str(ref)] = guard.content
+            if not guard.current or not guard.managed:
+                blocked_projections.add(node_id)
+
     # ── Section 2: Domain Knowledge ──────────────────────────────────
     scoped_paths = sorted(
         {
             str(node_data.get("content_ref"))
             for _, node_data in ranked_nodes
             if node_data.get("content_ref")
+            and str(node_data["content_ref"]) not in projection_bodies
         },
     )
     # qmd retrieval returns list[{path, line, content}] sorted by
@@ -850,6 +870,8 @@ def generate_loadout(
         if not content_ref:
             return ""
         ref = str(content_ref)
+        if ref in projection_bodies:
+            return projection_bodies[ref]
         if ref not in node_bodies:
             body = qmd_content_by_path.get(ref, "") or _load_node_content(
                 content_ref, repo_path
@@ -858,6 +880,13 @@ def generate_loadout(
                 # Full mode inlines a mirror from the knowledge directory;
                 # full_mode_max_tokens bounds how many. Routing mode does not.
                 body = _load_node_content(str(mirror_files[ref]))
+            cached_guard = guard_projection_content(body, repo_path)
+            if cached_guard.managed:
+                # A cached marker alone cannot establish what is now on disk.
+                body = ""
+                for candidate_id, candidate_data in ranked_nodes:
+                    if str(candidate_data.get("content_ref")) == ref:
+                        blocked_projections.add(candidate_id)
             node_bodies[ref] = body
         return node_bodies[ref]
 
@@ -923,6 +952,23 @@ def generate_loadout(
                 entry["content_ref"] = mirror_file.relative_to(repo_path).as_posix()
         content = body_of(content_ref)
 
+        if node_id in blocked_projections:
+            # Do not expose cached titles, source paths, or authored prose from
+            # a mixed node when any record-derived part is no longer current.
+            entry = {
+                "id": node_id,
+                "origin": "local",
+                "confidence": 0.0,
+                "domain": "",
+                "title": "Record projection needs review",
+                "reading_priority": "review",
+                "content": "Record projection unavailable: review and refresh this node before using it.",
+            }
+            if selection_class is not None:
+                entry["selection_class"] = selection_class
+            node_entries.append(entry)
+            continue
+
         # Resolve effective_mode once per node so per-node
         # reading_priority wins over the loadout-level mode_str per FR-L10c.
         # Precedence: reading_priority (if set) > mode_str.
@@ -981,7 +1027,9 @@ def generate_loadout(
         if isinstance(edge_type, EdgeType):
             edge_type = edge_type.value
         if str(edge_type) == EdgeType.PITFALL.value:
-            if u in node_id_set or v in node_id_set:
+            if (u in node_id_set or v in node_id_set) and not (
+                {u, v} & blocked_projections
+            ):
                 warning = {
                     "from": u,
                     "to": v,
@@ -996,7 +1044,9 @@ def generate_loadout(
     # ── Section 4: Session History ───────────────────────────────────
     session_refs = []
     for node_id, node_data in ranked_nodes:
-        refs = node_data.get("session_refs", [])
+        refs = (
+            [] if node_id in blocked_projections else node_data.get("session_refs", [])
+        )
         if refs:
             for ref in refs:
                 session_refs.append(
@@ -1007,7 +1057,9 @@ def generate_loadout(
                 )
 
     # ── Section 5: Reading Order ─────────────────────────────────────
-    node_ids_ordered = [nid for nid, _ in ranked_nodes]
+    node_ids_ordered = [
+        nid for nid, _ in ranked_nodes if nid not in blocked_projections
+    ]
     reading_order = _build_reading_order(G, node_ids_ordered)
 
     # ── Assemble Markdown ────────────────────────────────────────────

@@ -7,6 +7,13 @@ development is intentionally not replayed.
 ## [Unreleased]
 
 ### Fixed
+- Promoted record refreshes replace the record's verified managed body instead of
+  appending an obsolete claim alongside its correction. Unrelated node prose and
+  labels remain; edited or ambiguous legacy content is refused rather than guessed.
+- Newly generated loadouts check managed record projections against disk and hide
+  stale, edited or unavailable content after source changes, retraction or erasure.
+  Rebuild graphs after upgrading to add missing-node provenance hints. Legacy
+  promotions require explicit upgrade; previously emitted loadouts are unchanged.
 - `akms-records wake` ranks a task match that is reviewed, whose review a later amend cleared, or the agent's own note, ahead of reviewed records that share no word with the task. A matching reviewed record still outranks the agent's own matching note, and other unreviewed records still never outrank a reviewed one.
 - A reviewed record that a later amend leaves `unreviewed` stays in the default wake, marked, showing the current text, until that text is reviewed again. An explicit unreview that does not change the text does not stay, and a rejection never does.
 - `akms-records recall` across several scopes ranks a hit that contains more of the query's words ahead of one that contains fewer, then by reciprocal rank, then newest, then record ID.
@@ -24,6 +31,19 @@ development is intentionally not replayed.
   lock-only change; `uv audit` reports no known vulnerabilities.
 
 ### Added
+- Schema-neutral record authoring and review: `draft`, no-write `validate`,
+  payload-only input, positional `search`, readable `show`, and revision-checked
+  `review queue` / `review set`, plus Python helpers and an opt-in bundled agent
+  workflow skill. User JSON Schemas remain authoritative; no values are invented,
+  and no capture or startup hook is installed.
+- `promotion status` reports source/node drift without writing. Explicit
+  `promotion withdraw` removes verified managed projections, requires the inspected
+  source revision or a scoped erasure entry, and retains human-node confirmation.
+  Active source links are cleared only after graph rebuild; records are not deleted.
+- Managed projection markers fingerprint the body and source event stream without
+  changing v2 node schemas. Local sources are repository-relative; external sources
+  use absolute locators and fail closed when unavailable. This is integrity checking,
+  not authentication, automatic synchronization, or deletion of historical copies.
 - `akms-records recall --semantic` adds an optional vector search through the external
   `qmd` tool, with no new Python dependency, merged with the text search by reciprocal
   rank. It is off by default and whether it helps is still to be evaluated. The index

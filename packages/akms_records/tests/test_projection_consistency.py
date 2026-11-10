@@ -1,0 +1,297 @@
+"""End-to-end promotion freshness, guarded reads, and explicit withdrawal."""
+
+from __future__ import annotations
+
+import importlib
+import json
+
+import pytest
+
+pytest.importorskip("akms")
+import frontmatter  # noqa: E402
+from akms.graph.build_graph import load_graph  # noqa: E402
+from akms.graph.generate_loadout import generate_loadout  # noqa: E402
+from akms.graph.record_projections import parse_projections  # noqa: E402
+from akms.layout import local_knowledge_dir  # noqa: E402
+from akms.schema.models import AgentRole, LoadoutMode  # noqa: E402
+from akms_records import RecordsError  # noqa: E402
+from akms_records.bridge import (
+    confirm_yes,
+    promote,
+    promotion_status,
+    withdraw_promotion,
+)  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolate_sources(tmp_path, monkeypatch):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    monkeypatch.setenv("AKMS_GLOBAL_VAULT", str(vault))
+    module = importlib.import_module("akms.graph.generate_loadout")
+    monkeypatch.setattr(module, "_retrieve_node_content_qmd", lambda *a: [])
+    monkeypatch.setattr(module, "get_cached", lambda *a: None)
+
+
+def create(store, text="OLD PRIVATE PAYLOAD"):
+    return store.create(
+        {
+            "schema_ref": "decision/v1",
+            "payload": {"decision": text, "rationale": "private rationale"},
+            "review_state": "user_confirmed",
+            "origin": {"kind": "human-confirmed", "actor_id": "t"},
+        },
+        actor="t",
+    ).record_id
+
+
+def publish(store, rid, repo, **kwargs):
+    return promote(store, rid, repo=repo, actor="t", review="approved", **kwargs)
+
+
+def node_path(repo):
+    [path] = list((local_knowledge_dir(repo) / "local-nodes").glob("*.md"))
+    return path
+
+
+def state(store, rid, repo):
+    return promotion_status(store, rid, repo=repo)["results"][0]["state"]
+
+
+def withdraw(store, rid, repo, **kwargs):
+    kwargs.setdefault(
+        "expected_revision", None if kwargs.get("erased") else store.get(rid).revision
+    )
+    return withdraw_promotion(
+        store,
+        rid,
+        repo=repo,
+        actor="t",
+        reason="No longer applicable",
+        confirm=confirm_yes,
+        **kwargs,
+    )
+
+
+def loadout(repo):
+    graph = load_graph(local_knowledge_dir(repo) / "graph/graph.json")
+    return generate_loadout(
+        graph,
+        list(graph.nodes(data=True)),
+        task_id="test",
+        phase=1,
+        graph_version="v1",
+        seed_tags=[],
+        agent_role=AgentRole.IMPLEMENTER,
+        repo_root=repo,
+        mode=LoadoutMode.FULL,
+    )
+
+
+def test_amend_withholds_old_content_update_restores_current(store, repo):
+    rid = create(store)
+    publish(store, rid, repo)
+    assert state(store, rid, repo) == "current"
+    store.amend(
+        rid,
+        {"payload": {"decision": "NEW CONTENT", "rationale": "new rationale"}},
+        expected_revision=store.get(rid).revision,
+        actor="t",
+    )
+    assert state(store, rid, repo) == "source_changed"
+    rendered = loadout(repo)
+    assert "OLD PRIVATE PAYLOAD" not in rendered
+    assert "Record projection needs review" in rendered
+    publish(store, rid, repo, update=True)
+    text = node_path(repo).read_text()
+    assert "OLD PRIVATE PAYLOAD" not in text
+    assert "NEW CONTENT" in text
+    assert state(store, rid, repo) == "current"
+    assert "NEW CONTENT" in loadout(repo)
+
+
+def test_manually_edited_sources_remain_discoverable_and_refused(store, repo):
+    rid = create(store)
+    publish(store, rid, repo)
+    path = node_path(repo)
+    path.write_text(
+        path.read_text().replace(f"- record: `{rid}@1`", "- record: `manual-edit@1`")
+    )
+    before = path.read_bytes()
+    assert state(store, rid, repo) == "projection_stale"
+    for action in (
+        lambda: publish(store, rid, repo, update=True),
+        lambda: withdraw(store, rid, repo),
+    ):
+        with pytest.raises(RecordsError) as exc:
+            action()
+        assert exc.value.code == "projection_conflict"
+        assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "field,expected",
+    [("scope", "scope_violation"), ("source_dir", "projection_source_mismatch")],
+)
+def test_source_identity_collision_refused(store, repo, field, expected):
+    rid = create(store)
+    publish(store, rid, repo)
+    path = node_path(repo)
+    post = frontmatter.load(path)
+    block = parse_projections(post.content)[0]
+    old = block.metadata[field]
+    new = (
+        "project:other" if field == "scope" else {"base": "repo", "path": "other-store"}
+    )
+    post.content = post.content.replace(
+        json.dumps(old, sort_keys=True), json.dumps(new, sort_keys=True), 1
+    )
+    path.write_text(frontmatter.dumps(post) + "\n")
+    before = path.read_bytes()
+    for action in (
+        lambda: publish(store, rid, repo, update=True),
+        lambda: withdraw(store, rid, repo),
+    ):
+        with pytest.raises(RecordsError) as exc:
+            action()
+        assert exc.value.code in {expected, "projection_source_mismatch"}
+        assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("lifecycle", ["retract", "erase"])
+def test_inactive_source_withheld_and_explicit_withdrawal(store, repo, lifecycle):
+    rid = create(store)
+    publish(store, rid, repo)
+    if lifecycle == "erase":
+        store.erase(rid, actor="t", reason="privacy")
+    else:
+        store.retract(
+            rid, actor="t", reason="obsolete", expected_revision=store.get(rid).revision
+        )
+    assert state(store, rid, repo) == (
+        "source_erased" if lifecycle == "erase" else "source_retracted"
+    )
+    assert "OLD PRIVATE PAYLOAD" not in loadout(repo)
+    result = withdraw(store, rid, repo, erased=lifecycle == "erase")
+    assert result["action"] == "withdrawn"
+    assert "OLD PRIVATE PAYLOAD" not in node_path(repo).read_text()
+    assert state(store, rid, repo) == "withdrawn"
+
+
+def test_active_withdrawal_requires_current_revision_and_clears_live_link(store, repo):
+    rid = create(store)
+    publish(store, rid, repo)
+    before = node_path(repo).read_bytes()
+    with pytest.raises(RecordsError) as exc:
+        withdraw(store, rid, repo, expected_revision=1)
+    assert exc.value.code == "stale_revision"
+    assert node_path(repo).read_bytes() == before
+    assert withdraw(store, rid, repo)["action"] == "withdrawn"
+    assert store.get(rid).promoted_to is None
+    assert store.get(rid).lifecycle == "active"
+    assert "OLD PRIVATE PAYLOAD" not in loadout(repo)
+
+
+@pytest.mark.parametrize("manual_title", [False, True])
+def test_erased_mixed_node_preserves_manual_prose_not_generated_title(
+    store, repo, manual_title
+):
+    rid = create(store)
+    publish(store, rid, repo)
+    path = node_path(repo)
+    post = frontmatter.load(path)
+    post.content += "\n\nUnrelated authored guidance.\n"
+    if manual_title:
+        post.metadata["title"] = "My authored title"
+    path.write_text(frontmatter.dumps(post) + "\n")
+    store.erase(rid, actor="t", reason="privacy")
+    withdraw(store, rid, repo, erased=True)
+    after = path.read_text()
+    assert "Unrelated authored guidance." in after
+    assert "OLD PRIVATE PAYLOAD" not in after
+    assert ("My authored title" in after) is manual_title
+    assert "OLD PRIVATE PAYLOAD" not in loadout(repo)
+
+
+def test_withdrawal_graph_failure_is_retryable(store, repo, monkeypatch):
+    rid = create(store)
+    publish(store, rid, repo)
+    graph_module = importlib.import_module("akms.graph.build_graph")
+    original = graph_module.build_graph
+    monkeypatch.setattr(
+        graph_module,
+        "build_graph",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("test failure")),
+    )
+    with pytest.raises(RecordsError) as exc:
+        withdraw(store, rid, repo)
+    assert exc.value.code == "promote_graph_failed"
+    assert "OLD PRIVATE PAYLOAD" not in node_path(repo).read_text()
+    assert store.get(rid).promoted_to is not None
+    assert "OLD PRIVATE PAYLOAD" not in loadout(repo)
+    monkeypatch.setattr(graph_module, "build_graph", original)
+    withdraw(store, rid, repo)
+    assert store.get(rid).promoted_to is None
+    assert "OLD PRIVATE PAYLOAD" not in loadout(repo)
+
+
+def test_mixed_exact_and_edited_legacy_blocks_refuse_partial_migration(store, repo):
+    from akms_records.bridge import node_body
+
+    rid = create(store)
+    publish(store, rid, repo)
+    path = node_path(repo)
+    post = frontmatter.load(path)
+    record = store.get(rid)
+    legacy = node_body(record, revision=record.content_revision, actor="t")
+    edited = legacy.replace("OLD PRIVATE PAYLOAD", "Manually corrected legacy claim")
+    post.content = legacy + "\n\nAuthored separator.\n\n" + edited
+    path.write_text(frontmatter.dumps(post) + "\n")
+    before = path.read_bytes()
+    history = store.history(rid)
+
+    with pytest.raises(RecordsError) as exc:
+        publish(store, rid, repo, update=True)
+
+    assert exc.value.code == "projection_conflict"
+    assert path.read_bytes() == before
+    assert store.history(rid) == history
+
+
+@pytest.mark.parametrize("field", ["scope", "source_dir"])
+def test_status_reports_source_identity_mismatch_even_with_valid_fingerprint(
+    store, repo, tmp_path, field
+):
+    import shutil
+
+    from akms.graph.record_projections import guard_projection_content
+
+    rid = create(store)
+    publish(store, rid, repo)
+    path = node_path(repo)
+    post = frontmatter.load(path)
+    metadata = parse_projections(post.content)[0].metadata
+    if field == "scope":
+        replacement = "project:other"
+    else:
+        foreign = tmp_path / "foreign-source"
+        # A missing directory would already fail freshness. This case must prove
+        # the status command checks identity as well as a valid event fingerprint.
+        shutil.copytree(store.record_dir(rid), foreign)
+        replacement = {"base": "absolute", "path": str(foreign)}
+    post.content = post.content.replace(
+        json.dumps(metadata[field], sort_keys=True),
+        json.dumps(replacement, sort_keys=True),
+        1,
+    )
+    path.write_text(frontmatter.dumps(post) + "\n")
+    assert guard_projection_content(post.content, repo).current
+    before = path.read_bytes()
+    history = store.history(rid)
+
+    report = promotion_status(store, rid, repo=repo)
+
+    assert report["status"] == "drift"
+    assert report["results"][0]["state"] != "current"
+    assert path.read_bytes() == before
+    assert store.history(rid) == history

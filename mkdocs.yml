@@ -229,6 +229,7 @@ nav:
     - Records (Experimental):
       - reference/records/index.md
       - CLI Reference: reference/records/cli-reference.md
+      - Authoring and Review: reference/records/authoring-and-review.md
       - Recall and Wake: reference/records/recall-and-wake.md
       - Consolidation: reference/records/consolidation.md
       - Promotion and Import: reference/records/promotion-and-import.md

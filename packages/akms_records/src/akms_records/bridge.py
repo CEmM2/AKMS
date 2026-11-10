@@ -14,7 +14,7 @@ here calls an LLM. Two paths write the node:
   This only reads the policy: nothing here can set or change one.
 
 **Confirmation.** A write that labels text ``source: human`` needs one more step
-than the approval flag: creating a node on the human path, or appending to a
+than the approval flag: creating a node on the human path, or replacing a projection in a
 human-sourced node with ``--update``. Without a ``confirm`` callable it is refused
 with ``confirmation_required`` before anything is written, and it never falls back
 to the default path, so nobody gets a tentative node when they asked for a human
@@ -38,8 +38,8 @@ second node. A retried link is a no-op through its event ID.
 
 **Idempotency.** A record whose head is its own link event has nothing new, and
 promoting it again changes nothing. A newer revision of a promoted record is
-refused with ``already_promoted``, naming the node, unless ``--update`` appends
-it to that node.
+refused with ``already_promoted``, naming the node, unless ``--update`` replaces its managed projection in that node.
+Loadouts verify source and body fingerprints before including a projection.
 """
 
 from __future__ import annotations
@@ -78,6 +78,7 @@ LOCK_NAME = "promote.lock"
 CONFIRM_METHODS = ("tty", "yes")
 _MARKER = re.compile(r"- record: `(rec-[0-9]{8}-[0-9a-hjkmnp-tv-z]{8})@([1-9][0-9]*)`")
 _FENCE = re.compile(r"(`{3,})(.*)")
+_WITHDRAWN = "<!-- akms-records-withdrawn/v1 "
 
 
 # Given what a human-path write will label, returns how it was confirmed (one of
@@ -104,6 +105,7 @@ def _load_akms() -> SimpleNamespace:
             resolve_global_vault,
         )
         from akms.graph.update_graph import update_graph
+        from akms.graph import record_projections
         from akms.layout import local_knowledge_dir
         from akms.schema.models import LocalNodeFrontmatter, NewKnowledge
         from akms.schema.validators import (
@@ -122,6 +124,7 @@ def _load_akms() -> SimpleNamespace:
         load_graph=load_graph,
         resolve_global_vault=resolve_global_vault,
         update_graph=update_graph,
+        projections=record_projections,
         local_knowledge_dir=local_knowledge_dir,
         LocalNodeFrontmatter=LocalNodeFrontmatter,
         NewKnowledge=NewKnowledge,
@@ -239,18 +242,50 @@ def _marked_revisions(body: str, record_id: str) -> set[int]:
     return found
 
 
-def find_nodes(akms: SimpleNamespace, knowledge: Path, record_id: str) -> list[NodeHit]:
+def find_nodes(
+    akms: SimpleNamespace,
+    knowledge: Path,
+    record_id: str,
+    *,
+    linked_node: str | None = None,
+) -> list[NodeHit]:
     """Every local node that holds a revision of ``record_id``, by node ID."""
     hits: list[NodeHit] = []
     for path in sorted((knowledge / "local-nodes").rglob("*.md")):
         try:
-            if record_id not in path.read_text(encoding="utf-8"):
+            raw = path.read_text(encoding="utf-8")
+            if record_id not in raw and linked_node is None:
                 continue
             post = akms.frontmatter.load(str(path))
         except Exception:  # noqa: BLE001 - a malformed node is build_graph's report
             continue
         revisions = _marked_revisions(str(post.content or ""), record_id)
-        if revisions:
+        withdrawn = False
+        # A manually edited Sources line must not hide a damaged managed block.
+        for _, line in akms.projections._outside_lines(str(post.content or "")):
+            if line.startswith(_WITHDRAWN) and line.rstrip().endswith(" -->"):
+                try:
+                    mark = json.loads(line.rstrip()[len(_WITHDRAWN) : -4])
+                    withdrawn = withdrawn or mark.get("record_id") == record_id
+                except (ValueError, TypeError, AttributeError):
+                    pass
+            if line.startswith(akms.projections.HEADER) and line.rstrip().endswith(
+                " -->"
+            ):
+                try:
+                    meta = json.loads(line.rstrip()[len(akms.projections.HEADER) : -4])
+                    if (
+                        meta.get("record_id") == record_id
+                        and type(meta.get("revision")) is int
+                    ):
+                        revisions.add(meta["revision"])
+                except (ValueError, TypeError, AttributeError):
+                    pass
+        if revisions or (
+            not withdrawn
+            and linked_node is not None
+            and post.metadata.get("id") == linked_node
+        ):
             metadata = dict(post.metadata)
             hits.append(
                 NodeHit(
@@ -468,12 +503,87 @@ class _Job:
         return self.record.content_revision
 
     def body(self) -> str:
-        return node_body(
+        body = node_body(
             self.record,
             revision=self.revision,
             actor=self.actor,
             confirmation=self.confirmation,
         )
+        return self.wrap(body, self.record.revision)
+
+    def wrap(self, body: str, source_revision: int) -> str:
+        """A source fingerprint lets core refuse obsolete projections without us."""
+        directory = self.store.record_dir(self.record.record_id).resolve()
+        root = self.repo.resolve()
+        source = (
+            {"base": "repo", "path": directory.relative_to(root).as_posix()}
+            if directory.is_relative_to(root)
+            else {"base": "absolute", "path": str(directory)}
+        )
+        try:
+            snapshot = self.akms.projections.source_snapshot(
+                directory, max_revision=source_revision
+            )
+            return self.akms.projections.render_projection(
+                body,
+                record_id=self.record.record_id,
+                revision=self.revision,
+                source_revision=source_revision,
+                scope=str(self.store.scope),
+                source_title=_title(self.store, self.record),
+                source_dir=source,
+                source_sha256=snapshot,
+            )
+        except self.akms.projections.ProjectionError as exc:
+            raise _refuse(str(exc), "projection_source_changed") from None
+
+    def finalize(self, hit: NodeHit) -> None:
+        """Seal the source snapshot after the link event, retryable after a crash."""
+        current = self.store.get(self.record.record_id)
+        if current.content_revision != self.revision:
+            raise _refuse(
+                "the source changed while promotion completed; retry after review",
+                "projection_source_changed",
+            )
+        post = self.akms.frontmatter.load(str(hit.path))
+        text = str(post.content or "")
+        try:
+            blocks = self.akms.projections.parse_projections(text)
+            block = next(
+                b
+                for b in blocks
+                if b.metadata["record_id"] == self.record.record_id
+                and b.metadata["revision"] == self.revision
+            )
+            _check_block_source(self, block.metadata)
+            if (
+                self.akms.projections.source_snapshot(
+                    self.store.record_dir(self.record.record_id),
+                    max_revision=block.metadata.get(
+                        "source_revision", block.metadata["revision"]
+                    ),
+                    prefix=True,
+                )
+                != block.metadata["source_sha256"]
+            ):
+                raise self.akms.projections.ProjectionError(
+                    "source fingerprint changed"
+                )
+            rendered = self.wrap(block.body, current.revision)
+            changed = self.akms.projections.replace_projection(
+                text, self.record.record_id, rendered
+            )
+        except (self.akms.projections.ProjectionError, StopIteration):
+            raise _refuse(
+                "the promoted block changed or predates managed projections; "
+                "run promote --update, resolving any manual edits first",
+                "projection_conflict",
+            ) from None
+        if changed.rstrip("\n") != text.rstrip("\n"):
+            post.content = changed
+            replace_file(
+                hit.path, (self.akms.frontmatter.dumps(post) + "\n").encode("utf-8")
+            )
 
     def verify_loaded(self, node_id: str) -> None:
         graph = self.akms.load_graph(self.knowledge / "graph" / "graph.json")
@@ -581,22 +691,22 @@ class _Job:
         self.rebuild(node_id)
 
     def update_existing(self, hit: NodeHit) -> tuple[str, str, dict[str, Any]]:
-        """Add a newer revision to the node that holds an older one."""
-        if _is_human_node(hit):
-            # Appended directly; the node's labels stay as they are.
-            post = self.akms.frontmatter.load(str(hit.path))
-            self.akms.parse_node(dict(post.metadata), is_local=True, path=str(hit.path))
-            post.content = f"{post.content}\n\n---\n\n{self.body()}"
-            data = (self.akms.frontmatter.dumps(post) + "\n").encode("utf-8")
-            replace_file(hit.path, data)
-            self.rebuild(hit.node_id)
-            return "updated", hit.node_id, {}
-        action, node_id, details = self.through_update_graph(
-            suggested_id=hit.node_id,
-            title=str(hit.metadata.get("title", hit.node_id)),
-            domain=str(hit.metadata.get("domain", "")),
-        )
-        return ("updated" if action == "dedup_appended" else action), node_id, details
+        """Replace this record's projection, never append a conflicting old fact."""
+        _is_human_node(hit)
+        post = self.akms.frontmatter.load(str(hit.path))
+        self.akms.parse_node(dict(post.metadata), is_local=True, path=str(hit.path))
+        post.content = _replace_record_block(self, str(post.content or ""), self.body())
+        # A generated title follows its source; a manually changed title stays.
+        previous_titles = {
+            _title(self.store, r)
+            for r in _past_records(self.store, self.record.record_id)
+        }
+        if post.metadata.get("title") in previous_titles:
+            post.metadata["title"] = _title(self.store, self.record)
+        data = (self.akms.frontmatter.dumps(post) + "\n").encode("utf-8")
+        replace_file(hit.path, data)
+        self.rebuild(hit.node_id)
+        return "updated", hit.node_id, {}
 
     def link(
         self,
@@ -618,6 +728,9 @@ class _Job:
         )
         hits = find_nodes(self.akms, self.knowledge, self.record.record_id)
         hit = next((h for h in hits if h.node_id == node_id), None)
+        if hit is None:
+            raise _refuse("the linked node disappeared", "projection_conflict")
+        self.finalize(hit)
         metadata = hit.metadata if hit is not None else {}
         return {
             **self.base(),
@@ -659,7 +772,7 @@ def _previous_node(hits: list[NodeHit], link: dict[str, Any] | None) -> NodeHit 
 
 
 def _is_human_node(hit: NodeHit) -> bool:
-    """Whether ``--update`` appends directly; a node that takes no addition refuses."""
+    """Whether a projection write needs human confirmation; stale labels refuse."""
     source, status = hit.metadata.get("source"), hit.metadata.get("status")
     if source == "human" and status in ("tentative", "established"):
         return True
@@ -671,6 +784,117 @@ def _is_human_node(hit: NodeHit) -> bool:
             node_id=hit.node_id,
         )
     return False
+
+
+def _past_records(store: RecordStore, record_id: str) -> list[Record]:
+    """Validated historical states, used only to recognize generated legacy text."""
+    from akms_records.store import fold_events
+
+    events = store.history(record_id)
+    return [fold_events(record_id, events[:i]) for i in range(1, len(events) + 1)]
+
+
+def _source_matches(
+    store: RecordStore, record_id: str, repo: Path, metadata: dict[str, Any]
+) -> bool:
+    locator = metadata["source_dir"]
+    directory = Path(locator["path"])
+    if locator["base"] == "repo":
+        directory = repo / directory
+    return (
+        metadata.get("scope") == str(store.scope)
+        and directory.resolve() == store.record_dir(record_id).resolve()
+    )
+
+
+def _check_block_source(job: _Job, metadata: dict[str, Any]) -> None:
+    if not _source_matches(job.store, job.record.record_id, job.repo, metadata):
+        raise _refuse(
+            "the managed projection belongs to a different source store or scope",
+            "projection_source_mismatch",
+        )
+
+
+def _replace_record_block(job: _Job, text: str, replacement: str) -> str:
+    """Preserve other sources and edits; legacy upgrades require an exact match."""
+    projections = job.akms.projections
+    try:
+        blocks = projections.parse_projections(text)
+        for block in blocks:
+            if block.metadata["record_id"] == job.record.record_id:
+                _check_block_source(job, block.metadata)
+        if any(b.metadata["record_id"] == job.record.record_id for b in blocks):
+            return projections.replace_projection(
+                text, job.record.record_id, replacement
+            )
+    except projections.ProjectionError:
+        raise _refuse(
+            "a managed projection was edited; reconcile it by hand before updating",
+            "projection_conflict",
+        ) from None
+    # Older releases had no end marker. Replace only text byte-identical to a
+    # rendering of a validated historical record, starting outside a code fence.
+    starts: list[int] = []
+    fence_char, fence_size, offset = "", 0, 0
+    for line in text.splitlines(keepends=True):
+        match = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line.rstrip("\r\n"))
+        if fence_char:
+            if (
+                match
+                and match[1][0] == fence_char
+                and len(match[1]) >= fence_size
+                and not match[2].strip()
+            ):
+                fence_char = ""
+        elif match:
+            fence_char, fence_size = match[1][0], len(match[1])
+        elif line.startswith(
+            "Promoted from a stored record. The fenced text below is quoted data."
+        ):
+            starts.append(offset)
+        offset += len(line)
+    spans: list[tuple[int, int]] = []
+    for start in starts:
+        fragment = text[start:]
+        actors = re.findall(r"(?m)^- promoted_by: (.+)$", fragment)
+        for raw_actor in actors:
+            try:
+                actor = json.loads(raw_actor)
+            except ValueError:
+                continue
+            if not isinstance(actor, str):
+                continue
+            for record in _past_records(job.store, job.record.record_id):
+                for confirmation in (None, "tty", "yes"):
+                    body = node_body(
+                        record,
+                        revision=record.content_revision,
+                        actor=actor,
+                        confirmation=confirmation,
+                    ).rstrip("\n")
+                    if fragment.startswith(body) and (
+                        len(fragment) == len(body) or fragment[len(body)] == "\n"
+                    ):
+                        spans.append((start, start + len(body)))
+    spans = sorted(set(spans))
+    if not spans:
+        raise _refuse(
+            "the legacy projection is not an exact generated block; preserve and "
+            "reconcile its manual edits before updating",
+            "projection_conflict",
+        )
+    remainder = text
+    for start, end in reversed(spans):
+        remainder = remainder[:start] + remainder[end:]
+    if _marked_revisions(remainder, job.record.record_id):
+        raise _refuse(
+            "some legacy projections were edited; reconcile all of this record's "
+            "blocks before updating",
+            "projection_conflict",
+        )
+    for index, (start, end) in reversed(list(enumerate(spans))):
+        text = text[:start] + (replacement if index == 0 else "") + text[end:]
+    return text
 
 
 @dataclass(frozen=True)
@@ -689,11 +913,46 @@ def _plan(job: _Job, *, update: bool) -> _Plan:
     """Decide what this promotion is. Reads only; refuses what it may not do."""
     record, revision = job.record, job.revision
     link = record.promoted_to
-    hits = find_nodes(job.akms, job.knowledge, record.record_id)
+    hits = find_nodes(
+        job.akms,
+        job.knowledge,
+        record.record_id,
+        linked_node=link["node_id"] if link else None,
+    )
+    current_nodes: set[str] = set()
+    for hit in hits:
+        try:
+            blocks = job.akms.projections.parse_projections(
+                str(job.akms.frontmatter.load(str(hit.path)).content or "")
+            )
+        except job.akms.projections.ProjectionError:
+            raise _refuse(
+                "the managed projection was edited; reconcile before updating",
+                "projection_conflict",
+            ) from None
+        for block in blocks:
+            if block.metadata["record_id"] == record.record_id:
+                _check_block_source(job, block.metadata)
+                try:
+                    snapshot = job.akms.projections.source_snapshot(
+                        job.store.record_dir(record.record_id),
+                        max_revision=block.metadata.get(
+                            "source_revision", block.metadata["revision"]
+                        ),
+                        prefix=True,
+                    )
+                except job.akms.projections.ProjectionError:
+                    snapshot = None
+                if (
+                    block.metadata["revision"] == revision
+                    and snapshot == block.metadata["source_sha256"]
+                ):
+                    current_nodes.add(hit.node_id)
     if link is not None and link["revision"] == revision:
         present = any(hit.node_id == link["node_id"] for hit in hits)
-        return _Plan("already_promoted", link=link, node_present=present)
-    exact = next((hit for hit in hits if revision in hit.revisions), None)
+        if link["node_id"] in current_nodes or (not update and not present):
+            return _Plan("already_promoted", link=link, node_present=present)
+    exact = next((hit for hit in hits if hit.node_id in current_nodes), None)
     if exact is not None:  # an earlier run wrote the node and died before the link
         return _Plan("complete", hit=exact)
     previous = _previous_node(hits, link)
@@ -701,7 +960,7 @@ def _plan(job: _Job, *, update: bool) -> _Plan:
     if known is not None and not update:
         raise _refuse(
             f"record {record.record_id} is already promoted into {known}; revision "
-            f"{revision} is newer. Pass --update to append it to that node",
+            f"{revision} needs reconciliation. Pass --update to replace its projection",
             "already_promoted",
             node_id=known,
             revision=revision,
@@ -713,7 +972,7 @@ def _plan(job: _Job, *, update: bool) -> _Plan:
         if _is_human_node(previous):
             human = {
                 **target,
-                "action": "append",
+                "action": "replace",
                 "node_id": previous.node_id,
                 "source": previous.metadata.get("source"),
                 "status": previous.metadata.get("status"),
@@ -760,6 +1019,13 @@ def _execute(job: _Job, plan: _Plan, *, domain: str | None) -> dict[str, Any]:
     keeps_labels = {"applied": False, "reason": "existing_node_keeps_labels"}
     if plan.kind == "already_promoted":
         assert plan.link is not None
+        if plan.node_present:
+            hit = next(
+                h
+                for h in find_nodes(job.akms, job.knowledge, record.record_id)
+                if h.node_id == plan.link["node_id"]
+            )
+            job.finalize(hit)
         return {
             **job.base(),
             "action": "already_promoted",
@@ -888,6 +1154,287 @@ def promote(
         return _execute(job, plan, domain=domain)
 
 
+def _erased_in_scope(store: RecordStore) -> set[str]:
+    entries, _ = store.erasure_entries()
+    return {e["record_id"] for e in entries if e.get("scope") == str(store.scope)}
+
+
+def promotion_status(
+    store: RecordStore, record_id: str | None = None, *, repo: str | Path
+) -> dict[str, Any]:
+    """Read-only source/node consistency report, including known erased sources."""
+    akms = _load_akms()
+    root = Path(repo)
+    knowledge = Path(akms.local_knowledge_dir(root))
+    erased = _erased_in_scope(store)
+    ids = (
+        [record_id]
+        if record_id is not None
+        else sorted(set(store.record_ids()) | erased)
+    )
+    rows: list[dict[str, Any]] = []
+    for rid in ids:
+        record = None
+        problem = None
+        if rid not in erased:
+            try:
+                record = store.get(rid)
+            except RecordsError as exc:
+                if record_id is None and exc.code == "scope_violation":
+                    continue
+                if record_id is not None:
+                    raise
+                problem = exc.code
+        link = record.promoted_to if record is not None else None
+        hits = find_nodes(
+            akms, knowledge, rid, linked_node=link["node_id"] if link else None
+        )
+        if record_id is None and not hits and not link and not problem:
+            continue
+        state = "not_promoted"
+        details: list[dict[str, Any]] = []
+        if problem:
+            state = "source_invalid"
+        elif rid in erased:
+            state = "source_erased" if hits else "withdrawn"
+        elif record is not None and record.lifecycle != "active":
+            state = "source_" + record.lifecycle if hits else "withdrawn"
+        elif not hits:
+            state = "node_missing" if link else "not_promoted"
+        elif not link:
+            state = "unlinked"
+        else:
+            assert record is not None
+            state = "current"
+            if link["revision"] != record.content_revision:
+                state = "source_changed"
+            if len(hits) != 1 or hits[0].node_id != link["node_id"]:
+                state = "multiple_nodes"
+        for hit in hits:
+            content = str(akms.frontmatter.load(str(hit.path)).content or "")
+            guard = akms.projections.guard_projection_content(content, root)
+            source_matches = True
+            try:
+                blocks = akms.projections.parse_projections(content)
+                source_matches = all(
+                    _source_matches(store, rid, root, block.metadata)
+                    for block in blocks
+                    if block.metadata["record_id"] == rid
+                )
+            except akms.projections.ProjectionError:
+                pass  # The guard already marks malformed blocks unavailable.
+            if not source_matches:
+                state = "projection_source_mismatch"
+            details.append(
+                {
+                    "node_id": hit.node_id,
+                    "node_file": str(hit.path),
+                    "current": guard.current and source_matches,
+                    "reason": guard.reason
+                    if source_matches
+                    else "source store or scope mismatch",
+                }
+            )
+            if state == "current" and (not guard.managed or not guard.current):
+                state = "projection_stale"
+        rows.append(
+            {
+                "record_id": rid,
+                "revision": record.revision if record else None,
+                "state": state,
+                "nodes": details,
+                "error": problem,
+                "next": None
+                if state in {"current", "not_promoted", "withdrawn"}
+                else (
+                    "promotion withdraw"
+                    if state
+                    in {"source_erased", "source_retracted", "source_superseded"}
+                    else "review the source and run promote --update"
+                ),
+            }
+        )
+    return {
+        "status": "drift"
+        if any(r["state"] not in {"current", "not_promoted", "withdrawn"} for r in rows)
+        else "ok",
+        "format": "akms-records-promotion-status/v1",
+        "scope": str(store.scope),
+        "count": len(rows),
+        "results": rows,
+    }
+
+
+def withdraw_promotion(
+    store: RecordStore,
+    record_id: str,
+    *,
+    repo: str | Path,
+    actor: str,
+    reason: str,
+    expected_revision: int | None = None,
+    erased: bool = False,
+    confirm: Confirm | None = None,
+) -> dict[str, Any]:
+    """Explicitly remove intact managed projections, never erase source records.
+
+    Active records lose the live link after node writes. Inactive records keep
+    historical links. Erased sources need their scope's erasure log and --erased.
+    Human-labelled nodes retain the bridge's confirmation requirement.
+    """
+    from akms_records.errors import StaleRevision
+
+    check_actor(actor)
+    if not isinstance(reason, str) or not reason.strip() or len(reason) > 1000:
+        raise _refuse(
+            "withdrawal needs a non-empty reason up to 1000 characters", "usage"
+        )
+    akms = _load_akms()
+    root = Path(repo)
+    knowledge = Path(akms.local_knowledge_dir(root))
+    check_not_global_vault(akms, knowledge)
+
+    def source() -> Record | None:
+        if erased:
+            if expected_revision is not None or record_id not in _erased_in_scope(
+                store
+            ):
+                raise _refuse(
+                    "--erased needs a matching scope's erasure log and no revision",
+                    "source_not_erased",
+                )
+            return None
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise _refuse(
+                "withdrawal needs a positive expected revision or --erased", "usage"
+            )
+        record = store.get(record_id)
+        if expected_revision != record.revision:
+            raise StaleRevision(
+                record_id,
+                expected=expected_revision,
+                head=record.revision,
+                where="withdraw",
+            )
+        return record
+
+    initial = source()
+    linked = initial.promoted_to["node_id"] if initial and initial.promoted_to else None
+    hits = find_nodes(akms, knowledge, record_id, linked_node=linked)
+    planned: dict[str, tuple[bytes, bytes]] = {}
+    for hit in hits:
+        before = hit.path.read_bytes()
+        post = akms.frontmatter.loads(before.decode("utf-8"))
+        text = str(post.content or "")
+        try:
+            # Unlike an update, withdrawal of erased data cannot reconstruct a
+            # legacy block. Unmarked or manually edited text is never guessed.
+            changed = akms.projections.replace_projection(text, record_id, "")
+        except akms.projections.ProjectionError:
+            raise _refuse(
+                "withdrawal cannot safely identify an intact managed block; reconcile manually",
+                "projection_conflict",
+            ) from None
+        blocks = akms.projections.parse_projections(text)
+        block = next(b for b in blocks if b.metadata["record_id"] == record_id)
+        if block.metadata.get("scope") != str(store.scope):
+            raise _refuse("the projection belongs to another scope", "scope_violation")
+        locator = block.metadata["source_dir"]
+        source_dir = Path(locator["path"])
+        if locator["base"] == "repo":
+            source_dir = root / source_dir
+        if source_dir.resolve() != store.record_dir(record_id).resolve():
+            raise _refuse(
+                "the projection belongs to another source store",
+                "projection_source_mismatch",
+            )
+        if hit.metadata.get("source") == "human":
+            _confirmation(
+                {
+                    "action": "withdraw",
+                    "record_id": record_id,
+                    "revision": initial.revision if initial else None,
+                    "node_id": hit.node_id,
+                    "source": hit.metadata.get("source"),
+                    "status": hit.metadata.get("status"),
+                    "confidence": hit.metadata.get("confidence"),
+                },
+                confirm,
+            )
+        if not changed.strip(" \t\r\n-"):
+            changed = (
+                "Record projection withdrawn. No record content remains in this node.\n"
+            )
+            post.metadata["title"] = "Withdrawn record projection"
+        elif post.metadata.get("title") == block.metadata.get("source_title") or (
+            initial is not None
+            and post.metadata.get("title")
+            in {_title(store, r) for r in _past_records(store, record_id)}
+        ):
+            post.metadata["title"] = "Knowledge with a withdrawn record projection"
+        mark = json.dumps(
+            {"record_id": record_id, "scope": str(store.scope)}, sort_keys=True
+        )
+        post.content = changed.rstrip() + "\n\n" + _WITHDRAWN + mark + " -->\n"
+        akms.parse_node(dict(post.metadata), is_local=True, path=str(hit.path))
+        planned[str(hit.path)] = (
+            before,
+            (akms.frontmatter.dumps(post) + "\n").encode("utf-8"),
+        )
+    with _promote_lock(knowledge):
+        current = source()
+        current_hits = find_nodes(akms, knowledge, record_id, linked_node=linked)
+        if {str(h.path) for h in current_hits} != set(planned):
+            raise _refuse(
+                "the nodes changed while withdrawal was confirmed", "confirmation_stale"
+            )
+        for path, (before, _) in planned.items():
+            if Path(path).read_bytes() != before:
+                raise _refuse(
+                    "the node changed while withdrawal was confirmed",
+                    "confirmation_stale",
+                )
+        for path, (_, after) in planned.items():
+            replace_file(Path(path), after)
+        if (
+            planned
+            or erased
+            or (current is not None and current.promoted_to is not None)
+        ):
+            try:
+                akms.build_graph(root)
+            except Exception as exc:
+                raise _refuse(
+                    "withdrawal removed node text but rebuilding failed; retry",
+                    "promote_graph_failed",
+                ) from exc
+        link = None
+        if (
+            current is not None
+            and current.lifecycle == "active"
+            and current.promoted_to is not None
+        ):
+            link = store.clear_promotion(
+                record_id,
+                expected_revision=current.revision,
+                actor=actor,
+                reason=reason,
+            ).to_json()
+    return {
+        "status": "ok",
+        "action": "withdrawn" if planned or link else "already_withdrawn",
+        "record_id": record_id,
+        "scope": str(store.scope),
+        "reason": reason,
+        "nodes": [h.node_id for h in hits],
+        "link": link,
+        "not_reached": [
+            "previously written loadouts",
+            "git history, exports and backups",
+        ],
+    }
+
+
 __all__ = [
     "DEFAULT_MIN_REVIEW",
     "MIN_REVIEW_CHOICES",
@@ -899,4 +1446,6 @@ __all__ = [
     "find_nodes",
     "node_body",
     "promote",
+    "promotion_status",
+    "withdraw_promotion",
 ]

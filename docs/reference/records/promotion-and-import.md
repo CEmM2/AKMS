@@ -67,15 +67,16 @@ where it ran. The way to the default path is the record and the policy themselve
 a schema with no `source: human` policy, or a record that is not `user_confirmed`.
 That path needs no confirmation.
 
-Appending to a human-sourced node with `--update` is a human-policy write too, and
-needs the same confirmation. Completing the link of a node that is already written
+Replacing a managed block in a human-sourced node with `--update`, or withdrawing
+one, needs the same confirmation. Completing the link of a node that is already written
 is not, because nothing new gets the label, so
 [crash recovery](#if-it-crashes) works without a terminal. If the record, its node
 or its policy changes while the prompt waits, the run stops with
 `confirmation_stale`, so a person never approves one thing and gets another.
 
-The node's Sources section records the method (`- confirmation: tty` or `yes`), and
-the result reports it as `confirmation`.
+For promotion and refresh, the node's Sources section records the method
+(`- confirmation: tty` or `yes`), and the result reports it as `confirmation`.
+Withdrawal removes that block rather than writing new source content.
 
 !!! warning "What confirmation proves"
     `--yes` makes the step deliberate. It does not prove a person took it: any
@@ -85,9 +86,10 @@ the result reports it as `confirmation`.
 
 ### What the node holds
 
-The node's ID is the record ID, its title the record's label (or the start of
-its summary), its tags the record's plus the schema name, and its domain the
-scope's ID in lower case, unless `--domain` says otherwise. The body is:
+A newly created node's ID is the record ID, its title the record's label (or the
+start of its summary), its tags the record's plus the schema name, and its domain
+the scope's ID in lower case, unless `--domain` says otherwise. Deduplication may
+instead place the record's block in an existing node. The body is:
 
 - the record summary and a JSON rendering of the payload, each fenced, because
   [record text is data](recall-and-wake.md#rendering-is-data-not-instructions);
@@ -95,14 +97,22 @@ scope's ID in lower case, unless `--domain` says otherwise. The body is:
   digest, scope, time, origin, review state, who promoted it, how a human-policy
   write was confirmed, and the record's own source references.
 
+The body is enclosed in managed projection markers. These carry the record and
+scope, a locator for its source event directory, and fingerprints of both the
+source event stream and the rendered body. The fingerprints detect changes;
+they are not authentication. Project sources use repository-relative locators;
+agent/shared sources outside the repository use absolute paths.
+
 The v2 node models have no field for a record ID, and they are unchanged. The
-Sources section is the provenance. The file has no `content_ref`. A loadout
+Sources section and managed block carry provenance. The file has no `content_ref`. A loadout
 reads `<knowledge>/local-nodes/<node id>.md` in that case and prints that path.
 An explicit `content_ref` is left as it is.
 
 ### Refusals
 
-Each is a typed error with exit status 2; nothing is written.
+Each is a typed error with exit status 2. Eligibility and confirmation refusals
+happen before writing. A failure during a multi-step write may leave a node
+changed; follow [crash recovery](#if-it-crashes) rather than assuming rollback.
 
 | Code | Why |
 |---|---|
@@ -118,12 +128,17 @@ Each is a typed error with exit status 2; nothing is written.
 | `imported_not_promotable` | An imported failure lesson; pass `--allow-imported` |
 | `policy_drift` | The promotion policy disagrees with its log |
 | `global_vault_target` | The knowledge directory overlaps the global vault |
-| `already_promoted` | A newer revision of a promoted record; `details.node_id` names the node. Pass `--update` |
+| `already_promoted` | A known projection needs reconciliation (a newer revision, legacy block or changed source fingerprint); `details.node_id` names the node. Inspect it before passing `--update` |
 | `node_not_updatable` | `--update` met a node that left `tentative` and is not human-sourced |
 | `node_exists` | The human path found a file with the node's name that does not hold this record |
 | `source_refs_full` | The record has 64 source references, so the link would not fit |
 | `promote_locked` | Another promote is running in this repository |
-| `promote_graph_failed`, `promote_write_failed`, `node_not_loaded`, `promote_ledger_exhausted` | AKMS could not write or load the node. The record is unchanged, and a re-run is safe |
+| `projection_conflict` | The managed block was edited, is malformed, or cannot be safely distinguished from legacy/manual content; reconcile it by hand |
+| `projection_source_mismatch`, `scope_violation` | The managed projection belongs to a different source directory or scope |
+| `projection_source_changed` | The source changed while promotion was being completed; inspect and review the current revision before retrying |
+| `stale_revision` | Withdrawal did not name the source's current revision |
+| `source_not_erased` | `--erased` has no matching scoped erasure entry, or was combined with a revision |
+| `promote_graph_failed`, `promote_write_failed`, `node_not_loaded`, `promote_ledger_exhausted` | AKMS could not write or load the node. Node writes may already have happened; inspect status and retry the appropriate operation |
 
 Why these defaults:
 
@@ -147,10 +162,91 @@ Why these defaults:
 
 | Run | Result |
 |---|---|
-| Same revision again | `already_promoted`, status `ok`: no second node, no second amend. `node_present` says whether the node file still exists; a node removed by hand is reported, not recreated |
-| A newer revision | Refused with `already_promoted`, naming the node, because a node's readers may rely on what it said. `--update` appends the new revision to that node (action `updated`) and moves the link |
-| A newer revision with `--update` on an agent node | Through `update_graph`'s exact-ID deduplication, while the node is `tentative` |
-| A newer revision with `--update` on a human node | Appended directly, [once confirmed](#confirming-a-human-policy-write). The node keeps its labels, whatever the policy now says |
+| Same managed revision again | `already_promoted`, status `ok`: no second node or link event. A pending final source fingerprint can be completed. `node_present` reports a missing node; it is not silently recreated |
+| A newer revision without `--update` | Refused with `already_promoted`, naming the node |
+| A newer revision with `--update` | Replaces this record's intact managed block, action `updated`, and moves its link. Old claims are not appended beside the correction |
+| `--update` on an agent node | Allowed while the node is `tentative`; unrelated prose and other records' blocks remain |
+| `--update` on a human node | Requires [confirmation](#confirming-a-human-policy-write); the node keeps its source, status and confidence, whatever the policy now says |
+
+Generated titles may follow the updated source; manually changed titles remain.
+Body edits within a managed block cause a refusal rather than being overwritten.
+Edit the source record, review it and refresh explicitly. Other authored node prose
+is preserved.
+
+Legacy promotions have no bounded managed block. `--update` upgrades them only
+when their text exactly matches generated text reconstructed from validated
+historical record events. Edited or ambiguous legacy text is refused. An erased
+legacy source cannot be reconstructed: reconcile its node manually.
+
+### Check freshness and withdraw a projection
+
+```bash
+akms-records promotion status --scope project:example --repo .
+akms-records promotion status RECORD --scope project:example --repo .
+akms-records promotion withdraw RECORD --scope project:example --repo . \
+  --expect-revision 4 --reason "No longer belongs in project knowledge"
+# If the source has already been erased:
+akms-records promotion withdraw RECORD --scope project:example --repo . \
+  --erased --reason "Remove the erased source's projection"
+```
+
+`promotion status` is read-only. Its JSON has `status`, `count` and `results`,
+including each record's state, matching nodes and suggested next step. It exits 1
+for drift (such as changed, erased or inactive sources, missing nodes, or stale
+projections), 0 for a consistent report, and 2 for an execution error. Without a
+record ID it scans the scope's records and scoped erasure log. It is not a search
+for every arbitrary copy of record content in the repository.
+
+`promotion withdraw` removes only verified, intact managed blocks. It requires
+exactly one of `--expect-revision N` (inspect the source first) or `--erased`
+(which requires that record's entry in this scope's erasure log), plus a reason.
+Human-sourced nodes require the same terminal confirmation or deliberate `--yes`
+as a refresh. Missing, damaged or ambiguous provenance is not permission to erase
+other node content.
+
+Withdrawal preserves unrelated prose and other records' blocks. A node with no
+remaining substantive body becomes a withdrawal notice rather than being deleted.
+Generated titles are replaced where recognized; do not assume arbitrary manually
+copied text or metadata has been scrubbed. After rebuilding the graph, withdrawal
+clears an active record's live promotion link through an audited amendment, so the
+record can be considered by ordinary wake rules again. Inactive records retain
+historical links. The source record itself is never deleted by withdrawal.
+
+### Freshness in newly generated loadouts
+
+The loadout generator checks managed body integrity and source-event fingerprints
+against disk, rather than trusting cached content. An amendment, retraction,
+supersession or erasure invalidates the old projection immediately for **newly
+generated loadouts**. Missing or unreadable sources fail closed too. A node with
+an invalid projection is replaced by a neutral review-needed notice, including
+when other prose shares that node; stale text and its title are not served. This
+is an integrity check, not a background synchronization process. A stale projection
+does not automatically clear its live link or return the source to default `wake`:
+refresh it, explicitly withdraw it, or deliberately read with `--include-promoted`.
+
+A valid managed block does not make an adjacent legacy promotion safe. Legacy
+content remains unavailable until explicitly upgraded or manually reconciled.
+
+**After upgrading, rebuild the graph** to add derived provenance hints. These
+hints let loadouts recognize previously promoted nodes even if their Markdown
+file subsequently disappears. A graph created by an older version may not have
+those hints. For an explicit rebuild:
+
+```python
+from pathlib import Path
+from akms.graph.build_graph import build_graph
+build_graph(Path("."))
+```
+
+Then run `promotion status`, review changed sources and use `promote --update` or
+`promotion withdraw` as appropriate. No startup hook or automatic capture is
+installed. Ordinary record edits do not rewrite nodes, and explicit withdrawal
+does not rewrite already emitted loadouts, git history, exports or backups.
+
+An absolute source locator makes an external-scope projection host-dependent.
+Moving the repository to a machine without that source makes it unavailable,
+not trusted from its cached body. Review and re-establish the projection from an
+authorized available source instead of bypassing the guard.
 
 ### The link
 
@@ -181,16 +277,22 @@ the next run.
 | Before the node is written | Starts over |
 | After the node, before `update_graph` finished its overlay or graph | Finds the node, rebuilds the graph, writes the link: action `link_completed`, no confirmation needed |
 | After the graph, before the link | Finds the node, writes the link: action `link_completed`, no confirmation needed |
-| After the link, before the result was printed | `already_promoted` |
+| After the link, before the final source fingerprint or result | Re-run to finalize the managed block; then `already_promoted` |
 
-The run finds the node by scanning `local-nodes` for the record's `Sources` line,
-outside any code fence, so record text cannot forge it. Should a record be amended
+The run scans `local-nodes` for managed provenance and legacy `Sources` markers
+outside payload fences, and verifies the source before replacing a block. Should a record be amended
 between the crash and the next run, the node holds an older revision: that is
 `already_promoted` again, and `--update` continues it.
 
 `update_graph` skips a source its replay ledger already names. When the ledger
 names a promotion but no node holds the record (the node was removed by hand before
 the link), the bridge retries under a new source ID instead of reporting success.
+
+Withdrawal writes node changes before rebuilding the graph and clearing an
+active source's link. If rebuilding fails, those node changes remain; retry
+withdrawal to repair the graph and finish the link change. A stale revision or
+changed node requires fresh inspection. There is no transaction spanning record
+files, node files and the graph, and no rollback promise.
 
 ### The global vault
 
@@ -258,14 +360,23 @@ changes nothing. Errors are `failure_memory_config` and `failure_memory_registry
 ## Python
 
 ```python
-from akms_records import RecordStore, confirm_yes, import_failure_memory, promote
+from akms_records import (
+    RecordStore, confirm_yes, import_failure_memory, promote,
+    promotion_status, withdraw_promotion,
+)
 
 store = RecordStore.open("project:example", repo=".")
 promote(store, "rec-20261103-k3f9m2xa", review="approved", repo=".", actor="me")
+promotion_status(store, repo=".")
+# After inspecting the actual source revision:
+withdraw_promotion(
+    store, "rec-20261103-k3f9m2xa", repo=".", actor="me",
+    expected_revision=2, reason="No longer project knowledge",
+)
 import_failure_memory(store, ".knowledge/failure-memory.toml", repo=".", actor="me")
 ```
 
-`promote` takes `confirm`, which defaults to not confirmed, so a human-policy write
+`promote` and `withdraw_promotion` take `confirm`, which defaults to not confirmed, so a human-policy write
 from Python is refused unless the caller asks otherwise. It is a callable that gets
 what will be written and returns how it was confirmed, or raises to refuse;
 `confirm_yes` is the `--yes` of the API. The library never reads a terminal: only

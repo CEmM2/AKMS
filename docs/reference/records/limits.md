@@ -42,20 +42,49 @@ event records the actor, so a claim can be traced, but not disproved.
 ## Promotion
 
 - **The approval is a statement, not a proof.** `--review approved`, `--yes` and
-  `amend --review-state user_confirmed` are for cooperating agents and people. They
+  `amend --review-state user_confirmed` or `review set --state user_confirmed`
+  are for cooperating agents and people. They
   make each step deliberate, but a process that can run the CLI can pass them, and
   one driving a terminal can answer the prompt. The node's Sources section and the
   link event name the actor and how a write was confirmed, so a wrong promotion
   can be traced.
-- **A node does not follow its record.** Amending, retracting or superseding a
-  promoted record changes nothing in the node. `--update` appends a newer revision;
-  anything else is a hand edit of the node. The record's `wake` exclusion stays
-  until then.
-- **`erase` cannot reach the node.** Its report names the node under `not_reached`,
-  and removing the text from it is up to you, as with pushed git history.
-- **A lock, not a transaction.** `update_graph` keeps no lock of its own, so promote
-  takes one per repository. It cannot stop another process that calls AKMS directly
-  while it runs. A lock left by a dead process is removed by the next promote.
+- **Freshness is not synchronization.** Record edits do not rewrite nodes.
+  Newly generated loadouts check managed projections against the current source
+  event stream and suppress the whole node when a projection is stale, edited,
+  missing or unreadable. This includes retracted, superseded and erased sources.
+  Explicit `promote --update` replaces the record's verified block; it does not
+  append a contradictory new claim. Existing loadout files are not rewritten.
+  A stale promotion does not automatically clear the source's live link or return
+  it to default `wake`; refresh or explicitly withdraw it. `--include-promoted`
+  remains an explicit option when reading records.
+- **Upgrade requires a graph rebuild.** Derived provenance hints identify promoted
+  nodes whose Markdown file later disappears. Older graph files lack these hints;
+  rebuild after upgrading, then inspect `promotion status`. Legacy unbounded
+  promotions remain unavailable until safely upgraded or manually reconciled.
+- **A fingerprint is not authentication.** Body and source-event digests detect
+  changed bytes, not truth or an authorized author. A process that rewrites all
+  files and their hashes can defeat them. A valid schema or review label is not
+  proof of the content either.
+- **Manual edits are not guessed away.** Refresh and withdrawal preserve unrelated
+  prose and other records' blocks, and refuse damaged managed blocks. Legacy
+  upgrades require an exact reconstruction from historical events; erased or
+  edited legacy text needs manual reconciliation. Arbitrarily copied text and
+  metadata may still contain the old source.
+- **Erasure and withdrawal are separate.** `erase` removes source records, causing
+  new loadouts to fail closed, but cannot remove their node files. Explicit
+  `promotion withdraw --erased` requires the matching scoped erasure log and
+  removes verified managed projections. It does not clean previous loadouts,
+  pushed git history, exports, backups, or arbitrary copies. Avoid putting erased
+  content in the withdrawal reason.
+- **External sources are host-dependent.** Agent/shared stores outside the project
+  are recorded with an absolute source locator. A missing source on another host
+  makes its projection unavailable. The locator itself is stored in the node's
+  managed metadata, so review it before sharing that file.
+- **A lock, not a transaction.** Promotion and withdrawal take a per-repository
+  lock. It cannot stop a process that edits files or calls AKMS directly without
+  that lock. Record, node and graph changes are not atomic together. A rebuild
+  failure may leave node changes on disk; inspect status and retry to finish.
+  A lock left by a dead process is removed by the next operation.
 - **Payload size.** A node holds the whole payload rendering. A large payload means
   a large node, which every loadout that selects it pays for.
 - **Sessions.** `update_graph` adds a session entry and a ledger line to

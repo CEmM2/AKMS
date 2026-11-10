@@ -1170,6 +1170,61 @@ class RecordStore:
             event_id=f"promote.{record_id}.{revision}",
         )
 
+    def clear_promotion(
+        self,
+        record_id: str,
+        *,
+        expected_revision: int,
+        actor: str,
+        reason: str,
+    ) -> WriteResult:
+        """Remove a live promotion link after its managed node text is withdrawn.
+
+        Called by the bridge, not by ordinary source-reference amendments. The
+        remaining record and its review are unchanged. The event preserves an
+        audit reference, without keeping the wake exclusion of a live link.
+        """
+        text = _reason(reason, required=True)
+        assert text is not None
+
+        def build(record: Record) -> dict[str, Any]:
+            refs = [r for r in record.source_refs if r.get("kind") != PROMOTED_KIND]
+            if record.promoted_to is not None:
+                refs.append(
+                    {
+                        "kind": "promotion-withdrawn",
+                        "ref": record.promoted_to["node_id"],
+                        "note": text,
+                    }
+                )
+            envelope = record.envelope_json()
+            return {
+                "envelope": {
+                    key: envelope[key]
+                    for key in (
+                        "schema_ref",
+                        "schema_sha256",
+                        "scope",
+                        "origin",
+                        "summary",
+                        "tags",
+                        "sensitivity",
+                        "review_state",
+                    )
+                }
+                | {"source_refs": refs},
+                "payload": record.payload,
+            }
+
+        return self._append(
+            record_id,
+            "amend",
+            build,
+            expected_revision=expected_revision,
+            actor=actor,
+            event_id=f"withdraw.{record_id}.{expected_revision}",
+        )
+
     def retract(
         self,
         record_id: str,
