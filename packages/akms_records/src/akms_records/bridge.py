@@ -47,6 +47,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
+import sys
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -54,10 +56,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
+from akms_records import fsio
 from akms_records.citations import cited_ids, is_consolidation, is_failure_lesson
 from akms_records.envelope import MAX_REFS, PROMOTED_KIND, Record, check_actor
 from akms_records.errors import RecordsError
-from akms_records.fsio import FILE_MODE, replace_file, write_exclusive
+from akms_records.fsio import replace_file, write_exclusive
 from akms_records.index import INDEX_DIRNAME, REVIEW_RANK
 from akms_records.procs import pid_alive
 from akms_records.render import fence, literal
@@ -75,6 +78,7 @@ PATH_HUMAN = "human-policy"
 MAX_TITLE = 120
 LEDGER_ATTEMPTS = 8
 LOCK_NAME = "promote.lock"
+GUARD_NAME = "promote.guard"
 CONFIRM_METHODS = ("tty", "yes")
 _MARKER = re.compile(r"- record: `(rec-[0-9]{8}-[0-9a-hjkmnp-tv-z]{8})@([1-9][0-9]*)`")
 _FENCE = re.compile(r"(`{3,})(.*)")
@@ -169,42 +173,102 @@ def check_not_global_vault(akms: SimpleNamespace, knowledge: Path) -> None:
 
 # ---------------------------------------------------------------- the lock
 @contextmanager
-def _promote_lock(knowledge: Path) -> Iterator[None]:
-    """One promote at a time per repository: ``update_graph`` does not lock its files.
+def _promotion_guard(directory: Path) -> Iterator[None]:
+    """Hold an OS lock on a stable inode; never unlink or replace this file.
 
-    The lock file lives in the ignored index directory. A lock whose process
-    is gone is removed; a live one fails with ``promote_locked``.
+    The permanent guard serializes PID-file creation, stale-owner reclamation,
+    and all node writes. Kernel ownership is released even if the process dies.
+    The PID file remains useful for diagnostics and older live-owner refusal.
+    """
+    path = directory / GUARD_NAME
+    fd = -1
+    try:
+        try:
+            fsio.write_exclusive(directory, GUARD_NAME, b"\0")
+        except FileExistsError:
+            pass
+        fd = os.open(
+            path,
+            os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
+        )
+        opened = os.fstat(fd)
+        if not stat.S_ISREG(opened.st_mode) or path.is_symlink():
+            raise OSError("invalid promotion guard")
+        if sys.platform == "win32":
+            import msvcrt
+
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        current = path.stat()
+        if path.is_symlink() or (current.st_dev, current.st_ino) != (
+            opened.st_dev,
+            opened.st_ino,
+        ):
+            raise OSError("promotion guard was replaced")
+    except OSError:
+        if fd >= 0:
+            os.close(fd)
+        raise _refuse(
+            "another promotion holds the repository guard, or the guard is unavailable",
+            "promote_locked",
+        ) from None
+    try:
+        yield
+    finally:
+        os.close(fd)  # also releases the OS lock on Windows and POSIX
+
+
+@contextmanager
+def _promote_lock(knowledge: Path) -> Iterator[None]:
+    """One promote/withdraw at a time, including initialization and recovery.
+
+    A stable OS-held guard protects the entire PID-lock lifecycle. PID bytes
+    are atomically published, so no contender can mistake an initializing
+    owner for a dead one. An unreadable legacy owner is never guessed dead.
     """
     directory = knowledge / "records" / INDEX_DIRNAME
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / LOCK_NAME
-    for attempt in (1, 2):
+    with _promotion_guard(directory):
+        for attempt in (1, 2):
+            try:
+                fsio.write_exclusive(
+                    directory, LOCK_NAME, str(os.getpid()).encode("ascii")
+                )
+            except FileExistsError:
+                try:
+                    owner = (
+                        0
+                        if path.is_symlink()
+                        else int(path.read_text(encoding="ascii").strip() or "0")
+                    )
+                except (OSError, ValueError):
+                    owner = 0
+                if attempt == 2 or owner <= 0 or pid_alive(owner):
+                    raise _refuse(
+                        f"another promote holds {path}, or its owner is unknown",
+                        "promote_locked",
+                        pid=owner,
+                    ) from None
+                try:
+                    path.unlink()
+                except FileNotFoundError:
+                    pass
+                continue
+            break
+        owned = path.stat()
         try:
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, FILE_MODE)
-        except FileExistsError:
+            yield
+        finally:
             try:
-                owner = int(path.read_text(encoding="ascii").strip() or "0")
-            except (OSError, ValueError):
-                owner = 0
-            if attempt == 2 or (owner and pid_alive(owner)):
-                raise _refuse(
-                    f"another promote holds {path}", "promote_locked", pid=owner
-                ) from None
-            try:
-                path.unlink()
+                current = path.lstat()
+                if (current.st_dev, current.st_ino) == (owned.st_dev, owned.st_ino):
+                    path.unlink()
             except FileNotFoundError:
                 pass
-            continue
-        os.write(fd, str(os.getpid()).encode("ascii"))
-        os.close(fd)
-        break
-    try:
-        yield
-    finally:
-        try:
-            path.unlink()
-        except FileNotFoundError:
-            pass
 
 
 # ------------------------------------------------------------- finding nodes
@@ -1332,28 +1396,54 @@ def promotion_status(
             content = str(akms.frontmatter.load(str(hit.path)).content or "")
             guard = akms.projections.guard_projection_content(content, root)
             source_matches = True
+            matching = []
+            parsed = False
             try:
                 blocks = akms.projections.parse_projections(content)
+                parsed = True
+                matching = [
+                    block for block in blocks if block.metadata["record_id"] == rid
+                ]
                 source_matches = all(
                     _source_matches(store, rid, root, block.metadata)
-                    for block in blocks
-                    if block.metadata["record_id"] == rid
+                    for block in matching
                 )
             except akms.projections.ProjectionError:
                 pass  # The guard already marks malformed blocks unavailable.
+            projection_present = len(matching) == 1
+            revision_matches = projection_present and (
+                record is None
+                or matching[0].metadata["revision"] == record.content_revision
+            )
             if not source_matches:
                 state = "projection_source_mismatch"
+            elif (
+                parsed
+                and not projection_present
+                and not hit.revisions
+                and record is not None
+                and record.lifecycle == "active"
+            ):
+                state = "projection_missing"
             details.append(
                 {
                     "node_id": hit.node_id,
                     "node_file": str(hit.path),
-                    "current": guard.current and source_matches,
-                    "reason": guard.reason
-                    if source_matches
-                    else "source store or scope mismatch",
+                    "current": guard.current and source_matches and revision_matches,
+                    "reason": (
+                        "source store or scope mismatch"
+                        if not source_matches
+                        else "matching record projection missing"
+                        if parsed and not projection_present and not hit.revisions
+                        else "projection revision differs from source"
+                        if projection_present and not revision_matches
+                        else guard.reason
+                    ),
                 }
             )
-            if state == "current" and (not guard.managed or not guard.current):
+            if state == "current" and (
+                not guard.managed or not guard.current or not revision_matches
+            ):
                 state = "projection_stale"
         rows.append(
             {
@@ -1365,7 +1455,9 @@ def promotion_status(
                 "next": None
                 if state in {"current", "not_promoted", "withdrawn"}
                 else (
-                    "promotion withdraw"
+                    "review the node and restore the missing projection from source"
+                    if state == "projection_missing"
+                    else "promotion withdraw"
                     if state
                     in {"source_erased", "source_retracted", "source_superseded"}
                     else "review the source and run promote --update"

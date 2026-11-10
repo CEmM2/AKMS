@@ -132,7 +132,7 @@ changed; follow [crash recovery](#if-it-crashes) rather than assuming rollback.
 | `node_not_updatable` | `--update` met a node that left `tentative` and is not human-sourced |
 | `node_exists` | The human path found a file with the node's name that does not hold this record |
 | `source_refs_full` | The record has 64 source references, so the link would not fit |
-| `promote_locked` | Another promote is running in this repository |
+| `promote_locked` | Another promotion/withdrawal holds the repository guard, or a legacy lock owner is unknown or the guard cannot be acquired |
 | `projection_conflict` | The managed block was edited, is malformed, or cannot be safely distinguished from legacy/manual content; reconcile it by hand |
 | `projection_source_mismatch`, `scope_violation` | The managed projection belongs to a different source directory or scope |
 | `projection_source_changed` | The source changed while promotion was being completed; inspect and review the current revision before retrying |
@@ -196,6 +196,13 @@ for drift (such as changed, erased or inactive sources, missing nodes, or stale
 projections), 0 for a consistent report, and 2 for an execution error. Without a
 record ID it scans the scope's records and scoped erasure log. It is not a search
 for every arbitrary copy of record content in the repository.
+
+A link to an existing node is not proof that the node still holds that record.
+If the target block is absent, status reports `projection_missing`, with the
+node's `current` flag false, even if other records' blocks are valid. The source
+record remains available. Inspect the node and restore its projection from the
+source deliberately; missing provenance does not authorize guessing which
+unmanaged text to replace.
 
 `promotion withdraw` removes only verified, intact managed blocks. It requires
 exactly one of `--expect-revision N` (inspect the source first) or `--erased`
@@ -416,3 +423,21 @@ refresh, or re-promotion is installed.
 
 Malformed YAML in a managed node withholds that node instead of aborting the
 whole loadout. Other valid nodes remain available.
+
+### Concurrent promotion and crash recovery
+
+Promotion and withdrawal serialize their writes with a stable OS-held guard in
+`records/.index/promote.guard`. This ignored file is intentionally retained, not
+removed or replaced after each operation. The OS releases ownership when a
+process exits, including an abrupt termination. The separate `promote.lock` PID
+file is published atomically and removed after successful release. A dead PID
+can be reclaimed only while holding the OS guard; an empty, malformed, or live
+legacy PID is not guessed dead.
+
+A contender gets `promote_locked` and can retry after the active operation ends.
+Do not delete the guard or its enclosing index directory while a promotion or
+withdrawal runs, and do not run mixed releases concurrently. This coordination
+is for cooperating processes on the same host and local filesystem, not a
+cross-host lock service. A legacy lock with an unknown owner requires manual
+inspection when no writer is active. Source record events are never deleted by
+lock recovery.

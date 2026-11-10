@@ -7,6 +7,13 @@ development is intentionally not replayed.
 ## [Unreleased]
 
 ### Fixed
+- Promotion and withdrawal hold a persistent OS guard across PID publication,
+  stale-owner recovery and node writes. Atomic PID publication closes the empty
+  owner window; a contender refuses safely and can retry without losing either
+  projection. Killed owners release the OS guard automatically.
+- Promotion status requires the requested record's own managed block and current
+  revision. A surviving unrelated block no longer makes a lost projection look
+  current; it reports `projection_missing` without changing source data.
 - Consolidation collection witnesses include opaque schema-registry state, so
   extraction-rule changes cannot silently alter topic membership while serving
   an old promoted summary. Event-only witnesses need explicit refresh; migration
