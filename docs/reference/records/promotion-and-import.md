@@ -381,3 +381,26 @@ from Python is refused unless the caller asks otherwise. It is a callable that g
 what will be written and returns how it was confirmed, or raises to refuse;
 `confirm_yes` is the `--yes` of the API. The library never reads a terminal: only
 the CLI turns one into a confirmation.
+
+### Dependency snapshots and restoring withdrawn nodes
+
+Managed blocks now declare dependency snapshots. Built-in consolidations include
+all cited records; other schemas declare an empty dependency list. Core checks
+these event fingerprints without interpreting user schemas. An amendment,
+retraction, erasure, missing event, or event-file edit in a cited source withholds
+the projected summary. Even a link-only source event conservatively invalidates
+the snapshot; explicitly re-promote the still-valid summary to reseal it.
+Existing blocks without dependency metadata are withheld until explicit promotion
+refresh. A stale consolidation must be refreshed and reviewed first.
+
+Fresh managed loadouts take their titles from the node file, not a cached graph.
+When a node also names a separate `content_ref`, full loadouts include that authored
+content alongside the verified local projection. Neither file is rewritten by a
+loadout read.
+
+An active withdrawn record can be promoted again. Its matching withdrawal marker
+is replaced in the existing node; a generated empty-node notice is removed, while
+unrelated prose and manually chosen titles remain. Human-labelled nodes still
+require confirmation. Older withdrawal markers are accepted only with matching
+scope and validated historical promotion linkage. No automatic capture, wake,
+refresh, or re-promotion is installed.

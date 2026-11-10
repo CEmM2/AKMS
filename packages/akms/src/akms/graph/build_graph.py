@@ -250,6 +250,7 @@ def build_graph(
         # a later read finds the file missing, and never trust a cached snippet.
         if has_record_projection(md_path.read_text(encoding="utf-8")):
             attrs["_record_projection"] = True
+            attrs["_record_projection_ref"] = md_path.relative_to(repo_root).as_posix()
         attrs["confidence_default"] = attrs["confidence"]
         attrs["activations"] = 0
         attrs["last_activated"] = None

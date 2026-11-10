@@ -127,6 +127,7 @@ def _validate_metadata(meta: Any) -> None:
         "scope",
         "source_revision",
         "source_title",
+        "dependencies",
     } != {
         "record_id",
         "revision",
@@ -135,6 +136,18 @@ def _validate_metadata(meta: Any) -> None:
         "body_sha256",
     }:
         raise ProjectionError("Invalid projection metadata")
+    if "dependencies" in meta:
+        if not isinstance(meta["dependencies"], list):
+            raise ProjectionError("Invalid projection dependencies")
+        for dependency in meta["dependencies"]:
+            if not isinstance(dependency, dict) or set(dependency) != {
+                "record_id",
+                "revision",
+                "source_dir",
+                "source_sha256",
+            }:
+                raise ProjectionError("Invalid projection dependency")
+            _validate_metadata({**dependency, "body_sha256": "0" * 64})
     if "source_title" in meta and not isinstance(meta["source_title"], str):
         raise ProjectionError("Invalid projection metadata")
     if "scope" in meta and not isinstance(meta["scope"], str):
@@ -215,11 +228,13 @@ def render_projection(
     scope: str | None = None,
     source_revision: int | None = None,
     source_title: str | None = None,
+    dependencies: list[dict[str, Any]] | None = None,
 ) -> str:
     """Wrap body with an integrity marker; normalize its trailing newline."""
     if not body.endswith("\n"):
         body += "\n"
     meta = dict(
+        dependencies=dependencies if dependencies is not None else [],
         record_id=record_id,
         revision=revision,
         source_dir=source_dir,
@@ -277,8 +292,15 @@ def guard_projection_content(text: str, repo_root: Path | None) -> ProjectionGua
             )
         if not blocks:
             return ProjectionGuard(False, True, text)
+        sources = []
         for block in blocks:
-            locator = block.metadata["source_dir"]
+            if "dependencies" not in block.metadata:
+                return ProjectionGuard(
+                    True, False, "", "dependency metadata requires upgrade"
+                )
+            sources.extend([block.metadata, *block.metadata["dependencies"]])
+        for metadata in sources:
+            locator = metadata["source_dir"]
             directory = Path(locator["path"])
             if locator["base"] == "repo":
                 if repo_root is None:
@@ -290,11 +312,9 @@ def guard_projection_content(text: str, repo_root: Path | None) -> ProjectionGua
             if (
                 source_snapshot(
                     directory,
-                    max_revision=block.metadata.get(
-                        "source_revision", block.metadata["revision"]
-                    ),
+                    max_revision=metadata.get("source_revision", metadata["revision"]),
                 )
-                != block.metadata["source_sha256"]
+                != metadata["source_sha256"]
             ):
                 return ProjectionGuard(True, False, "", "source changed")
         for block in reversed(blocks):

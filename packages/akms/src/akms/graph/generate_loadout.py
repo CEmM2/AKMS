@@ -785,9 +785,17 @@ def generate_loadout(
     # Disk is authoritative for managed projections: caches may predate a
     # record amendment, retraction, erasure, or a manual edit to its block.
     projection_bodies: dict[str, str] = {}
+    projection_refs: dict[str, str] = {}
+    projection_titles: dict[str, str] = {}
     blocked_projections: set[str] = set()
     for node_id, node_data in ranked_nodes:
-        ref = node_data.get("content_ref") or _local_node_ref(node_id, repo_path)
+        # The managed block lives in the node file, even when content_ref
+        # points at a separate authored document. Do not test the latter for
+        # markers known to exist only in the former.
+        local_ref = node_data.get("_record_projection_ref") or _local_node_ref(
+            node_id, repo_path
+        )
+        ref = local_ref or node_data.get("content_ref")
         if not ref:
             if node_data.get("_record_projection"):
                 blocked_projections.add(node_id)
@@ -795,10 +803,44 @@ def generate_loadout(
         disk_ref = repo_path / str(ref) if repo_path is not None else Path(ref)
         disk_body = _load_node_content(str(disk_ref))
         guard = guard_projection_content(disk_body, repo_path)
+        if (
+            not guard.managed
+            and not node_data.get("_record_projection")
+            and node_data.get("content_ref")
+        ):
+            ref = node_data["content_ref"]
+            disk_ref = repo_path / str(ref) if repo_path is not None else Path(ref)
+            guard = guard_projection_content(
+                _load_node_content(str(disk_ref)), repo_path
+            )
         if guard.managed or node_data.get("_record_projection"):
-            projection_bodies[str(ref)] = guard.content
+            projection_refs[node_id] = str(ref)
+            content = guard.content
             if not guard.current or not guard.managed:
                 blocked_projections.add(node_id)
+            else:
+                try:
+                    disk_post = frontmatter.load(str(disk_ref))
+                    projection_titles[node_id] = str(
+                        disk_post.metadata.get("title", node_id)
+                    )
+                except (OSError, KeyError, ValueError):
+                    blocked_projections.add(node_id)
+                external_ref = node_data.get("content_ref")
+                if external_ref and str(external_ref) != str(ref):
+                    external_path = (
+                        repo_path / str(external_ref)
+                        if repo_path
+                        else Path(external_ref)
+                    )
+                    if external_path.resolve() != disk_ref.resolve():
+                        external = guard_projection_content(
+                            _load_node_content(str(external_path)), repo_path
+                        )
+                        if not external.current:
+                            blocked_projections.add(node_id)
+                        content = external.content + "\n\n" + content
+            projection_bodies[str(ref)] = content
 
     # ── Section 2: Domain Knowledge ──────────────────────────────────
     scoped_paths = sorted(
@@ -924,7 +966,7 @@ def generate_loadout(
             "origin": node_data.get("node_origin", "unknown"),
             "confidence": node_data.get("confidence", 0.0),
             "domain": node_data.get("domain", ""),
-            "title": node_data.get("title", node_id),
+            "title": projection_titles.get(node_id, node_data.get("title", node_id)),
         }
         if selection_class is not None:
             entry["selection_class"] = selection_class
@@ -932,7 +974,7 @@ def generate_loadout(
         if reasons:
             entry["reasons"] = tuple(reasons)
 
-        content_ref = node_data.get("content_ref")
+        content_ref = projection_refs.get(node_id) or node_data.get("content_ref")
         if not content_ref:
             content_ref = _local_node_ref(node_id, repo_path)
         reading_priority = _node_reading_priority(

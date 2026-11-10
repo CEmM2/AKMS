@@ -81,7 +81,7 @@ def loadout(repo):
         task_id="test",
         phase=1,
         graph_version="v1",
-        seed_tags=[],
+        seed_tags=["decision"],
         agent_role=AgentRole.IMPLEMENTER,
         repo_root=repo,
         mode=LoadoutMode.FULL,
@@ -295,3 +295,207 @@ def test_status_reports_source_identity_mismatch_even_with_valid_fingerprint(
     assert report["results"][0]["state"] != "current"
     assert path.read_bytes() == before
     assert store.history(rid) == history
+
+
+def cached_loadout(repo, graph):
+    return generate_loadout(
+        graph,
+        list(graph.nodes(data=True)),
+        task_id="cached",
+        phase=1,
+        graph_version="v1",
+        seed_tags=["decision"],
+        agent_role=AgentRole.IMPLEMENTER,
+        repo_root=repo,
+        mode=LoadoutMode.FULL,
+    )
+
+
+@pytest.mark.parametrize("change", ["amend", "retract", "erase"])
+def test_promoted_summary_tracks_cited_dependency(store, repo, change):
+    from akms_records import consolidate
+
+    rid = create(store)
+    summary = consolidate(store, actor="t")["record_id"]
+    store.amend(
+        summary, {"review_state": "user_confirmed"}, expected_revision=1, actor="t"
+    )
+    publish(store, summary, repo)
+    graph = load_graph(local_knowledge_dir(repo) / "graph/graph.json")
+    assert "OLD PRIVATE PAYLOAD" in cached_loadout(repo, graph)
+    if change == "amend":
+        store.amend(
+            rid,
+            {"payload": {"decision": "corrected", "rationale": "new"}},
+            expected_revision=store.get(rid).revision,
+            actor="t",
+        )
+    elif change == "retract":
+        store.retract(
+            rid, reason="obsolete", actor="t", expected_revision=store.get(rid).revision
+        )
+    else:
+        store.erase(rid, reason="privacy", actor="t")
+    assert state(store, summary, repo) == (
+        "source_erased" if change == "erase" else "projection_stale"
+    )
+    output = cached_loadout(repo, graph)
+    assert "OLD PRIVATE PAYLOAD" not in output
+    assert "Record projection needs review" in output
+
+
+def test_cached_graph_uses_current_disk_title_after_update(store, repo):
+    rid = create(store)
+    publish(store, rid, repo)
+    graph = load_graph(local_knowledge_dir(repo) / "graph/graph.json")
+    store.amend(
+        rid,
+        {"payload": {"decision": "CURRENT TITLE", "rationale": "new"}},
+        expected_revision=store.get(rid).revision,
+        actor="t",
+    )
+    publish(store, rid, repo, update=True)
+    output = cached_loadout(repo, graph)
+    assert "OLD PRIVATE PAYLOAD" not in output
+    assert "CURRENT TITLE" in output
+    assert graph.nodes[rid]["title"] == "OLD PRIVATE PAYLOAD"
+
+
+@pytest.mark.parametrize("human", [False, True])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_withdrawn_record_can_be_repromoted_without_false_notice(
+    store, repo, human, mixed
+):
+    if human:
+        store.policies.set(
+            "decision",
+            source="human",
+            status="established",
+            confidence=0.8,
+            actor="t",
+            at=store.now(),
+        )
+    rid = create(store)
+    publish(store, rid, repo, confirm=confirm_yes)
+    path = node_path(repo)
+    if mixed:
+        post = frontmatter.load(path)
+        post.content += "\n\nHuman authored guidance.\n"
+        post.metadata["title"] = "Human authored title"
+        path.write_text(frontmatter.dumps(post) + "\n")
+    withdraw(store, rid, repo)
+    if human:
+        before = path.read_bytes()
+        with pytest.raises(RecordsError) as exc:
+            publish(store, rid, repo)
+        assert exc.value.code == "confirmation_required"
+        assert path.read_bytes() == before
+    publish(store, rid, repo, confirm=confirm_yes)
+    assert state(store, rid, repo) == "current"
+    assert node_path(repo) == path
+    output = loadout(repo)
+    assert "OLD PRIVATE PAYLOAD" in output
+    assert "No record content remains" not in output
+    assert "<!-- akms-records-withdrawn" not in path.read_text()
+    if mixed:
+        assert "Human authored guidance." in output
+        assert "Human authored title" in output
+    assert (
+        publish(store, rid, repo, confirm=confirm_yes)["action"] == "already_promoted"
+    )
+
+
+def test_projection_on_node_with_external_content_ref_serves_both(store, repo):
+    from akms.graph.build_graph import build_graph
+
+    rid = create(store)
+    publish(store, rid, repo)
+    path = node_path(repo)
+    post = frontmatter.load(path)
+    post.metadata["content_ref"] = "authored.md"
+    post.content += "\nLocal authored guidance.\n"
+    path.write_text(frontmatter.dumps(post) + "\n")
+    (repo / "authored.md").write_text("External authored guidance.\n")
+    build_graph(repo)
+    graph = load_graph(local_knowledge_dir(repo) / "graph/graph.json")
+    output = cached_loadout(repo, graph)
+    assert "Record projection needs review" not in output
+    assert "OLD PRIVATE PAYLOAD" in output
+    assert "Local authored guidance." in output
+    assert "External authored guidance." in output
+    store.amend(
+        rid,
+        {"payload": {"decision": "CURRENT CLAIM", "rationale": "new"}},
+        expected_revision=store.get(rid).revision,
+        actor="t",
+    )
+    assert "OLD PRIVATE PAYLOAD" not in cached_loadout(repo, graph)
+    publish(store, rid, repo, update=True)
+    output = cached_loadout(repo, graph)
+    assert "CURRENT CLAIM" in output
+    assert "External authored guidance." in output
+    assert "OLD PRIVATE PAYLOAD" not in output
+
+
+@pytest.mark.parametrize("human", [False, True])
+def test_legacy_withdrawal_marker_restores_from_verified_history(store, repo, human):
+    if human:
+        store.policies.set(
+            "decision",
+            source="human",
+            status="established",
+            confidence=0.8,
+            actor="t",
+            at=store.now(),
+        )
+    rid = create(store)
+    publish(store, rid, repo, confirm=confirm_yes)
+    withdraw(store, rid, repo)
+    path = node_path(repo)
+    post = frontmatter.load(path)
+    prefix = "<!-- akms-records-withdrawn/v1 "
+    lines = post.content.splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith(prefix):
+            metadata = json.loads(line[len(prefix) : -4])
+            metadata.pop("source_dir", None)
+            lines[index] = prefix + json.dumps(metadata, sort_keys=True) + " -->"
+    post.content = "\n".join(lines)
+    path.write_text(frontmatter.dumps(post) + "\n")
+    publish(store, rid, repo, confirm=confirm_yes)
+    assert "No record content remains" not in loadout(repo)
+    assert state(store, rid, repo) == "current"
+
+
+def test_new_promotion_deduplicates_into_external_content_node(store, repo):
+    from akms.graph.build_graph import build_graph
+    from akms.schema.models import LocalNodeFrontmatter
+
+    rid = create(store)
+    directory = local_knowledge_dir(repo) / "local-nodes"
+    directory.mkdir(parents=True)
+    model = LocalNodeFrontmatter(
+        id=rid,
+        title="OLD PRIVATE PAYLOAD",
+        domain="example",
+        tags=["decision"],
+        source="agent",
+        status="tentative",
+        confidence=0.5,
+        content_ref="authored.md",
+    )
+    path = directory / "arbitrary-filename.md"
+    post = frontmatter.Post(
+        "Local authored guidance.", **model.model_dump(mode="json", exclude_none=True)
+    )
+    path.write_text(frontmatter.dumps(post) + "\n")
+    (repo / "authored.md").write_text("External authored guidance.\n")
+    build_graph(repo)
+    result = publish(store, rid, repo)
+    assert result["action"] == "dedup_appended"
+    assert result["node_id"] == rid
+    output = loadout(repo)
+    assert "Record projection needs review" not in output
+    assert "private rationale" in output
+    assert "Local authored guidance." in output
+    assert "External authored guidance." in output

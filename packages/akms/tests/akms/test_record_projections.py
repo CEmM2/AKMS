@@ -334,3 +334,23 @@ def test_prefix_rejects_unstable_complete_listing(projection, monkeypatch):
     monkeypatch.setattr(Path, "iterdir", changing_iterdir)
     with pytest.raises(ProjectionError):
         source_snapshot(source, max_revision=1, prefix=True)
+
+
+def test_pre_dependency_metadata_requires_explicit_upgrade(tmp_path, projection):
+    _, _, block = projection
+    legacy = block.replace('"dependencies": [], ', "")
+    assert parse_projections(legacy)
+    guarded = guard_projection_content(legacy, tmp_path)
+    assert guarded.managed and not guarded.current
+    assert guarded.reason == "dependency metadata requires upgrade"
+
+
+@pytest.mark.parametrize("dependencies", [None, {}, [None], [{"revision": True}]])
+def test_malformed_dependency_metadata_fails_closed(tmp_path, projection, dependencies):
+    import json
+
+    _, _, block = projection
+    malformed = block.replace(
+        '"dependencies": []', '"dependencies": ' + json.dumps(dependencies)
+    )
+    assert not guard_projection_content(malformed, tmp_path).current

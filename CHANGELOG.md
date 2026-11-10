@@ -7,6 +7,13 @@ development is intentionally not replayed.
 ## [Unreleased]
 
 ### Fixed
+- Promoted consolidations now track cited-record fingerprints, so changes to their
+  inputs withhold stale claims without importing record schemas into core.
+  Existing managed blocks without dependency metadata require explicit refresh.
+- Loadouts use current on-disk projection titles even with an old graph, and serve
+  both the local projection and a separate authored `content_ref` when present.
+- Explicit re-promotion restores a withdrawn node under either policy, removes
+  its matching withdrawal notice, and preserves human confirmation and prose.
 - Promoted record refreshes replace the record's verified managed body instead of
   appending an obsolete claim alongside its correction. Unrelated node prose and
   labels remain; edited or ambiguous legacy content is refused rather than guessed.

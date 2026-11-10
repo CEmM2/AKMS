@@ -54,7 +54,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
-from akms_records.citations import is_consolidation, is_failure_lesson
+from akms_records.citations import cited_ids, is_consolidation, is_failure_lesson
 from akms_records.envelope import MAX_REFS, PROMOTED_KIND, Record, check_actor
 from akms_records.errors import RecordsError
 from akms_records.fsio import FILE_MODE, replace_file, write_exclusive
@@ -248,6 +248,7 @@ def find_nodes(
     record_id: str,
     *,
     linked_node: str | None = None,
+    include_withdrawn: bool = False,
 ) -> list[NodeHit]:
     """Every local node that holds a revision of ``record_id``, by node ID."""
     hits: list[NodeHit] = []
@@ -281,10 +282,14 @@ def find_nodes(
                         revisions.add(meta["revision"])
                 except (ValueError, TypeError, AttributeError):
                     pass
-        if revisions or (
-            not withdrawn
-            and linked_node is not None
-            and post.metadata.get("id") == linked_node
+        if (
+            revisions
+            or (include_withdrawn and withdrawn)
+            or (
+                not withdrawn
+                and linked_node is not None
+                and post.metadata.get("id") == linked_node
+            )
         ):
             metadata = dict(post.metadata)
             hits.append(
@@ -521,11 +526,13 @@ class _Job:
             else {"base": "absolute", "path": str(directory)}
         )
         try:
+            dependencies = self.dependencies()
             snapshot = self.akms.projections.source_snapshot(
                 directory, max_revision=source_revision
             )
             return self.akms.projections.render_projection(
                 body,
+                dependencies=dependencies,
                 record_id=self.record.record_id,
                 revision=self.revision,
                 source_revision=source_revision,
@@ -536,6 +543,34 @@ class _Job:
             )
         except self.akms.projections.ProjectionError as exc:
             raise _refuse(str(exc), "projection_source_changed") from None
+
+    def dependencies(self) -> list[dict[str, Any]]:
+        """Snapshot cited inputs; core checks these without knowing any schema."""
+        if not is_consolidation(self.record.schema_ref):
+            return []
+        dependencies = []
+        for rid in sorted(cited_ids(self.record.source_refs, self.record.payload)):
+            record = self.store.get(rid)
+            directory = self.store.record_dir(rid).resolve()
+            root = self.repo.resolve()
+            dependencies.append(
+                {
+                    "record_id": rid,
+                    "revision": record.revision,
+                    "source_dir": (
+                        {"base": "repo", "path": directory.relative_to(root).as_posix()}
+                        if directory.is_relative_to(root)
+                        else {"base": "absolute", "path": str(directory)}
+                    ),
+                    "source_sha256": self.akms.projections.source_snapshot(
+                        directory, max_revision=record.revision
+                    ),
+                }
+            )
+        # Check after snapshotting: never bless newly changed inputs underneath
+        # the old summary. Later changes invalidate the captured fingerprints.
+        _check_review(self.store, self.record, "agent_reviewed")
+        return dependencies
 
     def finalize(self, hit: NodeHit) -> None:
         """Seal the source snapshot after the link event, retryable after a crash."""
@@ -695,12 +730,24 @@ class _Job:
         _is_human_node(hit)
         post = self.akms.frontmatter.load(str(hit.path))
         self.akms.parse_node(dict(post.metadata), is_local=True, path=str(hit.path))
-        post.content = _replace_record_block(self, str(post.content or ""), self.body())
+        text = str(post.content or "")
+        if not hit.revisions:
+            text = _restore_withdrawn(self, hit, text, self.body())
+        else:
+            text = _replace_record_block(self, text, self.body())
+        post.content = text
         # A generated title follows its source; a manually changed title stays.
         previous_titles = {
             _title(self.store, r)
             for r in _past_records(self.store, self.record.record_id)
         }
+        if not hit.revisions:
+            previous_titles.update(
+                {
+                    "Withdrawn record projection",
+                    "Knowledge with a withdrawn record projection",
+                }
+            )
         if post.metadata.get("title") in previous_titles:
             post.metadata["title"] = _title(self.store, self.record)
         data = (self.akms.frontmatter.dumps(post) + "\n").encode("utf-8")
@@ -815,6 +862,46 @@ def _check_block_source(job: _Job, metadata: dict[str, Any]) -> None:
         )
 
 
+def _restore_withdrawn(job: _Job, hit: NodeHit, text: str, replacement: str) -> str:
+    """Restore only a matching withdrawal marker, retaining authored material."""
+    matches = []
+    for offset, line in job.akms.projections._outside_lines(text):
+        if not line.startswith(_WITHDRAWN) or not line.rstrip().endswith(" -->"):
+            continue
+        try:
+            metadata = json.loads(line.rstrip()[len(_WITHDRAWN) : -4])
+        except ValueError:
+            continue
+        if (
+            not isinstance(metadata, dict)
+            or metadata.get("record_id") != job.record.record_id
+        ):
+            continue
+        if "source_dir" in metadata:
+            _check_block_source(job, metadata)
+        elif metadata.get("scope") != str(job.store.scope) or not any(
+            r.promoted_to is not None and r.promoted_to["node_id"] == hit.node_id
+            for r in _past_records(job.store, job.record.record_id)
+        ):
+            raise _refuse(
+                "withdrawal marker does not match source history",
+                "projection_source_mismatch",
+            )
+        matches.append((offset, offset + len(line)))
+    if len(matches) != 1:
+        raise _refuse(
+            "withdrawal marker cannot be safely restored", "projection_conflict"
+        )
+    start, end = matches[0]
+    remaining = text[:start] + text[end:]
+    if (
+        remaining.strip()
+        == "Record projection withdrawn. No record content remains in this node."
+    ):
+        return replacement
+    return text[:start] + replacement + text[end:]
+
+
 def _replace_record_block(job: _Job, text: str, replacement: str) -> str:
     """Preserve other sources and edits; legacy upgrades require an exact match."""
     projections = job.akms.projections
@@ -918,6 +1005,7 @@ def _plan(job: _Job, *, update: bool) -> _Plan:
         job.knowledge,
         record.record_id,
         linked_node=link["node_id"] if link else None,
+        include_withdrawn=True,
     )
     current_nodes: set[str] = set()
     for hit in hits:
@@ -957,7 +1045,7 @@ def _plan(job: _Job, *, update: bool) -> _Plan:
         return _Plan("complete", hit=exact)
     previous = _previous_node(hits, link)
     known = previous.node_id if previous else link["node_id"] if link else None
-    if known is not None and not update:
+    if known is not None and not update and (previous is None or previous.revisions):
         raise _refuse(
             f"record {record.record_id} is already promoted into {known}; revision "
             f"{revision} needs reconciliation. Pass --update to replace its projection",
@@ -1373,7 +1461,8 @@ def withdraw_promotion(
         ):
             post.metadata["title"] = "Knowledge with a withdrawn record projection"
         mark = json.dumps(
-            {"record_id": record_id, "scope": str(store.scope)}, sort_keys=True
+            {"record_id": record_id, "scope": str(store.scope), "source_dir": locator},
+            sort_keys=True,
         )
         post.content = changed.rstrip() + "\n\n" + _WITHDRAWN + mark + " -->\n"
         akms.parse_node(dict(post.metadata), is_local=True, path=str(hit.path))
