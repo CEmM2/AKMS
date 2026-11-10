@@ -526,6 +526,7 @@ class _Job:
             else {"base": "absolute", "path": str(directory)}
         )
         try:
+            collection = self.collection()
             dependencies = self.dependencies()
             snapshot = self.akms.projections.source_snapshot(
                 directory, max_revision=source_revision
@@ -533,6 +534,7 @@ class _Job:
             return self.akms.projections.render_projection(
                 body,
                 dependencies=dependencies,
+                collection=collection,
                 record_id=self.record.record_id,
                 revision=self.revision,
                 source_revision=source_revision,
@@ -543,6 +545,30 @@ class _Job:
             )
         except self.akms.projections.ProjectionError as exc:
             raise _refuse(str(exc), "projection_source_changed") from None
+
+    def collection(self) -> dict[str, Any] | None:
+        """Witness membership and non-cited inputs that could enter a topic."""
+        if not is_consolidation(self.record.schema_ref):
+            return None
+        directory = self.store.root.resolve()
+        root = self.repo.resolve()
+        excluded = (
+            self.store.record_dir(self.record.record_id)
+            .resolve()
+            .relative_to(directory)
+            .as_posix()
+        )
+        return {
+            "source_dir": (
+                {"base": "repo", "path": directory.relative_to(root).as_posix()}
+                if directory.is_relative_to(root)
+                else {"base": "absolute", "path": str(directory)}
+            ),
+            "excluded_path": excluded,
+            "source_sha256": self.akms.projections.collection_snapshot(
+                directory, excluded_path=excluded
+            ),
+        }
 
     def dependencies(self) -> list[dict[str, Any]]:
         """Snapshot cited inputs; core checks these without knowing any schema."""

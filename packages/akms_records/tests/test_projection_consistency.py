@@ -499,3 +499,71 @@ def test_new_promotion_deduplicates_into_external_content_node(store, repo):
     assert "private rationale" in output
     assert "Local authored guidance." in output
     assert "External authored guidance." in output
+
+
+@pytest.mark.parametrize("change", ["create", "amend_into_topic"])
+def test_promoted_summary_tracks_topic_input_set(store, repo, change):
+    from akms_records import consolidate, consolidation_status
+
+    rid = create(store, "Original mesh decision")
+    store.amend(rid, {"tags": ["mesh"]}, expected_revision=1, actor="t")
+    other = (
+        create(store, "New matching decision") if change == "amend_into_topic" else None
+    )
+    summary = consolidate(store, actor="t", tags=["mesh"])["record_id"]
+    store.amend(
+        summary, {"review_state": "user_confirmed"}, expected_revision=1, actor="t"
+    )
+    publish(store, summary, repo)
+    graph = load_graph(local_knowledge_dir(repo) / "graph/graph.json")
+    assert state(store, summary, repo) == "current"
+    if other is None:
+        store.create(
+            {
+                "schema_ref": "decision/v1",
+                "payload": {"decision": "New matching decision", "rationale": "new"},
+                "tags": ["mesh"],
+            },
+            actor="t",
+        )
+    else:
+        store.amend(other, {"tags": ["mesh"]}, expected_revision=1, actor="t")
+    assert consolidation_status(store, summary)["status"] == "stale"
+    assert state(store, summary, repo) == "projection_stale"
+    output = cached_loadout(repo, graph)
+    assert "Original mesh decision" not in output
+    assert "Record projection needs review" in output
+
+
+def test_malformed_promoted_yaml_withholds_node_without_aborting_loadout(store, repo):
+    rid = create(store)
+    publish(store, rid, repo)
+    graph = load_graph(local_knowledge_dir(repo) / "graph/graph.json")
+    graph.add_node("unrelated", title="Unaffected guidance", node_origin="local")
+    path = node_path(repo)
+    text = path.read_text()
+    text = text.replace("title: OLD PRIVATE PAYLOAD", "title: [broken")
+    assert "title: [broken" in text
+    path.write_text(text)
+    output = cached_loadout(repo, graph)
+    assert "Record projection needs review" in output
+    assert "OLD PRIVATE PAYLOAD" not in output
+    assert "Unaffected guidance" in output
+
+
+def test_unrelated_collection_change_can_be_explicitly_resealed(store, repo):
+    from akms_records import consolidate, consolidation_status
+
+    rid = create(store, "Mesh decision")
+    store.amend(rid, {"tags": ["mesh"]}, expected_revision=1, actor="t")
+    summary = consolidate(store, actor="t", tags=["mesh"])["record_id"]
+    store.amend(
+        summary, {"review_state": "user_confirmed"}, expected_revision=1, actor="t"
+    )
+    publish(store, summary, repo)
+    create(store, "Unrelated outside-topic record")
+    assert consolidation_status(store, summary)["status"] == "valid"
+    assert state(store, summary, repo) == "projection_stale"
+    publish(store, summary, repo)
+    assert state(store, summary, repo) == "current"
+    assert "Mesh decision" in loadout(repo)

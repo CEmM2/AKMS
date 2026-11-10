@@ -7,6 +7,11 @@ development is intentionally not replayed.
 ## [Unreleased]
 
 ### Fixed
+- Consolidation projections now witness collection membership and uncited record
+  changes, withholding summaries when new inputs might enter their topic. The
+  schema-neutral witness conservatively invalidates on unrelated store changes;
+  old citation-only markers need explicit refresh.
+- Malformed YAML in a promoted node is withheld rather than aborting a loadout.
 - Promoted consolidations now track cited-record fingerprints, so changes to their
   inputs withhold stale claims without importing record schemas into core.
   Existing managed blocks without dependency metadata require explicit refresh.

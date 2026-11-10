@@ -100,6 +100,60 @@ def source_snapshot(
         raise ProjectionError("Source snapshot unavailable or changed") from None
 
 
+def collection_snapshot(directory: Path, *, excluded_path: str) -> str:
+    """Hash a collection's numbered event streams, including its membership.
+
+    This deliberately has no schema or topic semantics: any other stream's
+    change invalidates the witness. Exclude only the projecting record itself,
+    whose separate source fingerprint already guards its events.
+    """
+    excluded = Path(excluded_path)
+    if (
+        not excluded_path
+        or excluded.is_absolute()
+        or ".." in excluded.parts
+        or not excluded.parts
+    ):
+        raise ProjectionError("Invalid collection exclusion")
+    directory = Path(directory)
+
+    def streams() -> list[str]:
+        return sorted(
+            {
+                p.parent.relative_to(directory).as_posix()
+                for p in directory.rglob("*.json")
+                if _EVENT.fullmatch(p.name)
+                and not p.relative_to(directory).is_relative_to(excluded)
+            }
+        )
+
+    try:
+        if not directory.is_dir():
+            raise ProjectionError("Collection source unavailable")
+        names = streams()
+        digest = hashlib.sha256()
+        for name in names:
+            path = directory / name
+            # A symlinked event directory cannot substitute another stream.
+            if any(
+                parent.is_symlink()
+                for parent in (path, *path.parents)
+                if parent != directory and parent.is_relative_to(directory)
+            ):
+                raise ProjectionError("Collection source unavailable")
+            digest.update(
+                name.encode("utf-8")
+                + b"\0"
+                + source_snapshot(path).encode("ascii")
+                + b"\0"
+            )
+        if names != streams():
+            raise ProjectionError("Collection changed")
+        return digest.hexdigest()
+    except (OSError, ValueError):
+        raise ProjectionError("Collection source unavailable or changed") from None
+
+
 def _outside_lines(text: str):
     """Yield offset/line pairs outside CommonMark backtick and tilde fences."""
     fence: tuple[str, int] | None = None
@@ -128,6 +182,7 @@ def _validate_metadata(meta: Any) -> None:
         "source_revision",
         "source_title",
         "dependencies",
+        "collection",
     } != {
         "record_id",
         "revision",
@@ -136,6 +191,32 @@ def _validate_metadata(meta: Any) -> None:
         "body_sha256",
     }:
         raise ProjectionError("Invalid projection metadata")
+    collection = meta.get("collection")
+    if collection is not None:
+        if not isinstance(collection, dict) or set(collection) != {
+            "source_dir",
+            "source_sha256",
+            "excluded_path",
+        }:
+            raise ProjectionError("Invalid collection metadata")
+        excluded = collection["excluded_path"]
+        if (
+            not isinstance(excluded, str)
+            or not excluded
+            or not Path(excluded).parts
+            or Path(excluded).is_absolute()
+            or ".." in Path(excluded).parts
+        ):
+            raise ProjectionError("Invalid collection exclusion")
+        _validate_metadata(
+            {
+                "record_id": "collection",
+                "revision": 1,
+                "body_sha256": "0" * 64,
+                "source_dir": collection["source_dir"],
+                "source_sha256": collection["source_sha256"],
+            }
+        )
     if "dependencies" in meta:
         if not isinstance(meta["dependencies"], list):
             raise ProjectionError("Invalid projection dependencies")
@@ -229,12 +310,14 @@ def render_projection(
     source_revision: int | None = None,
     source_title: str | None = None,
     dependencies: list[dict[str, Any]] | None = None,
+    collection: dict[str, Any] | None = None,
 ) -> str:
     """Wrap body with an integrity marker; normalize its trailing newline."""
     if not body.endswith("\n"):
         body += "\n"
     meta = dict(
         dependencies=dependencies if dependencies is not None else [],
+        collection=collection,
         record_id=record_id,
         revision=revision,
         source_dir=source_dir,
@@ -294,11 +377,32 @@ def guard_projection_content(text: str, repo_root: Path | None) -> ProjectionGua
             return ProjectionGuard(False, True, text)
         sources = []
         for block in blocks:
-            if "dependencies" not in block.metadata:
+            if (
+                "dependencies" not in block.metadata
+                or "collection" not in block.metadata
+            ):
                 return ProjectionGuard(
                     True, False, "", "dependency metadata requires upgrade"
                 )
             sources.extend([block.metadata, *block.metadata["dependencies"]])
+            collection = block.metadata["collection"]
+            if collection is not None:
+                locator = collection["source_dir"]
+                directory = Path(locator["path"])
+                if locator["base"] == "repo":
+                    if repo_root is None:
+                        raise ProjectionError("Collection source unavailable")
+                    root = repo_root.resolve()
+                    directory = (root / directory).resolve()
+                    if not directory.is_relative_to(root):
+                        raise ProjectionError("Invalid collection source locator")
+                if (
+                    collection_snapshot(
+                        directory, excluded_path=collection["excluded_path"]
+                    )
+                    != collection["source_sha256"]
+                ):
+                    return ProjectionGuard(True, False, "", "collection changed")
         for metadata in sources:
             locator = metadata["source_dir"]
             directory = Path(locator["path"])

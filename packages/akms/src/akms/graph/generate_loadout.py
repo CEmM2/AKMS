@@ -824,7 +824,7 @@ def generate_loadout(
                     projection_titles[node_id] = str(
                         disk_post.metadata.get("title", node_id)
                     )
-                except (OSError, KeyError, ValueError):
+                except (OSError, KeyError, ValueError, yaml.YAMLError):
                     blocked_projections.add(node_id)
                 external_ref = node_data.get("content_ref")
                 if external_ref and str(external_ref) != str(ref):

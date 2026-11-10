@@ -354,3 +354,49 @@ def test_malformed_dependency_metadata_fails_closed(tmp_path, projection, depend
         '"dependencies": []', '"dependencies": ' + json.dumps(dependencies)
     )
     assert not guard_projection_content(malformed, tmp_path).current
+
+
+def test_collection_witness_tracks_membership_and_events_but_excludes_self(tmp_path):
+    from akms.graph.record_projections import collection_snapshot
+
+    own = tmp_path / "month/self"
+    other = tmp_path / "month/other"
+    own.mkdir(parents=True)
+    other.mkdir()
+    (own / "000001.json").write_text("own")
+    (other / "000001.json").write_text("other")
+    before = collection_snapshot(tmp_path, excluded_path="month/self")
+    (own / "000002.json").write_text("own promotion link")
+    (tmp_path / "cache.json").write_text("irrelevant index")
+    assert collection_snapshot(tmp_path, excluded_path="month/self") == before
+    (other / "000002.json").write_text("amended")
+    changed = collection_snapshot(tmp_path, excluded_path="month/self")
+    assert changed != before
+    new = tmp_path / "next/new"
+    new.mkdir(parents=True)
+    (new / "000001.json").write_text("new input")
+    assert collection_snapshot(tmp_path, excluded_path="month/self") != changed
+
+
+def test_collection_witness_rejects_symlinked_event(tmp_path):
+    from akms.graph.record_projections import collection_snapshot
+
+    (tmp_path / "000001.json").symlink_to(tmp_path / "target")
+    (tmp_path / "target").write_text("event")
+    with pytest.raises(ProjectionError):
+        collection_snapshot(tmp_path, excluded_path="self")
+
+
+def test_old_citation_only_projection_requires_collection_upgrade(tmp_path, projection):
+    _, _, block = projection
+    old = block.replace('"collection": null, ', "")
+    assert parse_projections(old)
+    assert not guard_projection_content(old, tmp_path).current
+
+
+@pytest.mark.parametrize("excluded", ["", ".", "..", "../other", "/absolute"])
+def test_collection_exclusion_cannot_cover_the_store_or_escape(tmp_path, excluded):
+    from akms.graph.record_projections import collection_snapshot
+
+    with pytest.raises(ProjectionError):
+        collection_snapshot(tmp_path, excluded_path=excluded)
