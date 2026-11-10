@@ -400,3 +400,44 @@ def test_collection_exclusion_cannot_cover_the_store_or_escape(tmp_path, exclude
 
     with pytest.raises(ProjectionError):
         collection_snapshot(tmp_path, excluded_path=excluded)
+
+
+@pytest.mark.parametrize("change", ["edit", "add", "remove"])
+def test_auxiliary_tree_changes_invalidate_collection_witness(tmp_path, change):
+    from akms.graph.record_projections import collection_snapshot
+
+    registry = tmp_path / "opaque-registry"
+    registry.mkdir()
+    rules = registry / "rules.json"
+    rules.write_text('{"search": ["arbitrary"]}')
+    before = collection_snapshot(
+        tmp_path, excluded_path="self", auxiliary_paths=["opaque-registry"]
+    )
+    if change == "edit":
+        rules.write_text('{"search": ["new"]}')
+    elif change == "add":
+        (registry / "new-schema.yaml").write_text("custom: value")
+    else:
+        rules.unlink()
+    assert (
+        collection_snapshot(
+            tmp_path, excluded_path="self", auxiliary_paths=["opaque-registry"]
+        )
+        != before
+    )
+
+
+@pytest.mark.parametrize("target", ["tree", "file"])
+def test_auxiliary_tree_rejects_symlinks(tmp_path, target):
+    from akms.graph.record_projections import tree_snapshot
+
+    registry = tmp_path / "registry"
+    registry.mkdir()
+    if target == "tree":
+        (tmp_path / "link").symlink_to(registry, target_is_directory=True)
+        registry = tmp_path / "link"
+    else:
+        (registry / "link.json").symlink_to(tmp_path / "target.json")
+        (tmp_path / "target.json").write_text("{}")
+    with pytest.raises(ProjectionError):
+        tree_snapshot(registry)

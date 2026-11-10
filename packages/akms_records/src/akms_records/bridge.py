@@ -558,6 +558,9 @@ class _Job:
             .relative_to(directory)
             .as_posix()
         )
+        auxiliary_paths = [
+            self.store.schemas.root.resolve().relative_to(directory).as_posix()
+        ]
         return {
             "source_dir": (
                 {"base": "repo", "path": directory.relative_to(root).as_posix()}
@@ -565,8 +568,9 @@ class _Job:
                 else {"base": "absolute", "path": str(directory)}
             ),
             "excluded_path": excluded,
+            "auxiliary_paths": auxiliary_paths,
             "source_sha256": self.akms.projections.collection_snapshot(
-                directory, excluded_path=excluded
+                directory, excluded_path=excluded, auxiliary_paths=auxiliary_paths
             ),
         }
 

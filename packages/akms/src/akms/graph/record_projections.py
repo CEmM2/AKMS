@@ -41,6 +41,28 @@ class ProjectionGuard:
     reason: str = ""
 
 
+def _snapshot_bytes(path: Path) -> bytes:
+    if path.is_symlink():
+        raise ProjectionError("Source snapshot unavailable or changed")
+    fd = os.open(
+        path,
+        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
+    )
+    with os.fdopen(fd, "rb") as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode):
+            raise ProjectionError("Source snapshot unavailable or changed")
+        data = stream.read()
+        after = os.fstat(stream.fileno())
+    if (before.st_ino, before.st_size, before.st_mtime_ns) != (
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    ) or path.stat().st_ino != before.st_ino:
+        raise ProjectionError("Source snapshot unavailable or changed")
+    return data
+
+
 def source_snapshot(
     directory: Path, *, max_revision: int | None = None, prefix: bool = False
 ) -> str:
@@ -64,26 +86,7 @@ def source_snapshot(
         digest = hashlib.sha256()
         for name in selected:
             path = directory / name
-            if path.is_symlink():
-                raise ProjectionError("Source snapshot unavailable or changed")
-            fd = os.open(
-                path,
-                os.O_RDONLY
-                | getattr(os, "O_NOFOLLOW", 0)
-                | getattr(os, "O_NONBLOCK", 0),
-            )
-            with os.fdopen(fd, "rb") as stream:
-                before = os.fstat(stream.fileno())
-                if not stat.S_ISREG(before.st_mode):
-                    raise ProjectionError("Source snapshot unavailable or changed")
-                data = stream.read()
-                after = os.fstat(stream.fileno())
-            if (before.st_ino, before.st_size, before.st_mtime_ns) != (
-                after.st_ino,
-                after.st_size,
-                after.st_mtime_ns,
-            ) or path.stat().st_ino != before.st_ino:
-                raise ProjectionError("Source snapshot unavailable or changed")
+            data = _snapshot_bytes(path)
             digest.update(
                 name.encode("ascii")
                 + b"\0"
@@ -100,7 +103,58 @@ def source_snapshot(
         raise ProjectionError("Source snapshot unavailable or changed") from None
 
 
-def collection_snapshot(directory: Path, *, excluded_path: str) -> str:
+def _relative_subpath(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and "\0" not in value
+        and bool(Path(value).parts)
+        and not Path(value).is_absolute()
+        and ".." not in Path(value).parts
+    )
+
+
+def tree_snapshot(directory: Path) -> str:
+    """Fingerprint an opaque producer-declared tree, never interpreting files."""
+    directory = Path(directory)
+
+    def files() -> list[str]:
+        if directory.is_symlink() or not directory.is_dir():
+            raise ProjectionError("Auxiliary source unavailable")
+        paths = list(directory.rglob("*"))
+        if any(path.is_symlink() for path in paths):
+            raise ProjectionError("Auxiliary source unavailable")
+        return sorted(
+            path.relative_to(directory).as_posix()
+            for path in paths
+            if not path.is_dir()
+        )
+
+    try:
+        names = files()
+        digest = hashlib.sha256()
+        for name in names:
+            data = _snapshot_bytes(directory / name)
+            digest.update(
+                name.encode("utf-8")
+                + b"\0"
+                + str(len(data)).encode("ascii")
+                + b"\0"
+                + data
+            )
+        if names != files():
+            raise ProjectionError("Auxiliary source changed")
+        return digest.hexdigest()
+    except (OSError, ValueError):
+        raise ProjectionError("Auxiliary source unavailable or changed") from None
+
+
+def collection_snapshot(
+    directory: Path,
+    *,
+    excluded_path: str,
+    auxiliary_paths: tuple[str, ...] | list[str] = (),
+) -> str:
     """Hash a collection's numbered event streams, including its membership.
 
     This deliberately has no schema or topic semantics: any other stream's
@@ -108,13 +162,10 @@ def collection_snapshot(directory: Path, *, excluded_path: str) -> str:
     whose separate source fingerprint already guards its events.
     """
     excluded = Path(excluded_path)
-    if (
-        not excluded_path
-        or excluded.is_absolute()
-        or ".." in excluded.parts
-        or not excluded.parts
+    if not _relative_subpath(excluded_path) or any(
+        not _relative_subpath(path) for path in auxiliary_paths
     ):
-        raise ProjectionError("Invalid collection exclusion")
+        raise ProjectionError("Invalid collection path")
     directory = Path(directory)
 
     def streams() -> list[str]:
@@ -145,6 +196,21 @@ def collection_snapshot(directory: Path, *, excluded_path: str) -> str:
                 name.encode("utf-8")
                 + b"\0"
                 + source_snapshot(path).encode("ascii")
+                + b"\0"
+            )
+        for name in sorted(auxiliary_paths):
+            path = directory / name
+            if any(
+                parent.is_symlink()
+                for parent in (path, *path.parents)
+                if parent.is_relative_to(directory)
+            ):
+                raise ProjectionError("Auxiliary source unavailable")
+            digest.update(
+                b"auxiliary\0"
+                + name.encode("utf-8")
+                + b"\0"
+                + tree_snapshot(path).encode("ascii")
                 + b"\0"
             )
         if names != streams():
@@ -193,21 +259,23 @@ def _validate_metadata(meta: Any) -> None:
         raise ProjectionError("Invalid projection metadata")
     collection = meta.get("collection")
     if collection is not None:
-        if not isinstance(collection, dict) or set(collection) != {
+        if not isinstance(collection, dict) or set(collection) - {
+            "auxiliary_paths"
+        } != {
             "source_dir",
             "source_sha256",
             "excluded_path",
         }:
             raise ProjectionError("Invalid collection metadata")
-        excluded = collection["excluded_path"]
-        if (
-            not isinstance(excluded, str)
-            or not excluded
-            or not Path(excluded).parts
-            or Path(excluded).is_absolute()
-            or ".." in Path(excluded).parts
-        ):
+        if not _relative_subpath(collection["excluded_path"]):
             raise ProjectionError("Invalid collection exclusion")
+        auxiliary = collection.get("auxiliary_paths", [])
+        if (
+            not isinstance(auxiliary, list)
+            or any(not _relative_subpath(path) for path in auxiliary)
+            or len(auxiliary) != len(set(auxiliary))
+        ):
+            raise ProjectionError("Invalid auxiliary paths")
         _validate_metadata(
             {
                 "record_id": "collection",
@@ -387,6 +455,10 @@ def guard_projection_content(text: str, repo_root: Path | None) -> ProjectionGua
             sources.extend([block.metadata, *block.metadata["dependencies"]])
             collection = block.metadata["collection"]
             if collection is not None:
+                if "auxiliary_paths" not in collection:
+                    return ProjectionGuard(
+                        True, False, "", "collection metadata requires upgrade"
+                    )
                 locator = collection["source_dir"]
                 directory = Path(locator["path"])
                 if locator["base"] == "repo":
@@ -398,7 +470,9 @@ def guard_projection_content(text: str, repo_root: Path | None) -> ProjectionGua
                         raise ProjectionError("Invalid collection source locator")
                 if (
                     collection_snapshot(
-                        directory, excluded_path=collection["excluded_path"]
+                        directory,
+                        excluded_path=collection["excluded_path"],
+                        auxiliary_paths=collection["auxiliary_paths"],
                     )
                     != collection["source_sha256"]
                 ):

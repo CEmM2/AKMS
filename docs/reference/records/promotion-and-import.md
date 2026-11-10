@@ -391,12 +391,16 @@ without interpreting user schemas. An amendment,
 retraction, erasure, missing event, or event-file edit in a cited source withholds
 the projected summary. The collection witness covers all other numbered event
 streams in the store, detecting new records and amendments of uncited records
-that might enter the topic. It deliberately invalidates on unrelated store changes
+that might enter the topic. It also fingerprints the complete schema registry as
+an opaque auxiliary tree, including extraction rules and registrations: rule
+changes can alter query membership without changing any record event. Core does
+not parse or constrain those schemas. It deliberately invalidates on unrelated store changes
 too, rather than interpreting schemas or topic predicates in core. The summary
 itself is excluded from that witness and protected by its own source fingerprint.
 Even a link-only source event conservatively invalidates the snapshot; explicitly re-promote the still-valid summary to reseal it.
-Existing blocks without dependency and collection declarations are withheld until
-explicit promotion refresh. A stale consolidation must be refreshed and reviewed first.
+Existing blocks without dependency and collection declarations, including older
+event-only collection witnesses without auxiliary-tree declarations, are withheld
+until explicit promotion refresh. A stale consolidation must be refreshed and reviewed first.
 
 Fresh managed loadouts take their titles from the node file, not a cached graph.
 When a node also names a separate `content_ref`, full loadouts include that authored

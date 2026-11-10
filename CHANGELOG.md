@@ -7,6 +7,10 @@ development is intentionally not replayed.
 ## [Unreleased]
 
 ### Fixed
+- Consolidation collection witnesses include opaque schema-registry state, so
+  extraction-rule changes cannot silently alter topic membership while serving
+  an old promoted summary. Event-only witnesses need explicit refresh; migration
+  preserves user schemas, managed bodies, and record history.
 - Consolidation projections now witness collection membership and uncited record
   changes, withholding summaries when new inputs might enter their topic. The
   schema-neutral witness conservatively invalidates on unrelated store changes;

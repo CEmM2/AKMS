@@ -567,3 +567,123 @@ def test_unrelated_collection_change_can_be_explicitly_resealed(store, repo):
     publish(store, summary, repo)
     assert state(store, summary, repo) == "current"
     assert "Mesh decision" in loadout(repo)
+
+
+def test_schema_rule_changes_invalidate_promoted_query_topic(store, repo):
+    from akms_records import consolidate, consolidation_status
+
+    store.schemas.set_rules(
+        "decision/v1",
+        {**store.schemas.rules("decision/v1"), "search_text": ["/decision"]},
+        actor="t",
+        at=store.now(),
+    )
+    create(store, "mesh strategy")
+    store.create(
+        {
+            "schema_ref": "decision/v1",
+            "payload": {"decision": "Other strategy", "rationale": "mesh details"},
+        },
+        actor="t",
+    )
+    summary = consolidate(store, actor="t", query="mesh")["record_id"]
+    store.amend(
+        summary, {"review_state": "user_confirmed"}, expected_revision=1, actor="t"
+    )
+    publish(store, summary, repo)
+    graph = load_graph(local_knowledge_dir(repo) / "graph/graph.json")
+    assert state(store, summary, repo) == "current"
+    history = store.history(summary)
+    store.schemas.set_rules(
+        "decision/v1",
+        {
+            **store.schemas.rules("decision/v1"),
+            "search_text": ["/decision", "/rationale"],
+        },
+        actor="t",
+        at=store.now(),
+    )
+    assert consolidation_status(store, summary)["status"] == "stale"
+    assert state(store, summary, repo) == "projection_stale"
+    output = cached_loadout(repo, graph)
+    assert "Record projection needs review" in output
+    assert "mesh strategy" not in output
+    assert store.history(summary) == history
+
+
+@pytest.mark.parametrize("stale", [False, True])
+def test_event_only_collection_migration_checks_registry_and_preserves_data(
+    store, repo, stale
+):
+    from akms_records import consolidate
+    from akms.graph.record_projections import collection_snapshot, HEADER, FOOTER
+
+    store.schemas.set_rules(
+        "decision/v1",
+        {**store.schemas.rules("decision/v1"), "search_text": ["/decision"]},
+        actor="t",
+        at=store.now(),
+    )
+    create(store, "mesh strategy")
+    store.create(
+        {
+            "schema_ref": "decision/v1",
+            "payload": {"decision": "Other strategy", "rationale": "mesh details"},
+        },
+        actor="t",
+    )
+    summary = consolidate(store, actor="t", query="mesh")["record_id"]
+    store.amend(
+        summary, {"review_state": "user_confirmed"}, expected_revision=1, actor="t"
+    )
+    publish(store, summary, repo)
+    path = node_path(repo)
+    post = frontmatter.load(path)
+    block = parse_projections(post.content)[0]
+    metadata = dict(block.metadata)
+    metadata["collection"].pop("auxiliary_paths")
+    metadata["collection"]["source_sha256"] = collection_snapshot(
+        store.root, excluded_path=metadata["collection"]["excluded_path"]
+    )
+    post.content = (
+        HEADER
+        + json.dumps(metadata, sort_keys=True)
+        + " -->\n"
+        + block.body
+        + FOOTER
+        + "\n"
+    )
+    path.write_text(frontmatter.dumps(post) + "\n")
+    if stale:
+        store.schemas.set_rules(
+            "decision/v1",
+            {
+                **store.schemas.rules("decision/v1"),
+                "search_text": ["/decision", "/rationale"],
+            },
+            actor="t",
+            at=store.now(),
+        )
+    history = store.history(summary)
+    registry = {
+        p.relative_to(store.schemas.root): p.read_bytes()
+        for p in store.schemas.root.rglob("*")
+        if p.is_file()
+    }
+    before = path.read_bytes()
+    assert state(store, summary, repo) == "projection_stale"
+    if stale:
+        with pytest.raises(RecordsError) as exc:
+            publish(store, summary, repo)
+        assert exc.value.code == "summary_stale"
+        assert path.read_bytes() == before
+    else:
+        publish(store, summary, repo)
+        assert state(store, summary, repo) == "current"
+        assert parse_projections(frontmatter.load(path).content)[0].body == block.body
+    assert store.history(summary) == history
+    assert registry == {
+        p.relative_to(store.schemas.root): p.read_bytes()
+        for p in store.schemas.root.rglob("*")
+        if p.is_file()
+    }
