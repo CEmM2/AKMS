@@ -52,7 +52,7 @@ contracts; the core never depends on the runtime. See
 | `akms-learn` | Learning-packet compiler and exporters | **Experimental preview** |
 | `akms-nodes-gen` | Node generation and validation tooling | Experimental |
 | `akms-failure-memory` | Deterministic project-owned failure memory | Beta |
-| `akms-records` | Schema-driven record store for agent and project memory | Experimental |
+| `akms-records` | Schema-driven record store for decisions, plan changes and notes that coding agents can recall | Experimental |
 
 ## Six ways to use it
 

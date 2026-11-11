@@ -6,69 +6,6 @@ development is intentionally not replayed.
 
 ## [Unreleased]
 
-### Fixed
-- A promoted record's text no longer reaches a new loadout after the record is
-  retracted or erased when the node holds a code fence that is never closed
-  above the managed block. Such a fence hid the block's markers, so the whole
-  node was served. Only a closed fence hides its lines now.
-- `akms-records promote` and `promotion withdraw` reclaim a `promote.lock` that
-  names their own process ID, left by a killed run whose ID was reused (a
-  command that is always PID 1 in a container). A second thread of the same
-  process is refused.
-- `akms-records wake`: text edited after a rejection or an explicit unreview
-  stays out of other agents' default wake. A fact whose review an amend cleared
-  stays visible through an edit back to the reviewed text and when an unreviewed
-  record supersedes it.
-- `akms-records recall` across several scopes counts query words as the index
-  splits them, so a path such as `src/store.py`, an accented word and a word
-  found only in a record's tags count toward the order.
-- A loadout reads a project-local node's own file only: a global node no longer
-  takes the text of a local file with its name, a file that names another node
-  is not used, a node ID is never a file pattern, and a link out of
-  `local-nodes/` is not followed. A relative content path is read from the
-  repository before the working directory.
-- `promotion withdraw` removes the tags the promotion wrote, from the node and
-  from `graph.json`. The managed block records them, so this also works after
-  the record is erased. `erase` now names that command for a promoted record.
-- Promoting from an agent or shared scope into a repository with no project
-  store writes the `.gitignore` that keeps the lock files out of git.
-- Promotion and withdrawal hold a persistent OS guard across PID publication,
-  stale-owner recovery and node writes. Atomic PID publication closes the empty
-  owner window; a contender refuses safely and can retry without losing either
-  projection. Killed owners release the OS guard automatically.
-- Promotion status requires the requested record's own managed block and current
-  revision. A surviving unrelated block no longer makes a lost projection look
-  current; it reports `projection_missing` without changing source data.
-- Consolidation collection witnesses include opaque schema-registry state, so
-  extraction-rule changes cannot silently alter topic membership while serving
-  an old promoted summary. Event-only witnesses need explicit refresh; migration
-  preserves user schemas, managed bodies, and record history.
-- Consolidation projections now witness collection membership and uncited record
-  changes, withholding summaries when new inputs might enter their topic. The
-  schema-neutral witness conservatively invalidates on unrelated store changes;
-  old citation-only markers need explicit refresh.
-- Malformed YAML in a promoted node is withheld rather than aborting a loadout.
-- Promoted consolidations now track cited-record fingerprints, so changes to their
-  inputs withhold stale claims without importing record schemas into core.
-  Existing managed blocks without dependency metadata require explicit refresh.
-- Loadouts use current on-disk projection titles even with an old graph, and serve
-  both the local projection and a separate authored `content_ref` when present.
-- Explicit re-promotion restores a withdrawn node under either policy, removes
-  its matching withdrawal notice, and preserves human confirmation and prose.
-- Promoted record refreshes replace the record's verified managed body instead of
-  appending an obsolete claim alongside its correction. Unrelated node prose and
-  labels remain; edited or ambiguous legacy content is refused rather than guessed.
-- Newly generated loadouts check managed record projections against disk and hide
-  stale, edited or unavailable content after source changes, retraction or erasure.
-  Rebuild graphs after upgrading to add missing-node provenance hints. Legacy
-  promotions require explicit upgrade; previously emitted loadouts are unchanged.
-- `akms-records wake` ranks a task match that is reviewed, whose review a later amend cleared, or the agent's own note, ahead of reviewed records that share no word with the task. A matching reviewed record still outranks the agent's own matching note, and other unreviewed records still never outrank a reviewed one.
-- A reviewed record that a later amend leaves `unreviewed` stays in the default wake, marked, showing the current text, until that text is reviewed again. An explicit unreview that does not change the text does not stay, and a rejection never does.
-- `akms-records recall` across several scopes ranks a hit that contains more of the query's words ahead of one that contains fewer, then by reciprocal rank, then newest, then record ID.
-- A full-mode loadout reads a project-local node that has no `content_ref` from its file under `local-nodes/` and prints that path. An explicit `content_ref` is unchanged.
-- `akms-records import --from-failure-memory` ignores an extra top-level key on a schema 1 registry or a schema 2 `_registry.json`. The required keys stay required, and a lesson field the schema does not know is still refused.
-- `recall` searches a query of up to 512 words instead of refusing one past 64; a longer one is still an error. `wake` uses the first 512 distinct words of its task. The search index format is `akms-records-index/v3` and is rebuilt automatically; it records whether a later amend cleared a review.
-
 ### Security
 - The lockfile moves past 15 advisories published after 0.3.2: aiohttp
   3.14.5 (eight, including request smuggling in the pure-Python parser),
@@ -94,7 +31,9 @@ development is intentionally not replayed.
   not authentication, automatic synchronization, or deletion of historical copies.
 - `akms-records recall --semantic` adds an optional vector search through the external
   `qmd` tool, with no new Python dependency, merged with the text search by reciprocal
-  rank. It is off by default and whether it helps is still to be evaluated. The index
+  rank. It is off by default. On the evaluation corpus it raised recall@5 from 0.81 to
+  0.92 for keyword queries and from 0.66 to 0.73 for questions, at about 2.5 seconds
+  per search. The index
   is private to the store (`.index/semantic/`), a search runs no LLM and needs no
   network, and sensitive records are left out unless `--embed-sensitive` is passed.
   Erasing a record deletes the whole index, since qmd keeps the text of documents that
@@ -102,8 +41,9 @@ development is intentionally not replayed.
   error (`qmd_missing`, `semantic_model_missing`).
 - `akms-records recall` reads several scopes as one ranked list: `--scope` repeats, and
   `--agent ID --visible` adds that agent's own scope, as `wake` does. Lists merge by
-  reciprocal rank, then newest first, then record ID, because BM25 does not compare
-  across indexes, and each hit names its scope.
+  how many of the query's words a hit contains, then reciprocal rank, then newest
+  first, then record ID, because BM25 does not compare across indexes, and each hit
+  names its scope.
 - `akms-records promote <record> --review approved` writes a reviewed record as an
   AKMS project-local node, with the `[akms]` extra. By default it goes through
   `update_graph` as `source: agent`, `status: tentative`, possibly appended by
@@ -125,7 +65,9 @@ development is intentionally not replayed.
   failure-memory registries into records of the built-in schema `failure-lesson/v1`,
   with no write on that side and no dependency on that package. A re-run writes
   nothing for an unchanged lesson and amends a changed one; a lesson removed upstream
-  is reported, not retracted.
+  is reported, not retracted. An extra top-level key on a registry file is ignored;
+  the required keys stay required, and a lesson field the schema does not know is
+  refused.
 - `akms-records wake` keeps to its share of the context budget: promoted records and
   imported failure lessons are left out by default (`promoted`, `imported`), a summary
   of such records with them, and `--exclude-nodes <resolution-manifest.json>` drops
@@ -209,6 +151,74 @@ development is intentionally not replayed.
   cited source eligible; provider: the summary itself reviewed), lists its
   citations, and reports the sources it covers. See
   `docs/reference/records/consolidation.md`.
+- `akms-records wake` orders entries by review tier and task match. Reviewed
+  records (`agent_reviewed` and `user_confirmed` together) come before
+  unreviewed ones, except that a task match that is reviewed, whose review a
+  later amend cleared, or that is the agent's own note comes ahead of reviewed
+  records sharing no word with the task. A matching reviewed record outranks
+  the agent's own matching note, and other unreviewed records never outrank a
+  reviewed one. Entries are compact: IDs and provenance on one line, citations
+  only for summaries. On a 597-record corpus an entry costs about 65 tokens, so
+  a 1000-token budget carries about 13.
+- `akms-records wake` keeps a reviewed fact visible when someone else changes
+  it. A reviewed record superseded by one nobody has reviewed stays, marked,
+  with the successor quoted beside it, until the successor is reviewed; if the
+  successor is retracted or rejected, the old text does not stay. A reviewed
+  record that a later amend leaves `unreviewed` stays too, marked and showing
+  the current text, through later edits, an edit back to the reviewed text and
+  a supersession, until it is reviewed again. A decision ends it: after a
+  rejection, or an unreview that leaves the text unchanged, the record leaves
+  other agents' wake, and text edited afterwards does not bring it back.
+  `recall` shows current records only, with no marker.
+- `akms-records amend` keeps a record consistent with its review. A summary
+  produced by the schema's template follows a payload change; one written by
+  hand is kept. Unless the actor is the person who wrote the record, a change
+  to the payload, summary or origin resets the review to `unreviewed`. Naming
+  `user_confirmed` in the same amend is refused (`review_reassert`), and
+  `rejected` stays.
+- `akms-records recall` falls back to any word when no record has every word,
+  ranked by BM25, and the result's `match` says which it was. `--match all` or
+  `any` asks for one directly, and `consolidate` still needs every word. On 134
+  evaluation questions in natural language, requiring every word finds nothing
+  for 98.5% of them, and the fallback brings recall@5 to 0.67. Across several
+  scopes, a hit that contains more of the query's words comes first; the words
+  are counted as the index splits them, so a path such as `src/store.py`, an
+  accented word and a word found only in a record's tags count. A query may
+  hold up to 512 words: `recall` refuses a longer one, and `wake` uses the
+  first 512 distinct words of its task. The search index format is
+  `akms-records-index/v3`. JSON Schema libraries load on first use, which
+  halves the start-up time of `recall` and `wake`.
+- Promotion and withdrawal are serialized per repository and survive a crash.
+  They hold an OS guard for the whole operation, with a PID lock file published
+  atomically inside it. A contender is refused with `promote_locked` and can
+  retry; a killed owner releases the guard; a lock file naming the caller's own
+  process ID, left by a killed run in a container where the command is always
+  PID 1, is reclaimed; and a second thread of the same process is refused.
+  Promoting into a repository with no project store writes the `.gitignore`
+  that keeps these files out of git.
+- `promote --update` replaces the record's verified managed block instead of
+  adding the new text beside the old. Unrelated prose and labels stay, and
+  edited or ambiguous content is refused, not guessed. `promotion status`
+  judges a record by its own block at its current revision, so another record's
+  valid block does not hide a lost one (`projection_missing`). Promoting a
+  withdrawn record again restores its node, removes the withdrawal notice and
+  keeps human confirmation and prose. `promotion withdraw` also removes the
+  tags the promotion wrote, from the node and from `graph.json`: the block
+  records them, so this works after the record is erased, and tags someone
+  changed stay. `erase` names that command when the record was promoted.
+- Newly generated loadouts check each managed record block against the files
+  on disk, and withhold the whole node when its record was amended, retracted
+  or erased, or when the block was edited or cannot be verified. A node with
+  malformed YAML is withheld without stopping the loadout, and a code fence
+  left open above a block does not hide it. The node's current title on disk
+  is used even with an older graph, and a node with both a projection and a
+  separate authored `content_ref` has both served. Loadouts written earlier
+  are not changed.
+- A promoted consolidation is withheld when its inputs may have changed. Its
+  block fingerprints the records it cites, the membership of its topic, the
+  records it does not cite and the extraction rules in the schema registry.
+  The check is conservative: an unrelated change to the store can withhold a
+  summary until `promote --update` refreshes it.
 - `repo-wiki` answers code-intelligence questions from its symbol graph, with
   no server and no model: `repo-wiki context SYMBOL` shows a symbol's
   definition, callers, callees and module imports; `repo-wiki impact SYMBOL`
@@ -436,20 +446,6 @@ development is intentionally not replayed.
   therefore no longer falls back to its full text. New setting
   `loadout.derive_mirror_summary` (default `true`); `false` restores the earlier
   output byte for byte. A mirror with no symbol index that parses is unchanged.
-- `akms-records wake` ranks reviewed records (`agent_reviewed` and `user_confirmed`
-  together) above unreviewed ones, and by task match inside each tier, instead of
-  letting review state decide first and match only break ties. Entries lose the lines
-  a reader rarely needs: IDs and provenance stay on one line, and citations appear only
-  for summaries. On a 597-record corpus an entry costs about 65 tokens instead of 110,
-  so a 1000-token budget carries about 13 entries instead of 8.
-- `akms-records recall` falls back to any word when no record has every word, ranked by
-  BM25, and the result's `match` says which it was. `--match all` or `any` asks for one
-  directly, and `consolidate` still needs every word. On 134 evaluation questions in
-  natural language, requiring every word found nothing for 98.5 % of them; recall@5
-  rises from 0.015 to 0.67, and for keyword queries from 0.78 to 0.82. A stop-word list
-  moved question recall by only 0.03, so there is none.
-- `akms-records` loads its JSON Schema libraries on first use, so `recall` and `wake`
-  start in about half the time.
 - Record-derived lesson titles under `failure-lesson-index/v1` are capped at 85
   characters instead of 96. On a large downstream project the longer titles had
   raised required-lesson tokens by 0.44%, above what trimming the lesson bodies
@@ -509,7 +505,6 @@ development is intentionally not replayed.
   `bd1c2dc3a1d35ab41d7203aecce1bd1d39a494dde1532c9360b9e3518f2f8735`.
   Consumers that pin the pack must update that digest; behaviours, requests
   and lessons are unchanged.
-
 - `failure-memory init` pins `akms_version` to the installed AKMS minor
   series, `">=<installed>,<<major>.<minor + 1>"` (for example
   `">=0.3.2,<0.4"`), instead of a hard-coded `"0.6.1"` that made every new
@@ -528,20 +523,15 @@ development is intentionally not replayed.
   by filename (name, NUL, raw bytes, NUL each, `_registry.json` included).
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
+
 ### Fixed
-- `akms-records amend`: a summary produced by the schema's template now follows a
-  payload change. It kept describing the old payload, so recall and wake showed stale
-  text. A summary someone wrote by hand is kept, and a record that is already stale
-  heals at its next payload amend.
-- `akms-records amend`: an agent that changes a record's content can no longer keep a
-  review someone gave the earlier text. Unless the actor is the person who wrote the
-  record, a change to the payload, summary or origin resets the review to `unreviewed`.
-  Naming `user_confirmed` in the same amend is refused (`review_reassert`); `rejected`
-  stays. A reset record leaves other agents' `wake` until it is reviewed again.
-- `akms-records wake`: a reviewed fact no longer disappears when an agent supersedes it
-  with a record nobody has reviewed. The old text stays, marked as superseded, and the
-  successor is quoted beside it until reviewed. If the successor is retracted or
-  rejected, the old text does not stay either. `recall` is unchanged.
+- A full-mode loadout reads a project-local node that has no `content_ref`
+  from its own file under `local-nodes/` and prints that path. Only the node's
+  own file is used: a global node does not take a local file of the same name,
+  a file that names another node is skipped, a node ID is never treated as a
+  file pattern, and a link out of `local-nodes/` is not followed. An explicit
+  `content_ref` is unchanged, and a relative one is read from the repository
+  before the working directory.
 - Full-mode loadouts inline code mirrors. A mirror's `content_ref` is relative to
   the knowledge directory, and the generator looked for it only from the working
   directory and the repository root, so on a standard layout every mirror read
