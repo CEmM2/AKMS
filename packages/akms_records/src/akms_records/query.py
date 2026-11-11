@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import unicodedata
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -132,27 +133,30 @@ def match_any(text: str) -> str | None:
     return " OR ".join(_phrase(term) for term in terms) if terms else None
 
 
+def _folded_words(text: str) -> list[str]:
+    """The words of ``text`` as the search index sees them.
+
+    The index tokenizer splits at punctuation, ignores case and strips
+    diacritics, so ``src/store.py`` is three words and ``café`` is ``cafe``.
+    """
+    plain = "".join(
+        char
+        for char in unicodedata.normalize("NFKD", text)
+        if not unicodedata.combining(char)
+    )
+    return [word.casefold() for word in _WORD.findall(plain)]
+
+
 def _term_coverage(query: str, document: str) -> int:
     """How many distinct query words occur in ``document``.
 
     The count compares across indexes. A scope's BM25 score does not: each
     index has its own statistics, so a one-word hit can outscore a full match.
     """
-    wanted: list[str] = []
-    seen: set[str] = set()
-    for word in query.split():
-        if not _WORD.search(word):
-            continue
-        key = word.casefold()
-        if key in seen:
-            continue
-        seen.add(key)
-        wanted.append(key)
-        if len(wanted) >= MAX_QUERY_TERMS:
-            break
+    wanted = list(dict.fromkeys(_folded_words(query)))[:MAX_QUERY_TERMS]
     if not wanted:
         return 0
-    have = {word.casefold() for word in _WORD.findall(document)}
+    have = set(_folded_words(document))
     return sum(1 for word in wanted if word in have)
 
 
@@ -571,7 +575,13 @@ def recall(
                 coverage=(
                     _term_coverage(
                         query,
-                        f"{row[6] or ''}\n{(row[19] if len(row) > 19 else row[17]) or ''}",
+                        "\n".join(
+                            (
+                                row[6] or "",
+                                " ".join(_json_list(row[8])),
+                                (row[19] if len(row) > 19 else row[17]) or "",
+                            )
+                        ),
                     )
                     if query is not None
                     else 0

@@ -798,6 +798,27 @@ def test_a_full_match_outranks_a_one_word_hit_in_another_scope(world, clock):
     assert hits[0].coverage > hits[1].coverage
 
 
+@pytest.mark.parametrize(
+    ("best_text", "best_tags", "query", "words"),
+    [
+        ("Edit src/store.py carefully", [], "src/store.py retry", 3),
+        ("The café rotation policy", [], "cafe rotation retry", 2),
+        ("Rotate the keys", ["signing-key"], "signing key retry", 2),
+    ],
+)
+def test_the_word_count_splits_words_as_the_index_does(
+    world, clock, best_text, best_tags, query, words
+):
+    """Paths, accents and tags count, so the fuller match still comes first."""
+    project, shared = world["project"], shared_store(world, clock)
+    best = add(project, best_text, tags=best_tags)
+    one_word = add(shared, "Retry the flaky job")
+    shared.close()
+    hits = several(world, query=query, match="any").hits
+    assert [hit.record_id for hit in hits] == [best, one_word]
+    assert [hit.coverage for hit in hits] == [words, 1]
+
+
 def test_a_long_query_searches_instead_of_failing(store):
     add(store, "Rotate the signing key")
     words = " ".join(f"word{n}" for n in range(70)) + " rotate"
