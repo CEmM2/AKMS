@@ -177,6 +177,13 @@ projects record. Turning it on rewrites every mirror once, including under
 `--changed-only`. On a large downstream project the section averaged 86 tokens
 per mirror (at most 197) and made a mirror 1.4% larger when read in full.
 
+You rarely need it. A loadout builds the same text from a mirror's symbol index
+when the mirror has no section
+([`loadout.derive_mirror_summary`](../user-guide/generating-loadouts.md#code-mirrors-in-routing-mode),
+on by default), so loadouts show the summary without any mirror being rewritten.
+Turn the export option on when something other than a loadout reads the section
+from the mirror file.
+
 ## JSON result
 
 With `--json`, stdout carries only this object, as compact JSON with sorted

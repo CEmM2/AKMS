@@ -58,6 +58,7 @@ from akms.schema.models import (
 from akms.graph.qmd_cache import get_cached, put_cached
 from akms.graph.record_projections import guard_projection_content
 from akms._resources import seed_qmd_path
+from akms.graph.mirror_summary import derive_mirror_summary
 from akms.layout import local_knowledge_dir
 from akms.graph.query_subgraph import compute_query_hash
 from akms.telemetry import traced
@@ -251,23 +252,36 @@ def _has_summary_section(content: str) -> bool:
     return False
 
 
-def _mirror_summary_source(node_data: dict[str, Any], repo_root: Path | None) -> str:
-    """Return a code mirror's body when it was exported with a ``## Summary``.
+def _mirror_summary_markdown(
+    node_data: dict[str, Any],
+    body: str,
+    repo_root: Path | None,
+    *,
+    derive: bool,
+) -> str:
+    """Return Markdown that holds a code mirror's ``## Summary``, or "".
 
-    A mirror's ``content_ref`` is relative to the knowledge directory, so
-    ``_load_node_content`` does not find it from the repository root. Routing
-    mode reads it from there, and only the section ahead of the symbol index
-    counts: the source text further down may hold such a line too. A mirror
-    without the section yields "" and renders as it did before the section
-    existed.
+    A mirror exported with the section is returned as it is. Only a section
+    ahead of the symbol index counts: the source text further down may hold
+    such a line too. Without one, and with ``derive`` set, the section is built
+    from the mirror's own symbol index. "" means the mirror renders as it did
+    before either existed.
+
+    ``body`` may be empty: a mirror's ``content_ref`` is relative to the
+    knowledge directory, so routing mode has not loaded it and it is read here.
     """
-    if repo_root is None or node_data.get("node_origin") != "code-mirror":
+    if node_data.get("node_origin") != _ORIGIN_CODE_MIRROR:
         return ""
-    content = _load_node_content(
-        node_data.get("content_ref"), local_knowledge_dir(repo_root)
-    )
-    head = content.split("\n## Symbol Index", 1)[0]
-    return content if _has_summary_section(head) else ""
+    if not body and repo_root is not None:
+        body = _load_node_content(
+            node_data.get("content_ref"), local_knowledge_dir(repo_root)
+        )
+    if not body:
+        return ""
+    if _has_summary_section(body.split("\n## Symbol Index", 1)[0]):
+        return body
+    derived = derive_mirror_summary(body) if derive else None
+    return f"## Summary\n\n{derived}\n" if derived else ""
 
 
 def _local_node_files(repo_root: Path | None) -> dict[str, list[Path]]:
@@ -483,12 +497,23 @@ def _effective_read_mode(
     reading_priority: str | None,
     mode_str: str,
     content: str,
+    *,
+    summarized: bool = False,
 ) -> str:
-    """Resolve how one node renders; per-node priority wins over the mode (FR-L10c)."""
+    """Resolve how one node renders; per-node priority wins over the mode (FR-L10c).
+
+    ``summarized`` says a summary exists outside ``content``: a code mirror's,
+    built from its symbol index.
+    """
     effective_mode = (reading_priority or mode_str) or "routing"
     # FR-L10c: a summary-priority node without a `## Summary` section
     # falls back to full; its first lines are not a summary.
-    if reading_priority == "summary" and content and not _has_summary_section(content):
+    if (
+        reading_priority == "summary"
+        and content
+        and not summarized
+        and not _has_summary_section(content)
+    ):
         effective_mode = "full"
     return effective_mode
 
@@ -498,6 +523,7 @@ def _full_mode_downgrades(
     mode_str: str,
     loadout_config: LoadoutConfig,
     body_of: Callable[[Any], str],
+    mirror_summary_of: Callable[[str, dict[str, Any], str], str],
 ) -> tuple[dict[str, int], int]:
     """Pick the code mirrors a full-mode loadout serves as summary and path.
 
@@ -526,7 +552,14 @@ def _full_mode_downgrades(
             node_data, selection_class, loadout_config
         )
         if not content or (
-            _effective_read_mode(reading_priority, mode_str, content) != "full"
+            _effective_read_mode(
+                reading_priority,
+                mode_str,
+                content,
+                summarized=reading_priority == "summary"
+                and bool(mirror_summary_of(node_id, node_data, content)),
+            )
+            != "full"
         ):
             continue
         tokens = _estimate_content_tokens(content)
@@ -964,8 +997,21 @@ def generate_loadout(
             node_bodies[ref] = body
         return node_bodies[ref]
 
+    mirror_summaries: dict[str, str] = {}
+
+    def mirror_summary_of(node_id: str, node_data: dict[str, Any], body: str) -> str:
+        """Markdown holding a code mirror's summary, or ""; read once per node."""
+        if node_id not in mirror_summaries:
+            mirror_summaries[node_id] = _mirror_summary_markdown(
+                node_data,
+                body,
+                repo_path,
+                derive=loadout_config.derive_mirror_summary,
+            )
+        return mirror_summaries[node_id]
+
     downgrades, unguarded_inline_tokens = _full_mode_downgrades(
-        ranked_nodes, mode_str, loadout_config, body_of
+        ranked_nodes, mode_str, loadout_config, body_of, mirror_summary_of
     )
     if downgrades:
         header["full_mode_guard"] = {
@@ -1046,7 +1092,13 @@ def generate_loadout(
         # Resolve effective_mode once per node so per-node
         # reading_priority wins over the loadout-level mode_str per FR-L10c.
         # Precedence: reading_priority (if set) > mode_str.
-        effective_mode = _effective_read_mode(reading_priority, mode_str, content)
+        effective_mode = _effective_read_mode(
+            reading_priority,
+            mode_str,
+            content,
+            summarized=reading_priority == "summary"
+            and bool(mirror_summary_of(node_id, node_data, content)),
+        )
         if node_id in downgrades:
             # Over the full-mode budget: serve this mirror as routing mode would.
             effective_mode = LoadoutMode.ROUTING.value
@@ -1081,11 +1133,12 @@ def generate_loadout(
         else:
             # Routing / summary mode: summary + path. Required summaries are
             # always included (they are small); budget still tracks totals.
-            # A mirror read from the knowledge directory is summarized only by
-            # its own section, as in routing mode, not by its source text.
+            # A code mirror is summarized by its own section, exported or built
+            # from its symbol index. One read from the knowledge directory is
+            # never summarized by its source text.
             source = "" if str(content_ref) in mirror_files else content
             summary = _extract_summary(
-                source or _mirror_summary_source(node_data, repo_path)
+                mirror_summary_of(node_id, node_data, content) or source
             )
             entry["summary"] = summary
             total_tokens += loadout_config.routing_tokens_per_node
