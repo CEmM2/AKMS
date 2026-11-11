@@ -208,6 +208,46 @@ def test_status_requires_its_own_projection_not_another_current_block(
         )
 
 
+def test_lock_left_under_this_pid_is_reclaimed(store, repo, race):
+    """A killed run whose PID this process reuses must not block it for good."""
+    import os
+
+    from akms_records.bridge import promote
+
+    ids, _, _ = race
+    lock = local_knowledge_dir(repo) / "records/.index/promote.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text(str(os.getpid()))
+    promote(store, ids[0], repo=repo, review="approved", actor="t")
+    assert store.get(ids[0]).promoted_to is not None
+    assert not lock.exists()
+
+
+def test_second_thread_of_this_process_is_refused(repo):
+    import threading
+
+    from akms_records import RecordsError
+    from akms_records.bridge import _promote_lock
+
+    knowledge = local_knowledge_dir(repo)
+    codes = []
+
+    def contend():
+        try:
+            with _promote_lock(knowledge):
+                codes.append("entered")
+        except RecordsError as exc:
+            codes.append(exc.code)
+
+    with _promote_lock(knowledge):
+        thread = threading.Thread(target=contend)
+        thread.start()
+        thread.join()
+    assert codes == ["promote_locked"]
+    with _promote_lock(knowledge):
+        pass
+
+
 @pytest.mark.parametrize("contents", ["", "not-a-pid", "-1", "0"])
 def test_unknown_legacy_owner_is_not_reclaimed(store, repo, race, contents):
     from akms_records import RecordsError

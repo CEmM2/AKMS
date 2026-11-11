@@ -326,6 +326,84 @@ def test_an_explicit_unreview_without_a_text_change_leaves_wake(store, repo, tmp
     assert record_id in result.excluded["review_state"]
 
 
+def reviewed_port(store):
+    return add(
+        store,
+        "Use port 8080",
+        actor="a",
+        review_state="agent_reviewed",
+        origin={"kind": "agent", "actor_id": "a"},
+    )
+
+
+def edit(store, record_id, text=None, **fields):
+    if text is not None:
+        fields["payload"] = {"decision": text, "rationale": "because"}
+    store.amend(
+        record_id,
+        fields,
+        expected_revision=store.get(record_id).revision,
+        actor="b",
+    )
+
+
+def ports(repo, tmp_path):
+    return run(repo, tmp_path, agent="reader", task="which port", budget=100000)
+
+
+@pytest.mark.parametrize("decision", ["rejected", "unreviewed"])
+def test_text_edited_after_a_decision_stays_out(store, repo, tmp_path, decision):
+    """A rejection or an explicit unreview is not undone by a later edit."""
+    record_id = reviewed_port(store)
+    edit(store, record_id, review_state=decision)
+    edit(store, record_id, "Use port 6666", review_state="unreviewed")
+    result = ports(repo, tmp_path)
+    assert "6666" not in result.render_markdown()
+    assert record_id in result.excluded["review_state"]
+
+
+def test_a_rejection_after_a_cleared_review_stays_out(store, repo, tmp_path):
+    record_id = reviewed_port(store)
+    edit(store, record_id, "Use port 9090")
+    edit(store, record_id, review_state="rejected")
+    edit(store, record_id, "Use port 6666", review_state="unreviewed")
+    assert "6666" not in ports(repo, tmp_path).render_markdown()
+
+
+def test_an_edit_back_to_the_reviewed_text_stays_in_wake(store, repo, tmp_path):
+    record_id = reviewed_port(store)
+    edit(store, record_id, "Use port 9090")
+    edit(store, record_id, "Use port 8080")
+    text = ports(repo, tmp_path).render_markdown()
+    assert "8080" in text and "review cleared by a later amend" in text
+
+
+def test_a_cleared_fact_survives_an_edit_that_keeps_the_text(store, repo, tmp_path):
+    record_id = reviewed_port(store)
+    edit(store, record_id, "Use port 9090")
+    edit(store, record_id, tags=["network"])
+    assert "9090" in ports(repo, tmp_path).render_markdown()
+
+
+def test_a_cleared_fact_stays_when_superseded_by_an_unreviewed_record(
+    store, repo, tmp_path
+):
+    record_id = reviewed_port(store)
+    edit(store, record_id, "Use port 9090")
+    successor = replace(
+        store,
+        record_id,
+        "Use port 7070",
+        actor="b",
+        origin={"kind": "agent", "actor_id": "b"},
+    )
+    text = ports(repo, tmp_path).render_markdown()
+    assert "9090" in text and f"superseded by {successor}" in text
+    edit(store, successor, review_state="agent_reviewed")
+    text = ports(repo, tmp_path).render_markdown()
+    assert "7070" in text and "9090" not in text
+
+
 def test_recall_does_not_show_the_old_record(store, repo, tmp_path):
     old = add(store, "Old fact about the lock", review_state="user_confirmed")
     new = replace(store, old, "New fact about the lock")

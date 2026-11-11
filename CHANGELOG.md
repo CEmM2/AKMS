@@ -7,6 +7,31 @@ development is intentionally not replayed.
 ## [Unreleased]
 
 ### Fixed
+- A promoted record's text no longer reaches a new loadout after the record is
+  retracted or erased when the node holds a code fence that is never closed
+  above the managed block. Such a fence hid the block's markers, so the whole
+  node was served. Only a closed fence hides its lines now.
+- `akms-records promote` and `promotion withdraw` reclaim a `promote.lock` that
+  names their own process ID, left by a killed run whose ID was reused (a
+  command that is always PID 1 in a container). A second thread of the same
+  process is refused.
+- `akms-records wake`: text edited after a rejection or an explicit unreview
+  stays out of other agents' default wake. A fact whose review an amend cleared
+  stays visible through an edit back to the reviewed text and when an unreviewed
+  record supersedes it.
+- `akms-records recall` across several scopes counts query words as the index
+  splits them, so a path such as `src/store.py`, an accented word and a word
+  found only in a record's tags count toward the order.
+- A loadout reads a project-local node's own file only: a global node no longer
+  takes the text of a local file with its name, a file that names another node
+  is not used, a node ID is never a file pattern, and a link out of
+  `local-nodes/` is not followed. A relative content path is read from the
+  repository before the working directory.
+- `promotion withdraw` removes the tags the promotion wrote, from the node and
+  from `graph.json`. The managed block records them, so this also works after
+  the record is erased. `erase` now names that command for a promoted record.
+- Promoting from an agent or shared scope into a repository with no project
+  store writes the `.gitignore` that keeps the lock files out of git.
 - Promotion and withdrawal hold a persistent OS guard across PID publication,
   stale-owner recovery and node writes. Atomic PID publication closes the empty
   owner window; a contender refuses safely and can retry without losing either
@@ -42,7 +67,7 @@ development is intentionally not replayed.
 - `akms-records recall` across several scopes ranks a hit that contains more of the query's words ahead of one that contains fewer, then by reciprocal rank, then newest, then record ID.
 - A full-mode loadout reads a project-local node that has no `content_ref` from its file under `local-nodes/` and prints that path. An explicit `content_ref` is unchanged.
 - `akms-records import --from-failure-memory` ignores an extra top-level key on a schema 1 registry or a schema 2 `_registry.json`. The required keys stay required, and a lesson field the schema does not know is still refused.
-- `recall` and `wake` search a query of up to 512 words instead of refusing one past 64. A longer query is still an error. The search index format is `akms-records-index/v2` and is rebuilt automatically; it records whether a later amend cleared a review.
+- `recall` searches a query of up to 512 words instead of refusing one past 64; a longer one is still an error. `wake` uses the first 512 distinct words of its task. The search index format is `akms-records-index/v3` and is rebuilt automatically; it records whether a later amend cleared a review.
 
 ### Security
 - The lockfile moves past 15 advisories published after 0.3.2: aiohttp

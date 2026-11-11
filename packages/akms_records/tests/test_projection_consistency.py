@@ -9,7 +9,7 @@ import pytest
 
 pytest.importorskip("akms")
 import frontmatter  # noqa: E402
-from akms.graph.build_graph import load_graph  # noqa: E402
+from akms.graph.build_graph import build_graph, load_graph  # noqa: E402
 from akms.graph.generate_loadout import generate_loadout  # noqa: E402
 from akms.graph.record_projections import parse_projections  # noqa: E402
 from akms.layout import local_knowledge_dir  # noqa: E402
@@ -108,6 +108,29 @@ def test_amend_withholds_old_content_update_restores_current(store, repo):
     assert "NEW CONTENT" in text
     assert state(store, rid, repo) == "current"
     assert "NEW CONTENT" in loadout(repo)
+
+
+@pytest.mark.parametrize("change", ["retract", "erase"])
+def test_unclosed_fence_above_the_block_does_not_leak_old_content(store, repo, change):
+    """Authored text that leaves a fence open must not hide the managed block."""
+    rid = create(store)
+    publish(store, rid, repo)
+    path = node_path(repo)
+    post = frontmatter.load(str(path))
+    post.content = "Notes\n\n~~~\nexample output, never closed\n\n" + post.content
+    path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
+    build_graph(repo)
+    assert state(store, rid, repo) == "current"
+    if change == "retract":
+        store.retract(
+            rid, expected_revision=store.get(rid).revision, actor="t", reason="wrong"
+        )
+    else:
+        store.erase(rid, reason="privacy", actor="t")
+    assert "OLD PRIVATE PAYLOAD" not in loadout(repo)
+    withdraw(store, rid, repo, erased=change == "erase")
+    assert "OLD PRIVATE PAYLOAD" not in path.read_text(encoding="utf-8")
+    assert "example output, never closed" in path.read_text(encoding="utf-8")
 
 
 def test_manually_edited_sources_remain_discoverable_and_refused(store, repo):
@@ -211,6 +234,65 @@ def test_erased_mixed_node_preserves_manual_prose_not_generated_title(
     assert "OLD PRIVATE PAYLOAD" not in after
     assert ("My authored title" in after) is manual_title
     assert "OLD PRIVATE PAYLOAD" not in loadout(repo)
+
+
+def tagged(store, *tags):
+    return store.create(
+        {
+            "schema_ref": "decision/v1",
+            "payload": {"decision": "OLD PRIVATE PAYLOAD", "rationale": "private"},
+            "tags": list(tags),
+            "review_state": "user_confirmed",
+            "origin": {"kind": "human-confirmed", "actor_id": "t"},
+        },
+        actor="t",
+    ).record_id
+
+
+def node_tags(repo):
+    return frontmatter.load(node_path(repo)).metadata["tags"]
+
+
+@pytest.mark.parametrize("erased", [False, True])
+def test_withdrawal_removes_the_tags_the_record_wrote(store, repo, erased):
+    rid = tagged(store, "patient-jane-roe")
+    publish(store, rid, repo)
+    assert node_tags(repo) == ["patient-jane-roe", "decision"]
+    if erased:
+        store.erase(rid, actor="t", reason="privacy")
+    withdraw(store, rid, repo, erased=erased)
+    assert "patient-jane-roe" not in node_path(repo).read_text()
+    graph = local_knowledge_dir(repo) / "graph" / "graph.json"
+    assert "patient-jane-roe" not in graph.read_text()
+
+
+def test_withdrawal_keeps_tags_someone_set(store, repo):
+    rid = tagged(store, "patient-jane-roe")
+    publish(store, rid, repo)
+    path = node_path(repo)
+    post = frontmatter.load(path)
+    post.metadata["tags"] = ["triage", "patient-jane-roe"]
+    path.write_text(frontmatter.dumps(post) + "\n")
+    store.erase(rid, actor="t", reason="privacy")
+    withdraw(store, rid, repo, erased=True)
+    assert node_tags(repo) == ["triage", "patient-jane-roe"]
+
+
+def test_generated_tags_follow_an_update_and_a_repromotion(store, repo):
+    rid = tagged(store, "first")
+    publish(store, rid, repo)
+    store.amend(
+        rid,
+        {"tags": ["second"], "review_state": "user_confirmed"},
+        expected_revision=store.get(rid).revision,
+        actor="t",
+    )
+    publish(store, rid, repo, update=True)
+    assert node_tags(repo) == ["second", "decision"]
+    withdraw(store, rid, repo)
+    assert "second" not in node_tags(repo)
+    publish(store, rid, repo)
+    assert node_tags(repo) == ["second", "decision"]
 
 
 def test_withdrawal_graph_failure_is_retryable(store, repo, monkeypatch):

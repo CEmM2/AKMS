@@ -351,14 +351,17 @@ def review_state_after(
 
 
 def review_was_cleared(events: list[dict[str, Any]]) -> bool:
-    """Whether the current text is unreviewed after a reviewed revision of other text.
+    """Whether an amend that changed reviewed text left the record unreviewed.
 
-    Wake keeps that fact visible. An explicit unreview that leaves the text
-    unchanged does not count, and the current state has to be ``unreviewed``:
-    a later review or a rejection takes the ordinary path.
+    Wake keeps that fact visible until someone decides on it again. The flag is
+    set by the revision that takes a reviewed record to ``unreviewed`` while
+    changing its text, and it survives later edits, including one back to the
+    reviewed text. A review, a rejection, or an unreview that leaves the text
+    unchanged is a decision and ends it: text edited after one of those was
+    never reviewed.
     """
-    reviewed: dict[str, Any] | None = None
-    final: dict[str, Any] | None = None
+    cleared = False
+    previous: dict[str, Any] | None = None
     for event in events:
         if event.get("kind") not in ("create", "amend"):
             continue
@@ -374,14 +377,17 @@ def review_was_cleared(events: list[dict[str, Any]]) -> bool:
             "summary": envelope.get("summary"),
             "origin": envelope.get("origin"),
         }
-        final = current
-        if current["review_state"] in REVIEWED_STATES:
-            reviewed = current
-    if reviewed is None or final is None or final["review_state"] != "unreviewed":
-        return False
-    return any(
-        final[name] != reviewed[name] for name in ("payload", "summary", "origin")
-    )
+        if current["review_state"] != "unreviewed":
+            cleared = False
+        elif previous is not None and previous["review_state"] in REVIEWED_STATES:
+            cleared = any(
+                current[name] != previous[name]
+                for name in ("payload", "summary", "origin")
+            )
+        elif previous is None or previous["review_state"] != "unreviewed":
+            cleared = False
+        previous = current
+    return cleared
 
 
 def history_citations(events: list[dict[str, Any]]) -> set[str]:
@@ -1389,7 +1395,9 @@ class RecordStore:
         if promoted is not None:
             not_reached.append(
                 f"the AKMS node {promoted['node_id']} this record was promoted into: "
-                "a separate file that holds its text; edit or remove it by hand"
+                "a separate file that holds its text; run "
+                f"`akms-records promotion withdraw {record_id} --erased --reason ...` "
+                "to remove it"
             )
         index_report = self._purge_index(record_id, not_reached)
         cascade = [
