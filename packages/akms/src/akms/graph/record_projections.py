@@ -221,12 +221,29 @@ def collection_snapshot(
 
 
 def _outside_lines(text: str):
-    """Yield offset/line pairs outside CommonMark backtick and tilde fences."""
+    """Yield offset/line pairs outside CommonMark backtick and tilde fences.
+
+    Only a fence that is closed hides its lines. CommonMark reads an opener
+    with no closer as code to the end of the document, which would let one
+    stray opener above a managed block hide the block's markers, so the lines
+    after such an opener are yielded like any others.
+    """
+    lines = text.splitlines(keepends=True)
+    matches = [
+        re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line.rstrip("\r\n")) for line in lines
+    ]
+    # longest_closer[char][i]: the longest bare run of char on line i or later.
+    longest_closer = {char: [0] * (len(lines) + 1) for char in "`~"}
+    for index in range(len(lines) - 1, -1, -1):
+        match = matches[index]
+        for char, longest in longest_closer.items():
+            longest[index] = longest[index + 1]
+            if match and match[1][0] == char and not match[2].strip():
+                longest[index] = max(longest[index], len(match[1]))
     fence: tuple[str, int] | None = None
     offset = 0
-    for line in text.splitlines(keepends=True):
-        stripped = line.rstrip("\r\n")
-        match = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", stripped)
+    for index, line in enumerate(lines):
+        match = matches[index]
         if fence is not None:
             if (
                 match
@@ -235,7 +252,11 @@ def _outside_lines(text: str):
                 and not match[2].strip()
             ):
                 fence = None
-        elif match and not (match[1][0] == "`" and "`" in match[2]):
+        elif (
+            match
+            and not (match[1][0] == "`" and "`" in match[2])
+            and longest_closer[match[1][0]][index + 1] >= len(match[1])
+        ):
             fence = (match[1][0], len(match[1]))
         else:
             yield offset, line

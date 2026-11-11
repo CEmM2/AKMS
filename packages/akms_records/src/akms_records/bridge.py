@@ -49,6 +49,7 @@ import os
 import re
 import stat
 import sys
+import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -221,6 +222,27 @@ def _promotion_guard(directory: Path) -> Iterator[None]:
         os.close(fd)  # also releases the OS lock on Windows and POSIX
 
 
+_THREAD_LOCKS: dict[str, threading.Lock] = {}
+_THREAD_LOCKS_GUARD = threading.Lock()
+
+
+@contextmanager
+def _one_thread(directory: Path) -> Iterator[None]:
+    """Refuse a second promote/withdraw on ``directory`` from this process."""
+    with _THREAD_LOCKS_GUARD:
+        lock = _THREAD_LOCKS.setdefault(str(directory.resolve()), threading.Lock())
+    if not lock.acquire(blocking=False):
+        raise _refuse(
+            "another promote in this process holds the repository guard",
+            "promote_locked",
+            pid=os.getpid(),
+        )
+    try:
+        yield
+    finally:
+        lock.release()
+
+
 @contextmanager
 def _promote_lock(knowledge: Path) -> Iterator[None]:
     """One promote/withdraw at a time, including initialization and recovery.
@@ -232,7 +254,7 @@ def _promote_lock(knowledge: Path) -> Iterator[None]:
     directory = knowledge / "records" / INDEX_DIRNAME
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / LOCK_NAME
-    with _promotion_guard(directory):
+    with _one_thread(directory), _promotion_guard(directory):
         for attempt in (1, 2):
             try:
                 fsio.write_exclusive(
@@ -247,7 +269,14 @@ def _promote_lock(knowledge: Path) -> Iterator[None]:
                     )
                 except (OSError, ValueError):
                     owner = 0
-                if attempt == 2 or owner <= 0 or pid_alive(owner):
+                # No other thread of this process is here, so a file naming
+                # this PID was left by a killed run whose PID was reused, as
+                # happens when the command is always PID 1 in a container.
+                if (
+                    attempt == 2
+                    or owner <= 0
+                    or (owner != os.getpid() and pid_alive(owner))
+                ):
                     raise _refuse(
                         f"another promote holds {path}, or its owner is unknown",
                         "promote_locked",

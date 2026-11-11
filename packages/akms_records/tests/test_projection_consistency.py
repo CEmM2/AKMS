@@ -9,7 +9,7 @@ import pytest
 
 pytest.importorskip("akms")
 import frontmatter  # noqa: E402
-from akms.graph.build_graph import load_graph  # noqa: E402
+from akms.graph.build_graph import build_graph, load_graph  # noqa: E402
 from akms.graph.generate_loadout import generate_loadout  # noqa: E402
 from akms.graph.record_projections import parse_projections  # noqa: E402
 from akms.layout import local_knowledge_dir  # noqa: E402
@@ -108,6 +108,29 @@ def test_amend_withholds_old_content_update_restores_current(store, repo):
     assert "NEW CONTENT" in text
     assert state(store, rid, repo) == "current"
     assert "NEW CONTENT" in loadout(repo)
+
+
+@pytest.mark.parametrize("change", ["retract", "erase"])
+def test_unclosed_fence_above_the_block_does_not_leak_old_content(store, repo, change):
+    """Authored text that leaves a fence open must not hide the managed block."""
+    rid = create(store)
+    publish(store, rid, repo)
+    path = node_path(repo)
+    post = frontmatter.load(str(path))
+    post.content = "Notes\n\n~~~\nexample output, never closed\n\n" + post.content
+    path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
+    build_graph(repo)
+    assert state(store, rid, repo) == "current"
+    if change == "retract":
+        store.retract(
+            rid, expected_revision=store.get(rid).revision, actor="t", reason="wrong"
+        )
+    else:
+        store.erase(rid, reason="privacy", actor="t")
+    assert "OLD PRIVATE PAYLOAD" not in loadout(repo)
+    withdraw(store, rid, repo, erased=change == "erase")
+    assert "OLD PRIVATE PAYLOAD" not in path.read_text(encoding="utf-8")
+    assert "example output, never closed" in path.read_text(encoding="utf-8")
 
 
 def test_manually_edited_sources_remain_discoverable_and_refused(store, repo):

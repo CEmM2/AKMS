@@ -430,14 +430,16 @@ Promotion and withdrawal serialize their writes with a stable OS-held guard in
 `records/.index/promote.guard`. This ignored file is intentionally retained, not
 removed or replaced after each operation. The OS releases ownership when a
 process exits, including an abrupt termination. The separate `promote.lock` PID
-file is published atomically and removed after successful release. A dead PID
-can be reclaimed only while holding the OS guard; an empty, malformed, or live
-legacy PID is not guessed dead.
+file is published atomically and removed after successful release. A dead PID,
+or the PID of the process now holding the guard, can be reclaimed only while
+holding the OS guard; an empty or malformed PID, or one that belongs to another
+live process, is not guessed dead.
 
 A contender gets `promote_locked` and can retry after the active operation ends.
 Do not delete the guard or its enclosing index directory while a promotion or
 withdrawal runs, and do not run mixed releases concurrently. This coordination
 is for cooperating processes on the same host and local filesystem, not a
-cross-host lock service. A legacy lock with an unknown owner requires manual
-inspection when no writer is active. Source record events are never deleted by
+cross-host lock service. A `promote.lock` whose owner is unknown, or whose PID
+was reused by another live process after a killed run, requires manual
+inspection: delete it when no promotion or withdrawal is running. Source record events are never deleted by
 lock recovery.

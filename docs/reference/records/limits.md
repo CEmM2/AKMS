@@ -84,7 +84,9 @@ event records the actor, so a claim can be traced, but not disproved.
   lock. It cannot stop a process that edits files or calls AKMS directly without
   that lock. Record, node and graph changes are not atomic together. A rebuild
   failure may leave node changes on disk; inspect status and retry to finish.
-  A lock left by a dead process is removed by the next operation.
+  A lock left by a dead process is removed by the next operation. If another
+  live process has since taken that process's PID, the lock stays and
+  `promote_locked` names the file to delete.
 - **Payload size.** A node holds the whole payload rendering. A large payload means
   a large node, which every loadout that selects it pays for.
 - **Sessions.** `update_graph` adds a session entry and a ledger line to
