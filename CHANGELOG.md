@@ -426,6 +426,16 @@ development is intentionally not replayed.
   `docs/reference/akms/user-guide/generating-loadouts.md`.
 
 ### Changed
+- A loadout shows a summary for a code mirror exported without a `## Summary`
+  section, instead of a bare path with `(no content available)`. It is built
+  when the loadout is generated, from the mirror's own symbol index and, for a
+  Python mirror, the module docstring in the source it holds, and it is the text
+  `export.mirror_summary` would have written, so no mirror is exported again and
+  no pinned mirror bytes change. Routing-mode entries, mirrors the full-mode
+  budget downgrades, and coactivated mirrors use it; a coactivated mirror
+  therefore no longer falls back to its full text. New setting
+  `loadout.derive_mirror_summary` (default `true`); `false` restores the earlier
+  output byte for byte. A mirror with no symbol index that parses is unchanged.
 - `akms-records wake` ranks reviewed records (`agent_reviewed` and `user_confirmed`
   together) above unreviewed ones, and by task match inside each tier, instead of
   letting review state decide first and match only break ties. Entries lose the lines

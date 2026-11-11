@@ -130,8 +130,9 @@ def test_models_module_is_unchanged():
         / "models.py"
     )
     text = models.read_text(encoding="utf-8").replace("\r\n", "\n")
-    # Re-pinned for the optional LoadoutConfig.full_mode_max_tokens field.
+    # Re-pinned for optional LoadoutConfig fields: full_mode_max_tokens and
+    # derive_mirror_summary.
     assert (
         hashlib.sha256(text.encode("utf-8")).hexdigest()
-        == "a3dcf88fe436765439139d6a4a43975c44587ff58e3698cba9c366e4ef5e15f0"
+        == "bce961c5daed7053b1e804e7cdec6f251fe21f6c30637942813971d955aab724"
     )
