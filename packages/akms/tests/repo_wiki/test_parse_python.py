@@ -2,7 +2,7 @@ from pathlib import Path
 
 from akms.repo_wiki.cli import main
 from akms.repo_wiki.extract.python_ast import PythonAstExtractor, parse_python_file
-from akms.repo_wiki.models import SourceFile, SourceSpan
+from akms.repo_wiki.models import SourceFile, SourceSpan, Symbol
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -123,3 +123,75 @@ def test_import_bindings_record_aliases_and_resolve_relative_imports(tmp_path: P
         "other": "a.up.thing",
         "sibling": "a.pkg.sibling",
     }
+
+
+ALIAS_SOURCE = """
+import top as module_level
+
+
+def uses():
+    from pkg.cli import main as run_cli
+    import pkg.tools as tools
+    from pkg.plain import not_aliased
+    import os.path as op
+    if run_cli:
+        with open("x") as stream:
+            from pkg.deep import inner as deep_inner
+    try:
+        from . import sibling as near
+        from ..up import thing as far
+        from .... import too_high as lost
+    except ImportError:
+        import fallback as near
+
+    def nested():
+        from pkg.nested import helper as nested_helper
+
+    class Local:
+        from pkg.klass import member as class_member
+
+
+async def uses_async():
+    from pkg.cli import main as run_async
+"""
+
+
+def _parse_aliases(tmp_path: Path, relative: str = "pkg/sub/mod.py"):
+    target = tmp_path / "mod.py"
+    target.write_text(ALIAS_SOURCE, encoding="utf-8")
+    parsed = parse_python_file(
+        SourceFile(relative, str(target), "python", target.stat().st_size, "sha256:x")
+    )
+    return {symbol.qualname: symbol for symbol in parsed.symbols}
+
+
+def test_function_level_aliases_are_recorded_in_their_own_scope(tmp_path: Path):
+    symbols = _parse_aliases(tmp_path)
+    assert symbols["uses"].import_aliases == {
+        "deep_inner": "pkg.deep.inner",
+        "far": "pkg.up.thing",
+        "near": "fallback",
+        "op": "os.path",
+        "run_cli": "pkg.cli.main",
+        "tools": "pkg.tools",
+    }
+    assert "not_aliased" not in symbols["uses"].import_aliases
+    assert "lost" not in symbols["uses"].import_aliases
+    assert symbols["uses.nested"].import_aliases == {
+        "nested_helper": "pkg.nested.helper"
+    }
+    assert symbols["uses_async"].import_aliases == {"run_async": "pkg.cli.main"}
+    assert symbols["uses.Local"].import_aliases == {}
+
+
+def test_relative_alias_in_a_package_init_is_relative_to_that_package(tmp_path: Path):
+    symbols = _parse_aliases(tmp_path, "pkg/sub/__init__.py")
+    assert symbols["uses"].import_aliases["far"] == "pkg.up.thing"
+
+
+def test_import_aliases_round_trip_and_stay_out_of_empty_payloads(tmp_path: Path):
+    symbols = _parse_aliases(tmp_path)
+    data = symbols["uses"].to_dict()
+    assert Symbol.from_dict(data).import_aliases == symbols["uses"].import_aliases
+    assert "import_aliases" not in symbols["uses.Local"].to_dict()
+    assert Symbol.from_dict(symbols["uses.Local"].to_dict()).import_aliases == {}

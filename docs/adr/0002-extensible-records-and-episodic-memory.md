@@ -1,6 +1,6 @@
 # ADR 0002 — Extensible records, episodic memory, and selective knowledge promotion
 
-**Status**: proposed (2026-11-02, revised 2026-11-03)
+**Status**: accepted (2026-11-05)
 
 **Scope**: AKMS ecosystem; new optional `akms-records` package
 
@@ -145,7 +145,7 @@ from routine cross-agent retrieval and from exports by default.
 ## Record and schema contract
 
 A record is a **typed experience or observation**, not automatically a fact.
-Illustrative contract, **not an implemented API**:
+An example record:
 
 ```json
 {
@@ -203,9 +203,16 @@ examples, not privileged types.
   records on demand.
 - **Wake:** given an agent, a task description, and a hard token limit, return
   prioritized, deduplicated records and summaries with stable identifiers and a
-  truncation report. Token counts use the AKMS loadout estimator, so a record
+  truncation report. Review state decides what is eligible and which tier a record
+  is in (reviewed above unreviewed); within a tier, task match decides the order,
+  because a wake's job is what this task needs, and an evaluation showed a store's
+  `user_confirmed` records otherwise fill the budget regardless of the task. Token counts use the AKMS loadout estimator, so a record
   budget and a loadout budget mean the same thing. It never includes another
-  agent's private records.
+  agent's private records. It reads only the record store. Promoted records and
+  imported failure lessons are left out by default, because the loadout and
+  failure-memory already serve them, and a caller can ask for them deliberately. A
+  reviewed record superseded by a successor nobody has reviewed stays, marked with the
+  successor, so one agent's unchecked replacement cannot make a checked fact vanish.
 - **Rendering is data, not instructions.** Recall and wake output render record
   text as quoted data in a fixed layout, with origin and review state shown, so
   text inside a record cannot pose as instructions or forge a section boundary.
@@ -214,6 +221,9 @@ examples, not privileged types.
   metadata. The default is extractive and uses no LLM; an explicitly selected
   provider is recorded with its input versions. Raw history and summaries stay
   distinct.
+- **Reviews apply to text:** an agent's change to a record's payload, summary or
+  origin makes a reviewed record `unreviewed`, and it cannot name `user_confirmed` in
+  the same amend. The person a record belongs to keeps its state.
 - **Correct or forget:** append correction, supersession, or retraction events
   for normal history. A separately authorized erasure removes protected content
   from the canonical files, the index, summaries, and exports under the
@@ -241,7 +251,11 @@ overlay. It never writes the global vault.
   actor, time, and previous value. Under such a policy the node is written as
   a validated `LocalNodeFrontmatter` file, the same as a person authoring it,
   and only when the record's review state is human-confirmed and the promote
-  command carries an explicit human approval.
+  command carries an explicit human approval. Writing it also needs confirmation:
+  an interactive terminal that shows what will be written, or an explicit `--yes`.
+  Without either it is refused, and it never falls back to the default path. The
+  Python API defaults to not confirmed. `--yes` makes the step deliberate; it does
+  not prove a person took it.
 - **Who may set a policy:** `schema policy set` is a human operation. It asks
   for interactive confirmation and is not exposed through the agent-facing API
   or the MCP adapter. As with scope isolation, this is a policy for cooperating
@@ -250,21 +264,24 @@ overlay. It never writes the global vault.
 - **Never:** an agent-sourced node is never `established`; record creation alone
   never raises status or confidence; provenance is never synthesized.
 - The v2 node models have no field for a record ID, so the node body carries a
-  Sources section listing the record ID and revision.
+  Sources section listing the record ID and revision. The record names its node
+  with an amend event that adds a reserved `promoted-to` source reference, so the
+  event format and the envelope stay as they are.
 
 Records that describe a single attempt should usually stay records rather than
 become general knowledge claims.
 
-Proposed CLI (names provisional):
+The CLI (experimental, so names may still change):
 
 ```bash
-akms-records schema register ./research-decision.schema.json
-akms-records schema policy set research-decision --source human --status established --confidence 0.8
+akms-records schema register ./research-decision.schema.json --scope project:example
+akms-records schema policy set research-decision --scope project:example --source human --status established --confidence 0.8
 akms-records add --schema research-decision/v1 --scope project:example --file decision.json
 akms-records recall --scope project:example --query "surrogate" --limit 20
-akms-records wake --agent scout --task "review model directions" --budget-tokens 1200
-akms-records consolidate --scope project:example
-akms-records promote rec-20261102-k3f9m2xa --review approved
+akms-records wake --agent scout --task "review model directions" --budget-tokens 1200 --scope project:example
+akms-records consolidate create --scope project:example --tag surrogate
+akms-records promote rec-20261102-k3f9m2xa --scope project:example --review approved
+akms-records import --scope project:example --from-failure-memory .knowledge/failure-memory.toml
 ```
 
 ## Relationship to `akms-failure-memory`
@@ -290,7 +307,7 @@ user-defined schemas.
 | Make the record service an AKMS core dependency, or an `akms records` subcommand | Rejected | Violates the runtime-independent contract principle of ADR 0001; core has no plugin mechanism. |
 | One canonical SQLite file or one JSONL ledger per scope | Rejected for project scope | Neither merges in git: a binary database cannot, and one append-only file conflicts on every parallel append. |
 | Store canonical records in a cloud sync folder | Rejected | Sync semantics are not a reliable multi-writer transactional store. |
-| Make vector embeddings mandatory | Rejected | Extra dependencies and cost without demonstrated benefit over metadata, full text, and summaries. |
+| Make vector embeddings mandatory | Rejected | Extra dependencies and cost without demonstrated benefit over metadata, full text, and summaries. `recall --semantic` offers them as an opt-in through the external `qmd` tool, with no new dependency, so they can be measured. |
 
 ## Consequences
 
@@ -363,5 +380,7 @@ These are implementation choices, not blockers:
   platforms outside AKMS's control.
 - Which CLI operations stay provisional in the first experimental release.
 
-**Decision state:** proposed for review. This ADR sets a direction; it does not
-imply that `akms-records`, its CLI, or the importer already exist.
+**Decision state:** accepted. `akms-records` implements the contract spike, the
+records store, recall and wake, consolidation, the promotion bridge and the importer
+as an experimental package. The evaluation phase and its acceptance tests for
+retrieval quality and efficiency are still open.

@@ -11,7 +11,11 @@ from typing import Any
 
 from akms.repo_wiki.models import ParsedModule, SourceFile
 
-CACHE_SCHEMA_VERSION = 2
+# 3: Python IR gained receivers, table_refs and dispatch_tables.
+# 4: Python IR gained main_calls and cli_handlers.
+# 5: receivers also come from annotated parameters, and classes record attribute types.
+# 6: Python functions record their function-level ``as`` import aliases.
+CACHE_SCHEMA_VERSION = 6
 CACHE_DIR = ".repo_wiki/ir_cache"
 _logger = logging.getLogger(__name__)
 

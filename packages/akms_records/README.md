@@ -26,8 +26,12 @@ history of plain files.
   whose every assertion cites the record revisions it came from; they turn
   stale when a source changes. Extractive by default; a provider can be a
   callable or an external command.
-- **Host-neutral.** It does not import `akms`. The `[akms]` extra is reserved
-  for a later promotion bridge into AKMS project-local nodes.
+- **Explicit promotion.** With the `[akms]` extra, `promote` writes a reviewed
+  record as an AKMS project-local node, never to the global vault. A promoted
+  record then leaves `wake`, because the loadout serves its node.
+- **A read-only failure-memory importer.** `import --from-failure-memory` reads a
+  registry into records, writes nothing back and needs no other package.
+- **Host-neutral.** Without the extra it does not need or import `akms`.
 
 A record is not a fact: records stay records unless a person promotes them.
 
@@ -38,6 +42,16 @@ A record is not a fact: records stay records unless a person promotes them.
 - SQLite with FTS5 in Python's `sqlite3` (standard builds) for `recall` and
   `wake`
 - A filesystem with hard links (any local disk on Linux, macOS and Windows)
+- Optional: the `qmd` command and its embedding model, for `recall --semantic`
+
+## Explicit authoring and review
+
+Start with your own registered schema. `draft` prepares an editable document
+without inventing values; `validate` reports missing fields without saving.
+`search` accepts plain text, and `review queue` / `review set` support explicit,
+revision-checked review. JSON remains the default; `show` and the queue also
+offer `--format text`. See the [workflow guide](https://cemm2.github.io/AKMS/reference/records/authoring-and-review.html).
+The package includes an opt-in, schema-neutral agent skill; it installs no hooks.
 
 ## First commands
 

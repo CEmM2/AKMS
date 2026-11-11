@@ -19,9 +19,10 @@ d=2 likely affected: 2 confident, 1 possible
     python:pkg/core.py::Store.save  pkg/core.py:L20-L21  [CONFIDENT self]
     python:pkg/service.py::run  pkg/service.py:L7-L8  [CONFIDENT import]
     ? python:other/helpers.py::stray  other/helpers.py:L13-L14  [HEURISTIC name]
-d=3 may need testing: 1 confident, 1 possible
+d=3 may need testing: 2 confident, 1 possible
     python:pkg/api.py::public_entry  pkg/api.py:L6-L8  [CONFIDENT import] (public:export)
-    ? python:pkg/service.py::persist  pkg/service.py:L11-L13  [HEURISTIC attribute, 1 of 2 candidates]
+    python:pkg/service.py::persist  pkg/service.py:L11-L13  [CONFIDENT receiver]
+    ? python:pkg/service.py::persist_any  pkg/service.py:L20-L22  [HEURISTIC attribute, 1 of 2 candidates]
 Affected files: 3
   pkg/api.py
   pkg/core.py
@@ -31,7 +32,16 @@ Affected test files: 1
 Possibly affected files: 1
   other/helpers.py
 Risk: HIGH (counting possible links: HIGH) - 3 direct non-test dependent(s); 2 other module(s); public entry point(s) reached: 1
+Affected flows: 3 (3 through the target; not part of the risk)
+  pkg.service.via_module  [root; 2 steps; depth 1]  at d=1  flow:81e076513602
+  pkg.service.persist  [root; 5 steps; depth 3]  at d=3  flow:0bc38b6af8b6
+  pkg.cli.main  [root; 5 steps; depth 4]  at d=4  flow:67984a14e9db
 ```
+
+The last block lists the [execution flows](flows.md) with a step on the target or on
+a confident dependent, ordered by the target's depth in them. It is context for the
+change, not an input to the risk: flows are built from the same links the risk
+already counts.
 
 [Reading impact and risk](reading-impact.md) explains the depths, the two kinds of
 link and how the risk level is chosen.
@@ -67,7 +77,8 @@ A test file is one under a `tests/` or `test/` directory, or named `test_*.py`,
      "confident": [{"id": "python:pkg/core.py::middle", "depth": 1,
                     "via": "python:pkg/core.py::leaf",
                     "edge": {"type": "calls", "resolution": "CONFIDENT",
-                             "basis": "local", "name": "leaf"}, "...": "..."}],
+                             "basis": "local", "name": "leaf",
+                             "provenance": "static"}, "...": "..."}],
      "possible": []},
     {"depth": 2, "label": "likely affected", "confident": [...], "possible": [...]},
     {"depth": 3, "label": "may need testing", "confident": [...], "possible": [...]}
@@ -75,13 +86,19 @@ A test file is one under a `tests/` or `test/` directory, or named `test_*.py`,
   "affected_files": ["pkg/api.py", "pkg/core.py", "pkg/service.py"],
   "affected_test_files": ["tests/test_core.py"],
   "possible_files": ["other/helpers.py"],
-  "summary": {"confident": 7, "possible": 2, "d1_confident": 3, "modules_reached": 2,
+  "summary": {"confident": 8, "possible": 2, "d1_confident": 3, "modules_reached": 2,
               "public_entry_points": ["python:pkg/api.py::public_entry"],
               "risk": "HIGH", "risk_with_possible": "HIGH",
               "risk_reasons": ["3 direct non-test dependent(s)", "2 other module(s)",
                                "public entry point(s) reached: 1"]},
   "graph": {"path": "...", "built_commit": "...", "stale": false,
-            "changed": [], "added": [], "removed": []}
+            "changed": [], "added": [], "removed": []},
+  "flows": {"count": 3, "through_target": 3, "source": "file", "reason": null,
+            "flows": [{"id": "flow:81e076513602", "name": "pkg.service.via_module",
+                       "matched": [{"id": "python:pkg/core.py::leaf", "depth": 1},
+                                   {"id": "python:pkg/service.py::via_module",
+                                    "depth": 0}],
+                       "...": "..."}]}
 }
 ```
 

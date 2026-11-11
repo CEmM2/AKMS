@@ -17,6 +17,15 @@ security boundary.
 **Rendering.** Text output follows :mod:`akms_records.render`: record text is
 fenced data in a fixed layout, under a fixed notice that it is stored
 records, not instructions.
+
+**What wake leaves to others.** Wake opens only record stores, under its hard
+budget. It never reads a failure-memory registry or an AKMS node. A promoted
+record is left out (``promoted``) because the loadout serves its node, and an
+imported failure lesson (``imported``) because failure-memory routes it by
+path; ``include_promoted`` and ``include_imported`` take them back deliberately.
+``exclude_nodes`` names the nodes of a resolution manifest: a promoted record
+whose node is among them is always left out (``in_loadout``). Recall reaches
+all of them.
 """
 
 from __future__ import annotations
@@ -29,7 +38,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from akms_records.citations import is_consolidation
+from akms_records.canonical import loads_strict
+from akms_records.citations import is_consolidation, is_failure_lesson
+from akms_records.envelope import PROMOTED_KIND, promotion_link
 from akms_records.errors import RecordsError, ScopeViolation
 from akms_records.index import REVIEW_RANK, normalize_time
 from akms_records.render import (
@@ -48,9 +59,14 @@ if TYPE_CHECKING:
 RECALL_FORMAT = "akms-records-recall/v1"
 WAKE_FORMAT = "akms-records-wake/v1"
 MIN_REVIEW_STATES = ("unreviewed", "agent_reviewed", "user_confirmed")
+MATCH_MODES = ("auto", "all", "any")
+SEMANTIC_POOL = 20  # qmd's vector search looks at no more than this per query
+RRF_K = 60  # the usual constant of reciprocal rank fusion
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 1000
-MAX_QUERY_TERMS = 64
+# Long enough for a changed-path list, and short of SQLite's default
+# expression-depth limit, so a long query searches instead of failing.
+MAX_QUERY_TERMS = 512
 SNIPPET_TOKENS = 16
 SNIPPET_CHARS = 200
 SNIPPET_OPEN, SNIPPET_CLOSE, SNIPPET_ELLIPSIS = "«", "»", "…"
@@ -62,7 +78,13 @@ EXCLUSION_KINDS = (
     "duplicate",
     "stale",
     "covered",
+    "promoted",
+    "imported",
+    "in_loadout",
 )
+# Left to the loadout or to failure-memory, so a summary of such records is too.
+HELD_KINDS = ("promoted", "in_loadout", "imported")
+RESOLUTION_MANIFEST_VERSION = "v1"
 _WORD = re.compile(r"[^\W_]+")
 
 
@@ -110,6 +132,30 @@ def match_any(text: str) -> str | None:
     return " OR ".join(_phrase(term) for term in terms) if terms else None
 
 
+def _term_coverage(query: str, document: str) -> int:
+    """How many distinct query words occur in ``document``.
+
+    The count compares across indexes. A scope's BM25 score does not: each
+    index has its own statistics, so a one-word hit can outscore a full match.
+    """
+    wanted: list[str] = []
+    seen: set[str] = set()
+    for word in query.split():
+        if not _WORD.search(word):
+            continue
+        key = word.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        wanted.append(key)
+        if len(wanted) >= MAX_QUERY_TERMS:
+            break
+    if not wanted:
+        return 0
+    have = {word.casefold() for word in _WORD.findall(document)}
+    return sum(1 for word in wanted if word in have)
+
+
 def _min_rank(review_state: str) -> int:
     if review_state not in MIN_REVIEW_STATES:
         raise _usage(
@@ -147,6 +193,43 @@ def _json_list(text: str) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def manifest_nodes(path: str | Path) -> frozenset[str]:
+    """The node IDs a resolution manifest selected (``akms resolve-task`` writes it).
+
+    Read as plain JSON, so this needs no ``akms``. A missing file is
+    ``manifest_missing``; anything but a v1 manifest is ``manifest_invalid``.
+    """
+    try:
+        raw = Path(path).read_bytes()
+    except FileNotFoundError:
+        raise _usage(f"no resolution manifest at {path}", "manifest_missing") from None
+    except OSError as exc:
+        raise _usage(
+            f"cannot read the manifest {path}: {exc.strerror}", "manifest_invalid"
+        ) from None
+    try:
+        data = loads_strict(raw)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise _usage(f"{path} is not valid JSON: {exc}", "manifest_invalid") from None
+    selected = data.get("selected_nodes") if isinstance(data, dict) else None
+    if (
+        not isinstance(data, dict)
+        or data.get("schema_version") != RESOLUTION_MANIFEST_VERSION
+        or not isinstance(selected, list)
+    ):
+        raise _usage(
+            f"{path} is not a {RESOLUTION_MANIFEST_VERSION} resolution manifest",
+            "manifest_invalid",
+        )
+    nodes: set[str] = set()
+    for item in selected:
+        node_id = item.get("node_id") if isinstance(item, dict) else None
+        if not isinstance(node_id, str) or not node_id:
+            raise _usage(f"{path} has a malformed selected node", "manifest_invalid")
+        nodes.add(node_id)
+    return frozenset(nodes)
+
+
 # ------------------------------------------------------------------ recall
 @dataclass(frozen=True)
 class RecallHit:
@@ -172,6 +255,10 @@ class RecallHit:
     bm25: float | None
     record: dict[str, Any] | None = None
     consolidation: dict[str, Any] | None = None
+    found_by: str | None = None  # text, vector or both; set by a semantic recall
+    coverage: int = (
+        0  # distinct query words in the indexed text; not part of the output
+    )
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -197,6 +284,8 @@ class RecallHit:
         }
         if self.record is not None:
             out["record"] = self.record
+        if self.found_by is not None:
+            out["found_by"] = self.found_by
         return out
 
 
@@ -204,10 +293,17 @@ class RecallHit:
 class RecallResult:
     """The results of one recall, best first."""
 
-    scope: str
+    scope: str | None  # None when several scopes were read; see ``scopes``
     query: str | None
     filters: dict[str, Any]
     hits: tuple[RecallHit, ...]
+    match: str | None = None
+    scopes: tuple[str, ...] = ()
+    semantic: bool = False
+
+    @property
+    def scope_names(self) -> tuple[str, ...]:
+        return self.scopes or (str(self.scope),)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -215,7 +311,10 @@ class RecallResult:
             "format": RECALL_FORMAT,
             "notice": NOTICE,
             "scope": self.scope,
+            "scopes": list(self.scope_names),
             "query": self.query,
+            "match": self.match,
+            "semantic": self.semantic,
             "filters": dict(self.filters),
             "count": len(self.hits),
             "results": [hit.to_json() for hit in self.hits],
@@ -227,14 +326,19 @@ class RecallResult:
             "\n",
             f"> {NOTICE}\n",
             "\n",
-            f"- scope: {self.scope}\n",
+            f"- scope: {', '.join(self.scope_names)}\n",
             f"- query: {literal(self.query)}\n",
+            f"- match: {self.match or 'none'}\n",
+            f"- semantic: {'yes' if self.semantic else 'no'}\n",
             f"- results: {len(self.hits)}\n",
         ]
         for position, hit in enumerate(self.hits, start=1):
             parts.append(
                 f"\n## {position}. {hit.record_id} (revision {hit.revision})\n\n"
             )
+            parts.append(f"- scope: {hit.scope}\n")
+            if hit.found_by is not None:
+                parts.append(f"- found by: {hit.found_by}\n")
             parts.append(f"- schema: {hit.schema_ref}\n")
             parts.append(
                 f"- origin: {hit.origin['kind']} {literal(hit.origin['actor_id'])}\n"
@@ -270,12 +374,26 @@ def recall(
     limit: int = DEFAULT_LIMIT,
     full: bool = False,
     with_status: bool = True,
+    match: str = "auto",
+    semantic: bool = False,
+    embed_sensitive: bool = False,
 ) -> RecallResult:
     """Recall records of ``store``'s scope from the index.
 
     With ``query``, records must contain every word of it and are ranked by
     BM25; ties, and every result without a query, are ordered by
-    ``recorded_at`` (newest first), then record ID. ``since`` (inclusive) and
+    ``recorded_at`` (newest first), then record ID. If no record has every word,
+    the query runs again for records with any of them, and the result's ``match``
+    says which it was (``all`` or ``any``). ``match="all"`` or ``"any"`` asks for one
+    of them without the other.
+
+    ``semantic`` also searches a local vector index through the optional ``qmd`` tool
+    (see :mod:`akms_records.semantic`) and merges the two lists by reciprocal rank,
+    then newest first, then record ID; each hit's ``found_by`` says which list it came
+    from. Vector hits pass the same filters as every other hit. ``embed_sensitive``
+    lets sensitive records into that index, which ``include_sensitive`` does not.
+
+    ``since`` (inclusive) and
     ``until`` (exclusive) apply to the schema's time field where the record
     has one, and to ``recorded_at`` otherwise. By default only active records
     (chain heads) are returned, never rejected ones, and no sensitive ones.
@@ -294,7 +412,11 @@ def recall(
     for tag in tag_list_:
         if not isinstance(tag, str) or not tag:
             raise _usage("tags must be non-empty text")
-    fts = match_all(query) if query is not None else None
+    if match not in MATCH_MODES:
+        raise _usage("match must be one of " + ", ".join(MATCH_MODES))
+    _check_semantic(query, semantic, embed_sensitive)
+    # Merging needs more than the final page from each list.
+    pool = max(limit, SEMANTIC_POOL) if semantic else limit
     where = ["r.scope = ?"]
     params: list[Any] = [str(store.scope)]
     lifecycles = ["active"]
@@ -337,41 +459,75 @@ def recall(
         "r.review_state, r.lifecycle, r.origin_kind, r.origin_actor, "
         "r.source_refs, r.superseded_by, r.supersedes"
     )
-    if fts is not None:
-        sql = (
-            f"SELECT {columns}, snippet(records_fts, -1, ?, ?, ?, ?), round(bm25(records_fts), 9) "
-            "FROM records_fts JOIN records r ON r.rid = records_fts.rowid "
-            f"WHERE records_fts MATCH ? AND {' AND '.join(where)} "
-            "ORDER BY round(bm25(records_fts), 9), r.recorded_at DESC, r.record_id LIMIT ?"
-        )
-        args = [
-            SNIPPET_OPEN,
-            SNIPPET_CLOSE,
-            SNIPPET_ELLIPSIS,
-            SNIPPET_TOKENS,
-            fts,
-            *params,
-            limit,
-        ]
-    else:
-        sql = (
-            f"SELECT {columns}, records_fts.text, NULL "
-            "FROM records r JOIN records_fts ON records_fts.rowid = r.rid "
-            f"WHERE {' AND '.join(where)} "
-            "ORDER BY r.recorded_at DESC, r.record_id LIMIT ?"
-        )
-        args = [*params, limit]
     index = store.index_for_read()
-    rows: list[Any] = []
-    if index is not None:
+
+    def fetch(fts: str | None) -> list[Any]:
+        if fts is not None:
+            sql = (
+                f"SELECT {columns}, snippet(records_fts, -1, ?, ?, ?, ?), round(bm25(records_fts), 9), records_fts.text "
+                "FROM records_fts JOIN records r ON r.rid = records_fts.rowid "
+                f"WHERE records_fts MATCH ? AND {' AND '.join(where)} "
+                "ORDER BY round(bm25(records_fts), 9), r.recorded_at DESC, r.record_id LIMIT ?"
+            )
+            args = [
+                SNIPPET_OPEN,
+                SNIPPET_CLOSE,
+                SNIPPET_ELLIPSIS,
+                SNIPPET_TOKENS,
+                fts,
+                *params,
+                pool,
+            ]
+        else:
+            sql = (
+                f"SELECT {columns}, records_fts.text, NULL "
+                "FROM records r JOIN records_fts ON records_fts.rowid = r.rid "
+                f"WHERE {' AND '.join(where)} "
+                "ORDER BY r.recorded_at DESC, r.record_id LIMIT ?"
+            )
+            args = [*params, pool]
+        if index is None:
+            return []
         try:
-            rows = index.db.execute(sql, args).fetchall()
+            return index.db.execute(sql, args).fetchall()
         except sqlite3.OperationalError as exc:
             raise _usage(f"the query cannot be run: {exc}", "invalid_query") from None
+
+    used: str | None = None
+    if query is None:
+        rows = fetch(None)
+    else:
+        all_words = match_all(query)  # refuses a query with no searchable words
+        any_word = match_any(query)
+        if match == "any" and any_word is not None:
+            used, rows = "any", fetch(any_word)
+        else:
+            used, rows = "all", fetch(all_words)
+            if match == "auto" and not rows and any_word not in (None, all_words):
+                used, rows = "any", fetch(any_word)
+    found_by: dict[str, str] = {}
+    if semantic and query is not None:
+        from akms_records.semantic import nearest
+
+        ranked = nearest(store, query, limit=pool, embed_sensitive=embed_sensitive)
+        index = store.index_for_read()
+        if index is None:
+            near: list[Any] = []
+        else:
+            marks = ", ".join("?" for _ in ranked)
+            near = index.db.execute(
+                f"SELECT {columns}, records_fts.text, NULL "
+                "FROM records r JOIN records_fts ON records_fts.rowid = r.rid "
+                f"WHERE r.record_id IN ({marks}) AND {' AND '.join(where)}",
+                [*ranked, *params],
+            ).fetchall()
+        position = {record_id: place for place, record_id in enumerate(ranked)}
+        near.sort(key=lambda row: position[row[0]])
+        rows, found_by = _fuse(rows, near, limit)
     hits = []
     for row in rows:
         snippet = row[17]
-        if fts is None:
+        if row[18] is None:  # no BM25, so no FTS snippet: the start of the text
             text = " ".join(str(snippet or "").split())
             snippet = (
                 text[:SNIPPET_CHARS] + SNIPPET_ELLIPSIS
@@ -411,6 +567,15 @@ def recall(
                 bm25=row[18],
                 record=record,
                 consolidation=consolidation,
+                found_by=found_by.get(row[0]),
+                coverage=(
+                    _term_coverage(
+                        query,
+                        f"{row[6] or ''}\n{(row[19] if len(row) > 19 else row[17]) or ''}",
+                    )
+                    if query is not None
+                    else 0
+                ),
             )
         )
     filters = {
@@ -426,7 +591,141 @@ def recall(
         "limit": limit,
         "full": full,
     }
-    return RecallResult(str(store.scope), query, filters, tuple(hits))
+    return RecallResult(
+        str(store.scope), query, filters, tuple(hits), used, semantic=semantic
+    )
+
+
+def _check_semantic(query: str | None, semantic: bool, embed_sensitive: bool) -> None:
+    if semantic and query is None:
+        raise _usage("a semantic recall needs a query")
+    if embed_sensitive and not semantic:
+        raise _usage("embed_sensitive only applies to a semantic recall")
+
+
+def _fuse(
+    text_rows: Sequence[Any], vector_rows: Sequence[Any], limit: int
+) -> tuple[list[Any], dict[str, str]]:
+    """Merge two ranked lists by reciprocal rank, keeping the text list's snippet."""
+    score: dict[str, float] = {}
+    chosen: dict[str, Any] = {}
+    found_by: dict[str, str] = {}
+    for rows, name in ((text_rows, "text"), (vector_rows, "vector")):
+        for position, row in enumerate(rows, start=1):
+            record_id = row[0]
+            score[record_id] = score.get(record_id, 0.0) + 1.0 / (RRF_K + position)
+            chosen.setdefault(record_id, row)
+            found_by[record_id] = "both" if record_id in found_by else name
+    merged = sorted(chosen)
+    merged.sort(key=lambda record_id: chosen[record_id][4], reverse=True)
+    merged.sort(key=lambda record_id: -score[record_id])
+    kept = merged[:limit]
+    return [chosen[record_id] for record_id in kept], {
+        record_id: found_by[record_id] for record_id in kept
+    }
+
+
+def recall_scopes(
+    scopes: Sequence[Scope | str],
+    *,
+    query: str | None = None,
+    agent: str | None = None,
+    visible: bool = False,
+    repo: str | Path | None = None,
+    home: str | Path | None = None,
+    limit: int = DEFAULT_LIMIT,
+    match: str = "auto",
+    semantic: bool = False,
+    embed_sensitive: bool = False,
+    **options: Any,
+) -> RecallResult:
+    """Recall several scopes as one ranked list. Each hit names its scope.
+
+    ``visible`` adds ``agent:<agent>``, so the scopes are what ``wake`` reads for that
+    agent. As with :func:`recall`, an agent may not read another agent's scope.
+
+    A scope's BM25 scores come from its own index and do not compare across indexes.
+    A hit that contains more of the query's words ranks ahead of one that contains
+    fewer, because that count does compare. Within one count the lists merge by
+    reciprocal rank (``1 / (60 + rank)``), then newest first, then record ID. That
+    order is fully determined. Without a query the order is newest first, then
+    record ID. The match mode is one for all scopes: every word everywhere, and
+    any word everywhere only if no scope has a hit. ``semantic`` and
+    ``embed_sensitive`` are as in :func:`recall`, each scope with its own vector index;
+    the match mode is settled by the text search alone, before any vectors are read.
+    """
+    _check_semantic(query, semantic, embed_sensitive)
+    if visible and agent is None:
+        raise _usage("the visible scopes need an agent")
+    parsed = {Scope.parse(s) if isinstance(s, str) else s for s in scopes}
+    if visible and agent is not None:
+        parsed.add(_check_agent(agent))
+    if not parsed:
+        raise _usage("give at least one scope")
+    for scope in parsed:
+        check_visibility(scope, agent)
+    if match not in MATCH_MODES:
+        raise _usage("match must be one of " + ", ".join(MATCH_MODES))
+    if type(limit) is not int or not 1 <= limit <= MAX_LIMIT:
+        raise _usage(f"limit must be an integer from 1 to {MAX_LIMIT}")
+    from akms_records.store import RecordStore
+
+    ordered = sorted(parsed)
+    stores = [RecordStore.open(scope, repo=repo, home=home) for scope in ordered]
+    try:
+
+        def run(mode: str, *, vectors: bool = False) -> list[RecallResult]:
+            return [
+                recall(
+                    store,
+                    query=query,
+                    agent=agent,
+                    limit=limit,
+                    match=mode,
+                    semantic=vectors,
+                    embed_sensitive=vectors and embed_sensitive,
+                    **options,
+                )
+                for store in stores
+            ]
+
+        results = run("all" if match == "auto" else match)
+        if (
+            match == "auto"
+            and query is not None
+            and not any(result.hits for result in results)
+            and match_any(query) not in (None, match_all(query))
+        ):
+            results = run("any")
+        if semantic:
+            settled = results[0].match
+            results = run(settled if settled is not None else match, vectors=True)
+    finally:
+        for store in stores:
+            store.close()
+    first = results[0]
+    if len(results) == 1:
+        return first
+    score: dict[str, float] = {}
+    hits: dict[str, RecallHit] = {}
+    for result in results:
+        for position, hit in enumerate(result.hits, start=1):
+            score[hit.record_id] = 1.0 / (RRF_K + position)
+            hits[hit.record_id] = hit
+    merged = sorted(hits, key=lambda rid: rid)
+    merged.sort(key=lambda rid: hits[rid].recorded_at, reverse=True)
+    if query is not None:
+        merged.sort(key=lambda rid: -score[rid])
+        merged.sort(key=lambda rid: -hits[rid].coverage)
+    return RecallResult(
+        None,
+        query,
+        first.filters,
+        tuple(hits[rid] for rid in merged[:limit]),
+        first.match,
+        tuple(str(scope) for scope in ordered),
+        semantic,
+    )
 
 
 def _summary_status(store: RecordStore, record_id: str) -> dict[str, Any]:
@@ -466,6 +765,11 @@ class _Candidate:
     # For a summary: its payload and what wake needs to place it.
     consolidation: dict[str, Any] | None = None
     cites: tuple[str, ...] = ()
+    # For a reviewed record whose successor nobody has reviewed yet.
+    superseded_by: dict[str, Any] | None = None
+    matched: bool = False
+    own: bool = False
+    review_cleared: bool = False
 
 
 @dataclass(frozen=True)
@@ -475,6 +779,10 @@ class WakeEntry:
     ``consolidation`` is ``None`` for an ordinary record. For a summary it
     holds its status (always ``valid`` in a wake), method, provider and
     assertions with their citations.
+
+    ``superseded_by`` is ``None`` unless this is a reviewed record whose successor
+    has not been reviewed yet: then it holds the successor's ``record_id``,
+    ``review_state`` and ``summary`` (``None`` when that text may not be shown).
     """
 
     position: int
@@ -491,6 +799,7 @@ class WakeEntry:
     tokens: int
     text: str = field(repr=False)
     consolidation: dict[str, Any] | None = None
+    superseded_by: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -507,6 +816,7 @@ class WakeEntry:
             "match": self.match,
             "tokens": self.tokens,
             "consolidation": self.consolidation,
+            "superseded_by": self.superseded_by,
         }
 
 
@@ -606,47 +916,108 @@ def _wake_header(agent: str, scopes: Sequence[str], budget: int) -> str:
 
 
 def _wake_footer(included: int, omitted: int, excluded: dict[str, int]) -> str:
-    counts = ", ".join(f"{kind} {excluded[kind]}" for kind in EXCLUSION_KINDS)
+    """The truncation report. Exclusions with a count of zero are left out."""
+    counts = ", ".join(
+        f"{kind} {excluded[kind]}" for kind in EXCLUSION_KINDS if excluded[kind]
+    )
     return (
         "\n"
         "## Truncation report\n"
         "\n"
         f"- included: {included}\n"
         f"- omitted_by_budget: {omitted}\n"
-        f"- excluded: {counts}\n"
-        "- record IDs: in the JSON output, with the sources each summary covers\n"
+        f"- excluded: {counts or 'none'}\n"
+        "- record IDs: in the JSON output\n"
     )
 
 
 def _wake_entry(position: int, candidate: _Candidate) -> str:
+    """One entry: a heading, one metadata line, and the record text in a fence.
+
+    The metadata line is positional: scope, schema, origin kind and actor, review
+    state and the day recorded. Everything else is in the JSON form. Each value is
+    a slug or a JSON literal, so record text cannot start another line here.
+    """
     origin = candidate.origin
     head = (
-        f"\n### {position}. {candidate.record_id} (revision {candidate.revision})\n"
-        "\n"
-        f"- scope: {candidate.scope}\n"
-        f"- schema: {candidate.schema_ref}\n"
-        f"- origin: {origin['kind']} {literal(origin['actor_id'])}\n"
-        f"- review_state: {candidate.review_state}\n"
-        f"- recorded_at: {candidate.recorded_at}\n"
-        f"- tags: {tag_list(candidate.tags)}\n"
+        f"\n### {position}. {candidate.record_id}@{candidate.revision}\n"
+        f"{candidate.scope} {candidate.schema_ref} {origin['kind']} "
+        f"{literal(origin['actor_id'])} {candidate.review_state} "
+        f"{candidate.recorded_at[:10]}\n"
     )
+    successor = candidate.superseded_by
+    if successor is not None:
+        marker = (
+            f"superseded by {successor['record_id']} ({successor['review_state']}); "
+            "shown until that is reviewed\n"
+        )
+        text = head + marker + fence(candidate.summary, "")
+        if successor["summary"] is None:
+            return text
+        return text + "its successor, not reviewed:\n" + fence(successor["summary"], "")
+    if candidate.review_cleared:
+        return (
+            head
+            + "review cleared by a later amend; shown until that text is reviewed\n"
+            + fence(candidate.summary, "")
+        )
     info = candidate.consolidation
     if info is None:
-        return head + "\n" + fence(candidate.summary)
+        return head + fence(candidate.summary, "")
     from akms_records.consolidate import assertion_lines
 
     body, cites = assertion_lines(info)
     return (
-        head + f"- consolidation: valid, {info['method']}, "
+        head + f"consolidation: valid, {info['method']}, "
         f"{len(info['assertions'])} assertions from {len(candidate.cites)} records\n"
-        + f"- citations: {cites}\n"
-        + "\n"
-        + fence(body)
+        + f"citations: {cites}\n"
+        + fence(body, "")
     )
+
+
+def _tier(review_rank: int) -> int:
+    """Wake's ordering tier: 1 for any reviewed record, 0 for an unreviewed one."""
+    return 1 if review_rank >= REVIEW_RANK["agent_reviewed"] else 0
+
+
+def _wake_band(candidate: _Candidate) -> int:
+    """Where a wake entry sits.
+
+    0. A task match that is reviewed, whose review a later amend cleared, or
+       the agent's own note. Own notes that match the task are not buried
+       under reviewed records that match nothing.
+    1. A reviewed record, or one whose review was cleared, with no task match.
+    2. Another unreviewed record that matches, admitted only with
+       ``include_unreviewed``.
+    3. Everything else.
+    """
+    high = _tier(candidate.review_rank) == 1 or candidate.review_cleared
+    if candidate.matched and (high or candidate.own):
+        return 0
+    if high:
+        return 1
+    if candidate.matched:
+        return 2
+    return 3
+
+
+def _wake_tier(candidate: _Candidate) -> int:
+    """Reviewed place in the order, including a fact whose review was cleared."""
+    if candidate.review_cleared:
+        return 1
+    return _tier(candidate.review_rank)
 
 
 def _summary_key(summary: str) -> str:
     return " ".join(summary.split()).casefold()
+
+
+def _held_reason(sources: Iterable[str], held: dict[str, str]) -> str | None:
+    """The first held reason among ``sources``, when every one of them is held."""
+    reasons = [held.get(source) for source in sources]
+    if not reasons or None in reasons:
+        return None
+    return next(kind for kind in HELD_KINDS if kind in reasons)
 
 
 def _summary_candidates(
@@ -655,6 +1026,7 @@ def _summary_candidates(
     excluded: dict[str, list[str]],
     *,
     min_rank: int,
+    held: dict[str, str],
 ) -> list[_Candidate]:
     """The summaries a wake may show: valid, and eligible for this agent.
 
@@ -662,6 +1034,14 @@ def _summary_candidates(
     takes the lowest review rank among them. Provider: the summary itself
     must be reviewed (``agent_reviewed`` or better), since a paraphrase can
     add claims.
+
+    A summary inherits why its sources are held back (``held``). One whose
+    sources are all held is left out for that reason, whatever its method: its
+    text is what the loadout or failure-memory already serves. An extractive
+    summary with some held sources is left out too, for the same reason when
+    those are all it lacks, and its eligible sources stand on their own. A
+    reviewed provider summary with some eligible sources stays: it may say
+    more than the held ones.
     """
     from akms_records.consolidate import consolidation_status
     from akms_records.store import RecordStore
@@ -682,13 +1062,19 @@ def _summary_candidates(
         cites = tuple(sorted({ref["record_id"] for ref in status["sources"]}))
         payload = record.payload
         rank = candidate.review_rank
+        all_held = _held_reason(cites, held)
+        if all_held is not None:
+            excluded[all_held].append(candidate.record_id)
+            continue
         if payload["method"] == "provider":
             if rank < max(REVIEW_RANK["agent_reviewed"], min_rank):
                 excluded["review_state"].append(candidate.record_id)
                 continue
         else:
-            if any(source not in eligible for source in cites):
-                excluded["review_state"].append(candidate.record_id)
+            missing = [source for source in cites if source not in eligible]
+            if missing:
+                reason = _held_reason(missing, held) or "review_state"
+                excluded[reason].append(candidate.record_id)
                 continue
             rank = min(eligible[source].review_rank for source in cites)
         out.append(
@@ -709,6 +1095,72 @@ def _summary_candidates(
     return out
 
 
+def _pending_successor(
+    row: Any,
+    by_id: dict[str, Any],
+    *,
+    own: str,
+    agent: str,
+    include_unreviewed: bool,
+    min_rank: int,
+    include_sensitive: bool,
+) -> dict[str, Any] | None:
+    """The unreviewed replacement that keeps a reviewed record in this wake, if any.
+
+    Follows the supersession chain to its head. Nothing keeps the record when a
+    reviewed record is on the chain, when the head is retracted, rejected or
+    reviewed, or when this reader may see the head itself and so loses nothing.
+    """
+    seen = {row[0]}
+    head = by_id.get(row[15])
+    while head is not None and head[0] not in seen and head[8] == "superseded":
+        if head[7] != REVIEW_RANK["unreviewed"]:
+            return None
+        seen.add(head[0])
+        head = by_id.get(head[15])
+    if (
+        head is None
+        or head[0] in seen
+        or head[8] != "active"
+        or head[7] != REVIEW_RANK["unreviewed"]
+        or head[2] != row[2]
+    ):
+        return None
+    shown = head[9] != "sensitive" or include_sensitive
+    mine = head[2] == own or head[5] == agent
+    if (mine or include_unreviewed) and head[7] >= min_rank and shown:
+        return None
+    return {
+        "record_id": head[0],
+        "review_state": head[6],
+        "summary": head[12] if shown else None,
+    }
+
+
+def _hold_reason(
+    schema_ref: str,
+    source_refs: str,
+    *,
+    include_promoted: bool,
+    include_imported: bool,
+    loadout: frozenset[str],
+) -> str | None:
+    """Why wake leaves a record to the loadout or to failure-memory, if it does."""
+    link = (
+        promotion_link(_json_list(source_refs))
+        if PROMOTED_KIND in source_refs
+        else None
+    )
+    if link is not None:
+        if link["node_id"] in loadout:
+            return "in_loadout"
+        if not include_promoted:
+            return "promoted"
+    if is_failure_lesson(schema_ref) and not include_imported:
+        return "imported"
+    return None
+
+
 def wake(
     *,
     agent: str,
@@ -720,6 +1172,9 @@ def wake(
     include_sensitive: bool = False,
     review_state: str = "unreviewed",
     include_unreviewed: bool = False,
+    include_promoted: bool = False,
+    include_imported: bool = False,
+    exclude_nodes: Iterable[str] = (),
 ) -> WakeResult:
     """Select records for an agent starting a task, within a token budget.
 
@@ -732,18 +1187,43 @@ def wake(
     (``review_state``); ``include_unreviewed`` admits them. ``review_state``
     is a minimum that applies on top. Rejected records are never eligible.
 
+    A superseded record is left out, unless it is reviewed and its successor is not
+    yet, and this reader may not see the successor: another agent's unreviewed
+    replacement must not make a checked fact vanish. It then stays, in its own place,
+    marked with the successor's ID and quoting its summary, until the successor is
+    reviewed. Retracted records never stay. This rule is for wake only: recall shows
+    current records.
+
+    An amend that clears a review is the same kind of gap. The record stays
+    ``unreviewed`` (the review was of other text) and stays in wake, marked,
+    showing the current text, until that text is reviewed. It keeps a reviewed
+    record's place in the order. An explicit unreview that does not change the
+    text does not stay, and a rejection never does.
+
+    Left to the loadout or to failure-memory: a record promoted into a node
+    (``promoted``), unless ``include_promoted``; a record of a promoted node in
+    ``exclude_nodes`` (``in_loadout``), always; an imported failure lesson
+    (``imported``), unless ``include_imported``, which also admits it while
+    unreviewed, as nobody reviewed it to import it.
+
     Summaries: a stale or invalid one is excluded (``stale``). An extractive
     summary is eligible only when every source it cites is; a provider
-    summary only once it is itself reviewed. When an eligible summary costs
+    summary only once it is itself reviewed; neither when all its sources are
+    held back as above (it then takes their reason). When an eligible summary costs
     fewer tokens than the eligible sources it cites, it is shown at its own
-    priority (its effective review rank, then match, then recency) and those
+    place in the same order as any other record, and those
     sources are excluded as ``covered``; otherwise the summary is excluded as
     a ``duplicate``. If an included summary does not fit the budget, its
     sources compete again.
 
-    Priority: review state (``user_confirmed`` first; reviewed records always
-    above unreviewed ones), then BM25 match with any word of ``task``, then
-    ``recorded_at`` (newest first), then record ID. Deduplicated: superseded
+    Priority: a task match that is reviewed, review-cleared, or the agent's own
+    note; then reviewed and review-cleared records that match nothing; then
+    other unreviewed matches; then the rest. Inside a band, the reviewed tier
+    (``agent_reviewed`` and ``user_confirmed`` together, and a review-cleared
+    fact with them) comes before an unreviewed note, then BM25 match with any
+    word of ``task``, then ``recorded_at`` (newest first), then record ID. A
+    matching reviewed record still outranks the agent's own matching note.
+    Other unreviewed records never outrank a reviewed one. Deduplicated: superseded
     records and records that a newer visible record names as superseded are
     left out (only chain heads remain), and of several records with the same
     summary only the first is kept. Entries are taken in priority order while
@@ -755,6 +1235,7 @@ def wake(
     if type(budget_tokens) is not int or budget_tokens < 1:
         raise _usage("budget_tokens must be a positive integer")
     min_rank = _min_rank(review_state)
+    loadout = frozenset(exclude_nodes)
     visible = {own}
     for item in scopes:
         scope = Scope.parse(item) if isinstance(item, str) else item
@@ -767,6 +1248,7 @@ def wake(
         root = store_root(scope, repo=repo, home=home)
         roots.setdefault(str(root.absolute()), (root, scope))
     excluded: dict[str, list[str]] = {kind: [] for kind in EXCLUSION_KINDS}
+    held: dict[str, str] = {}
     candidates: list[_Candidate] = []
     pending: list[tuple[Path, _Candidate]] = []
     seen_ids: set[str] = set()
@@ -785,7 +1267,8 @@ def wake(
             rows = index.db.execute(
                 "SELECT record_id, revision, scope, schema_ref, origin_kind, "
                 "origin_actor, review_state, review_rank, lifecycle, sensitivity, "
-                "recorded_at, tags, summary, supersedes FROM records "
+                "recorded_at, tags, summary, supersedes, source_refs, superseded_by, "
+                "review_cleared FROM records "
                 "ORDER BY record_id"
             ).fetchall()
             scores: dict[str, float] = {}
@@ -798,24 +1281,51 @@ def wake(
                     scores[record_id] = abs(score)
         finally:
             store.close()
+        by_id = {row[0]: row for row in rows}
         for row in rows:
             considered += 1
             record_id = row[0]
             summary_row = is_consolidation(row[3])
+            imported = is_failure_lesson(row[3])
             mine = row[2] == str(own) or row[5] == agent
+            review_cleared = bool(row[16])
+            admitted = (
+                mine
+                or include_unreviewed
+                or (imported and include_imported)
+                or review_cleared
+            )
             rank = row[7]
+            successor = None
+            if row[8] == "superseded" and rank >= reviewed_rank and not summary_row:
+                successor = _pending_successor(
+                    row,
+                    by_id,
+                    own=str(own),
+                    agent=agent,
+                    include_unreviewed=include_unreviewed,
+                    min_rank=min_rank,
+                    include_sensitive=include_sensitive,
+                )
+            hold = _hold_reason(
+                row[3],
+                row[14],
+                include_promoted=include_promoted,
+                include_imported=include_imported,
+                loadout=loadout,
+            )
             if row[2] not in visible_names:
                 excluded["visibility"].append(record_id)
             elif record_id in seen_ids:
                 excluded["duplicate"].append(record_id)
-            elif row[8] != "active":
+            elif row[8] != "active" and successor is None:
                 excluded["lifecycle"].append(record_id)
+            elif rank != 0 and hold is not None:
+                excluded[hold].append(record_id)
+                held[record_id] = hold
             elif rank == 0 or (
                 not summary_row
-                and (
-                    rank < min_rank
-                    or (rank < reviewed_rank and not (mine or include_unreviewed))
-                )
+                and (rank < min_rank or (rank < reviewed_rank and not admitted))
             ):
                 excluded["review_state"].append(record_id)
             elif row[9] == "sensitive" and not include_sensitive:
@@ -836,6 +1346,10 @@ def wake(
                     summary=row[12],
                     supersedes=tuple(_json_list(row[13])),
                     match=scores.get(record_id, 0.0),
+                    superseded_by=successor,
+                    matched=record_id in scores,
+                    own=mine,
+                    review_cleared=review_cleared,
                 )
                 if summary_row:
                     pending.append((root, candidate))
@@ -844,12 +1358,14 @@ def wake(
             seen_ids.add(record_id)
     eligible = {c.record_id: c for c in candidates}
     candidates.extend(
-        _summary_candidates(pending, eligible, excluded, min_rank=min_rank)
+        _summary_candidates(pending, eligible, excluded, min_rank=min_rank, held=held)
     )
     # Priority order, built from the last key to the first (sorts are stable).
     candidates.sort(key=lambda c: c.record_id)
     candidates.sort(key=lambda c: c.recorded_at, reverse=True)
-    candidates.sort(key=lambda c: (-c.review_rank, -c.match))
+    candidates.sort(key=lambda c: -c.match)
+    candidates.sort(key=lambda c: -_wake_tier(c))
+    candidates.sort(key=_wake_band)
     order = {c.record_id: (c.recorded_at, c.record_id) for c in candidates}
     replaced = {
         older
@@ -915,6 +1431,7 @@ def wake(
                 tokens=cost,
                 text=text,
                 consolidation=candidate.consolidation,
+                superseded_by=candidate.superseded_by,
             )
         )
     excluded["covered"] = [rid for ids in covered_by.values() for rid in ids]
@@ -947,10 +1464,10 @@ def _place_summaries(
     Each summary, best first, covers the cited sources that are still in
     ``kept`` and not covered by a summary before it. It is used when its
     entry costs fewer tokens than those sources' entries together, and then
-    keeps its own queue position: its effective review rank (an extractive
-    summary's lowest source rank, a provider summary's own), then match,
-    then recency. So a summary never rises above a record of a higher review
-    rank, whatever it covers. Otherwise it is excluded as a ``duplicate``.
+    keeps its own queue position: the same bands as any other record, then
+    the reviewed tier (an extractive summary's lowest source rank, a provider
+    summary's own), then match, then recency. Otherwise it is excluded as a
+    ``duplicate``.
     """
     position_of = {c.record_id: n for n, c in enumerate(kept)}
     probe = max(len(kept), 1)  # one position for all cost estimates
@@ -997,8 +1514,10 @@ __all__ = [
     "WakeEntry",
     "WakeResult",
     "check_visibility",
+    "manifest_nodes",
     "match_all",
     "match_any",
     "recall",
+    "recall_scopes",
     "wake",
 ]

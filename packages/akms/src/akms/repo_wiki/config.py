@@ -114,6 +114,9 @@ CONFIG_HEADER = (
 def default_config(repo_root: Path | None = None) -> dict[str, object]:
     repo_name = (repo_root or Path.cwd()).resolve().name
     return {
+        # Mirror bytes are a pinned contract, so the ## Summary section is opt-in.
+        "export": {"mirror_summary": False},
+        "flows": default_flows_config(),
         "generation": {
             "generate_module_docs": True,
             "generate_repo_map": True,
@@ -168,6 +171,29 @@ def default_config(repo_root: Path | None = None) -> dict[str, object]:
             "regenerate_on_code_change": True,
         },
     }
+
+
+def default_flows_config() -> dict[str, object]:
+    """Defaults for the ``flows:`` section (execution flows; see ``akms.repo_wiki.flows``)."""
+    return {
+        "cli_decorators": ["*.command", "*.group"],
+        "enabled": True,
+        "entries": {
+            "cli": True,
+            "console_scripts": True,
+            "roots": True,
+            "scripts": True,
+            "tests": False,
+        },
+        "include_heuristic": False,
+        "max_depth": 6,
+        "max_fanout": 12,
+        "max_flows": 1000,
+        "max_steps": 60,
+    }
+
+
+FLOW_ENTRY_RULES = ("cli", "console_scripts", "roots", "scripts", "tests")
 
 
 def deep_merge(
@@ -272,6 +298,53 @@ def validate_config(config: dict[str, object]) -> None:
         raise ValueError(
             "remote summary providers require allow_source_code_upload: true"
         )
+    if "flows" in config:
+        validate_flows_config(_mapping(config, "flows"))
+    mirror_summary_enabled(config)
+
+
+def mirror_summary_enabled(config: Mapping[str, object]) -> bool:
+    """Return ``export.mirror_summary``: whether mirrors open with a ``## Summary``."""
+    export = config.get("export")
+    if export is None or export == {}:
+        return False
+    if not isinstance(export, Mapping):
+        raise ValueError("export must be a mapping")
+    value = export.get("mirror_summary", False)
+    if not isinstance(value, bool):
+        raise ValueError("export.mirror_summary must be true or false")
+    return value
+
+
+def validate_flows_config(flows: dict[str, object]) -> None:
+    """Reject a ``flows:`` section with unknown keys or values of the wrong type."""
+    known = set(default_flows_config())
+    unknown = sorted(set(flows) - known)
+    if unknown:
+        raise ValueError(f"flows: unknown key(s) {', '.join(unknown)}")
+    for key in ("enabled", "include_heuristic"):
+        if key in flows and not isinstance(flows[key], bool):
+            raise ValueError(f"flows.{key} must be true or false")
+    for key in ("max_depth", "max_fanout", "max_flows", "max_steps"):
+        value = flows.get(key, 1)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"flows.{key} must be a positive integer")
+    entries = flows.get("entries", {})
+    if not isinstance(entries, dict):
+        raise ValueError("flows.entries must be a mapping")
+    for key, value in entries.items():
+        if key not in FLOW_ENTRY_RULES:
+            raise ValueError(
+                f"flows.entries: unknown rule {key!r} "
+                f"(known: {', '.join(FLOW_ENTRY_RULES)})"
+            )
+        if not isinstance(value, bool):
+            raise ValueError(f"flows.entries.{key} must be true or false")
+    patterns = flows.get("cli_decorators", [])
+    if not isinstance(patterns, list) or not all(
+        isinstance(item, str) and item for item in patterns
+    ):
+        raise ValueError("flows.cli_decorators must be a list of patterns")
 
 
 def _mapping(config: dict[str, object], key: str) -> dict[str, object]:

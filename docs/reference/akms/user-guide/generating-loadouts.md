@@ -5,7 +5,9 @@ A loadout is a Markdown knowledge artifact for one task, phase, and role.
 ## Modes
 
 - **Routing:** summaries, paths, and compact metadata
-- **Full:** inline content up to the ordinary advisory token budget
+- **Full:** inline content up to the ordinary advisory token budget, with
+  required and coactivated content bounded separately (see
+  [Full-mode budget](#full-mode-budget))
 
 Per-node `reading_priority` can override the loadout-level mode with `full`,
 `summary`, or `pitfalls-only`. A `summary` node renders its `## Summary`
@@ -85,6 +87,69 @@ loadout:
   coactivated_reading_priority: summary   # full | summary | pitfalls-only
   coactivate_from_advisory: false
 ```
+
+## Code mirrors in routing mode
+
+A code mirror's `content_ref` is relative to the knowledge directory. A mirror
+exported with a [`## Summary` section](../repo-wiki/akms-export.md#mirror-summary)
+is read from there, and that section is what routing mode loads for it, whether
+the mirror is required or coactivated. Only a section ahead of `## Symbol Index`
+counts, because the source text further down may hold such a line too.
+
+In either mode a mirror's `**Path:**` line names it from the repository root, for
+example `.knowledge/code-mirror/src/foo.md`, so a reader can open it from there.
+
+A mirror exported without the section, the default, renders as it always has:
+its entry is the path, with `(no content available)` as the summary. Full mode
+reads the whole mirror from there; see [Full-mode budget](#full-mode-budget).
+
+## Full-mode budget
+
+Required and coactivated selections are not truncated, and a code mirror is a
+whole source file. With every required mirror's body inlined, a large downstream
+project reaches about 315,000 tokens at the 90th percentile and 1.3 million at
+most. `loadout.full_mode_max_tokens` bounds that:
+
+```yaml
+loadout:
+  full_mode_max_tokens: 40000   # null turns the guard off
+```
+
+In a required-aware loadout in full mode:
+
+1. Inline content other than code mirrors is charged first and always stays
+   inline, even when it passes the budget alone. A required lesson can carry a
+   constraint; a mirror can be read again from its path.
+2. Code mirrors follow in loadout order: selection class, then node id. Each is
+   inlined while it fits. The first that does not fit, and every mirror after
+   it, is served the way routing mode serves it: summary and path, read mode
+   `routing`.
+3. No node is dropped. A downgraded mirror stays in its section with its reasons
+   and a `**Downgraded:**` line giving its size in full. A notice under the
+   title and a `full_mode_guard` header entry (`downgraded_nodes`, `max_tokens`,
+   `unguarded_inline_tokens`) name what happened, and a warning is logged.
+
+A loadout within the budget is byte-identical to one with the guard off. Routing
+mode and loadouts without `task_knowledge` are not affected; the latter already
+honour `max_loadout_tokens`.
+
+The budget covers inline required and coactivated content only. Summaries,
+reasons and advisory content (capped by `max_loadout_tokens`) come on top, so a
+guarded loadout can be larger than the budget, and a loadout selecting hundreds
+of files is still as long as its routing-mode entries.
+
+The default of 40,000 sits above the largest required-lesson cost measured on
+that project (about 32,000 tokens), so lessons alone leave room for a mirror.
+It left 48 of 103 replayed tasks untouched and lowered the 90th percentile of the
+whole loadout from about 315,000 tokens to about 52,000.
+
+Full mode reads a code mirror from the knowledge directory when its
+`content_ref` does not resolve from the working directory or the repository root,
+which is the case for an exported mirror. A mirror the guard downgrades is
+summarized only by its own `## Summary` section, as in routing mode, and reads
+`(no content available)` without one. A coactivated mirror without that section
+falls back to full, as any summary-priority node does, and counts toward the
+budget. Routing mode does not load mirror bodies.
 
 ## Retrieval and timestamps
 

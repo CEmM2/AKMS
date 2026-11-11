@@ -15,3 +15,8 @@ def persist(item):
 
 def via_module(value):
     return core.leaf(value)
+
+
+def persist_any(store, item):
+    """Save through whichever store is passed in."""
+    return store.save(item)

@@ -411,6 +411,472 @@ class TestCoactivatedReadingPriority:
         assert "COBODY" in content
 
 
+class TestMirrorSummaryInRoutingMode:
+    """Mirrors in the knowledge directory: routing mode loads the ``## Summary``,
+    full mode the whole body."""
+
+    _BODY = (
+        "# <code>src/foo.py</code>\n\n_Mirror generated: t · phase 1_\n\n"
+        "{summary}## Symbol Index\n\n```json\n[]\n```\n\n"
+        "## Complete Source\n\n```python\nSOURCEBODY\n## Summary\n\nfrom source\n```\n"
+    )
+    _SECTION = "## Summary\n\nFoo does things.\n\nFunctions: `bar()`\n\n"
+
+    def _render(
+        self, tmp_path, monkeypatch, *, summary, mode, selection=None, config=None
+    ):
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        mirror = tmp_path / ".knowledge/code-mirror/src/foo.md"
+        mirror.parent.mkdir(parents=True, exist_ok=True)
+        mirror.write_text(
+            "---\nid: mirror-src-foo\n---\n"
+            + self._BODY.format(summary=self._SECTION if summary else ""),
+            encoding="utf-8",
+        )
+        data = {
+            "title": "Code Mirror: src/foo.py",
+            "confidence": 1.0,
+            "node_origin": "code-mirror",
+            "content_ref": "code-mirror/src/foo.md",
+        }
+        G = nx.DiGraph()
+        G.add_node("mirror-src-foo", **data)
+        return generate_loadout(
+            G,
+            [],
+            task_id="TSK-MIRROR",
+            phase=1,
+            graph_version="graph-v1",
+            seed_tags=[],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=mode,
+            config=config,
+            task_knowledge=_task_knowledge(
+                (
+                    "mirror-src-foo",
+                    selection or SelectionClass.REQUIRED,
+                    ("route",),
+                    data,
+                ),
+            ),
+            repo_root=tmp_path,
+        )
+
+    def test_routing_mode_loads_the_section(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path, monkeypatch, summary=True, mode=LoadoutMode.ROUTING
+        )
+        assert "**Summary:** Foo does things. Functions: `bar()`\n" in content
+        assert "SOURCEBODY" not in content
+
+    def test_coactivated_mirror_loads_the_section(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path,
+            monkeypatch,
+            summary=True,
+            mode=LoadoutMode.ROUTING,
+            selection=SelectionClass.COACTIVATED,
+        )
+        assert "**Summary:** Foo does things. Functions: `bar()`\n" in content
+        assert "SOURCEBODY" not in content
+
+    def test_mirror_without_the_section_renders_as_before(self, tmp_path, monkeypatch):
+        """A "## Summary" line in the source text is not the section."""
+        content = self._render(
+            tmp_path, monkeypatch, summary=False, mode=LoadoutMode.ROUTING
+        )
+        assert "**Summary:** (no content available)" in content
+        assert "from source" not in content
+
+    def test_full_mode_inlines_the_mirror(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path, monkeypatch, summary=False, mode=LoadoutMode.FULL
+        )
+        assert "SOURCEBODY" in content
+        assert "(content not available — read from path)" not in content
+
+    def test_routing_mode_does_not_inline_the_mirror(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path, monkeypatch, summary=False, mode=LoadoutMode.ROUTING
+        )
+        assert "SOURCEBODY" not in content
+
+    def test_full_mode_guard_downgrades_a_loaded_mirror(self, tmp_path, monkeypatch):
+        """Downgraded, a mirror reads as in routing mode: its section only."""
+        config = PropagationConfig()
+        config.loadout.full_mode_max_tokens = 1
+        for summary, expected in (
+            (True, "**Summary:** Foo does things. Functions: `bar()`\n"),
+            (False, "**Summary:** (no content available)"),
+        ):
+            content = self._render(
+                tmp_path,
+                monkeypatch,
+                summary=summary,
+                mode=LoadoutMode.FULL,
+                config=config,
+            )
+            assert "**Downgraded:**" in content
+            assert expected in content
+            assert "SOURCEBODY" not in content
+            assert "from source" not in content
+
+    def test_coactivated_mirror_in_full_mode(self, tmp_path, monkeypatch):
+        """Summary priority keeps the section; without one it falls back to full."""
+        self._BODY = self._BODY.replace("## Summary\n\nfrom source\n", "")
+        for summary, inlined in ((True, False), (False, True)):
+            content = self._render(
+                tmp_path,
+                monkeypatch,
+                summary=summary,
+                mode=LoadoutMode.FULL,
+                selection=SelectionClass.COACTIVATED,
+            )
+            assert ("SOURCEBODY" in content) is inlined
+
+    def test_path_line_opens_from_the_repository_root(self, tmp_path, monkeypatch):
+        for mode in (LoadoutMode.ROUTING, LoadoutMode.FULL):
+            content = self._render(tmp_path, monkeypatch, summary=True, mode=mode)
+            assert "**Path:** `.knowledge/code-mirror/src/foo.md`" in content
+
+    def test_mirror_found_from_the_repository_root_is_unchanged(
+        self, tmp_path, monkeypatch
+    ):
+        """A ref that already resolves loads as before, in either mode."""
+        monkeypatch.chdir(tmp_path)
+        root_copy = tmp_path / "code-mirror/src/foo.md"
+        root_copy.parent.mkdir(parents=True)
+        root_copy.write_text(
+            "---\nid: mirror-src-foo\n---\nROOTBODY\n", encoding="utf-8"
+        )
+        content = self._render(
+            tmp_path, monkeypatch, summary=True, mode=LoadoutMode.FULL
+        )
+        assert "ROOTBODY" in content
+        assert "SOURCEBODY" not in content
+        assert "**Path:** `code-mirror/src/foo.md`" in content
+
+    def test_legacy_knowledge_directory_is_found(self, tmp_path, monkeypatch):
+        (tmp_path / "knowledge").mkdir()
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        mirror = tmp_path / "knowledge/code-mirror/src/foo.md"
+        mirror.parent.mkdir(parents=True)
+        mirror.write_text(
+            "---\nid: mirror-src-foo\n---\n" + self._BODY.format(summary=self._SECTION),
+            encoding="utf-8",
+        )
+        data = {
+            "title": "t",
+            "confidence": 1.0,
+            "node_origin": "code-mirror",
+            "content_ref": "code-mirror/src/foo.md",
+        }
+        G = nx.DiGraph()
+        G.add_node("mirror-src-foo", **data)
+        content = generate_loadout(
+            G,
+            [],
+            task_id="TSK-MIRROR",
+            phase=1,
+            graph_version="graph-v1",
+            seed_tags=[],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=LoadoutMode.ROUTING,
+            task_knowledge=_task_knowledge(
+                ("mirror-src-foo", SelectionClass.REQUIRED, ("route",), data),
+            ),
+            repo_root=tmp_path,
+        )
+        assert "**Summary:** Foo does things." in content
+
+    def test_lesson_without_content_is_not_looked_up(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        lesson = tmp_path / ".knowledge/code-mirror/l.md"
+        lesson.parent.mkdir(parents=True)
+        lesson.write_text(
+            "---\nid: l\n---\n## Summary\n\nNot for a lesson.\n", encoding="utf-8"
+        )
+        data = {
+            "title": "t",
+            "confidence": 1.0,
+            "node_origin": "local",
+            "content_ref": "code-mirror/l.md",
+        }
+        G = nx.DiGraph()
+        G.add_node("l", **data)
+        content = generate_loadout(
+            G,
+            [],
+            task_id="TSK-MIRROR",
+            phase=1,
+            graph_version="graph-v1",
+            seed_tags=[],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=LoadoutMode.ROUTING,
+            task_knowledge=_task_knowledge(
+                ("l", SelectionClass.REQUIRED, ("route",), data)
+            ),
+            repo_root=tmp_path,
+        )
+        assert "Not for a lesson" not in content
+
+
+class TestFullModeGuard:
+    """``loadout.full_mode_max_tokens`` bounds inline required code mirrors."""
+
+    @pytest.fixture(autouse=True)
+    def _frozen_clock(self, monkeypatch):
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        monkeypatch.setattr(
+            "akms.graph.generate_loadout.datetime",
+            SimpleNamespace(now=lambda: datetime(2026, 1, 1, 12, 0, 0)),
+        )
+
+    def _render(
+        self,
+        tmp_path,
+        nodes,
+        *,
+        max_tokens=100,
+        mode=LoadoutMode.FULL,
+        max_loadout_tokens=None,
+    ) -> str:
+        """Render ``(id, class, origin, body_chars)`` nodes; 4 chars is 1 token."""
+        G = nx.DiGraph()
+        entries = []
+        for node_id, selection_class, origin, chars in nodes:
+            marker = f"BODY-{node_id}-"
+            body = marker + "x" * max(0, chars - len(marker))
+            (tmp_path / f"{node_id}.md").write_text(
+                f"---\nid: {node_id}\n---\n{body}\n", encoding="utf-8"
+            )
+            G.add_node(
+                node_id,
+                title=node_id,
+                confidence=0.9,
+                node_origin=origin,
+                content_ref=f"{node_id}.md",
+            )
+            entries.append((node_id, selection_class, ("why",), dict(G.nodes[node_id])))
+        config = PropagationConfig()
+        config.loadout.full_mode_max_tokens = max_tokens
+        if max_loadout_tokens is not None:
+            config.loadout.max_loadout_tokens = max_loadout_tokens
+        return generate_loadout(
+            G,
+            [],
+            task_id="TSK-GUARD",
+            phase=1,
+            graph_version="graph-v1",
+            seed_tags=[],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=mode,
+            config=config,
+            task_knowledge=_task_knowledge(*entries),
+            repo_root=tmp_path,
+        )
+
+    _REQUIRED = SelectionClass.REQUIRED
+
+    def test_default_budget_is_set_and_validated(self):
+        config = PropagationConfig()
+        assert config.loadout.full_mode_max_tokens == 40000
+        assert (
+            PropagationConfig.model_validate(
+                {"loadout": {"full_mode_max_tokens": None}}
+            ).loadout.full_mode_max_tokens
+            is None
+        )
+        with pytest.raises(ValueError, match="full_mode_max_tokens"):
+            PropagationConfig.model_validate({"loadout": {"full_mode_max_tokens": 0}})
+
+    @pytest.mark.parametrize("max_tokens", [100, 40000, None])
+    def test_loadout_within_budget_is_byte_identical_to_guard_off(
+        self, tmp_path, max_tokens
+    ):
+        nodes = [
+            ("mirror-a", self._REQUIRED, "code-mirror", 160),
+            ("mirror-b", self._REQUIRED, "code-mirror", 160),
+            ("zz-lesson", self._REQUIRED, "local", 80),
+        ]
+        guarded = self._render(tmp_path, nodes, max_tokens=max_tokens)
+        unguarded = self._render(tmp_path, nodes, max_tokens=None)
+        assert guarded == unguarded
+        assert "full_mode_guard" not in guarded
+        assert "**Downgraded:**" not in guarded
+
+    def test_budget_exactly_met_does_not_fire(self, tmp_path):
+        content = self._render(
+            tmp_path,
+            [("mirror-a", self._REQUIRED, "code-mirror", 400)],
+            max_tokens=100,
+        )
+        assert "BODY-mirror-a-" in content
+        assert "full_mode_guard" not in content
+
+    def test_remaining_mirrors_become_summary_and_path_never_dropped(self, tmp_path):
+        content = self._render(
+            tmp_path,
+            [
+                ("mirror-a", self._REQUIRED, "code-mirror", 240),
+                ("mirror-b", self._REQUIRED, "code-mirror", 240),
+                ("mirror-c", self._REQUIRED, "code-mirror", 240),
+            ],
+            max_tokens=100,
+        )
+        header = _parse_header(content)
+        assert header["required_nodes"] == ["mirror-a", "mirror-b", "mirror-c"]
+        assert header["full_mode_guard"] == {
+            "downgraded_nodes": ["mirror-b", "mirror-c"],
+            "max_tokens": 100,
+            "unguarded_inline_tokens": 180,
+        }
+        assert "**Full-mode budget exceeded:**" in content
+        assert "Code mirrors served as summary and path only: 2" in content
+
+        def block(node_id: str) -> str:
+            start = content.index(f"### `{node_id}`")
+            end = content.find("\n### `", start + 1)
+            return content[start:end] if end != -1 else content[start:]
+
+        assert "**Downgraded:**" not in block("mirror-a")
+        assert "**Summary:**" not in block("mirror-a")
+        for node_id in ("mirror-b", "mirror-c"):
+            detail = block(node_id)
+            assert "**Downgraded:** over `loadout.full_mode_max_tokens`" in detail
+            assert "~60 tokens in full" in detail
+            assert f"**Path:** `{node_id}.md`" in detail
+            assert "**Summary:** BODY-" in detail
+        assert "| `mirror-b` | required |  | 0.90 | code-mirror | routing |" in content
+
+    def test_overflow_is_a_latch_so_a_later_small_mirror_is_downgraded_too(
+        self, tmp_path
+    ):
+        content = self._render(
+            tmp_path,
+            [
+                ("mirror-a", self._REQUIRED, "code-mirror", 800),
+                ("mirror-b", self._REQUIRED, "code-mirror", 8),
+            ],
+            max_tokens=100,
+        )
+        assert _parse_header(content)["full_mode_guard"]["downgraded_nodes"] == [
+            "mirror-a",
+            "mirror-b",
+        ]
+
+    def test_required_lessons_stay_inline_and_are_charged_first(self, tmp_path):
+        """A lesson sorting after the mirrors still gets the budget before them."""
+        content = self._render(
+            tmp_path,
+            [
+                ("mirror-a", self._REQUIRED, "code-mirror", 240),
+                ("zz-lesson", self._REQUIRED, "local", 240),
+            ],
+            max_tokens=100,
+        )
+        assert "BODY-zz-lesson-" + "x" * 200 in content
+        assert _parse_header(content)["full_mode_guard"]["downgraded_nodes"] == [
+            "mirror-a"
+        ]
+
+    def test_lessons_over_budget_alone_stay_inline(self, tmp_path):
+        content = self._render(
+            tmp_path,
+            [
+                ("mirror-a", self._REQUIRED, "code-mirror", 40),
+                ("zz-lesson", self._REQUIRED, "local", 800),
+            ],
+            max_tokens=100,
+        )
+        assert "BODY-zz-lesson-" + "x" * 700 in content
+        assert _parse_header(content)["full_mode_guard"]["downgraded_nodes"] == [
+            "mirror-a"
+        ]
+
+    def test_only_non_mirror_content_over_budget_reports_nothing(self, tmp_path):
+        content = self._render(
+            tmp_path,
+            [("zz-lesson", self._REQUIRED, "local", 800)],
+            max_tokens=100,
+        )
+        assert "BODY-zz-lesson-" in content
+        assert "full_mode_guard" not in content
+
+    def test_downgraded_mirrors_leave_room_for_advisory_content(self, tmp_path):
+        content = self._render(
+            tmp_path,
+            [
+                ("mirror-a", self._REQUIRED, "code-mirror", 4000),
+                ("adv-a", SelectionClass.ADVISORY, "local", 200),
+            ],
+            max_tokens=100,
+            max_loadout_tokens=500,
+        )
+        assert "[... truncated to fit token budget]" not in content
+        assert "BODY-adv-a-" in content
+
+    def test_routing_mode_is_untouched(self, tmp_path):
+        nodes = [("mirror-a", self._REQUIRED, "code-mirror", 4000)]
+        routed = self._render(tmp_path, nodes, max_tokens=1, mode=LoadoutMode.ROUTING)
+        assert routed == self._render(
+            tmp_path, nodes, max_tokens=None, mode=LoadoutMode.ROUTING
+        )
+        assert "full_mode_guard" not in routed
+
+    def test_output_is_deterministic(self, tmp_path):
+        nodes = [
+            ("mirror-b", self._REQUIRED, "code-mirror", 240),
+            ("mirror-a", self._REQUIRED, "code-mirror", 240),
+        ]
+        first = self._render(tmp_path, nodes, max_tokens=100)
+        assert first == self._render(tmp_path, list(reversed(nodes)), max_tokens=100)
+        assert _parse_header(first)["full_mode_guard"]["downgraded_nodes"] == [
+            "mirror-b"
+        ]
+
+    def test_coactivated_mirror_without_summary_is_guarded(self, tmp_path):
+        """FR-L10c renders it in full, so it counts as inline content too."""
+        content = self._render(
+            tmp_path,
+            [("mirror-a", SelectionClass.COACTIVATED, "code-mirror", 800)],
+            max_tokens=100,
+        )
+        assert _parse_header(content)["full_mode_guard"]["downgraded_nodes"] == [
+            "mirror-a"
+        ]
+
+    def test_legacy_loadout_has_no_guard(self, tmp_path):
+        """Without task knowledge every node already honours max_loadout_tokens."""
+        (tmp_path / "mirror-a.md").write_text(
+            "---\nid: mirror-a\n---\n" + "x" * 8000 + "\n", encoding="utf-8"
+        )
+        data = {
+            "title": "mirror-a",
+            "confidence": 0.9,
+            "node_origin": "code-mirror",
+            "content_ref": "mirror-a.md",
+        }
+        G = nx.DiGraph()
+        G.add_node("mirror-a", **data)
+        config = PropagationConfig()
+        config.loadout.full_mode_max_tokens = 1
+        content = generate_loadout(
+            G,
+            [("mirror-a", data)],
+            task_id="TSK-LEGACY",
+            phase=1,
+            graph_version="graph-v1",
+            seed_tags=[],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=LoadoutMode.FULL,
+            config=config,
+            repo_root=tmp_path,
+        )
+        assert "full_mode_guard" not in content
+        assert "x" * 1000 in content
+
+
 class TestStructuralPitfallWarnings:
     def test_pitfalls_render_when_qmd_unavailable(
         self, tmp_vault, tmp_repo, monkeypatch

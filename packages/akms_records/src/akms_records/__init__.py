@@ -10,10 +10,18 @@ A derived SQLite index (FTS5) answers scoped ``recall`` and token-budgeted
 summaries are records too; each assertion cites the source revisions it came
 from, and a summary turns stale when a source changes.
 
-This package does not import ``akms``. The optional ``[akms]`` extra is
-reserved for a later promotion bridge into AKMS project-local nodes.
+Importing this package does not import ``akms``. The optional ``[akms]`` extra
+enables ``promote``, which writes a reviewed record as an AKMS project-local
+node; ``import_failure_memory`` reads a failure-memory registry without
+needing that package at all.
 """
 
+from akms_records.bridge import (
+    confirm_yes,
+    promote,
+    promotion_status,
+    withdraw_promotion,
+)
 from akms_records.consolidate import (
     command_summarizer,
     consolidate,
@@ -30,10 +38,26 @@ from akms_records.errors import (
     ScopeViolation,
     StaleRevision,
 )
-from akms_records.query import RecallHit, RecallResult, WakeEntry, WakeResult, wake
+from akms_records.failure_memory import import_failure_memory
+from akms_records.query import (
+    RecallHit,
+    RecallResult,
+    WakeEntry,
+    WakeResult,
+    manifest_nodes,
+    recall_scopes,
+    wake,
+)
 from akms_records.schemas import RegisteredSchema, SchemaRegistry
 from akms_records.scope import Scope, store_root
 from akms_records.store import RecordStore, WriteResult
+
+from akms_records.workflows import (
+    draft_document,
+    review_queue,
+    review_record,
+    validate_document,
+)
 
 __version__ = "0.3.2"
 
@@ -57,9 +81,20 @@ __all__ = [
     "WriteResult",
     "__version__",
     "command_summarizer",
+    "confirm_yes",
     "consolidate",
     "consolidation_status",
+    "draft_document",
+    "review_queue",
+    "review_record",
+    "validate_document",
+    "import_failure_memory",
     "list_consolidations",
+    "manifest_nodes",
+    "promote",
+    "promotion_status",
+    "withdraw_promotion",
+    "recall_scopes",
     "refresh_consolidation",
     "store_root",
     "wake",

@@ -176,6 +176,8 @@ nav:
         - context: reference/akms/repo-wiki/context.md
         - impact: reference/akms/repo-wiki/impact.md
         - changes: reference/akms/repo-wiki/changes.md
+        - flows and flow: reference/akms/repo-wiki/flows.md
+        - hooks: reference/akms/repo-wiki/hooks.md
         - Reading Impact and Risk: reference/akms/repo-wiki/reading-impact.md
       - API Reference:
         - Schema:
@@ -227,8 +229,10 @@ nav:
     - Records (Experimental):
       - reference/records/index.md
       - CLI Reference: reference/records/cli-reference.md
+      - Authoring and Review: reference/records/authoring-and-review.md
       - Recall and Wake: reference/records/recall-and-wake.md
       - Consolidation: reference/records/consolidation.md
+      - Promotion and Import: reference/records/promotion-and-import.md
       - Search Index: reference/records/search-index.md
       - Storage Format: reference/records/storage-format.md
       - Schemas and Templates: reference/records/schemas-and-templates.md

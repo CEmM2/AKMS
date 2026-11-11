@@ -27,6 +27,10 @@ Optional :class:`~akms.task_context.query.TaskKnowledgeQueryResult` and
 :class:`~akms.task_context.manifest.ResolutionManifest` inputs render required
 knowledge first (uncapped), coactivated next, and advisory last under the
 ordinary token budget. Omitting those arguments preserves legacy output.
+
+Code mirrors are whole source files, so a full-mode loadout that inlines them
+is bounded by ``loadout.full_mode_max_tokens``: past it, the remaining mirrors
+are served as summary and path, and the loadout names them.
 """
 
 from __future__ import annotations
@@ -36,7 +40,7 @@ import subprocess
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import frontmatter
 import networkx as nx
@@ -52,7 +56,9 @@ from akms.schema.models import (
     ReadingPriority,
 )
 from akms.graph.qmd_cache import get_cached, put_cached
+from akms.graph.record_projections import guard_projection_content
 from akms._resources import seed_qmd_path
+from akms.layout import local_knowledge_dir
 from akms.graph.query_subgraph import compute_query_hash
 from akms.telemetry import traced
 
@@ -70,6 +76,8 @@ _CLASS_ORDER = {
     _CLASS_COACTIVATED: 1,
     _CLASS_ADVISORY: 2,
 }
+_UNCAPPED_CLASSES = frozenset({_CLASS_REQUIRED, _CLASS_COACTIVATED})
+_ORIGIN_CODE_MIRROR = "code-mirror"
 
 
 def _retrieve_node_content_qmd(
@@ -243,6 +251,70 @@ def _has_summary_section(content: str) -> bool:
     return False
 
 
+def _mirror_summary_source(node_data: dict[str, Any], repo_root: Path | None) -> str:
+    """Return a code mirror's body when it was exported with a ``## Summary``.
+
+    A mirror's ``content_ref`` is relative to the knowledge directory, so
+    ``_load_node_content`` does not find it from the repository root. Routing
+    mode reads it from there, and only the section ahead of the symbol index
+    counts: the source text further down may hold such a line too. A mirror
+    without the section yields "" and renders as it did before the section
+    existed.
+    """
+    if repo_root is None or node_data.get("node_origin") != "code-mirror":
+        return ""
+    content = _load_node_content(
+        node_data.get("content_ref"), local_knowledge_dir(repo_root)
+    )
+    head = content.split("\n## Symbol Index", 1)[0]
+    return content if _has_summary_section(head) else ""
+
+
+def _local_node_ref(node_id: str, repo_root: Path | None) -> str | None:
+    """Repo-relative path of a local node written without ``content_ref``.
+
+    Promotion writes ``<knowledge>/local-nodes/<id>.md`` and leaves
+    ``content_ref`` empty. The graph then has the title and no body. The
+    loadout reads that file, and an explicit ``content_ref`` is left alone.
+    """
+    if repo_root is None or "/" in node_id or node_id in {"", ".", ".."}:
+        return None
+    directory = local_knowledge_dir(repo_root) / "local-nodes"
+    direct = directory / f"{node_id}.md"
+    nested = sorted(directory.glob(f"**/{node_id}.md")) if directory.is_dir() else []
+    seen: set[Path] = set()
+    for candidate in (direct, *nested):
+        if candidate in seen or not candidate.is_file():
+            continue
+        seen.add(candidate)
+        try:
+            return candidate.relative_to(repo_root).as_posix()
+        except ValueError:
+            continue
+    return None
+
+
+def _knowledge_dir_mirror(
+    node_data: dict[str, Any], repo_root: Path | None
+) -> Path | None:
+    """Return a code mirror's file when only the knowledge directory holds it.
+
+    None for other nodes, and for a mirror whose ``content_ref`` resolves as
+    given or from the repository root, which load as they always have.
+    """
+    content_ref = node_data.get("content_ref")
+    if (
+        repo_root is None
+        or not content_ref
+        or node_data.get("node_origin") != _ORIGIN_CODE_MIRROR
+    ):
+        return None
+    if Path(content_ref).exists() or (repo_root / content_ref).exists():
+        return None
+    path = local_knowledge_dir(repo_root) / content_ref
+    return path if path.is_file() else None
+
+
 def _extract_summary(content: str, max_sentences: int = 5) -> str:
     """Extract a brief summary from content (first N sentences).
 
@@ -356,6 +428,96 @@ def _build_reading_order(
     return order
 
 
+def _node_reading_priority(
+    node_data: dict[str, Any],
+    selection_class: str | None,
+    loadout_config: LoadoutConfig,
+) -> str | None:
+    """Return a node's reading priority; coactivated nodes take the loadout's."""
+    reading_priority = node_data.get("reading_priority")
+    if isinstance(reading_priority, ReadingPriority):
+        reading_priority = reading_priority.value
+    coactivated = (
+        selection_class == _CLASS_COACTIVATED
+        if selection_class is not None
+        else bool(node_data.get("_coactivated"))
+    )
+    if coactivated:
+        # Coactivated nodes take the loadout's coactivated priority.
+        reading_priority = loadout_config.coactivated_reading_priority.value
+    return reading_priority
+
+
+def _effective_read_mode(
+    reading_priority: str | None,
+    mode_str: str,
+    content: str,
+) -> str:
+    """Resolve how one node renders; per-node priority wins over the mode (FR-L10c)."""
+    effective_mode = (reading_priority or mode_str) or "routing"
+    # FR-L10c: a summary-priority node without a `## Summary` section
+    # falls back to full; its first lines are not a summary.
+    if reading_priority == "summary" and content and not _has_summary_section(content):
+        effective_mode = "full"
+    return effective_mode
+
+
+def _full_mode_downgrades(
+    ranked_nodes: list[tuple[str, dict[str, Any]]],
+    mode_str: str,
+    loadout_config: LoadoutConfig,
+    body_of: Callable[[Any], str],
+) -> tuple[dict[str, int], int]:
+    """Pick the code mirrors a full-mode loadout serves as summary and path.
+
+    Only required and coactivated content is uncapped, so only it can balloon.
+    Everything except code mirrors is charged first and stays inline: a mirror
+    can be re-read from its path, a required constraint must not be hidden.
+    Mirrors then take what is left in ranked order, class then node id; the
+    first one that does not fit is downgraded and so is every mirror after it.
+
+    Returns ``({node_id: full_tokens}, inline_tokens_without_the_guard)``. The
+    mapping is empty for every loadout within the budget, so those stay
+    byte-identical.
+    """
+    budget = loadout_config.full_mode_max_tokens
+    if budget is None or mode_str != LoadoutMode.FULL.value:
+        return {}, 0
+
+    fixed_tokens = 0
+    mirrors: list[tuple[str, int]] = []
+    for node_id, node_data in ranked_nodes:
+        selection_class = _normalize_selection_class(node_data.get("_selection_class"))
+        if selection_class not in _UNCAPPED_CLASSES:
+            continue
+        content = body_of(node_data.get("content_ref"))
+        reading_priority = _node_reading_priority(
+            node_data, selection_class, loadout_config
+        )
+        if not content or (
+            _effective_read_mode(reading_priority, mode_str, content) != "full"
+        ):
+            continue
+        tokens = _estimate_content_tokens(content)
+        if node_data.get("node_origin") == _ORIGIN_CODE_MIRROR:
+            mirrors.append((node_id, tokens))
+        else:
+            fixed_tokens += tokens
+
+    inline_tokens = fixed_tokens + sum(tokens for _, tokens in mirrors)
+    if inline_tokens <= budget:
+        return {}, inline_tokens
+
+    downgraded: dict[str, int] = {}
+    spent = fixed_tokens
+    for node_id, tokens in mirrors:
+        if not downgraded and spent + tokens <= budget:
+            spent += tokens
+        else:
+            downgraded[node_id] = tokens
+    return downgraded, inline_tokens
+
+
 def _normalize_selection_class(raw: Any) -> str | None:
     """Return a canonical selection-class string, or None when absent."""
     if raw is None:
@@ -436,6 +598,14 @@ def _render_node_detail(entry: dict[str, Any], parts: list[str]) -> None:
 
     if "content_ref" in entry:
         parts.append(f"**Path:** `{entry['content_ref']}`")
+        parts.append("")
+
+    if "full_mode_downgrade_tokens" in entry:
+        parts.append(
+            "**Downgraded:** over `loadout.full_mode_max_tokens`, so this mirror "
+            f"(~{entry['full_mode_downgrade_tokens']} tokens in full) is summary "
+            "and path only. Read the path for its full content."
+        )
         parts.append("")
 
     if "content" in entry:
@@ -520,7 +690,9 @@ def generate_loadout(
         task_knowledge: Optional exact task-knowledge query result. When set,
             required / coactivated / advisory nodes render as distinct sections
             with reasons, and required content is never truncated by the token
-            budget. When omitted, legacy output is preserved.
+            budget. In full mode, ``loadout.full_mode_max_tokens`` bounds inline
+            content by serving code mirrors as summary and path past it. When
+            omitted, legacy output is preserved.
         resolution_manifest: Optional resolution manifest. When set, its
             fingerprint is recorded in the loadout header for audit linkage.
 
@@ -610,12 +782,73 @@ def generate_loadout(
     if resolution_manifest is not None:
         header["resolution_fingerprint"] = resolution_manifest.fingerprint
 
+    # Disk is authoritative for managed projections: caches may predate a
+    # record amendment, retraction, erasure, or a manual edit to its block.
+    projection_bodies: dict[str, str] = {}
+    projection_refs: dict[str, str] = {}
+    projection_titles: dict[str, str] = {}
+    blocked_projections: set[str] = set()
+    for node_id, node_data in ranked_nodes:
+        # The managed block lives in the node file, even when content_ref
+        # points at a separate authored document. Do not test the latter for
+        # markers known to exist only in the former.
+        local_ref = node_data.get("_record_projection_ref") or _local_node_ref(
+            node_id, repo_path
+        )
+        ref = local_ref or node_data.get("content_ref")
+        if not ref:
+            if node_data.get("_record_projection"):
+                blocked_projections.add(node_id)
+            continue
+        disk_ref = repo_path / str(ref) if repo_path is not None else Path(ref)
+        disk_body = _load_node_content(str(disk_ref))
+        guard = guard_projection_content(disk_body, repo_path)
+        if (
+            not guard.managed
+            and not node_data.get("_record_projection")
+            and node_data.get("content_ref")
+        ):
+            ref = node_data["content_ref"]
+            disk_ref = repo_path / str(ref) if repo_path is not None else Path(ref)
+            guard = guard_projection_content(
+                _load_node_content(str(disk_ref)), repo_path
+            )
+        if guard.managed or node_data.get("_record_projection"):
+            projection_refs[node_id] = str(ref)
+            content = guard.content
+            if not guard.current or not guard.managed:
+                blocked_projections.add(node_id)
+            else:
+                try:
+                    disk_post = frontmatter.load(str(disk_ref))
+                    projection_titles[node_id] = str(
+                        disk_post.metadata.get("title", node_id)
+                    )
+                except (OSError, KeyError, ValueError, yaml.YAMLError):
+                    blocked_projections.add(node_id)
+                external_ref = node_data.get("content_ref")
+                if external_ref and str(external_ref) != str(ref):
+                    external_path = (
+                        repo_path / str(external_ref)
+                        if repo_path
+                        else Path(external_ref)
+                    )
+                    if external_path.resolve() != disk_ref.resolve():
+                        external = guard_projection_content(
+                            _load_node_content(str(external_path)), repo_path
+                        )
+                        if not external.current:
+                            blocked_projections.add(node_id)
+                        content = external.content + "\n\n" + content
+            projection_bodies[str(ref)] = content
+
     # ── Section 2: Domain Knowledge ──────────────────────────────────
     scoped_paths = sorted(
         {
             str(node_data.get("content_ref"))
             for _, node_data in ranked_nodes
             if node_data.get("content_ref")
+            and str(node_data["content_ref"]) not in projection_bodies
         },
     )
     # qmd retrieval returns list[{path, line, content}] sorted by
@@ -666,6 +899,57 @@ def generate_loadout(
             if path and path not in qmd_content_by_path and item.get("content"):
                 qmd_content_by_path[path] = item["content"]
 
+    mirror_files: dict[str, Path] = {}
+    for _node_id, node_data in ranked_nodes:
+        mirror_file = _knowledge_dir_mirror(node_data, repo_path)
+        if mirror_file is not None:
+            mirror_files[str(node_data["content_ref"])] = mirror_file
+
+    node_bodies: dict[str, str] = {}
+
+    def body_of(content_ref: Any) -> str:
+        """Return a node's body, from qmd when it had a hit, else its file."""
+        if not content_ref:
+            return ""
+        ref = str(content_ref)
+        if ref in projection_bodies:
+            return projection_bodies[ref]
+        if ref not in node_bodies:
+            body = qmd_content_by_path.get(ref, "") or _load_node_content(
+                content_ref, repo_path
+            )
+            if not body and ref in mirror_files and mode_str == LoadoutMode.FULL.value:
+                # Full mode inlines a mirror from the knowledge directory;
+                # full_mode_max_tokens bounds how many. Routing mode does not.
+                body = _load_node_content(str(mirror_files[ref]))
+            cached_guard = guard_projection_content(body, repo_path)
+            if cached_guard.managed:
+                # A cached marker alone cannot establish what is now on disk.
+                body = ""
+                for candidate_id, candidate_data in ranked_nodes:
+                    if str(candidate_data.get("content_ref")) == ref:
+                        blocked_projections.add(candidate_id)
+            node_bodies[ref] = body
+        return node_bodies[ref]
+
+    downgrades, unguarded_inline_tokens = _full_mode_downgrades(
+        ranked_nodes, mode_str, loadout_config, body_of
+    )
+    if downgrades:
+        header["full_mode_guard"] = {
+            "downgraded_nodes": sorted(downgrades),
+            "max_tokens": loadout_config.full_mode_max_tokens,
+            "unguarded_inline_tokens": unguarded_inline_tokens,
+        }
+        logger.warning(
+            "Loadout %s: code mirrors served as summary and path: %d; inline "
+            "content would be ~%d tokens, over full_mode_max_tokens=%s",
+            task_id,
+            len(downgrades),
+            unguarded_inline_tokens,
+            loadout_config.full_mode_max_tokens,
+        )
+
     node_entries: list[dict[str, Any]] = []
     total_tokens = 0
     max_tokens = loadout_config.max_loadout_tokens
@@ -682,7 +966,7 @@ def generate_loadout(
             "origin": node_data.get("node_origin", "unknown"),
             "confidence": node_data.get("confidence", 0.0),
             "domain": node_data.get("domain", ""),
-            "title": node_data.get("title", node_id),
+            "title": projection_titles.get(node_id, node_data.get("title", node_id)),
         }
         if selection_class is not None:
             entry["selection_class"] = selection_class
@@ -690,45 +974,52 @@ def generate_loadout(
         if reasons:
             entry["reasons"] = tuple(reasons)
 
-        content_ref = node_data.get("content_ref")
-        reading_priority = node_data.get("reading_priority")
-
-        # Determine effective read mode for this node
-        if isinstance(reading_priority, ReadingPriority):
-            reading_priority = reading_priority.value
-        coactivated = (
-            selection_class == _CLASS_COACTIVATED
-            if selection_class is not None
-            else bool(node_data.get("_coactivated"))
+        content_ref = projection_refs.get(node_id) or node_data.get("content_ref")
+        if not content_ref:
+            content_ref = _local_node_ref(node_id, repo_path)
+        reading_priority = _node_reading_priority(
+            node_data, selection_class, loadout_config
         )
-        if coactivated:
-            # Coactivated nodes take the loadout's coactivated priority.
-            reading_priority = loadout_config.coactivated_reading_priority.value
         if reading_priority:
             entry["reading_priority"] = str(reading_priority)
         else:
             entry["reading_priority"] = mode_str
 
         # Load content based on mode and reading_priority
-        content = ""
         if content_ref:
             entry["content_ref"] = str(content_ref)
-            content = qmd_content_by_path.get(str(content_ref), "")
-            if not content:
-                content = _load_node_content(content_ref, repo_path)
+            mirror_file = mirror_files.get(str(content_ref))
+            if mirror_file is not None and repo_path is not None:
+                # The path a reader at the repository root can open.
+                entry["content_ref"] = mirror_file.relative_to(repo_path).as_posix()
+        content = body_of(content_ref)
+
+        if node_id in blocked_projections:
+            # Do not expose cached titles, source paths, or authored prose from
+            # a mixed node when any record-derived part is no longer current.
+            entry = {
+                "id": node_id,
+                "origin": "local",
+                "confidence": 0.0,
+                "domain": "",
+                "title": "Record projection needs review",
+                "reading_priority": "review",
+                "content": "Record projection unavailable: review and refresh this node before using it.",
+            }
+            if selection_class is not None:
+                entry["selection_class"] = selection_class
+            node_entries.append(entry)
+            continue
 
         # Resolve effective_mode once per node so per-node
         # reading_priority wins over the loadout-level mode_str per FR-L10c.
         # Precedence: reading_priority (if set) > mode_str.
-        effective_mode = (reading_priority or mode_str) or "routing"
-        # FR-L10c: a summary-priority node without a `## Summary` section
-        # falls back to full; its first lines are not a summary.
-        if (
-            reading_priority == "summary"
-            and content
-            and not _has_summary_section(content)
-        ):
-            effective_mode = "full"
+        effective_mode = _effective_read_mode(reading_priority, mode_str, content)
+        if node_id in downgrades:
+            # Over the full-mode budget: serve this mirror as routing mode would.
+            effective_mode = LoadoutMode.ROUTING.value
+            entry["reading_priority"] = effective_mode
+            entry["full_mode_downgrade_tokens"] = downgrades[node_id]
 
         if effective_mode == "pitfalls-only":
             pitfall_content = _extract_pitfall_sections(content)
@@ -758,7 +1049,12 @@ def generate_loadout(
         else:
             # Routing / summary mode: summary + path. Required summaries are
             # always included (they are small); budget still tracks totals.
-            summary = _extract_summary(content)
+            # A mirror read from the knowledge directory is summarized only by
+            # its own section, as in routing mode, not by its source text.
+            source = "" if str(content_ref) in mirror_files else content
+            summary = _extract_summary(
+                source or _mirror_summary_source(node_data, repo_path)
+            )
             entry["summary"] = summary
             total_tokens += loadout_config.routing_tokens_per_node
 
@@ -773,7 +1069,9 @@ def generate_loadout(
         if isinstance(edge_type, EdgeType):
             edge_type = edge_type.value
         if str(edge_type) == EdgeType.PITFALL.value:
-            if u in node_id_set or v in node_id_set:
+            if (u in node_id_set or v in node_id_set) and not (
+                {u, v} & blocked_projections
+            ):
                 warning = {
                     "from": u,
                     "to": v,
@@ -788,7 +1086,9 @@ def generate_loadout(
     # ── Section 4: Session History ───────────────────────────────────
     session_refs = []
     for node_id, node_data in ranked_nodes:
-        refs = node_data.get("session_refs", [])
+        refs = (
+            [] if node_id in blocked_projections else node_data.get("session_refs", [])
+        )
         if refs:
             for ref in refs:
                 session_refs.append(
@@ -799,7 +1099,9 @@ def generate_loadout(
                 )
 
     # ── Section 5: Reading Order ─────────────────────────────────────
-    node_ids_ordered = [nid for nid, _ in ranked_nodes]
+    node_ids_ordered = [
+        nid for nid, _ in ranked_nodes if nid not in blocked_projections
+    ]
     reading_order = _build_reading_order(G, node_ids_ordered)
 
     # ── Assemble Markdown ────────────────────────────────────────────
@@ -814,6 +1116,18 @@ def generate_loadout(
     # Title
     parts.append(f"# Loadout: {task_id}")
     parts.append("")
+
+    if downgrades:
+        parts.append(
+            f"**Full-mode budget exceeded:** inline content would be "
+            f"~{unguarded_inline_tokens} tokens, over "
+            f"`loadout.full_mode_max_tokens` "
+            f"({loadout_config.full_mode_max_tokens}). Code mirrors served as "
+            f"summary and path only: {len(downgrades)}, each marked **Downgraded** "
+            "below and listed under `full_mode_guard` in the header. No node was "
+            "dropped."
+        )
+        parts.append("")
 
     if required_aware:
         required_entries = [

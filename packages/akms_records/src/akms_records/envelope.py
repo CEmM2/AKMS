@@ -13,6 +13,12 @@ Fields fall into three groups:
 * fixed by the request: ``scope``;
 * supplied by the writer: ``schema_ref``, ``origin``, ``source_refs``,
   ``summary``, ``tags``, ``sensitivity``, ``review_state`` and ``payload``.
+
+One source reference kind is reserved: ``promoted-to`` links a record to the
+AKMS node it became (see :mod:`akms_records.bridge`). Only the store's
+:meth:`~akms_records.store.RecordStore.record_promotion` writes it, so the
+event format and the envelope keys stay exactly what they were, and a record
+without a link has the same bytes as before the link existed.
 """
 
 from __future__ import annotations
@@ -74,6 +80,7 @@ MAX_REFS = 64
 MAX_REF_TEXT = 1000
 _SLUG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/+-]*")
 _ACTOR = re.compile(r"[^\x00-\x1f\x7f]{1,128}")
+PROMOTED_KIND = "promoted-to"
 
 
 def _invalid(message: str) -> RecordsError:
@@ -136,6 +143,39 @@ def normalize_summary(value: Any) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > MAX_SUMMARY:
         raise _invalid(f"summary must be non-empty text of at most {MAX_SUMMARY}")
     return value
+
+
+def promotion_ref(node_id: str, revision: int) -> str:
+    """The ``ref`` of a promotion link: the node, and the revision promoted."""
+    return f"{node_id}@{revision}"
+
+
+def promotion_link(source_refs: Any) -> dict[str, Any] | None:
+    """The promotion link in ``source_refs``, or ``None`` when it has none.
+
+    ``node_id`` is the AKMS node, ``revision`` the record revision it holds and
+    ``path`` how it was written (``default`` or ``human-policy``).
+    """
+    for ref in reversed(source_refs if isinstance(source_refs, list) else []):
+        if not isinstance(ref, dict) or ref.get("kind") != PROMOTED_KIND:
+            continue
+        node_id, separator, revision = str(ref.get("ref", "")).rpartition("@")
+        if separator and node_id and re.fullmatch(r"[1-9][0-9]*", revision):
+            return {
+                "node_id": node_id,
+                "revision": int(revision),
+                "path": ref.get("note"),
+            }
+    return None
+
+
+def refuse_promotion_links(source_refs: Any) -> None:
+    """A writer cannot set or forge a promotion link; ``promote`` writes it."""
+    if any(ref.get("kind") == PROMOTED_KIND for ref in source_refs):
+        raise RecordsError(
+            f"the source reference kind {PROMOTED_KIND!r} is written only by promote",
+            code="reserved_source_ref",
+        )
 
 
 def check_payload_keys(payload: Any) -> dict[str, Any]:
@@ -242,6 +282,29 @@ class Record:
     superseded_by: str | None = None
     reason: str | None = None
     event_ids: tuple[str, ...] = field(default_factory=tuple)
+    prev_sha256: str | None = None
+
+    @property
+    def promoted_to(self) -> dict[str, Any] | None:
+        """The AKMS node this record became, or ``None`` (see :func:`promotion_link`)."""
+        return promotion_link(self.source_refs)
+
+    @property
+    def _head_is_link(self) -> bool:
+        link = self.promoted_to
+        return link is not None and self.revision == link["revision"] + 1
+
+    @property
+    def content_revision(self) -> int:
+        """The revision whose content this is: a promotion link changes no content."""
+        return self.revision - 1 if self._head_is_link else self.revision
+
+    @property
+    def content_sha256(self) -> str:
+        """The digest of :attr:`content_revision`'s event."""
+        if self._head_is_link and self.prev_sha256 is not None:
+            return self.prev_sha256
+        return self.head_sha256
 
     def envelope_json(self) -> dict[str, Any]:
         """The record as its envelope plus payload: the public record shape."""
@@ -264,13 +327,17 @@ class Record:
 
     def state_json(self) -> dict[str, Any]:
         """Replay facts that are not part of the record itself."""
-        return {
+        state: dict[str, Any] = {
             "updated_at": self.updated_at,
             "head_sha256": self.head_sha256,
             "superseded_by": self.superseded_by,
             "reason": self.reason,
             "events": len(self.event_ids),
         }
+        link = self.promoted_to
+        if link is not None:
+            state["promoted_to"] = link
+        return state
 
     def writer_fields(self) -> dict[str, Any]:
         return {
@@ -289,9 +356,13 @@ __all__ = [
     "ENVELOPE_KEYS",
     "LIFECYCLE_STATES",
     "ORIGIN_KINDS",
+    "PROMOTED_KIND",
     "REVIEW_STATES",
     "Record",
     "SENSITIVITY_LEVELS",
     "check_payload_keys",
     "parse_record_document",
+    "promotion_link",
+    "promotion_ref",
+    "refuse_promotion_links",
 ]

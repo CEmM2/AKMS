@@ -19,10 +19,10 @@ akms-records [--version] [--json-errors] <command> ...
   when the command failed. A failure prints `error[<code>]: <message>` on stderr,
   or `{"status": "error", "error": {"code": ..., "message": ...}}` on stdout
   with `--json-errors`.
-- **Scope.** Every command except `schema templates` and `wake` takes
+- **Scope.** Every command except `schema templates`, `recall` and `wake` takes
   `--scope project:<id>|agent:<id>|shared:<id>`, plus `--repo PATH` for
-  project scope (default: the current directory). `wake` takes `--agent` and
-  any number of `--scope` options.
+  project scope (default: the current directory). `recall` takes any number of
+  `--scope` options, and `wake` takes `--agent` and any number of them.
 - **Actor.** `--actor NAME` records who acted. The default is
   `$AKMS_RECORDS_ACTOR`, then the operating-system user name.
 - **Idempotency.** Write commands take `--event-id ID`. Running the same
@@ -65,19 +65,38 @@ cannot be `established`.
 | Command | Purpose |
 |---|---|
 | `add --file DOC [--schema REF]` | Create a record. |
-| `amend RECORD --expect-revision N [--file DOC]` | Amend fields; fields not given keep their value. |
+| `amend RECORD --expect-revision N [--file DOC]` | Amend fields; fields not given keep their value, except that a summary from the schema's template follows a new payload (see [templates](schemas-and-templates.md#summaries-and-amends)). |
 | `supersede RECORD --expect-revision N (--by OTHER \| --file DOC [--schema REF]) [--reason TEXT]` | Mark a record superseded by an existing record, or by a new one created from `DOC`. |
 | `retract RECORD --expect-revision N --reason TEXT` | Mark a record retracted. |
 | `show RECORD` | The current state: `record` (envelope and payload) and `state` (update time, head digest, successor, reason). |
 | `history RECORD` | Every event, oldest first. |
 | `list` | The scope's records, by reading the files (not the index), plus any that fail to replay. |
 
+**A review does not outlive the text it was of.** When an agent changes a record's
+content (its payload, summary or origin), a reviewed record becomes `unreviewed`, so
+it stops being offered to other agents as checked. Tags, source references and
+sensitivity are not content and keep the state, and `promote`'s link changes nothing.
+`rejected` stays `rejected`.
+
+- **Who keeps the state:** the person the record belongs to, meaning an actor equal
+  to `origin.actor_id` on a record whose `origin.kind` is `human` or `human-confirmed`.
+  Every other actor counts as an agent, because actor names say nothing else. A person
+  changing someone else's record confirms it again in a separate amend.
+- **Naming a state in the same amend:** `unreviewed` and `agent_reviewed` are allowed,
+  since an agent can say it reviewed its own edit. `user_confirmed` is refused with
+  `review_reassert` and nothing is written.
+- **The limit:** this is a rule for cooperating agents. An agent can pass a person's
+  name as `--actor`, or set `user_confirmed` in a later amend. The second step shows in
+  `history`, with the actor. Without `$AKMS_RECORDS_ACTOR`, the default actor is the
+  operating-system user, the same for a person and any agent they run, so set it for
+  agents.
+
 ## Recall and wake
 
 | Command | Purpose |
 |---|---|
-| `recall [--query WORDS] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--agent ID] [--limit N] [--full] [--format json\|text]` | Search the scope through the index; ranked by BM25, then newest first. |
-| `wake --agent ID --task TEXT --budget-tokens N [--scope S]... [--include-sensitive] [--include-unreviewed] [--review-state MIN] [--format json\|markdown] [--generated-at]` | Prioritised, deduplicated records for an agent within a hard token budget, with a truncation report. By default: reviewed records plus the agent's own unreviewed ones; `--include-unreviewed` adds everyone's. |
+| `recall [--scope S]... [--agent ID [--visible]] [--query WORDS] [--match auto\|all\|any] [--semantic [--embed-sensitive]] [--schema REF] [--tag TAG]... [--since T] [--until T] [--review-state MIN] [--include-retracted] [--include-superseded] [--include-sensitive] [--limit N] [--full] [--format json\|text]` | Search one or more scopes through the index: every word, else any word, ranked by BM25, then newest first. |
+| `wake --agent ID --task TEXT --budget-tokens N [--scope S]... [--include-sensitive] [--include-unreviewed] [--include-promoted] [--include-imported] [--exclude-nodes MANIFEST] [--review-state MIN] [--format json\|markdown] [--generated-at]` | Prioritised, deduplicated records for an agent within a hard token budget, with a truncation report. By default: reviewed records plus the agent's own unreviewed ones, without promoted records and imported failure lessons; `--include-unreviewed` adds everyone's. |
 
 Both are described in [recall and wake](recall-and-wake.md), including the
 visibility and eligibility rules and the output shapes.
@@ -112,6 +131,22 @@ and adds `{"kind": "supersedes", "ref": RECORD}` to its `source_refs`, so a
 retry with the same `--event-id` repeats neither write. Only active records
 can be amended, superseded or retracted.
 
+## Promotion
+
+| Command | Purpose |
+|---|---|
+| `promote RECORD --review approved [--min-review-state MIN] [--scope-ok] [--allow-sensitive] [--allow-imported] [--update] [--domain D] [--yes]` | Write a reviewed record as an AKMS project-local node and link it. `--update` replaces this record's verified managed block while preserving unrelated prose (needs `akms-records[akms]`). |
+| `promotion status [RECORD]` | Read-only source/node consistency report; exits 1 for drift. |
+| `promotion withdraw RECORD --reason TEXT (--expect-revision N \| --erased) [--yes]` | Remove only this record’s verified managed projection, without deleting the source. Erased sources require the matching scoped erasure log. Human-node writes retain confirmation rules. |
+
+`user_confirmed` is the default threshold; `--min-review-state agent_reviewed` is
+an opt-in. A write labelled `source: human` asks for confirmation on an interactive
+terminal, or takes `--yes`, and without either it is refused with
+`confirmation_required`, not sent down the default path. `--yes` makes the step
+deliberate; it does not prove a person took it. See
+[promotion and import](promotion-and-import.md) for the two paths, every refusal and
+the crash order.
+
 ## Maintenance
 
 | Command | Purpose |
@@ -120,6 +155,7 @@ can be amended, superseded or retracted.
 | `doctor [--fix [--force-tmp]]` | Check the store root; with `--fix`, also repair what is safe. |
 | `export [--output FILE] [--include-sensitive] [--skip-broken]` | Write the scope as JSONL. |
 | `import FILE` | Replay an export into the scope. |
+| `import --from-failure-memory CONFIG [--failure-memory-repo PATH]` | Read a failure-memory registry into `failure-lesson/v1` records, without writing back. See [the importer](promotion-and-import.md#import-from-failure-memory). |
 | `index rebuild` | Rebuild the store root's [search index](search-index.md) from the files. |
 | `index check` | Compare the index with the files; `status: drift` (exit 1) lists `missing`, `extra` and `stale` records. Changes nothing. |
 | `index reconcile` | Replay every record and fix what differs. |
@@ -145,7 +181,8 @@ The result follows `failure-memory doctor`: a `status` of `ok` or `error`
 (`ok`, `warning` or `error`), `severity`, `repairable` (whether `--fix`
 handles it) and the `items` it found. `repairs` lists what `--fix` changed
 (`tmp_removed`, `empty_dirs_removed`, `erasures_reapplied`,
-`summaries_erased`, `index_reconciled`), `mode` is `report` or `fix`, and
+`summaries_erased`, `index_reconciled`, and `semantic_index_deleted` when the
+[semantic index](recall-and-wake.md#semantic-search) held an erased record), `mode` is `report` or `fix`, and
 `records_checked` counts the records replayed. `--actor` names who `--fix`
 logs as erasing a summary.
 
@@ -196,6 +233,11 @@ equal `--scope`.
 | `scope_violation` | The record belongs to another scope |
 | `stale_revision` | `--expect-revision` is no longer the head; nothing written |
 | `not_active` | The record is superseded or retracted |
+| `qmd_missing` | `recall --semantic` needs the `qmd` command, which is not on `PATH` |
+| `semantic_model_missing` | `recall --semantic` needs qmd's embedding model as a local file; nothing is downloaded |
+| `semantic_failed` | `qmd` failed, timed out or printed something unexpected |
+| `semantic_locked` | Another process kept the semantic index busy for too long |
+| `review_reassert` | An agent changed a record's content and named `user_confirmed` in the same amend; nothing written |
 | `event_id_reused` | The event ID was already used for a different kind of event, or in another scope |
 | `replay_error` | The record's files do not replay (`details.replay_code` says why) |
 | `invalid_schema`, `invalid_rules` | The schema or its extraction rules are not acceptable (for example a pointer to an undeclared property) |
@@ -203,18 +245,30 @@ equal `--scope`.
 | `schema_ref_refused` | The schema has a non-local reference, `$id` or another dialect |
 | `schema_exists` | That `name/vN` is registered with different content |
 | `schema_tampered` | A registered schema no longer matches its digest |
-| `invalid_policy`, `confirmation_required`, `not_confirmed` | Promotion-policy errors |
+| `invalid_policy` | A promotion-policy value is not acceptable |
+| `confirmation_required`, `not_confirmed` | `schema policy set` or a human-policy `promote` had no terminal and no `--yes`, or was not answered yes; nothing written |
+| `confirmation_stale` | The record, node or policy changed while a human-policy `promote` was being confirmed; nothing written |
 | `export_corrupt`, `digest_mismatch` | An export failed its integrity checks |
 | `link_unsupported` | The filesystem has no hard links |
 | `invalid_query` | A recall query has no searchable words, or cannot be run |
 | `budget_too_small` | The wake budget cannot hold the header and truncation report (`details.minimum_tokens`) |
 | `citation_invalid` | A summary assertion is uncited or cites something it may not (`details.problem`) |
 | `consolidation_write` | A summary was written or changed outside `consolidate` |
-| `consolidation_schema`, `reserved_schema` | `consolidation/v1` differs from the built-in, or another schema used the reserved name |
+| `consolidation_schema`, `reserved_schema` | `consolidation/v1` differs from the built-in, or another schema used a reserved name (`consolidation`, `failure-lesson`) |
 | `empty_topic`, `topic_too_large` | The topic gathers no records, or more than 64 |
 | `summary_exists` | An active summary of the same topic exists (`details.record_id`); refresh it |
 | `summary_invalid`, `not_a_summary` | The summary cannot be refreshed; the record is not a summary |
 | `summarizer_required`, `summarizer_failed`, `summarizer_timeout`, `summarizer_output_invalid` | Provider errors: none given, it failed or exited non-zero, it ran too long, or its output is not the expected JSON |
 | `fts5_unavailable` | Python's `sqlite3` has no FTS5; recall, wake and index commands need it |
 | `index_unavailable`, `index_format` | The index file cannot be opened, or has another format (rebuild it) |
+| `manifest_missing`, `manifest_invalid` | `wake --exclude-nodes` found no file, or not a v1 resolution manifest |
+| `reserved_source_ref`, `source_refs_full` | A writer set the `promoted-to` reference kind that only `promote` writes; a record has no room for its promotion link |
+| `akms_unavailable`, `review_required`, `review_below_threshold`, `scope_not_project`, `record_retracted`, `record_superseded`, `record_erased`, `schema_mismatch`, `record_sensitive`, `summary_unreviewed`, `summary_stale`, `imported_not_promotable`, `policy_drift`, `global_vault_target`, `already_promoted`, `node_not_updatable`, `node_exists`, `promote_locked`, `promote_graph_failed`, `promote_write_failed`, `node_not_loaded`, `promote_ledger_exhausted`, `projection_conflict`, `projection_source_changed`, `projection_source_mismatch`, `source_not_erased` | [Promotion refusals](promotion-and-import.md#refusals) |
+| `failure_memory_config`, `failure_memory_registry` | The failure-memory config or registry cannot be read as documented; nothing was written |
 | `internal_error` | An unexpected failure |
+
+## Authoring and review workflows
+
+See [Authoring, search and review](authoring-and-review.md) for `draft`,
+`validate`, `review queue`, `review set`, payload-only inputs, human-readable
+`show`, and the `search` alias. JSON is still the default output.

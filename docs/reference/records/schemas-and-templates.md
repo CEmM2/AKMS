@@ -171,6 +171,23 @@ full. All templates set `additionalProperties: false`.
 Source references are recorded as given. A missing or wrong reference stays
 visible; it is never upgraded into verified evidence.
 
+## Summaries and amends
+
+A summary from `summary_template` follows the payload: when an amend changes the
+payload and names no summary, the template runs again, so `recall` and `wake` stop
+showing the replaced text and its words stop matching. A summary someone wrote stays
+until someone changes it.
+
+The event format has no mark for where a summary came from, and none was added. A
+summary counts as the template's when it equals what a template of the record's
+schemas, current or in the rules log, gives one of the record's past payloads. A
+written summary that happens to read the same follows too, which loses nothing.
+
+Existing records need no migration, and their event files do not change. A record
+that was amended before this rule and still shows its old template text keeps showing
+it until its payload next changes, when it is regenerated; `amend --summary` fixes it
+sooner.
+
 ## Promotion policy
 
 A person may give a schema a promotion policy:
@@ -188,6 +205,15 @@ the actor, the time and the previous value. Without a policy the default is
 `source: agent`, `status: tentative`. An agent-sourced policy can never be
 `established`.
 
-This release only stores policies. Promotion into AKMS project-local nodes,
-which will apply them only to human-confirmed records with explicit approval,
-is not implemented yet.
+[`promote`](promotion-and-import.md#two-paths) applies a `source: human` policy
+only to `user_confirmed` records, with its explicit `--review approved`, and writes
+the node with the policy's status and confidence once
+[confirmed](promotion-and-import.md#confirming-a-human-policy-write) on a terminal or
+with `--yes`. It reads the policy and cannot change it. An agent-sourced policy keeps a promotion on the default path, whose
+labels are fixed.
+
+## Built-in schemas
+
+Two schemas are built in and registered on first use, and their names are reserved:
+`consolidation/v1` for [summaries](consolidation.md), and `failure-lesson/v1` for
+[lessons imported from failure-memory](promotion-and-import.md#import-from-failure-memory).

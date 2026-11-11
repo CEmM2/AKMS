@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from akms.repo_wiki.graph import Resolution, build_symbol_graph
+import pytest
+
+from akms.repo_wiki.graph import (
+    Resolution,
+    _make_edge,
+    build_symbol_graph,
+    edge_provenance,
+)
 from akms.repo_wiki.models import Language, ParsedModule, SourceFile, SourceSpan, Symbol
 
 
@@ -334,3 +341,42 @@ def test_multimap_handles_both_short_and_qual_names():
     assert len(qual_edges) == 1
     assert qual_edges[0]["dst_id"] == "python:pkg/a.py::Greeter.greet"
     assert qual_edges[0]["resolution"] == Resolution.CONFIDENT.value
+
+
+def test_edges_omit_provenance_when_static_so_graph_bytes_do_not_change():
+    """Every edge built today is static: the optional field is not written."""
+    caller = _symbol(
+        "python:pkg/mod.py::caller", "caller", "caller", path="pkg/mod.py", calls=["f"]
+    )
+    callee = _symbol("python:pkg/mod.py::f", "f", "f", path="pkg/mod.py")
+    graph = build_symbol_graph([_module("pkg/mod.py", [caller, callee])])
+    assert all("provenance" not in edge for edge in graph["edges"])
+    assert all(edge_provenance(edge) == "static" for edge in graph["edges"])
+    assert "provenance" in graph["_comment"]
+
+
+def test_non_static_provenance_is_written_and_unknown_values_rejected():
+    edge = _make_edge(
+        "a",
+        "b",
+        "calls",
+        dst_name="b",
+        dst_id="b",
+        resolution=Resolution.HEURISTIC,
+        dst_candidates=["b"],
+        provenance="inferred",
+    )
+    assert edge["provenance"] == "inferred"
+    assert edge_provenance(edge) == "inferred"
+    assert edge_provenance({"provenance": "telepathy"}) == "static"
+    assert edge_provenance({"provenance": 3}) == "static"
+    with pytest.raises(ValueError, match="provenance"):
+        _make_edge(
+            "a",
+            "b",
+            "calls",
+            dst_name="b",
+            dst_id="b",
+            resolution=Resolution.CONFIDENT,
+            provenance="telepathy",
+        )

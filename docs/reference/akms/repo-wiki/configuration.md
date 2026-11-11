@@ -42,6 +42,12 @@ including [`export-akms`](akms-export.md).
 | `scanner.max_file_size_kb` | `512` | Larger files are skipped as `too_large`. |
 | `scanner.respect_gitignore` | `true` | Also skip anything matched by the repository's root `.gitignore`. See [the limits of this](privacy-security.md#gitignore). |
 
+In any pattern, a `**/` segment can match no directory at all, so `**/*.py`
+matches `setup.py` in the repository root as well as `src/a.py`, and `src/**/*.py`
+matches `src/a.py`. This holds for `scanner.include`, `scanner.exclude` and
+`.gitignore` patterns, and every subcommand matches files the same way. A pattern
+such as `**/generated/**` therefore also removes a top-level `generated/`.
+
 A file is eligible only if it passes the exclude patterns, matches an include
 pattern, is within the size limit, and is not binary (a NUL byte or invalid
 UTF-8 in the first 8 KiB marks a file as binary). Symbolic links are never
@@ -114,8 +120,37 @@ Controls `query`. The index returns `top_k_initial` candidates; the best
 | `retrieval.expand_children` | `true` | Add the members of each result. |
 | `retrieval.expand_callees` | `true` | Add the symbols each result calls. |
 | `retrieval.expand_callers` | `true` | Add the symbols that call each result. |
-| `retrieval.expand_heuristic_edges` | `true` | Follow call edges that matched several candidates by name. With `false`, only edges that resolved to exactly one target are followed. |
+| `retrieval.expand_heuristic_edges` | `true` | Follow call edges that could not be narrowed to one target. With `false`, only confident edges are followed. Confident edges come first either way. |
 | `retrieval.include_tests` | `true` | Add test modules (paths containing `test`) that mention a result. |
+
+## `flows`
+
+Settings for the [execution flows](flows.md) that `build` writes to `flows.json`.
+Unknown keys and values of the wrong type are rejected when the file is loaded.
+
+| Key | Default | Effect |
+|---|---|---|
+| `flows.enabled` | `true` | Write `flows.json` on `build`, and show flows in `context`, `impact` and `changes`. With `false`, `build` removes an old `flows.json`; `flows` and `flow` still compute flows on demand. |
+| `flows.entries.console_scripts` | `true` | Console scripts declared in `pyproject.toml` files are entry points. |
+| `flows.entries.scripts` | `true` | `if __name__ == "__main__":` blocks and `__main__.py` modules are entry points. |
+| `flows.entries.cli` | `true` | Functions with a decorator matching `cli_decorators`, and argparse `set_defaults(func=...)` handlers, are entry points. |
+| `flows.entries.tests` | `false` | Test functions are entry points. |
+| `flows.entries.roots` | `true` | Public functions and methods that nothing outside the tests calls confidently are entry points. |
+| `flows.cli_decorators` | `["*.command", "*.group"]` | Wildcard patterns matched against a decorator's dotted name, without its arguments (`@app.command("x")` is `app.command`). |
+| `flows.include_heuristic` | `false` | Also follow HEURISTIC links. They are counted and flagged in each flow. |
+| `flows.max_depth` | `6` | Levels below the entry. |
+| `flows.max_fanout` | `12` | Callees followed from one step. |
+| `flows.max_steps` | `60` | Steps in one flow. |
+| `flows.max_flows` | `1000` | Flows kept in `flows.json`; tests, then roots, are dropped first, the shortest first. |
+
+A change to any of these, except `enabled`, makes an existing `flows.json` stale:
+readers recompute until the next build.
+
+## `export`
+
+| Key | Default | Effect |
+|---|---|---|
+| `export.mirror_summary` | `false` | `export-akms` opens each mirror with a [`## Summary` section](akms-export.md#mirror-summary). A value other than `true` or `false` is rejected when the file is loaded. |
 
 ## Keys that are written but not read
 
@@ -139,6 +174,6 @@ external search service, whatever `index.*` says.
 
 ## Export and configuration
 
-`export-akms` reads `scanner.*` and `languages.*` only. It ignores
+`export-akms` reads `scanner.*`, `languages.*` and `export.*` only. It ignores
 `generation`, `summaries`, `index` and `retrieval`, and it never writes
 summaries or the index.

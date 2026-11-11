@@ -55,6 +55,8 @@ from akms_records.citations import (
 from akms_records.envelope import (
     DEFAULT_ORIGIN_KIND,
     LIFECYCLE_STATES,
+    MAX_REFS,
+    PROMOTED_KIND,
     Record,
     check_actor,
     check_payload_keys,
@@ -63,6 +65,8 @@ from akms_records.envelope import (
     normalize_summary,
     normalize_tags,
     parse_record_document,
+    promotion_ref,
+    refuse_promotion_links,
     REVIEW_STATES,
     SENSITIVITY_LEVELS,
 )
@@ -76,6 +80,7 @@ from akms_records.errors import (
 )
 from akms_records.fsio import TMP_RE, append_line, fsync_dir, write_exclusive
 from akms_records.index import INDEX_DIRNAME, INDEX_FILENAME, RecordIndex
+from akms_records.semantic import drop_index, holds_any
 from akms_records.ids import (
     RECORD_ID_RE,
     check_event_id,
@@ -137,6 +142,8 @@ MAX_REASON = 1000
 CASCADE_REASON = "cascade: a summary that cites an erased record"
 # What a plain amend may change on a summary; the rest is consolidate's job.
 SUMMARY_AMENDABLE = frozenset({"review_state", "tags", "sensitivity"})
+PERSON_ORIGINS = frozenset({"human", "human-confirmed"})
+REVIEWED_STATES = frozenset({"agent_reviewed", "user_confirmed"})
 NOT_REACHED = (
     "git history: commits, packs and remotes that already contain the record",
     "other clones and unmerged branches (run doctor --fix after a merge to re-apply)",
@@ -280,6 +287,103 @@ def _envelope_from_body(record_id: str, name: str, body: Any) -> dict[str, Any]:
     return envelope
 
 
+def _links_of(record: Record) -> list[dict[str, str]]:
+    return [ref for ref in record.source_refs if ref.get("kind") == PROMOTED_KIND]
+
+
+def _with_refs(
+    record: Record, refs: list[dict[str, str]], links: list[dict[str, str]]
+) -> list[dict[str, str]]:
+    """``refs`` plus ``links``, refused when the envelope's limit cannot hold them."""
+    merged = [*refs, *links]
+    if len(merged) > MAX_REFS:
+        raise RecordsError(
+            f"record {record.record_id} would have more than {MAX_REFS} source "
+            "references with its promotion link",
+            code="source_refs_full",
+        )
+    return merged
+
+
+def review_state_after(
+    record: Record, merged: dict[str, Any], *, asked: str | None, actor: str
+) -> str:
+    """The review state after an amend: a review does not outlive the text it was of.
+
+    A **content change** is a new payload, summary or origin: what a reviewer read
+    and who it is said to come from. Tags, source references and sensitivity are not.
+
+    The **person** a record belongs to keeps its state. That is an actor equal to
+    ``origin.actor_id`` on a record whose ``origin.kind`` is ``human`` or
+    ``human-confirmed``, as the record stood before this amend. Every other actor is
+    treated as an agent, because actor names say nothing else: a person changing
+    someone else's record confirms it again afterwards, as a separate amend.
+
+    When an agent changes content, a reviewed record becomes ``unreviewed``, since the
+    review was of other text. ``rejected`` stays, or an edit could launder a rejection.
+    Naming ``agent_reviewed`` or ``unreviewed`` in the same amend is honest and
+    allowed. Naming ``user_confirmed`` is refused (``review_reassert``): a person's
+    confirmation of text they have not seen cannot arrive with the edit.
+    """
+    changed = any(
+        merged[name] != current
+        for name, current in (
+            ("payload", record.payload),
+            ("summary", record.summary),
+            ("origin", record.origin),
+        )
+    )
+    person = (
+        record.origin["kind"] in PERSON_ORIGINS and record.origin["actor_id"] == actor
+    )
+    if not changed or person:
+        return merged["review_state"]
+    if asked == "user_confirmed":
+        raise RecordsError(
+            f"{actor} changed the content of {record.record_id} and named "
+            "user_confirmed in the same amend; nothing was written. Amend the content, "
+            "then have a person confirm the new text in a separate amend",
+            code="review_reassert",
+        )
+    if asked is not None or record.review_state not in REVIEWED_STATES:
+        return merged["review_state"]
+    return "unreviewed"
+
+
+def review_was_cleared(events: list[dict[str, Any]]) -> bool:
+    """Whether the current text is unreviewed after a reviewed revision of other text.
+
+    Wake keeps that fact visible. An explicit unreview that leaves the text
+    unchanged does not count, and the current state has to be ``unreviewed``:
+    a later review or a rejection takes the ordinary path.
+    """
+    reviewed: dict[str, Any] | None = None
+    final: dict[str, Any] | None = None
+    for event in events:
+        if event.get("kind") not in ("create", "amend"):
+            continue
+        body = event.get("body")
+        if not isinstance(body, dict):
+            continue
+        envelope = body.get("envelope")
+        if not isinstance(envelope, dict):
+            continue
+        current = {
+            "review_state": envelope.get("review_state"),
+            "payload": body.get("payload"),
+            "summary": envelope.get("summary"),
+            "origin": envelope.get("origin"),
+        }
+        final = current
+        if current["review_state"] in REVIEWED_STATES:
+            reviewed = current
+    if reviewed is None or final is None or final["review_state"] != "unreviewed":
+        return False
+    return any(
+        final[name] != reviewed[name] for name in ("payload", "summary", "origin")
+    )
+
+
 def history_citations(events: list[dict[str, Any]]) -> set[str]:
     """Every record ID any revision of a summary cited (empty for other records)."""
     out: set[str] = set()
@@ -348,6 +452,7 @@ def fold_events(record_id: str, events: list[dict[str, Any]]) -> Record:
         superseded_by=superseded_by,
         reason=reason,
         event_ids=tuple(event["event_id"] for event in events),
+        prev_sha256=events[-1]["prev_sha256"],
     )
 
 
@@ -724,6 +829,7 @@ class RecordStore:
         """
         check_actor(actor)
         fields = parse_record_document(document, scope=self.scope, partial=False)
+        refuse_promotion_links(fields["source_refs"])
         schema = self._schema(fields["schema_ref"])
         if is_consolidation(schema.ref) and not self._summary_writer:
             raise self._refuse_summary_write("create")
@@ -911,15 +1017,26 @@ class RecordStore:
         actor: str,
         event_id: str | None = None,
     ) -> WriteResult:
-        """Append an amendment. Fields absent from ``document`` keep their value."""
+        """Append an amendment. Fields absent from ``document`` keep their value.
+
+        Two exceptions. A summary that came from the schema's template follows a new
+        payload, so a replaced text stops showing and stops matching; see
+        :meth:`_summary_after`. And a review does not outlive the text it was of; see
+        :func:`review_state_after`.
+        """
         fields = parse_record_document(document, scope=self.scope, partial=True)
         if not fields:
             raise RecordsError(
                 "an amendment must change something", code="invalid_record"
             )
+        refuse_promotion_links(fields.get("source_refs", []))
 
         def build(record: Record) -> dict[str, Any]:
             merged = {**record.writer_fields(), **fields}
+            if "source_refs" in fields:  # new references keep the promotion link
+                merged["source_refs"] = _with_refs(
+                    record, fields["source_refs"], _links_of(record)
+                )
             schema = self._schema(merged["schema_ref"])
             summary_record = is_consolidation(record.schema_ref)
             if (summary_record or is_consolidation(schema.ref)) and not (
@@ -932,6 +1049,12 @@ class RecordStore:
             ):
                 raise self._refuse_summary_write("amend")
             schema.validate_payload(merged["payload"])
+            if "summary" not in fields and merged["payload"] != record.payload:
+                merged["summary"] = self._summary_after(record, merged)
+            if not self._summary_writer:
+                merged["review_state"] = review_state_after(
+                    record, merged, asked=fields.get("review_state"), actor=actor
+                )
             return {
                 "envelope": {
                     "schema_ref": schema.ref,
@@ -954,6 +1077,152 @@ class RecordStore:
             expected_revision=expected_revision,
             actor=actor,
             event_id=event_id,
+        )
+
+    def _summary_after(self, record: Record, merged: dict[str, Any]) -> str:
+        """The summary after a payload change that did not name a summary.
+
+        The event format has no mark for where a summary came from, so it is worked
+        out: a summary that equals what a template of this record's schemas, current
+        or logged, gives one of its past payloads came from a template, and follows
+        the new payload. Anything else was written by someone and stays until it is
+        changed. A written summary that happens to equal the template's text follows
+        too, which loses nothing. So does one left behind by an amend from before
+        this rule, the next time the payload changes.
+        """
+        if record.summary not in self._template_summaries(record):
+            return record.summary
+        try:
+            rules = self.schemas.rules(merged["schema_ref"])
+        except RecordsError:
+            return record.summary
+        return render_summary(rules, merged["payload"]) or record.summary
+
+    def _template_summaries(self, record: Record) -> set[str]:
+        """What each known template of this record gives each of its past payloads."""
+        bodies = [
+            event["body"]
+            for event in self.history(record.record_id)
+            if event["kind"] in ("create", "amend")
+        ]
+        rule_sets: list[Any] = []
+        for ref in {body["envelope"]["schema_ref"] for body in bodies}:
+            try:
+                rule_sets.append(self.schemas.rules(ref))
+                for entry in self.schemas.rules_log(ref):
+                    rule_sets.extend([entry.get("previous"), entry.get("value")])
+            except RecordsError:
+                continue
+        return {
+            text
+            for rules in rule_sets
+            if isinstance(rules, dict)
+            for body in bodies
+            if (text := render_summary(rules, body["payload"]))
+        }
+
+    def record_promotion(
+        self,
+        record_id: str,
+        *,
+        node_id: str,
+        revision: int,
+        path: str,
+        expected_revision: int,
+        actor: str,
+    ) -> WriteResult:
+        """Append the amend that links a record to the AKMS node it became.
+
+        The link is a ``promoted-to`` source reference; everything else in the
+        envelope and the payload stays as it is, and the record keeps its
+        schema digest. A retry of the same revision is a no-op, through the
+        event ID. See :mod:`akms_records.bridge`.
+        """
+
+        def build(record: Record) -> dict[str, Any]:
+            kept = [r for r in record.source_refs if r.get("kind") != PROMOTED_KIND]
+            link = {
+                "kind": PROMOTED_KIND,
+                "ref": promotion_ref(node_id, revision),
+                "note": path,
+            }
+            return {
+                "envelope": {
+                    "schema_ref": record.schema_ref,
+                    "schema_sha256": record.schema_sha256,
+                    "scope": self.scope.to_json(),
+                    "origin": dict(record.origin),
+                    "source_refs": _with_refs(record, kept, [link]),
+                    "summary": record.summary,
+                    "tags": list(record.tags),
+                    "sensitivity": record.sensitivity,
+                    "review_state": record.review_state,
+                },
+                "payload": record.payload,
+            }
+
+        return self._append(
+            record_id,
+            "amend",
+            build,
+            expected_revision=expected_revision,
+            actor=actor,
+            event_id=f"promote.{record_id}.{revision}",
+        )
+
+    def clear_promotion(
+        self,
+        record_id: str,
+        *,
+        expected_revision: int,
+        actor: str,
+        reason: str,
+    ) -> WriteResult:
+        """Remove a live promotion link after its managed node text is withdrawn.
+
+        Called by the bridge, not by ordinary source-reference amendments. The
+        remaining record and its review are unchanged. The event preserves an
+        audit reference, without keeping the wake exclusion of a live link.
+        """
+        text = _reason(reason, required=True)
+        assert text is not None
+
+        def build(record: Record) -> dict[str, Any]:
+            refs = [r for r in record.source_refs if r.get("kind") != PROMOTED_KIND]
+            if record.promoted_to is not None:
+                refs.append(
+                    {
+                        "kind": "promotion-withdrawn",
+                        "ref": record.promoted_to["node_id"],
+                        "note": text,
+                    }
+                )
+            envelope = record.envelope_json()
+            return {
+                "envelope": {
+                    key: envelope[key]
+                    for key in (
+                        "schema_ref",
+                        "schema_sha256",
+                        "scope",
+                        "origin",
+                        "summary",
+                        "tags",
+                        "sensitivity",
+                        "review_state",
+                    )
+                }
+                | {"source_refs": refs},
+                "payload": record.payload,
+            }
+
+        return self._append(
+            record_id,
+            "amend",
+            build,
+            expected_revision=expected_revision,
+            actor=actor,
+            event_id=f"withdraw.{record_id}.{expected_revision}",
         )
 
     def retract(
@@ -1088,9 +1357,11 @@ class RecordStore:
         directory = self.record_dir(record_id)
         if not directory.is_dir():
             raise NotFound(f"record {record_id} not found")
+        promoted: dict[str, Any] | None = None
         try:
             _, record = self._load(record_id)
             scope: Scope | None = record.scope
+            promoted = record.promoted_to
         except ReplayError:
             scope = self._probe_scope(record_id)
             if scope is None and not force:
@@ -1115,6 +1386,11 @@ class RecordStore:
         append_line(self.root / ERASURE_LOG, compact_line(entry))
         removed = self._remove_record_dir(directory)
         not_reached: list[str] = list(NOT_REACHED)
+        if promoted is not None:
+            not_reached.append(
+                f"the AKMS node {promoted['node_id']} this record was promoted into: "
+                "a separate file that holds its text; edit or remove it by hand"
+            )
         index_report = self._purge_index(record_id, not_reached)
         cascade = [
             self._erase_cascaded(
@@ -1199,7 +1475,25 @@ class RecordStore:
         }
 
     def _purge_index(self, record_id: str, not_reached: list[str]) -> dict[str, Any]:
-        """Remove an erased record from this worktree's index, bytes included."""
+        """Remove an erased record from this worktree's indexes, bytes included.
+
+        The optional semantic index cannot drop one document's text, so it is deleted
+        whole. That comes second: a build reads from the full-text index.
+        """
+        report = self._purge_text_index(record_id, not_reached)
+        semantic = drop_index(self.root)
+        if semantic == "not_reached":
+            not_reached.append(
+                "this store's semantic index, which another process was using; "
+                "run doctor --fix, or delete .index/semantic"
+            )
+        if semantic != "absent":
+            report["semantic"] = semantic
+        return report
+
+    def _purge_text_index(
+        self, record_id: str, not_reached: list[str]
+    ) -> dict[str, Any]:
         if not self.index_path.is_file():
             return {"status": "absent"}
         try:
@@ -1448,6 +1742,8 @@ class RecordStore:
                     repairs["erasures_reapplied"].append(record_id)
                 else:
                     found["erased_but_present"].append(record_id)
+        if fix and holds_any(self.root, erased) and drop_index(self.root) == "deleted":
+            repairs["semantic_index_deleted"] = [INDEX_DIRNAME + "/semantic"]
         schema_digests: dict[str, str] = {}
         for ref, loaded in self.schemas.iter_checked():
             if isinstance(loaded, RecordsError):

@@ -14,9 +14,19 @@ import      the caller's module imports the name (module- or function-     CONFI
 self        ``self.m`` / ``cls.m`` found on the enclosing class or a      CONFIDENT
             confidently resolved base class
 constructor a call of class ``C`` also reaches ``C.__init__``               as the call
+receiver    ``x.m`` where ``x = C(...)``, ``x: C`` or a parameter ``x: C`` in   CONFIDENT if
+            the caller, or ``self.x.m`` / ``cls.x.m`` where the class binds  one target
+            ``x`` to ``C``: ``C.m`` (bases walked); several classes give
+            HEURISTIC
+dispatch    ``TABLE[key]`` / ``TABLE.get(key)`` on a module-level dict of   HEURISTIC
+            callables: every value of the table
 name        only a name match: no import or definition explains it          HEURISTIC
 attribute   ``obj.m`` with an unknown receiver; methods named ``m``         HEURISTIC
 ==========  ============================================================  ==========
+
+``receiver`` and ``dispatch`` links are *inferred* (``provenance: inferred``): they rest on a
+pattern, not on a call written as such. A dispatch link is never CONFIDENT. A receiver bound
+only to classes outside the repository (``p = argparse.ArgumentParser()``) is external.
 
 Rust, C++ and Julia sources carry no import bindings, so they keep the graph's rule: one
 name match is CONFIDENT (basis ``name``), several are HEURISTIC. Calls into modules that are
@@ -37,6 +47,7 @@ from typing import Any, cast
 
 from akms.repo_wiki.config import effective_excludes, load_config
 from akms.repo_wiki.errors import RepoWikiError
+from akms.repo_wiki.graph import INFERRED, STATIC, decorator_names
 from akms.repo_wiki.hashing import sha256_file
 from akms.repo_wiki.models import ParsedModule, Symbol
 from akms.repo_wiki.scanner import (
@@ -123,6 +134,7 @@ class Edge:
     basis: str
     dst_name: str
     candidates: tuple[str, ...] = ()
+    provenance: str = STATIC
 
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
@@ -130,6 +142,7 @@ class Edge:
             "resolution": self.resolution,
             "basis": self.basis,
             "name": self.dst_name,
+            "provenance": self.provenance,
         }
         if self.candidates:
             data["candidates"] = list(self.candidates)
@@ -153,6 +166,13 @@ class _FileUnit:
     imports: list[str]
     symbols: list[Node]
     records: list[tuple[str, str, str]]  # (source id, called/base name, edge type)
+    receivers: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    table_refs: dict[str, list[str]] = field(default_factory=dict)
+    dispatch: dict[str, list[str]] = field(default_factory=dict)
+    main_calls: list[str] = field(default_factory=list)
+    cli_handlers: dict[str, list[str]] = field(default_factory=dict)
+    decorators: dict[str, list[str]] = field(default_factory=dict)
+    import_aliases: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -231,6 +251,15 @@ class CodeGraph:
         self.module_members: dict[str, list[str]] = {}
         self.module_by_path: dict[str, str] = {}
         self.bindings: dict[str, dict[str, str]] = {}
+        self.receivers: dict[str, dict[str, list[str]]] = {}
+        self.import_aliases: dict[str, dict[str, str]] = {}
+        self.dispatch: dict[str, dict[str, list[str]]] = {}
+        #: Call names run when a module executes as a script (module ID -> names).
+        self.main_calls: dict[str, list[str]] = {}
+        #: Names a symbol registers as argparse handlers (``set_defaults(func=...)``).
+        self.cli_handlers: dict[str, list[str]] = {}
+        #: Decorator names per symbol, arguments dropped (``app.command``).
+        self.decorators: dict[str, list[str]] = {}
         self._by_name: dict[str, list[str]] = {}
         self._dotted_modules: dict[str, str] = {}
         self._module_names: dict[str, str] = {}
@@ -296,6 +325,8 @@ class CodeGraph:
                     imports=sorted(dict.fromkeys(imports.get(str(node_id), []))),
                     symbols=[],
                     records=[],
+                    dispatch=_name_lists(raw.get("dispatch")),
+                    main_calls=_names(raw.get("main_calls")),
                 )
             else:
                 symbol_nodes.append((str(node_id), raw))
@@ -321,8 +352,30 @@ class CodeGraph:
                 )
             )
             unit.records.extend(records.get(node_id, []))
+            receivers = _name_lists(raw.get("receivers"))
+            if receivers:
+                unit.receivers[node_id] = receivers
+            aliases = raw.get("import_aliases")
+            if isinstance(aliases, dict) and aliases:
+                unit.import_aliases[node_id] = {
+                    str(k): str(v) for k, v in aliases.items()
+                }
+            table_refs = raw.get("table_refs")
+            if isinstance(table_refs, list) and table_refs:
+                unit.table_refs[node_id] = [str(v) for v in table_refs]
+            for key, bucket in (
+                ("cli_handlers", unit.cli_handlers),
+                ("decorators", unit.decorators),
+            ):
+                names = _names(raw.get(key))
+                if names:
+                    bucket[node_id] = names
         graph._files = units
         return graph
+
+    def paths(self) -> list[str]:
+        """Repository-relative paths of the files in the graph (sorted; no finalize needed)."""
+        return sorted(self._files)
 
     def replace_file(self, path: str, parsed: ParsedModule | None) -> None:
         """Swap one file's nodes and call names for *parsed* (``None`` removes the file)."""
@@ -342,6 +395,12 @@ class CodeGraph:
         self.module_members = {}
         self.module_by_path = {}
         self.bindings = {}
+        self.receivers = {}
+        self.import_aliases = {}
+        self.dispatch = {}
+        self.main_calls = {}
+        self.cli_handlers = {}
+        self.decorators = {}
         self._by_name = {}
         self._import_index = {}
         self._exported = None
@@ -349,6 +408,14 @@ class CodeGraph:
             self.nodes[unit.module.id] = unit.module
             self.module_by_path[path] = unit.module.id
             self.bindings[unit.module.id] = unit.bindings
+            if unit.dispatch:
+                self.dispatch[unit.module.id] = unit.dispatch
+            if unit.main_calls:
+                self.main_calls[unit.module.id] = unit.main_calls
+            self.receivers.update(unit.receivers)
+            self.import_aliases.update(unit.import_aliases)
+            self.cli_handlers.update(unit.cli_handlers)
+            self.decorators.update(unit.decorators)
             for node in unit.symbols:
                 self.nodes[node.id] = node
         for unit in self._files.values():
@@ -463,6 +530,14 @@ class CodeGraph:
                         continue
                     for edge in outcome:
                         self._add(seen, edge)
+                if wanted == "calls":
+                    for source, refs in sorted(unit.table_refs.items()):
+                        node = self.nodes.get(source)
+                        if node is None:
+                            continue
+                        for ref in refs:
+                            for edge in self._dispatch_edges(node, ref):
+                                self._add(seen, edge)
         for edges in (self.out_edges, self.in_edges):
             for bucket in edges.values():
                 bucket.sort(key=lambda e: (e.type, e.source, e.target))
@@ -510,12 +585,20 @@ class CodeGraph:
         head, _, rest = name.partition(".")
         if not rest:
             return self._resolve_bare(node, name, kind)
+        if kind == "calls" and head not in ("self", "cls"):
+            inferred = self._receiver_edges(node, head, rest, name)
+            if inferred is not None:
+                return inferred
         if head in ("self", "cls"):
             owner = self._enclosing_class(node)
             if owner is not None and "." not in rest:
                 member = self.lookup_member(owner, rest)
                 if member is not None:
                     return self._edges(node, member, kind, CONFIDENT, "self", name)
+            if owner is not None and kind == "calls" and rest.count(".") == 1:
+                inferred = self._attribute_receiver_edges(node, owner, rest, name)
+                if inferred is not None:
+                    return inferred
             return self._attribute_match(node, name, kind)
         base = self._resolve_head(node, head)
         if base is None:
@@ -531,6 +614,164 @@ class CodeGraph:
             return Unresolved(node.id, name, external=False, attempted=full)
         return self._edges(node, found, kind, CONFIDENT, basis, name)
 
+    def _receiver_types(self, node: Node, var: str) -> list[str] | None:
+        """Names *var* is bound to in *node* or an enclosing function (closest scope first)."""
+        scope: Node | None = node
+        while scope is not None and scope.kind in ("function", "method"):
+            bound = self.receivers.get(scope.id, {}).get(var)
+            if bound:
+                return bound
+            scope = self.nodes.get(scope.parent_id) if scope.parent_id else None
+        return None
+
+    def _receiver_edges(
+        self, node: Node, var: str, rest: str, name: str
+    ) -> list[Edge] | Unresolved | None:
+        """``var.m()`` where *var* was bound to ``C(...)``/``C``: ``C.m``, provenance inferred.
+
+        ``None`` when *var* is not a typed local (the usual rules then apply). CONFIDENT
+        only when every bound name is a repository class and they all lead to one method.
+        """
+        if "." in rest or node.language != "python":
+            return None
+        bound = self._receiver_types(node, var)
+        if not bound:
+            return None
+        return self._typed_edges(node, node, bound, rest, name)
+
+    def _attribute_receiver_edges(
+        self, node: Node, owner: str, rest: str, name: str
+    ) -> list[Edge] | Unresolved | None:
+        """``self.x.m()`` / ``cls.x.m()`` where the class (or a base) binds ``x`` to ``C``.
+
+        The bound names are resolved in the module of the class that binds them.
+        """
+        attribute, _, method = rest.partition(".")
+        queue = [owner]
+        visited: set[str] = set()
+        while queue:
+            current = queue.pop(0)
+            if current in visited or current not in self.nodes:
+                continue
+            visited.add(current)
+            bound = self.receivers.get(current, {}).get(attribute)
+            if bound:
+                return self._typed_edges(node, self.nodes[current], bound, method, name)
+            queue.extend(
+                e.target
+                for e in self.out_edges.get(current, [])
+                if e.type == "inherits" and e.resolution == CONFIDENT
+            )
+        return None
+
+    def _typed_edges(
+        self, node: Node, context: Node, bound: list[str], rest: str, name: str
+    ) -> list[Edge] | Unresolved | None:
+        """Links from *node* to method *rest* of the classes *bound* names in *context*."""
+        targets: set[str] = set()
+        external = 0
+        unknown = 0
+        for type_name in bound:
+            outcome = self._resolve_name(context, type_name, "inherits")
+            if isinstance(outcome, Unresolved):
+                external += outcome.external
+                unknown += not outcome.external
+                continue
+            classes = [
+                e.target
+                for e in outcome
+                if e.resolution == CONFIDENT
+                and e.target in self.nodes
+                and self.nodes[e.target].kind == "class"
+            ]
+            if not classes:
+                unknown += 1
+                continue
+            for owner in classes:
+                member = self.lookup_member(owner, rest)
+                if member is None:
+                    unknown += 1
+                else:
+                    targets.add(member)
+        if not targets:
+            if external and not unknown:
+                return Unresolved(node.id, name, external=True)
+            return None
+        ordered = tuple(sorted(targets))
+        if len(ordered) == 1 and not unknown and not external:
+            return [
+                Edge(
+                    node.id,
+                    ordered[0],
+                    "calls",
+                    CONFIDENT,
+                    "receiver",
+                    name,
+                    provenance=INFERRED,
+                )
+            ]
+        return [
+            Edge(
+                node.id,
+                target,
+                "calls",
+                HEURISTIC,
+                "receiver",
+                name,
+                ordered,
+                provenance=INFERRED,
+            )
+            for target in ordered
+        ]
+
+    def _dispatch_table(self, node: Node, ref: str) -> tuple[Node, list[str]] | None:
+        """The dispatch table *ref* names in *node*'s module: (owning module, values)."""
+        local = self.dispatch.get(node.module_id, {}).get(ref)
+        module = self.nodes.get(node.module_id)
+        if local is not None and module is not None:
+            return module, local
+        target = self._import_target(node.module_id, ref)
+        if not target or "." not in target:
+            return None
+        owner_dotted, _, table = target.rpartition(".")
+        owner = self.resolve_dotted(owner_dotted)
+        if owner is None or owner == _EXTERNAL or not self.nodes[owner].is_module:
+            return None
+        values = self.dispatch.get(owner, {}).get(table)
+        return (self.nodes[owner], values) if values is not None else None
+
+    def _dispatch_edges(self, node: Node, ref: str) -> list[Edge]:
+        """HEURISTIC ``calls`` from *node* to every callable in the table *ref* names."""
+        found = self._dispatch_table(node, ref)
+        if found is None:
+            return []
+        module, values = found
+        targets: set[str] = set()
+        for value in values:
+            outcome = self._resolve_name(module, value, "calls")
+            if isinstance(outcome, Unresolved):
+                continue
+            targets.update(
+                e.target
+                for e in outcome
+                if e.resolution == CONFIDENT and e.target in self.nodes
+            )
+        targets.discard(node.id)
+        ordered = tuple(sorted(targets))
+        return [
+            Edge(
+                node.id,
+                target,
+                "calls",
+                HEURISTIC,
+                "dispatch",
+                ref,
+                ordered,
+                provenance=INFERRED,
+            )
+            for target in ordered
+        ]
+
     def _resolve_bare(
         self, node: Node, name: str, kind: str
     ) -> list[Edge] | Unresolved:
@@ -541,28 +782,50 @@ class CodeGraph:
                 candidate = f"python:{module_path}::{scope.qualname}.{name}"
                 if candidate in self.nodes:
                     return self._edges(node, candidate, kind, CONFIDENT, "scope", name)
+                alias = self.import_aliases.get(scope.id, {}).get(name)
+                if alias is not None:
+                    return self._imported(node, alias, kind, name)
             scope = self.nodes.get(scope.parent_id) if scope.parent_id else None
         local = f"python:{module_path}::{name}"
         if local in self.nodes:
             return self._edges(node, local, kind, CONFIDENT, "local", name)
         target = self._import_target(node.module_id, name)
         if target is not None:
-            found = self.resolve_dotted(target)
-            if found == _EXTERNAL:
-                return Unresolved(node.id, name, external=True)
-            if found is None:
-                return Unresolved(node.id, name, external=False, attempted=target)
-            return self._edges(node, found, kind, CONFIDENT, "import", name)
+            return self._imported(node, target, kind, name)
         return self._name_match(node, name, kind, strict=True)
+
+    def _imported(
+        self, node: Node, target: str, kind: str, name: str
+    ) -> list[Edge] | Unresolved:
+        """Link *name* to the dotted import *target* it is bound to."""
+        found = self.resolve_dotted(target)
+        if found == _EXTERNAL:
+            return Unresolved(node.id, name, external=True)
+        if found is None:
+            return Unresolved(node.id, name, external=False, attempted=target)
+        return self._edges(node, found, kind, CONFIDENT, "import", name)
+
+    def _scoped_alias(self, node: Node, name: str) -> str | None:
+        """The ``as`` import *name* is bound to in *node* or an enclosing function."""
+        scope: Node | None = node
+        while scope is not None:
+            alias = self.import_aliases.get(scope.id, {}).get(name)
+            if alias is not None:
+                return alias
+            scope = self.nodes.get(scope.parent_id) if scope.parent_id else None
+        return None
 
     def _resolve_head(
         self, node: Node, head: str
     ) -> tuple[str, str, str | None] | None:
         """Resolve the first dotted part: ``(target id or external, basis, dotted path)``."""
+        # A function-level alias shadows a module-level name of the same spelling.
+        target = self._scoped_alias(node, head)
         local = f"python:{node.path}::{head}"
-        if local in self.nodes:
+        if target is None and local in self.nodes:
             return local, "local", None
-        target = self._import_target(node.module_id, head)
+        if target is None:
+            target = self._import_target(node.module_id, head)
         if target is None:
             return None
         found = self.resolve_dotted(target)
@@ -671,6 +934,23 @@ class CodeGraph:
                     )
                 )
         return edges
+
+    def resolve_reference(self, source: str, name: str) -> list[Edge]:
+        """Resolve *name* as a call made from *source* (a symbol or module), adding nothing.
+
+        Used for names that are not recorded as calls of a symbol: calls in a module's
+        ``__main__`` block, or a handler passed as ``set_defaults(func=...)``.
+        """
+        node = self.nodes.get(source)
+        if node is None:
+            return []
+        outcome = self._resolve_name(node, name, "calls")
+        if isinstance(outcome, Unresolved):
+            return []
+        return sorted(
+            (e for e in outcome if e.target in self.nodes),
+            key=lambda e: (e.resolution != CONFIDENT, e.target),
+        )
 
     # ------------------------------------------------------------------ lookups
 
@@ -837,6 +1117,29 @@ def unit_from_parsed(parsed: ParsedModule) -> _FileUnit:
         imports=list(parsed.imports),
         symbols=symbols,
         records=records,
+        receivers={
+            s.symbol_id: {k: list(v) for k, v in s.receivers.items()}
+            for s in parsed.symbols
+            if s.receivers
+        },
+        table_refs={
+            s.symbol_id: list(s.table_refs) for s in parsed.symbols if s.table_refs
+        },
+        dispatch={k: list(v) for k, v in parsed.dispatch_tables.items()},
+        main_calls=list(parsed.main_calls),
+        cli_handlers={
+            s.symbol_id: list(s.cli_handlers) for s in parsed.symbols if s.cli_handlers
+        },
+        decorators={
+            s.symbol_id: decorator_names(s.decorators)
+            for s in parsed.symbols
+            if s.decorators
+        },
+        import_aliases={
+            s.symbol_id: dict(s.import_aliases)
+            for s in parsed.symbols
+            if s.import_aliases
+        },
     )
 
 
@@ -853,6 +1156,22 @@ def node_from_symbol(symbol: Symbol, module_id: str) -> Node:
         module_id=module_id,
         parent_id=symbol.parent_id,
     )
+
+
+def _names(value: object) -> list[str]:
+    """A list of names from a JSON node field; malformed values read as empty."""
+    return [str(v) for v in value] if isinstance(value, list) else []
+
+
+def _name_lists(value: object) -> dict[str, list[str]]:
+    """``{name: [names]}`` from a JSON node field; malformed values read as empty."""
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(k): [str(v) for v in items]
+        for k, items in value.items()
+        if isinstance(items, list)
+    }
 
 
 def _absolute(raw: str, module: Node) -> str:

@@ -32,9 +32,12 @@ Python looks it up, using only what the graph records, and label the result:
 | CONFIDENT | `scope` | A function nested in an enclosing function of the caller. |
 | CONFIDENT | `self` | `self.m()` or `cls.m()`, found on the enclosing class or a confidently resolved base class. |
 | CONFIDENT | `constructor` | A call of class `C`, which also reaches `C.__init__`. |
+| CONFIDENT | `receiver` | `x.m()` where the caller (or an enclosing function) binds `x = C(...)`, annotates `x: C`, or takes a parameter `x: C` (also `Optional[C]`, `C \| None`, `"C"`); or `self.x.m()` / `cls.x.m()` where the class or a base binds `x` with a class-level `x: C` or `x = C(...)`, or in `__init__` with `self.x = C(...)`, `self.x: C = ...` or `self.x = param` for a parameter `param: C`. Every bound name must be a repository class and exactly one method `m` must be found on them or their bases. Provenance `inferred`. |
 | CONFIDENT | `name` | Rust, C++ and Julia: exactly one symbol in the repository has the name. |
 | HEURISTIC | `name` | The name matches a top-level definition, but nothing imports or defines it where it is called. |
 | HEURISTIC | `attribute` | `obj.m()` on a receiver whose type is unknown, linked to the methods named `m`. Only when there are at most four such methods, and never for method names of built-in types or `pathlib.Path` (`append`, `get`, `exists`, ...). |
+| HEURISTIC | `receiver` | As above, but `x` is bound to several classes, or also to something that is not a repository class: one link per method found. Provenance `inferred`. |
+| HEURISTIC | `dispatch` | The caller indexes (`T[key]`, `T.get(key)`) a module-level dict literal with literal keys whose values are all functions or classes defined or imported in that module (at least two entries). One link per value; never CONFIDENT. Provenance `inferred`. |
 | CONFIDENT or HEURISTIC | `dangling` | `changes` only: code that still names a deleted or moved symbol. |
 
 CONFIDENT links are counted. HEURISTIC links are reported apart, as *possible*:
@@ -43,7 +46,15 @@ never feed the risk level. When a possible link has several targets, `candidates
 lists all of them, and the call usually reaches only one.
 
 Calls into modules outside the repository (`json.dumps`, `Path.read_text` on a
-`pathlib` import) produce no link. `context` lists them as external calls.
+`pathlib` import) produce no link. `context` lists them as external calls. So does a
+method call on a local bound only to outside classes
+(`parser = argparse.ArgumentParser()`, then `parser.add_argument(...)`).
+
+Every link also carries a `provenance` in the JSON output: `static` for a call
+written in the source, `inferred` for `receiver` and `dispatch` links, and `observed`,
+reserved for links seen at run time (nothing produces it yet). The graph file writes
+the field only when it is not `static`; see
+[Generated files](generated-files.md#symbol-graph-fields).
 
 Python resolution is finer than the graph file's own `resolution` field, which
 matches names across the whole repository. A bare call of a name the module never
@@ -101,17 +112,17 @@ block. `changes` skips the files in its diff, which it parses itself.
 
 ## What the graph cannot see
 
-The graph comes from parsing source, without running it and without type
-inference. These are missed, or found only as possible links:
+The graph comes from parsing source, without running it. Its only type inference
+is the `receiver` rule above. These are missed, or found only as possible links:
 
-- calls through dynamic dispatch: a method called on a parameter or attribute
-  whose type is not visible, and overrides in subclasses;
-- reflection and indirection: `getattr`, registries and dispatch tables, callbacks
-  passed as values, decorators that replace a function;
+- calls through dynamic dispatch: a method called on an unannotated parameter, an
+  attribute bound anywhere but the class body or `__init__`, a chain such as
+  `self.a.b.m()` or `make().m()`, and overrides in subclasses;
+- reflection and indirection: `getattr`, registries filled at run time, callbacks
+  passed as values, decorators that replace a function (a literal dict of callables
+  gives only possible `dispatch` links);
 - string-based imports: `importlib.import_module`, packaging entry points, plugin
   discovery;
-- a function-level import under another name (`from pkg.cli import main as
-  run_cli` inside a function); module-level `as` aliases are resolved;
 - references that are not calls: reading a constant, passing a function without
   calling it, `isinstance` checks, annotations;
 - `super().method()` and calls on the result of another call;

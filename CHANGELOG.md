@@ -6,6 +6,44 @@ development is intentionally not replayed.
 
 ## [Unreleased]
 
+### Fixed
+- Promotion and withdrawal hold a persistent OS guard across PID publication,
+  stale-owner recovery and node writes. Atomic PID publication closes the empty
+  owner window; a contender refuses safely and can retry without losing either
+  projection. Killed owners release the OS guard automatically.
+- Promotion status requires the requested record's own managed block and current
+  revision. A surviving unrelated block no longer makes a lost projection look
+  current; it reports `projection_missing` without changing source data.
+- Consolidation collection witnesses include opaque schema-registry state, so
+  extraction-rule changes cannot silently alter topic membership while serving
+  an old promoted summary. Event-only witnesses need explicit refresh; migration
+  preserves user schemas, managed bodies, and record history.
+- Consolidation projections now witness collection membership and uncited record
+  changes, withholding summaries when new inputs might enter their topic. The
+  schema-neutral witness conservatively invalidates on unrelated store changes;
+  old citation-only markers need explicit refresh.
+- Malformed YAML in a promoted node is withheld rather than aborting a loadout.
+- Promoted consolidations now track cited-record fingerprints, so changes to their
+  inputs withhold stale claims without importing record schemas into core.
+  Existing managed blocks without dependency metadata require explicit refresh.
+- Loadouts use current on-disk projection titles even with an old graph, and serve
+  both the local projection and a separate authored `content_ref` when present.
+- Explicit re-promotion restores a withdrawn node under either policy, removes
+  its matching withdrawal notice, and preserves human confirmation and prose.
+- Promoted record refreshes replace the record's verified managed body instead of
+  appending an obsolete claim alongside its correction. Unrelated node prose and
+  labels remain; edited or ambiguous legacy content is refused rather than guessed.
+- Newly generated loadouts check managed record projections against disk and hide
+  stale, edited or unavailable content after source changes, retraction or erasure.
+  Rebuild graphs after upgrading to add missing-node provenance hints. Legacy
+  promotions require explicit upgrade; previously emitted loadouts are unchanged.
+- `akms-records wake` ranks a task match that is reviewed, whose review a later amend cleared, or the agent's own note, ahead of reviewed records that share no word with the task. A matching reviewed record still outranks the agent's own matching note, and other unreviewed records still never outrank a reviewed one.
+- A reviewed record that a later amend leaves `unreviewed` stays in the default wake, marked, showing the current text, until that text is reviewed again. An explicit unreview that does not change the text does not stay, and a rejection never does.
+- `akms-records recall` across several scopes ranks a hit that contains more of the query's words ahead of one that contains fewer, then by reciprocal rank, then newest, then record ID.
+- A full-mode loadout reads a project-local node that has no `content_ref` from its file under `local-nodes/` and prints that path. An explicit `content_ref` is unchanged.
+- `akms-records import --from-failure-memory` ignores an extra top-level key on a schema 1 registry or a schema 2 `_registry.json`. The required keys stay required, and a lesson field the schema does not know is still refused.
+- `recall` and `wake` search a query of up to 512 words instead of refusing one past 64. A longer query is still an error. The search index format is `akms-records-index/v2` and is rebuilt automatically; it records whether a later amend cleared a review.
+
 ### Security
 - The lockfile moves past 15 advisories published after 0.3.2: aiohttp
   3.14.5 (eight, including request smuggling in the pure-Python parser),
@@ -16,6 +54,59 @@ development is intentionally not replayed.
   lock-only change; `uv audit` reports no known vulnerabilities.
 
 ### Added
+- Schema-neutral record authoring and review: `draft`, no-write `validate`,
+  payload-only input, positional `search`, readable `show`, and revision-checked
+  `review queue` / `review set`, plus Python helpers and an opt-in bundled agent
+  workflow skill. User JSON Schemas remain authoritative; no values are invented,
+  and no capture or startup hook is installed.
+- `promotion status` reports source/node drift without writing. Explicit
+  `promotion withdraw` removes verified managed projections, requires the inspected
+  source revision or a scoped erasure entry, and retains human-node confirmation.
+  Active source links are cleared only after graph rebuild; records are not deleted.
+- Managed projection markers fingerprint the body and source event stream without
+  changing v2 node schemas. Local sources are repository-relative; external sources
+  use absolute locators and fail closed when unavailable. This is integrity checking,
+  not authentication, automatic synchronization, or deletion of historical copies.
+- `akms-records recall --semantic` adds an optional vector search through the external
+  `qmd` tool, with no new Python dependency, merged with the text search by reciprocal
+  rank. It is off by default and whether it helps is still to be evaluated. The index
+  is private to the store (`.index/semantic/`), a search runs no LLM and needs no
+  network, and sensitive records are left out unless `--embed-sensitive` is passed.
+  Erasing a record deletes the whole index, since qmd keeps the text of documents that
+  go away; the next semantic recall rebuilds it. A missing tool or model is a typed
+  error (`qmd_missing`, `semantic_model_missing`).
+- `akms-records recall` reads several scopes as one ranked list: `--scope` repeats, and
+  `--agent ID --visible` adds that agent's own scope, as `wake` does. Lists merge by
+  reciprocal rank, then newest first, then record ID, because BM25 does not compare
+  across indexes, and each hit names its scope.
+- `akms-records promote <record> --review approved` writes a reviewed record as an
+  AKMS project-local node, with the `[akms]` extra. By default it goes through
+  `update_graph` as `source: agent`, `status: tentative`, possibly appended by
+  deduplication. Under a schema's stored `source: human` policy, a `user_confirmed`
+  record becomes a validated `LocalNodeFrontmatter` file with the policy's status and
+  confidence, after confirmation on an interactive terminal or with `--yes`; without
+  either it is refused (`confirmation_required`), never sent down the default path.
+  `--yes` makes the step deliberate but does not prove a person took it. Records below
+  `user_confirmed` (`--min-review-state agent_reviewed` is the opt-in), retracted, superseded or erased
+  records, agent or shared scopes, schema mismatches, sensitive records, unreviewed
+  or stale summaries and imported lessons are refused with stable codes, some with an
+  explicit flag to allow them. The node is written first and the link last, so a
+  re-run after a crash completes the link instead of writing a second node.
+  Promoting the same revision twice changes nothing; a newer revision needs
+  `--update`. The link is a reserved `promoted-to` source reference, so the event
+  format, the envelope and existing records are unchanged. A knowledge directory that
+  overlaps the global vault is refused, and the v2 node models are untouched.
+- `akms-records import --from-failure-memory <config>` reads schema 1 and 2
+  failure-memory registries into records of the built-in schema `failure-lesson/v1`,
+  with no write on that side and no dependency on that package. A re-run writes
+  nothing for an unchanged lesson and amends a changed one; a lesson removed upstream
+  is reported, not retracted.
+- `akms-records wake` keeps to its share of the context budget: promoted records and
+  imported failure lessons are left out by default (`promoted`, `imported`), a summary
+  of such records with them, and `--exclude-nodes <resolution-manifest.json>` drops
+  records whose node a loadout already holds (`in_loadout`). `--include-promoted` and
+  `--include-imported` take them back; `recall` reaches all of them. The JSON report
+  and the Markdown footer gain the three new exclusion kinds.
 - New experimental package `akms-records` (console script `akms-records`): a
   schema-driven, provenance-aware record store. Records are a fixed envelope
   (ID, revision, schema ref and digest, scope, time, origin, source refs,
@@ -109,6 +200,46 @@ development is intentionally not replayed.
 - A bundled `repo-wiki-code-intel` agent skill teaches when to run each
   command: `context` when exploring, `impact` before editing a function, class
   or method, and `changes` before committing.
+- `repo-wiki flows` lists static execution flows and `repo-wiki flow FLOW`
+  shows one as a call tree. A flow is an entry point (a console script from
+  any `pyproject.toml`, a `__main__` block, a CLI command found by decorator
+  or argparse `set_defaults(func=...)`, an uncalled public function, or, if
+  enabled, a test) followed breadth-first over confident calls, within depth,
+  fan-out and step caps; capped steps, truncation reasons and cycles are
+  recorded. `build` writes them to `.repo_wiki/generated/flows.json`, a pure
+  function of the symbol graph that records the graph's hash, so readers
+  recompute in memory when it is stale. `context` shows the flows a symbol is
+  in, `impact` the flows through the target and its dependents (reported
+  beside the risk, which is unchanged) and `changes` the flows a diff touches.
+  Settings live under a new `flows:` configuration section.
+  `repo-wiki changes --refresh` runs the incremental build first and reports
+  the flows of the graph before and after it (`flows_before`, `flows_after`),
+  so symbols a diff adds appear in flows; without it the output is
+  unchanged. Builds now take a repo-local lock, and `repo-wiki build` waits
+  for a running one.
+- `repo-wiki hooks install|uninstall|status` manages opt-in git hooks
+  (`post-checkout`, `post-commit`, `post-merge`, `post-rewrite`) that start a
+  detached incremental build after git changes the tree: at most once per git
+  command, once at the end of a rebase or a cherry-pick sequence, never during
+  `git bisect`, and never failing or noticeably slowing git.
+  `AKMS_REPO_WIKI_HOOKS=0` skips them. The blocks follow the failure-memory
+  hooks' conventions with their own markers, so both tools coexist in the
+  same hook files.
+- `repo-wiki` infers two more kinds of call link: a method called on a local
+  bound to a repository class (`x = C()`, `x: C` or a parameter `x: C`, then
+  `x.m()`) links to `C.m`, and so does `self.x.m()` / `cls.x.m()` when the
+  class body or `__init__` binds `x` to `C`; confidently when exactly one
+  target remains, and a function that
+  indexes a module-level dict of callables links to every value as a possible
+  link. Both are marked `provenance: inferred`; method calls on locals bound
+  only to outside classes are now external instead of possible name matches.
+- Symbol graph edges may carry an optional `provenance` (`static`,
+  `observed`, `inferred`), written only when it is not `static`, so existing
+  graphs keep their edge bytes; `context`, `impact` and `changes` report it on
+  every link in their JSON output. The graph also gains optional node fields
+  for receivers, dispatch tables, `__main__` calls, argparse handlers and
+  decorator names. The IR cache schema moves to 5, so the first build after
+  upgrading re-parses every file.
 - `failure-memory hooks install|uninstall|status` installs `post-checkout`,
   `post-commit`, `post-merge` and `post-rewrite` git hooks, so a checkout or
   a plain `git commit` no longer leaves generated lessons or code mirrors
@@ -245,8 +376,54 @@ development is intentionally not replayed.
   lesson ID fails with `annotation_id`. It does not change generated nodes,
   routes or the registry digest. `registry migrate --to 2` copies it into the
   new directory.
+- `export.mirror_summary` in `.repo_wiki/config.yaml` (default `false`) makes
+  `repo-wiki export-akms` open each code mirror with a `## Summary`: the first
+  paragraph of the module docstring and the public top-level classes and
+  functions with their signatures, built only from that file's parse, with no
+  model call, and capped at 800 characters. Routing-mode loadouts load that
+  section for a mirror, so an entry says what the file holds instead of showing
+  only a path. It is off by default because mirror bytes are pinned by the
+  export fixture pack and the `repo2md_fixture_sha256` projects record; off leaves
+  every mirror and every loadout byte-identical. Turning it on rewrites every
+  mirror once. On a large downstream project the section averaged 86 tokens per
+  mirror (at most 197), and whole routing-mode loadouts grew by 3.6%. The external
+  `repo2md` provider is not changed.
+- `loadout.full_mode_max_tokens` (default 40,000; `null` turns it off) bounds
+  what a required-aware full-mode loadout inlines. Required and coactivated
+  content is uncapped and a code mirror is a whole source file, so with mirror
+  bodies loaded such a loadout reaches about 315,000 tokens at the 90th
+  percentile and 1.3 million at most on a large downstream project. Past the
+  budget, the remaining
+  code mirrors are served as summary and path, in deterministic order. No node
+  is dropped, other required content stays inline, and the loadout says which
+  mirrors were downgraded and why. A loadout within the budget is byte-identical
+  to before, and routing mode is unchanged. See
+  `docs/reference/akms/user-guide/generating-loadouts.md`.
 
 ### Changed
+- `akms-records wake` ranks reviewed records (`agent_reviewed` and `user_confirmed`
+  together) above unreviewed ones, and by task match inside each tier, instead of
+  letting review state decide first and match only break ties. Entries lose the lines
+  a reader rarely needs: IDs and provenance stay on one line, and citations appear only
+  for summaries. On a 597-record corpus an entry costs about 65 tokens instead of 110,
+  so a 1000-token budget carries about 13 entries instead of 8.
+- `akms-records recall` falls back to any word when no record has every word, ranked by
+  BM25, and the result's `match` says which it was. `--match all` or `any` asks for one
+  directly, and `consolidate` still needs every word. On 134 evaluation questions in
+  natural language, requiring every word found nothing for 98.5 % of them; recall@5
+  rises from 0.015 to 0.67, and for keyword queries from 0.78 to 0.82. A stop-word list
+  moved question recall by only 0.03, so there is none.
+- `akms-records` loads its JSON Schema libraries on first use, so `recall` and `wake`
+  start in about half the time.
+- Record-derived lesson titles under `failure-lesson-index/v1` are capped at 85
+  characters instead of 96. On a large downstream project the longer titles had
+  raised required-lesson tokens by 0.44%, above what trimming the lesson bodies
+  saved; 85 is the longest cap that takes them back below the line-hint titles
+  (508,052 against 508,196), and required recall does not change. Titles still
+  break at a word. A project already on the key sees the changed titles as `check`
+  drift until it recompiles: `refresh if-stale` does that when lessons are
+  `disposable`, and `failure-memory compile` when they are `committed`. Projects
+  without the key are unchanged.
 - Loadouts render coactivated (`load_with`) nodes as their `## Summary`
   instead of in full, by default: new setting
   `loadout.coactivated_reading_priority` (default `summary`; `full` restores
@@ -317,6 +494,64 @@ development is intentionally not replayed.
   Schema 1 digests are unchanged. Migrating a registry changes its lesson
   fingerprints once.
 ### Fixed
+- `akms-records amend`: a summary produced by the schema's template now follows a
+  payload change. It kept describing the old payload, so recall and wake showed stale
+  text. A summary someone wrote by hand is kept, and a record that is already stale
+  heals at its next payload amend.
+- `akms-records amend`: an agent that changes a record's content can no longer keep a
+  review someone gave the earlier text. Unless the actor is the person who wrote the
+  record, a change to the payload, summary or origin resets the review to `unreviewed`.
+  Naming `user_confirmed` in the same amend is refused (`review_reassert`); `rejected`
+  stays. A reset record leaves other agents' `wake` until it is reviewed again.
+- `akms-records wake`: a reviewed fact no longer disappears when an agent supersedes it
+  with a record nobody has reviewed. The old text stays, marked as superseded, and the
+  successor is quoted beside it until reviewed. If the successor is retracted or
+  rejected, the old text does not stay either. `recall` is unchanged.
+- Full-mode loadouts inline code mirrors. A mirror's `content_ref` is relative to
+  the knowledge directory, and the generator looked for it only from the working
+  directory and the repository root, so on a standard layout every mirror read
+  `(content not available — read from path)`. Full mode now reads it from the
+  knowledge directory, bounded by `loadout.full_mode_max_tokens`, so a full-mode
+  loadout that selects mirrors changes. A coactivated mirror without a
+  `## Summary` section falls back to full, as other summary-priority nodes do.
+  Routing mode is unchanged.
+- A code mirror's `**Path:**` line in a loadout names it from the repository root
+  (`.knowledge/code-mirror/...`). It showed the `content_ref`, which is relative to
+  the knowledge directory and did not open from the root. In routing mode this line
+  is the only change.
+- `repo-wiki query` context expansion now follows the same call links as `context`
+  and `impact` instead of the bare-name matches stored in `symbol_graph.json`. On
+  this repository the two agreed on the callees of only 59% of symbols: stored
+  edges miss every `self.method()` call and pick the first candidate for a name
+  defined twice. `symbol_graph.json`, `flows.json` and mirrors are unchanged, and a
+  symbol the resolver does not know keeps its stored edges. Confident links are
+  expanded first. It costs about 0.2 seconds per query on a graph of 8,000 symbols.
+- `repo-wiki` scanner patterns treat a `**/` segment as matching no directory too,
+  in one place, so `scan`, `build`, the index, `changes`, the staleness check and
+  `export-akms` agree. The default `**/*.py`-style includes used to miss every file
+  in the repository root, while `export-akms` added root forms of its own, which
+  are now gone. After upgrading, a root `.py` file (and a root file of an enabled
+  language) gets graph nodes and generated pages at the next `build`, and until
+  that build `context` and `impact` report the graph as stale, as for any new
+  source. Root `.md`, `.yaml`, `.yml` and `.toml` files now appear in `scan`, as the
+  same files below the root always did; they get no graph nodes, pages, index
+  entries or mirrors. Mirrors do not change: `export-akms` already covered the root.
+  A custom `scanner.include` still replaces the default and now reaches the root
+  the same way, and an exclude such as `**/name` now also matches at the root.
+  Secret and credential names stay excluded at the root, whatever the includes.
+- `repo-wiki` records `as` import aliases inside a function (`from pkg.cli import
+  main as run_cli`, `import pkg.tools as tools`) and resolves calls through them
+  with function scope: the alias shadows a module-level name of the same spelling,
+  reaches nested functions, and does not leak to sibling functions. `context`,
+  `impact`, `changes` and `flows` gain the links; the wrong by-name guesses for
+  those calls go away. `symbol_graph.json` gains an optional `import_aliases` field
+  on symbol nodes that have one; it stays `symbol_graph v1`. The extraction cache
+  is rebuilt once. Mirror bytes do not change.
+- Docs: qmd is an external Node package (`npm install -g @tobilu/qmd`), not a Go
+  binary.
+- `repo-wiki build` no longer stops at the index stage on a repository with a
+  path containing a character such as `\x85`: the configuration and frontmatter
+  reader now ends a line only at a newline, not at every Unicode line break.
 - `repo-wiki`: a `scanner.exclude` list in `.repo_wiki/config.yaml` no longer
   replaces the built-in exclude patterns. It replaced the whole list, so
   adding one pattern silently dropped the secret and credential patterns

@@ -12,8 +12,8 @@ preferences, ideas, workflow lessons) as an append-only history of plain JSON
 files.
 
 A record is **not** a fact. It is something someone recorded, with its origin,
-sources and review state. Records stay records; nothing in this package turns
-them into AKMS knowledge nodes.
+sources and review state. Records stay records until a person approves one for
+[promotion](promotion-and-import.md) into an AKMS project-local node.
 
 ## What it gives you
 
@@ -47,11 +47,10 @@ them into AKMS knowledge nodes.
   callable or a command. A summary turns stale when a source changes, and is
   erased with any source that is erased. See [consolidation](consolidation.md).
 
-## What it does not do (yet)
-
-- No promotion into AKMS nodes. Per-schema promotion *policies* can already be
-  stored, but nothing reads them yet.
-- No import from `akms-failure-memory`.
+- **Explicit promotion and a read-only importer.** `promote` writes a reviewed
+  record as an AKMS project-local node, never to the global vault, and
+  `import --from-failure-memory` reads a failure-memory registry into records
+  without writing back. See [promotion and import](promotion-and-import.md).
 
 ## Install
 
@@ -61,8 +60,12 @@ akms-records --help
 ```
 
 The package needs Python `>=3.12,<3.13`, `jsonschema` and `referencing`. It
-does not depend on `akms`; the `akms-records[akms]` extra is reserved for the
-future promotion bridge.
+does not depend on `akms`. Only [`promote`](promotion-and-import.md) needs it,
+through the extra:
+
+```bash
+pip install 'akms-records[akms]'
+```
 
 ## Scopes and where records live
 
@@ -143,3 +146,6 @@ hits = store.recall("keep", tags=["model"]).hits
 - [Storage format](storage-format.md)
 - [Schemas and templates](schemas-and-templates.md)
 - [Limits](limits.md)
+
+- [Authoring, search and review](authoring-and-review.md): schema-aware drafts,
+  no-write validation, explicit review and the bundled agent workflow.

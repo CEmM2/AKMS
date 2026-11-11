@@ -9,8 +9,8 @@ existing records::
     <root>/_schemas/<name>/_policy_log.jsonl   append-only: actor, time,
                                                previous value, new value
 
-This module only stores and shows policies; nothing in this package promotes
-records yet. Setting a policy is a human operation: the CLI asks for
+This module only stores and shows policies; :mod:`akms_records.bridge` reads
+them and cannot change them. Setting a policy is a human operation: the CLI asks for
 interactive confirmation. The log entry is written before the policy file, so
 an interrupted change is still visible in the log.
 

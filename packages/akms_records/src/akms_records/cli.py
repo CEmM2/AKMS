@@ -1,7 +1,7 @@
 """The ``akms-records`` command-line interface (experimental).
 
-Every command prints one JSON object on stdout, except ``recall --format
-text`` and ``wake --format markdown``, which print the rendered text. Exit
+Commands print JSON by default; explicit text/markdown formats render human
+readable output. Draft can emit a bare writer document for editing. Exit
 status: 0 on success, 1 when the result's ``status`` is ``error`` or
 ``drift`` (for example ``doctor`` or ``index check`` found a problem,
 ``import`` met a conflict, or ``consolidate status`` found a stale summary),
@@ -21,6 +21,13 @@ from pathlib import Path
 from typing import Any
 
 from akms_records import __version__
+from akms_records.bridge import (
+    Confirm,
+    DEFAULT_MIN_REVIEW,
+    MIN_REVIEW_CHOICES,
+    REVIEW_CHOICES,
+    confirm_yes,
+)
 from akms_records.canonical import loads_strict
 from akms_records.consolidate import (
     DEFAULT_TIMEOUT,
@@ -35,7 +42,7 @@ from akms_records.consolidate import (
 from akms_records.envelope import ORIGIN_KINDS, REVIEW_STATES, SENSITIVITY_LEVELS
 from akms_records.errors import RecordsError
 from akms_records.policy import POLICY_SOURCES, POLICY_STATUSES
-from akms_records.query import MIN_REVIEW_STATES
+from akms_records.query import MATCH_MODES, MIN_REVIEW_STATES
 from akms_records.schemas import (
     RULE_KEYS,
     RegisteredSchema,
@@ -78,11 +85,13 @@ def _store_options(parser: argparse.ArgumentParser) -> None:
 
 
 def _record_fields(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
         "--file",
         help="a JSON record document (schema_ref, payload, summary, tags, ...); "
         "- reads stdin",
     )
+    source.add_argument("--payload", help="payload-only JSON file; - reads stdin")
     parser.add_argument("--summary")
     parser.add_argument("--tag", action="append", dest="tags", metavar="TAG")
     parser.add_argument("--sensitivity", choices=SENSITIVITY_LEVELS)
@@ -227,6 +236,47 @@ def _parser() -> argparse.ArgumentParser:
     _record_fields(add)
     add.add_argument("--schema", help="schema ref, if the document does not give one")
 
+    draft = sub.add_parser(
+        "draft", help="prepare a document without inventing values or writing records"
+    )
+    _store_options(draft)
+    _record_fields(draft)
+    draft.add_argument("--schema", required=True)
+    draft.add_argument(
+        "--format",
+        choices=("json", "document"),
+        default="json",
+        help="json: document and validation report; document: editable writer JSON only",
+    )
+    validate = sub.add_parser(
+        "validate", help="validate a new record document without writing it"
+    )
+    _store_options(validate)
+    _record_fields(validate)
+    validate.add_argument("--schema")
+
+    review = sub.add_parser(
+        "review", help="inspect a queue or explicitly review one revision"
+    )
+    review_sub = review.add_subparsers(dest="review_command", required=True)
+    queue = review_sub.add_parser(
+        "queue", help="oldest active records in an exact review state"
+    )
+    _store_options(queue)
+    queue.add_argument("--schema")
+    queue.add_argument("--state", choices=REVIEW_STATES, default="unreviewed")
+    queue.add_argument("--include-sensitive", action="store_true")
+    queue.add_argument("--limit", type=int, default=20)
+    queue.add_argument("--format", choices=("json", "text"), default="json")
+    review_set = review_sub.add_parser(
+        "set", help="record an explicit review of an inspected revision"
+    )
+    _store_options(review_set)
+    review_set.add_argument("record_id")
+    review_set.add_argument("--state", choices=REVIEW_STATES, required=True)
+    review_set.add_argument("--expect-revision", type=int, required=True)
+    review_set.add_argument("--event-id")
+
     amend = sub.add_parser("amend", help="amend a record")
     _store_options(amend)
     amend.add_argument("record_id")
@@ -259,6 +309,8 @@ def _parser() -> argparse.ArgumentParser:
         command = sub.add_parser(name, help=text)
         _store_options(command)
         command.add_argument("record_id")
+        if name == "show":
+            command.add_argument("--format", choices=("json", "text"), default="json")
 
     listing = sub.add_parser("list", help="the scope's records (no index; scans files)")
     _store_options(listing)
@@ -295,16 +347,149 @@ def _parser() -> argparse.ArgumentParser:
     export.add_argument("--include-sensitive", action="store_true")
     export.add_argument("--skip-broken", action="store_true")
 
-    imported = sub.add_parser("import", help="replay a JSONL export into the scope")
+    imported = sub.add_parser(
+        "import",
+        help="replay a JSONL export into the scope, or read failure-memory lessons",
+    )
     _store_options(imported)
-    imported.add_argument("path", type=Path)
+    imported.add_argument("path", type=Path, nargs="?", help="a JSONL export")
+    imported.add_argument(
+        "--from-failure-memory",
+        type=Path,
+        metavar="CONFIG",
+        help="read the lessons of this failure-memory project config (read-only)",
+    )
+    imported.add_argument(
+        "--failure-memory-repo",
+        type=Path,
+        metavar="PATH",
+        help="the root CONFIG's paths are relative to (default: --repo)",
+    )
 
-    recall = sub.add_parser("recall", help="search the scope's records (index)")
-    _store_options(recall)
+    promotion = sub.add_parser("promotion", help="inspect promoted record projections")
+    promotion_sub = promotion.add_subparsers(dest="promotion_command", required=True)
+    promotion_status = promotion_sub.add_parser(
+        "status", help="check source/node consistency without changing files"
+    )
+    _store_options(promotion_status)
+    promotion_status.add_argument("record_id", nargs="?")
+    withdraw = promotion_sub.add_parser(
+        "withdraw",
+        help="remove a verified managed projection without deleting its source",
+    )
+    _store_options(withdraw)
+    withdraw.add_argument("record_id")
+    withdraw.add_argument("--reason", required=True)
+    source_revision = withdraw.add_mutually_exclusive_group(required=True)
+    source_revision.add_argument("--expect-revision", type=int)
+    source_revision.add_argument(
+        "--erased",
+        action="store_true",
+        help="source has been erased; require its scoped erasure log",
+    )
+    withdraw.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm a human-node write without a prompt; for a person, never an agent",
+    )
+
+    promote = sub.add_parser(
+        "promote",
+        help="write a reviewed record as an AKMS project-local node (needs [akms])",
+    )
+    _store_options(promote)
+    promote.add_argument("record_id")
+    promote.add_argument(
+        "--review",
+        choices=REVIEW_CHOICES,
+        help="explicit approval; promotion is refused without it",
+    )
+    promote.add_argument(
+        "--min-review-state",
+        choices=MIN_REVIEW_CHOICES,
+        default=DEFAULT_MIN_REVIEW,
+        help=f"the review state a record needs (default: {DEFAULT_MIN_REVIEW})",
+    )
+    promote.add_argument(
+        "--scope-ok",
+        action="store_true",
+        help="allow a record of an agent or shared scope",
+    )
+    promote.add_argument(
+        "--allow-sensitive", action="store_true", help="allow a sensitive record"
+    )
+    promote.add_argument(
+        "--allow-imported",
+        action="store_true",
+        help="allow an imported failure lesson (failure-memory already routes it)",
+    )
+    promote.add_argument(
+        "--update",
+        action="store_true",
+        help="replace this record's managed block with its newer revision, preserving unrelated node prose",
+    )
+    promote.add_argument(
+        "--domain", help="the node's domain (default: the scope's ID, in lower case)"
+    )
+    promote.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm a human-policy write without a prompt; for a person running "
+        "it without a terminal, never for an agent",
+    )
+
+    recall = sub.add_parser(
+        "recall", aliases=["search"], help="search one or more scopes (index)"
+    )
+    recall.add_argument(
+        "text", nargs="?", help="plain search text (alternative to --query)"
+    )
+    recall.add_argument(
+        "--scope",
+        action="append",
+        dest="scopes",
+        default=[],
+        help="project:<id>, agent:<id> or shared:<id>; repeat to search several as "
+        "one ranked list",
+    )
+    recall.add_argument(
+        "--repo",
+        type=Path,
+        default=None,
+        help="repository root for project scope (default: the current directory)",
+    )
+    recall.add_argument(
+        "--actor", default=None, help="accepted for symmetry; recall writes nothing"
+    )
     recall.add_argument(
         "--agent", help="the reading agent; refuses another agent's scope"
     )
-    recall.add_argument("--query", help="words that must all occur (plain text)")
+    recall.add_argument(
+        "--visible",
+        action="store_true",
+        help="also the --agent's own scope, the scopes wake reads for it",
+    )
+    recall.add_argument(
+        "--query",
+        help="plain text; records with every word, or else with any word",
+    )
+    recall.add_argument(
+        "--match",
+        choices=MATCH_MODES,
+        default="auto",
+        help="auto (default): every word, then any word if that finds nothing",
+    )
+    recall.add_argument(
+        "--semantic",
+        action="store_true",
+        help="also search a local vector index, built per store with the optional "
+        "external qmd tool",
+    )
+    recall.add_argument(
+        "--embed-sensitive",
+        action="store_true",
+        help="with --semantic, allow sensitive records into that index",
+    )
     recall.add_argument("--schema", help="<name> or <name>/v<N>")
     recall.add_argument(
         "--tag",
@@ -367,6 +552,22 @@ def _parser() -> argparse.ArgumentParser:
         choices=MIN_REVIEW_STATES,
         default="unreviewed",
         help="minimum review state (rejected records are never included)",
+    )
+    wake.add_argument(
+        "--include-promoted",
+        action="store_true",
+        help="also records promoted into AKMS nodes (default: the loadout serves them)",
+    )
+    wake.add_argument(
+        "--include-imported",
+        action="store_true",
+        help="also imported failure lessons (default: failure-memory routes them)",
+    )
+    wake.add_argument(
+        "--exclude-nodes",
+        type=Path,
+        metavar="MANIFEST",
+        help="an AKMS resolution manifest: drop records whose promoted node it selected",
     )
     wake.add_argument("--format", choices=("json", "markdown"), default="json")
     wake.add_argument(
@@ -510,9 +711,39 @@ def _open(args: argparse.Namespace) -> RecordStore:
     return store
 
 
+def _recall_command(args: argparse.Namespace) -> dict[str, Any]:
+    from akms_records.query import recall_scopes
+
+    if args.text is not None and args.query is not None:
+        raise RecordsError("give positional text or --query, not both", code="usage")
+    result = recall_scopes(
+        args.scopes,
+        query=args.text if args.text is not None else args.query,
+        agent=args.agent,
+        visible=args.visible,
+        repo=args.repo if args.repo is not None else Path.cwd(),
+        schema=args.schema,
+        tags=args.tags,
+        since=args.since,
+        until=args.until,
+        review_state=args.review_state,
+        include_retracted=args.include_retracted,
+        include_superseded=args.include_superseded,
+        include_sensitive=args.include_sensitive,
+        limit=args.limit,
+        full=args.full,
+        match=args.match,
+        semantic=args.semantic,
+        embed_sensitive=args.embed_sensitive,
+    )
+    if args.format == "text":
+        return {"status": "ok", "_text": result.render_text()}
+    return result.to_json()
+
+
 def _wake(args: argparse.Namespace) -> dict[str, Any]:
     from akms_records.canonical import utc_now
-    from akms_records.query import wake
+    from akms_records.query import manifest_nodes, wake
 
     repo = args.repo if args.repo is not None else Path.cwd()
     result = wake(
@@ -524,6 +755,11 @@ def _wake(args: argparse.Namespace) -> dict[str, Any]:
         include_sensitive=args.include_sensitive,
         review_state=args.review_state,
         include_unreviewed=args.include_unreviewed,
+        include_promoted=args.include_promoted,
+        include_imported=args.include_imported,
+        exclude_nodes=(
+            manifest_nodes(args.exclude_nodes) if args.exclude_nodes else frozenset()
+        ),
     )
     if args.format == "markdown":
         return {"status": "ok", "_text": result.render_markdown()}
@@ -569,6 +805,8 @@ def _document(args: argparse.Namespace, *, actor: str) -> dict[str, Any]:
                 "a record document must be a JSON object", code="invalid_record"
             )
         document = dict(loaded)
+    if getattr(args, "payload", None):
+        document["payload"] = _read_json(args.payload)
     overrides = {
         "schema_ref": getattr(args, "schema", None),
         "summary": getattr(args, "summary", None),
@@ -584,6 +822,44 @@ def _document(args: argparse.Namespace, *, actor: str) -> dict[str, Any]:
     return document
 
 
+def _ask(prompt: str) -> None:
+    """Ask on the terminal; anything but an explicit yes refuses."""
+    print(prompt, end="", file=sys.stderr, flush=True)
+    answer = sys.stdin.readline().strip().lower()
+    if answer not in ("y", "yes"):
+        raise RecordsError("not confirmed; nothing changed", code="not_confirmed")
+
+
+def _ask_for_promotion(write: dict[str, Any]) -> str:
+    labels = (
+        f"source={write['source']}, status={write['status']}, "
+        f"confidence={write['confidence']}"
+    )
+    what = str(write["record_id"])
+    if write.get("revision") is not None:
+        what += f"@{write['revision']}"
+    if write["action"] == "replace":
+        _ask(
+            f"Replace the managed block for {what} in node {write['node_id']}, "
+            f"which keeps {labels}? [y/N] "
+        )
+    elif write["action"] == "withdraw":
+        _ask(
+            f"Withdraw the managed block for {what} from node {write['node_id']}, "
+            f"which keeps {labels}? [y/N] "
+        )
+    else:
+        _ask(f"Write node {write['node_id']} from {what} with {labels}? [y/N] ")
+    return "tty"
+
+
+def _promotion_confirm(args: argparse.Namespace) -> Confirm | None:
+    """How this run can confirm a human-path write; ``None`` when it cannot."""
+    if args.yes:
+        return confirm_yes
+    return _ask_for_promotion if sys.stdin.isatty() else None
+
+
 def _confirm_policy(args: argparse.Namespace) -> None:
     if args.yes:
         return
@@ -593,14 +869,10 @@ def _confirm_policy(args: argparse.Namespace) -> None:
             "terminal to confirm; a person may pass --yes instead",
             code="confirmation_required",
         )
-    prompt = (
+    _ask(
         f"Set the promotion policy of {args.name} to source={args.source}, "
         f"status={args.status}, confidence={args.confidence}? [y/N] "
     )
-    print(prompt, end="", file=sys.stderr, flush=True)
-    answer = sys.stdin.readline().strip().lower()
-    if answer not in ("y", "yes"):
-        raise RecordsError("not confirmed; nothing changed", code="not_confirmed")
 
 
 def _describe(
@@ -699,29 +971,64 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return _index_command(args)
     if args.command == "consolidate":
         return _consolidate_command(args)
+    if args.command in {"recall", "search"}:
+        return _recall_command(args)
     store = _open(args)
-    if args.command == "recall":
-        result = store.recall(
-            args.query,
-            schema=args.schema,
-            tags=args.tags,
-            since=args.since,
-            until=args.until,
-            review_state=args.review_state,
-            include_retracted=args.include_retracted,
-            include_superseded=args.include_superseded,
-            include_sensitive=args.include_sensitive,
-            agent=args.agent,
-            limit=args.limit,
-            full=args.full,
-        )
-        if args.format == "text":
-            return {"status": "ok", "_text": result.render_text()}
-        return result.to_json()
     actor = _actor(args)
+    if args.command in {"draft", "validate"}:
+        from akms_records.workflows import draft_document, validate_document
+
+        document = _document(args, actor=actor)
+        if args.command == "draft":
+            report = draft_document(store, args.schema, document=document)
+            if args.format == "document":
+                return {
+                    "status": "ok",
+                    "_text": json.dumps(
+                        report["document"], ensure_ascii=False, indent=2
+                    )
+                    + "\n",
+                }
+            return report
+        return validate_document(store, document)
+    if args.command == "review":
+        from akms_records.workflows import render_records, review_queue, review_record
+
+        if args.review_command == "queue":
+            report = review_queue(
+                store,
+                schema=args.schema,
+                state=args.state,
+                include_sensitive=args.include_sensitive,
+                limit=args.limit,
+            )
+            if args.format == "text":
+                report["_text"] = (
+                    render_records(report["records"])
+                    + json.dumps(
+                        {
+                            key: value
+                            for key, value in report.items()
+                            if key != "records"
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    )
+                    + "\n"
+                )
+            return report
+        result = review_record(
+            store,
+            args.record_id,
+            state=args.state,
+            expected_revision=args.expect_revision,
+            actor=actor,
+            event_id=args.event_id,
+        )
+        return {"status": "ok", **result.to_json()}
     if args.command == "add":
-        if not args.file:
-            raise RecordsError("add needs --file", code="usage")
+        if not args.file and not args.payload:
+            raise RecordsError("add needs --file or --payload", code="usage")
         result = store.create(
             _document(args, actor=actor), actor=actor, event_id=args.event_id
         )
@@ -760,6 +1067,10 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return {"status": "ok", **result.to_json()}
     if args.command == "show":
         record = store.get(args.record_id)
+        if args.format == "text":
+            from akms_records.workflows import render_records
+
+            return {"status": "ok", "_text": render_records([record.envelope_json()])}
         return {
             "status": "ok",
             "record": record.envelope_json(),
@@ -835,10 +1146,70 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         print(json.dumps(summary, ensure_ascii=False, sort_keys=True), file=sys.stderr)
         return {"status": summary["status"], "_quiet": True}
     if args.command == "import":
+        return _import_command(args, store, actor=actor)
+    if args.command == "promotion":
+        if args.promotion_command == "withdraw":
+            from akms_records.bridge import withdraw_promotion
+
+            return withdraw_promotion(
+                store,
+                args.record_id,
+                repo=args.repo if args.repo is not None else Path.cwd(),
+                actor=actor,
+                reason=args.reason,
+                expected_revision=args.expect_revision,
+                erased=args.erased,
+                confirm=_promotion_confirm(args),
+            )
+        from akms_records.bridge import promotion_status
+
+        return promotion_status(
+            store,
+            args.record_id,
+            repo=args.repo if args.repo is not None else Path.cwd(),
+        )
+    if args.command == "promote":
+        from akms_records.bridge import promote
+
+        return promote(
+            store,
+            args.record_id,
+            review=args.review,
+            repo=args.repo if args.repo is not None else Path.cwd(),
+            actor=actor,
+            min_review_state=args.min_review_state,
+            scope_ok=args.scope_ok,
+            allow_sensitive=args.allow_sensitive,
+            allow_imported=args.allow_imported,
+            update=args.update,
+            domain=args.domain,
+            confirm=_promotion_confirm(args),
+        )
+    raise RecordsError(f"unknown command {args.command!r}", code="usage")
+
+
+def _import_command(
+    args: argparse.Namespace, store: RecordStore, *, actor: str
+) -> dict[str, Any]:
+    if (args.path is None) == (args.from_failure_memory is None):
+        raise RecordsError(
+            "give exactly one of an export file or --from-failure-memory",
+            code="usage",
+        )
+    if args.path is not None:
+        if args.failure_memory_repo is not None:
+            raise RecordsError(
+                "--failure-memory-repo needs --from-failure-memory", code="usage"
+            )
         from akms_records.portable import import_records
 
         return import_records(store, args.path, actor=actor)
-    raise RecordsError(f"unknown command {args.command!r}", code="usage")
+    from akms_records.failure_memory import import_failure_memory
+
+    root = args.failure_memory_repo or args.repo or Path.cwd()
+    return import_failure_memory(
+        store, args.from_failure_memory, repo=root, actor=actor
+    )
 
 
 def _print_error(error: RecordsError, as_json: bool) -> None:
