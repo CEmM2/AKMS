@@ -611,6 +611,9 @@ def test_refuses_agent_and_shared_scope_without_scope_ok(repo, tmp_path, monkeyp
         result = run(store, rid, repo, scope_ok=True)
         assert result["action"] == "created"
         store.close()
+    # No project store was opened here, yet the lock files are ignored.
+    ignore = local_knowledge_dir(repo) / "records" / ".gitignore"
+    assert ".index/" in ignore.read_text(encoding="utf-8").splitlines()
 
 
 def test_refuses_retracted_superseded_and_erased_records(project, repo):
@@ -967,8 +970,15 @@ def test_a_live_lock_refuses_and_a_dead_one_is_cleared(project, repo):
     rid = add(project, **CONFIRMED)
     lock = local_knowledge_dir(repo) / "records" / ".index" / "promote.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
-    lock.write_text(str(os.getpid()), encoding="ascii")
-    refused(project, rid, repo, "promote_locked")
+    running = subprocess.Popen(
+        [sys.executable, "-c", "import sys; sys.stdin.read()"], stdin=subprocess.PIPE
+    )
+    try:
+        lock.write_text(str(running.pid), encoding="ascii")
+        refused(project, rid, repo, "promote_locked")
+    finally:
+        running.kill()
+        running.wait()
     finished = subprocess.Popen([sys.executable, "-c", "pass"])
     finished.wait()
     lock.write_text(str(finished.pid), encoding="ascii")

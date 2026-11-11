@@ -9,10 +9,11 @@ routing its lessons by path; a record is a searchable copy.
 **Own reader.** This module parses the documented formats itself instead of
 importing ``akms_failure_memory``, which needs ``akms``. That keeps this package
 free of a dependency, on the minimal install too, and a parity test holds the
-reader to failure-memory's own loader. A lesson field the schema does not know
-is refused rather than dropped, so what is imported is always the whole lesson.
-An extra top-level key on the registry file (a note a project keeps beside
-``lessons``) is ignored.
+reader to failure-memory's own loader on well-formed registries. A lesson field
+the schema does not know is refused rather than dropped, so what is imported is
+always the whole lesson. The reader is more tolerant in one place: an extra
+top-level key on the registry file (a note a project keeps beside ``lessons``)
+is ignored, where failure-memory's own compiler refuses the file.
 
 **Forms.** Schema 1 is one JSON file with ``schema_version``, ``_field_spec`` and
 ``lessons``. Schema 2 is a directory with ``_registry.json`` and one

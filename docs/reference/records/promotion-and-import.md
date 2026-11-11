@@ -213,8 +213,10 @@ other node content.
 
 Withdrawal preserves unrelated prose and other records' blocks. A node with no
 remaining substantive body becomes a withdrawal notice rather than being deleted.
-Generated titles are replaced where recognized; do not assume arbitrary manually
-copied text or metadata has been scrubbed. After rebuilding the graph, withdrawal
+Generated titles are replaced where recognized, and so are the tags the promotion
+wrote (the record's tags and its schema name): a node whose tags are still exactly
+those gets its domain as its only tag. Tags someone changed stay. Do not assume
+arbitrary manually copied text or metadata has been scrubbed. After rebuilding the graph, withdrawal
 clears an active record's live promotion link through an audited amendment, so the
 record can be considered by ordinary wake rules again. Inactive records retain
 historical links. The source record itself is never deleted by withdrawal.
@@ -430,14 +432,16 @@ Promotion and withdrawal serialize their writes with a stable OS-held guard in
 `records/.index/promote.guard`. This ignored file is intentionally retained, not
 removed or replaced after each operation. The OS releases ownership when a
 process exits, including an abrupt termination. The separate `promote.lock` PID
-file is published atomically and removed after successful release. A dead PID
-can be reclaimed only while holding the OS guard; an empty, malformed, or live
-legacy PID is not guessed dead.
+file is published atomically and removed after successful release. A dead PID,
+or the PID of the process now holding the guard, can be reclaimed only while
+holding the OS guard; an empty or malformed PID, or one that belongs to another
+live process, is not guessed dead.
 
 A contender gets `promote_locked` and can retry after the active operation ends.
 Do not delete the guard or its enclosing index directory while a promotion or
 withdrawal runs, and do not run mixed releases concurrently. This coordination
 is for cooperating processes on the same host and local filesystem, not a
-cross-host lock service. A legacy lock with an unknown owner requires manual
-inspection when no writer is active. Source record events are never deleted by
+cross-host lock service. A `promote.lock` whose owner is unknown, or whose PID
+was reused by another live process after a killed run, requires manual
+inspection: delete it when no promotion or withdrawal is running. Source record events are never deleted by
 lock recovery.

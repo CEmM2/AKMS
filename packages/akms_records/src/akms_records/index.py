@@ -77,7 +77,7 @@ from akms_records.schemas import REF_RE, SchemaRegistry, pointer_text, pointer_v
 INDEX_DIRNAME = ".index"
 INDEX_FILENAME = "records.sqlite"
 PENDING_DIRNAME = "pending"
-INDEX_FORMAT = "akms-records-index/v2"
+INDEX_FORMAT = "akms-records-index/v3"
 MONTH_RE = re.compile(r"[0-9]{4}-[0-9]{2}")
 MARKER_RE = re.compile(
     r"(?P<target>rec-[0-9]{8}-[0-9a-hjkmnp-tv-z]{8}|month-[0-9]{4}-[0-9]{2})"

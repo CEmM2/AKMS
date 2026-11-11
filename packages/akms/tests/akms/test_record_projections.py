@@ -10,6 +10,7 @@ from akms.graph.record_projections import (
     FOOTER,
     ProjectionError,
     guard_projection_content,
+    has_record_projection,
     parse_projections,
     render_projection,
     replace_projection,
@@ -79,6 +80,20 @@ def test_fenced_fake_markers_are_data(tmp_path, projection, fence):
         source_sha256=source_snapshot(source),
     )
     assert guard_projection_content(block, tmp_path).content == fake
+
+
+@pytest.mark.parametrize(
+    "opener", ["~~~", "```", "~~~~ text", "  ~~~", "```python\ncode\n~~~"]
+)
+def test_unclosed_fence_above_a_block_does_not_hide_it(tmp_path, projection, opener):
+    """A stale source is withheld even when authored text leaves a fence open."""
+    source, _, block = projection
+    text = f"Notes\n\n{opener}\nnever closed\n\n{block}"
+    assert has_record_projection(text)
+    assert guard_projection_content(text, tmp_path).current
+    (source / "000002.json").write_text("new event")
+    guarded = guard_projection_content(text, tmp_path)
+    assert guarded.managed and not guarded.current and guarded.content == ""
 
 
 @pytest.mark.parametrize(
