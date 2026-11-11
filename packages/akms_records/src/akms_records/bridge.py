@@ -253,6 +253,16 @@ def _promote_lock(knowledge: Path) -> Iterator[None]:
     """
     directory = knowledge / "records" / INDEX_DIRNAME
     directory.mkdir(parents=True, exist_ok=True)
+    # A repository whose project store was never opened has no ignore file yet,
+    # and the guard and lock files must not be committed.
+    try:
+        write_exclusive(
+            directory.parent,
+            ".gitignore",
+            ("# akms-records: derived and temporary files\n.index/\n*.tmp\n").encode(),
+        )
+    except FileExistsError:
+        pass
     path = directory / LOCK_NAME
     with _one_thread(directory), _promotion_guard(directory):
         for attempt in (1, 2):
@@ -410,6 +420,11 @@ def _title(store: RecordStore, record: Record) -> str:
 def _tags(record: Record) -> list[str]:
     name, _ = parse_ref(record.schema_ref)
     return list(dict.fromkeys([*record.tags, name]))
+
+
+def _withdrawn_tags(metadata: dict[str, Any]) -> list[str]:
+    """What replaces a node's record-derived tags; a node needs at least one."""
+    return [str(metadata.get("domain") or "withdrawn")]
 
 
 def node_body(
@@ -633,6 +648,7 @@ class _Job:
                 source_revision=source_revision,
                 scope=str(self.store.scope),
                 source_title=_title(self.store, self.record),
+                source_tags=_tags(self.record),
                 source_dir=source,
                 source_sha256=snapshot,
             )
@@ -873,6 +889,14 @@ class _Job:
             )
         if post.metadata.get("title") in previous_titles:
             post.metadata["title"] = _title(self.store, self.record)
+        # Generated tags follow their source too; changed tags stay.
+        previous_tags = [
+            _tags(r) for r in _past_records(self.store, self.record.record_id)
+        ]
+        if not hit.revisions:
+            previous_tags.append(_withdrawn_tags(post.metadata))
+        if post.metadata.get("tags") in previous_tags:
+            post.metadata["tags"] = _tags(self.record)
         data = (self.akms.frontmatter.dumps(post) + "\n").encode("utf-8")
         replace_file(hit.path, data)
         self.rebuild(hit.node_id)
@@ -1611,6 +1635,12 @@ def withdraw_promotion(
             in {_title(store, r) for r in _past_records(store, record_id)}
         ):
             post.metadata["title"] = "Knowledge with a withdrawn record projection"
+        # Tags the promotion wrote are record text; tags someone set stay.
+        generated_tags = [block.metadata.get("source_tags")]
+        if initial is not None:
+            generated_tags.extend(_tags(r) for r in _past_records(store, record_id))
+        if post.metadata.get("tags") in [tags for tags in generated_tags if tags]:
+            post.metadata["tags"] = _withdrawn_tags(post.metadata)
         mark = json.dumps(
             {"record_id": record_id, "scope": str(store.scope), "source_dir": locator},
             sort_keys=True,

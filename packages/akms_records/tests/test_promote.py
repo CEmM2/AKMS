@@ -611,6 +611,9 @@ def test_refuses_agent_and_shared_scope_without_scope_ok(repo, tmp_path, monkeyp
         result = run(store, rid, repo, scope_ok=True)
         assert result["action"] == "created"
         store.close()
+    # No project store was opened here, yet the lock files are ignored.
+    ignore = local_knowledge_dir(repo) / "records" / ".gitignore"
+    assert ".index/" in ignore.read_text(encoding="utf-8").splitlines()
 
 
 def test_refuses_retracted_superseded_and_erased_records(project, repo):

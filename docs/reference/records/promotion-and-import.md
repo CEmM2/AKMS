@@ -213,8 +213,10 @@ other node content.
 
 Withdrawal preserves unrelated prose and other records' blocks. A node with no
 remaining substantive body becomes a withdrawal notice rather than being deleted.
-Generated titles are replaced where recognized; do not assume arbitrary manually
-copied text or metadata has been scrubbed. After rebuilding the graph, withdrawal
+Generated titles are replaced where recognized, and so are the tags the promotion
+wrote (the record's tags and its schema name): a node whose tags are still exactly
+those gets its domain as its only tag. Tags someone changed stay. Do not assume
+arbitrary manually copied text or metadata has been scrubbed. After rebuilding the graph, withdrawal
 clears an active record's live promotion link through an audited amendment, so the
 record can be considered by ordinary wake rules again. Inactive records retain
 historical links. The source record itself is never deleted by withdrawal.

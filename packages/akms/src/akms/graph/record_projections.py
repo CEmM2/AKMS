@@ -268,6 +268,7 @@ def _validate_metadata(meta: Any) -> None:
         "scope",
         "source_revision",
         "source_title",
+        "source_tags",
         "dependencies",
         "collection",
     } != {
@@ -319,6 +320,11 @@ def _validate_metadata(meta: Any) -> None:
                 raise ProjectionError("Invalid projection dependency")
             _validate_metadata({**dependency, "body_sha256": "0" * 64})
     if "source_title" in meta and not isinstance(meta["source_title"], str):
+        raise ProjectionError("Invalid projection metadata")
+    if "source_tags" in meta and (
+        not isinstance(meta["source_tags"], list)
+        or any(not isinstance(tag, str) for tag in meta["source_tags"])
+    ):
         raise ProjectionError("Invalid projection metadata")
     if "scope" in meta and not isinstance(meta["scope"], str):
         raise ProjectionError("Invalid projection metadata")
@@ -398,13 +404,14 @@ def render_projection(
     scope: str | None = None,
     source_revision: int | None = None,
     source_title: str | None = None,
+    source_tags: list[str] | None = None,
     dependencies: list[dict[str, Any]] | None = None,
     collection: dict[str, Any] | None = None,
 ) -> str:
     """Wrap body with an integrity marker; normalize its trailing newline."""
     if not body.endswith("\n"):
         body += "\n"
-    meta = dict(
+    meta: dict[str, Any] = dict(
         dependencies=dependencies if dependencies is not None else [],
         collection=collection,
         record_id=record_id,
@@ -415,6 +422,8 @@ def render_projection(
     )
     if source_title is not None:
         meta["source_title"] = source_title
+    if source_tags is not None:
+        meta["source_tags"] = source_tags
     if source_revision is not None:
         meta["source_revision"] = source_revision
     if scope is not None:

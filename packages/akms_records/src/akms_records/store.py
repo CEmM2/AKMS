@@ -1395,7 +1395,9 @@ class RecordStore:
         if promoted is not None:
             not_reached.append(
                 f"the AKMS node {promoted['node_id']} this record was promoted into: "
-                "a separate file that holds its text; edit or remove it by hand"
+                "a separate file that holds its text; run "
+                f"`akms-records promotion withdraw {record_id} --erased --reason ...` "
+                "to remove it"
             )
         index_report = self._purge_index(record_id, not_reached)
         cascade = [

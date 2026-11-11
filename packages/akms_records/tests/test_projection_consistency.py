@@ -236,6 +236,65 @@ def test_erased_mixed_node_preserves_manual_prose_not_generated_title(
     assert "OLD PRIVATE PAYLOAD" not in loadout(repo)
 
 
+def tagged(store, *tags):
+    return store.create(
+        {
+            "schema_ref": "decision/v1",
+            "payload": {"decision": "OLD PRIVATE PAYLOAD", "rationale": "private"},
+            "tags": list(tags),
+            "review_state": "user_confirmed",
+            "origin": {"kind": "human-confirmed", "actor_id": "t"},
+        },
+        actor="t",
+    ).record_id
+
+
+def node_tags(repo):
+    return frontmatter.load(node_path(repo)).metadata["tags"]
+
+
+@pytest.mark.parametrize("erased", [False, True])
+def test_withdrawal_removes_the_tags_the_record_wrote(store, repo, erased):
+    rid = tagged(store, "patient-jane-roe")
+    publish(store, rid, repo)
+    assert node_tags(repo) == ["patient-jane-roe", "decision"]
+    if erased:
+        store.erase(rid, actor="t", reason="privacy")
+    withdraw(store, rid, repo, erased=erased)
+    assert "patient-jane-roe" not in node_path(repo).read_text()
+    graph = local_knowledge_dir(repo) / "graph" / "graph.json"
+    assert "patient-jane-roe" not in graph.read_text()
+
+
+def test_withdrawal_keeps_tags_someone_set(store, repo):
+    rid = tagged(store, "patient-jane-roe")
+    publish(store, rid, repo)
+    path = node_path(repo)
+    post = frontmatter.load(path)
+    post.metadata["tags"] = ["triage", "patient-jane-roe"]
+    path.write_text(frontmatter.dumps(post) + "\n")
+    store.erase(rid, actor="t", reason="privacy")
+    withdraw(store, rid, repo, erased=True)
+    assert node_tags(repo) == ["triage", "patient-jane-roe"]
+
+
+def test_generated_tags_follow_an_update_and_a_repromotion(store, repo):
+    rid = tagged(store, "first")
+    publish(store, rid, repo)
+    store.amend(
+        rid,
+        {"tags": ["second"], "review_state": "user_confirmed"},
+        expected_revision=store.get(rid).revision,
+        actor="t",
+    )
+    publish(store, rid, repo, update=True)
+    assert node_tags(repo) == ["second", "decision"]
+    withdraw(store, rid, repo)
+    assert "second" not in node_tags(repo)
+    publish(store, rid, repo)
+    assert node_tags(repo) == ["second", "decision"]
+
+
 def test_withdrawal_graph_failure_is_retryable(store, repo, monkeypatch):
     rid = create(store)
     publish(store, rid, repo)
