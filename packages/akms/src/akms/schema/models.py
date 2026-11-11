@@ -600,6 +600,10 @@ class LoadoutConfig(BaseModel):
     # this, the remaining code mirrors are served as summary and path, never
     # dropped. None turns the guard off.
     full_mode_max_tokens: int | None = Field(default=40000, ge=1)
+    # A code mirror exported without a `## Summary` section gets one built from
+    # its own symbol index when the loadout is generated. False restores the
+    # bare path entry.
+    derive_mirror_summary: bool = True
 
 
 class GraphConfig(BaseModel):

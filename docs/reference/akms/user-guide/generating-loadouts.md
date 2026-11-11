@@ -75,8 +75,9 @@ Coactivated nodes, the one-hop `load_with` companions, are rendered at
 `loadout.coactivated_reading_priority`, which defaults to `summary` and
 overrides the node's own `reading_priority`: the entry shows its `## Summary`
 section and path, and the full node is read on demand. A coactivated node
-without a `## Summary` section is still rendered in full. Set the priority to
-`full` for the earlier behaviour.
+without a `## Summary` section is still rendered in full, except a code mirror,
+whose summary is [built from its symbol index](#code-mirrors-in-routing-mode).
+Set the priority to `full` for the earlier behaviour.
 
 The exact resolver follows `load_with` from required nodes only. Set
 `loadout.coactivate_from_advisory: true` to follow it from advisory nodes
@@ -99,9 +100,22 @@ counts, because the source text further down may hold such a line too.
 In either mode a mirror's `**Path:**` line names it from the repository root, for
 example `.knowledge/code-mirror/src/foo.md`, so a reader can open it from there.
 
-A mirror exported without the section, the default, renders as it always has:
-its entry is the path, with `(no content available)` as the summary. Full mode
-reads the whole mirror from there; see [Full-mode budget](#full-mode-budget).
+A mirror exported without the section, the default, gets the same summary built
+when the loadout is generated, from the mirror's own `## Symbol Index`: the
+public top-level classes and functions with their signatures, after the first
+paragraph of the module docstring, which a Python mirror takes from the source
+it holds. The text is what the exporter would have written, so no mirror has to
+be exported again. A mirror from another generator, with no symbol index that
+parses, keeps its old entry: the path, with `(no content available)` as the
+summary.
+
+```yaml
+loadout:
+  derive_mirror_summary: true   # false: mirrors without the section show only a path
+```
+
+Full mode reads the whole mirror from the knowledge directory; see
+[Full-mode budget](#full-mode-budget).
 
 ## Full-mode budget
 
@@ -146,10 +160,12 @@ whole loadout from about 315,000 tokens to about 52,000.
 Full mode reads a code mirror from the knowledge directory when its
 `content_ref` does not resolve from the working directory or the repository root,
 which is the case for an exported mirror. A mirror the guard downgrades is
-summarized only by its own `## Summary` section, as in routing mode, and reads
-`(no content available)` without one. A coactivated mirror without that section
-falls back to full, as any summary-priority node does, and counts toward the
-budget. Routing mode does not load mirror bodies.
+summarized as in routing mode: by its own `## Summary` section, or by the one
+built from its symbol index. A coactivated mirror is summarized the same way, so
+it does not count toward the budget. With `loadout.derive_mirror_summary: false`,
+a mirror without the section reads `(no content available)` when downgraded, and
+a coactivated one falls back to full, as any summary-priority node does. Routing
+mode does not inline mirror bodies.
 
 ## Retrieval and timestamps
 

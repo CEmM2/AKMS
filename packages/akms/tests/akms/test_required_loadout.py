@@ -10,6 +10,7 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -413,14 +414,45 @@ class TestCoactivatedReadingPriority:
 
 class TestMirrorSummaryInRoutingMode:
     """Mirrors in the knowledge directory: routing mode loads the ``## Summary``,
-    full mode the whole body."""
+    exported or built from the symbol index, and full mode the whole body."""
 
+    _INDEX = json.dumps(
+        [
+            {
+                "symbol_id": "python:src/foo.py::foo",
+                "kind": "module",
+                "start_line": 1,
+                "end_line": 4,
+            },
+            {
+                "symbol_id": "python:src/foo.py::bar",
+                "kind": "function",
+                "start_line": 2,
+                "end_line": 3,
+                "signature": "def bar(x)",
+                "parent_id": "python:src/foo.py::foo",
+            },
+        ],
+        indent=2,
+    )
+    # _BODY is a format string.
+    _ESCAPED = _INDEX.replace("{", "{{").replace("}", "}}")
     _BODY = (
         "# <code>src/foo.py</code>\n\n_Mirror generated: t · phase 1_\n\n"
-        "{summary}## Symbol Index\n\n```json\n[]\n```\n\n"
+        "{summary}## Symbol Index\n\n```json\n" + _ESCAPED + "\n```\n\n"
         "## Complete Source\n\n```python\nSOURCEBODY\n## Summary\n\nfrom source\n```\n"
     )
     _SECTION = "## Summary\n\nFoo does things.\n\nFunctions: `bar()`\n\n"
+    _DERIVED = "**Summary:** Functions: `bar(x)`\n"
+
+    @staticmethod
+    def _underived(**loadout):
+        """A config with the built summary off, plus ``loadout`` settings."""
+        config = PropagationConfig()
+        config.loadout.derive_mirror_summary = False
+        for name, value in loadout.items():
+            setattr(config.loadout, name, value)
+        return config
 
     def _render(
         self, tmp_path, monkeypatch, *, summary, mode, selection=None, config=None
@@ -480,13 +512,45 @@ class TestMirrorSummaryInRoutingMode:
         assert "**Summary:** Foo does things. Functions: `bar()`\n" in content
         assert "SOURCEBODY" not in content
 
-    def test_mirror_without_the_section_renders_as_before(self, tmp_path, monkeypatch):
+    def test_mirror_without_the_section_gets_one_from_its_index(
+        self, tmp_path, monkeypatch
+    ):
         """A "## Summary" line in the source text is not the section."""
         content = self._render(
             tmp_path, monkeypatch, summary=False, mode=LoadoutMode.ROUTING
         )
+        assert self._DERIVED in content
+        assert "from source" not in content
+        assert "SOURCEBODY" not in content
+
+    def test_an_exported_section_wins_over_the_index(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path, monkeypatch, summary=True, mode=LoadoutMode.ROUTING
+        )
+        assert "**Summary:** Foo does things. Functions: `bar()`\n" in content
+        assert self._DERIVED not in content
+
+    def test_with_the_setting_off_the_mirror_renders_as_before(
+        self, tmp_path, monkeypatch
+    ):
+        content = self._render(
+            tmp_path,
+            monkeypatch,
+            summary=False,
+            mode=LoadoutMode.ROUTING,
+            config=self._underived(),
+        )
         assert "**Summary:** (no content available)" in content
         assert "from source" not in content
+
+    def test_an_index_that_does_not_parse_renders_as_before(
+        self, tmp_path, monkeypatch
+    ):
+        self._BODY = self._BODY.replace(self._ESCAPED, "not json")
+        content = self._render(
+            tmp_path, monkeypatch, summary=False, mode=LoadoutMode.ROUTING
+        )
+        assert "**Summary:** (no content available)" in content
 
     def test_full_mode_inlines_the_mirror(self, tmp_path, monkeypatch):
         content = self._render(
@@ -505,9 +569,14 @@ class TestMirrorSummaryInRoutingMode:
         """Downgraded, a mirror reads as in routing mode: its section only."""
         config = PropagationConfig()
         config.loadout.full_mode_max_tokens = 1
-        for summary, expected in (
-            (True, "**Summary:** Foo does things. Functions: `bar()`\n"),
-            (False, "**Summary:** (no content available)"),
+        for summary, config, expected in (
+            (True, config, "**Summary:** Foo does things. Functions: `bar()`\n"),
+            (False, config, self._DERIVED),
+            (
+                False,
+                self._underived(full_mode_max_tokens=1),
+                "**Summary:** (no content available)",
+            ),
         ):
             content = self._render(
                 tmp_path,
@@ -522,17 +591,23 @@ class TestMirrorSummaryInRoutingMode:
             assert "from source" not in content
 
     def test_coactivated_mirror_in_full_mode(self, tmp_path, monkeypatch):
-        """Summary priority keeps the section; without one it falls back to full."""
+        """Summary priority uses the section or the index; with neither it is full."""
         self._BODY = self._BODY.replace("## Summary\n\nfrom source\n", "")
-        for summary, inlined in ((True, False), (False, True)):
+        for summary, config, inlined in (
+            (True, None, False),
+            (False, None, False),
+            (False, self._underived(), True),
+        ):
             content = self._render(
                 tmp_path,
                 monkeypatch,
                 summary=summary,
                 mode=LoadoutMode.FULL,
                 selection=SelectionClass.COACTIVATED,
+                config=config,
             )
             assert ("SOURCEBODY" in content) is inlined
+            assert (self._DERIVED in content) is (not summary and config is None)
 
     def test_path_line_opens_from_the_repository_root(self, tmp_path, monkeypatch):
         for mode in (LoadoutMode.ROUTING, LoadoutMode.FULL):
