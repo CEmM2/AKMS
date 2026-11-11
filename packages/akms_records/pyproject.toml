@@ -1,6 +1,6 @@
 [project]
 name = "akms-records"
-version = "0.3.2"
+version = "0.4.0"
 description = "Experimental schema-driven, provenance-aware record store for AKMS"
 readme = "README.md"
 license = "Apache-2.0"
@@ -33,7 +33,7 @@ Changelog = "https://github.com/CEmM2/AKMS/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 # The promotion bridge into AKMS project-local nodes. Only akms_records.bridge
 # imports akms, and only inside a function.
-akms = ["akms>=0.3.2,<0.4"]
+akms = ["akms>=0.4.0,<0.5"]
 dev = ["pytest>=9.0.2"]
 
 [project.scripts]

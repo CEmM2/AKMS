@@ -4,7 +4,7 @@ All notable changes to the public AKMS packages are documented here. The
 public history begins with the first curated release; earlier private
 development is intentionally not replayed.
 
-## [Unreleased]
+## [0.4.0] — 2026-11-11
 
 ### Security
 - The lockfile moves past 15 advisories published after 0.3.2: aiohttp

@@ -74,7 +74,7 @@ wheels = [
 
 [[package]]
 name = "akms"
-version = "0.3.2"
+version = "0.4.0"
 source = { editable = "packages/akms" }
 dependencies = [
     { name = "networkx" },
@@ -185,7 +185,7 @@ provides-extras = ["agents", "mcp", "telemetry", "orchestration", "rust", "cpp",
 
 [[package]]
 name = "akms-failure-memory"
-version = "0.3.2"
+version = "0.4.0"
 source = { editable = "packages/akms_failure_memory" }
 dependencies = [
     { name = "akms" },
@@ -209,7 +209,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "akms-learn"
-version = "0.3.2"
+version = "0.4.0"
 source = { editable = "packages/akms_learn" }
 dependencies = [
     { name = "akms" },
@@ -241,7 +241,7 @@ provides-extras = ["notebook", "html", "llm", "nlm", "dev"]
 
 [[package]]
 name = "akms-nodes-gen"
-version = "0.3.2"
+version = "0.4.0"
 source = { editable = "packages/akms_nodes_gen" }
 dependencies = [
     { name = "fastapi" },
@@ -269,7 +269,7 @@ provides-extras = ["llm"]
 
 [[package]]
 name = "akms-records"
-version = "0.3.2"
+version = "0.4.0"
 source = { editable = "packages/akms_records" }
 dependencies = [
     { name = "jsonschema" },
@@ -545,7 +545,7 @@ wheels = [
 
 [[package]]
 name = "compmech-reference-pack"
-version = "0.3.2"
+version = "0.4.0"
 source = { editable = "packages/compmech_reference_pack" }
 dependencies = [
     { name = "akms-learn" },
