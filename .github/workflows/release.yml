@@ -64,6 +64,14 @@ jobs:
           uv run --with twine twine check dist/packages/*
           sha256sum dist/packages/* > dist/SHA256SUMS
 
+      # The release page shows this version's changelog section. It travels
+      # with the distributions and is not attached to the release.
+      - name: Take the release notes from the changelog
+        run: >-
+          python scripts/release_notes.py
+          --tag "${{ github.ref_name }}"
+          --output dist/RELEASE_NOTES.md
+
       - name: Clean-install minimal core wheel
         shell: bash
         run: |
@@ -214,6 +222,8 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           draft: true
+          body_path: dist/RELEASE_NOTES.md
+          # GitHub's list of merged pull requests follows the changelog text.
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
