@@ -1297,7 +1297,11 @@ def wake(
             )
             rank = row[7]
             successor = None
-            if row[8] == "superseded" and rank >= reviewed_rank and not summary_row:
+            if (
+                row[8] == "superseded"
+                and (rank >= reviewed_rank or review_cleared)
+                and not summary_row
+            ):
                 successor = _pending_successor(
                     row,
                     by_id,

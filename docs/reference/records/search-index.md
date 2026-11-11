@@ -1,7 +1,7 @@
 # Search index
 
 !!! warning "Experimental"
-    The index layout carries a format marker (`akms-records-index/v2`) and is
+    The index layout carries a format marker (`akms-records-index/v3`) and is
     rebuilt automatically when it changes. `v2` adds `review_cleared`, set when
     a later amend left a previously reviewed record `unreviewed`.
 

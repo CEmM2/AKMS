@@ -295,10 +295,13 @@ Decision: Use port 9090
 ````
 
 The metadata line still says `unreviewed`. The marker sits outside the fence, so
-record text cannot forge or remove it. An explicit unreview that leaves the text
-unchanged does not stay, and a rejection never does. Once the new text is reviewed,
-the record takes the ordinary path. `recall` does not do this: it shows current
-records, with no marker.
+record text cannot forge or remove it. The record stays through later edits,
+including one back to the reviewed text, and when it is superseded by a record
+that is not yet reviewed. A decision ends it: an explicit unreview that leaves
+the text unchanged does not stay, a rejection never does, and text edited after
+either was never reviewed, so it does not come back. Once the new text is
+reviewed, the record takes the ordinary path. `recall` does not do this: it shows
+current records, with no marker.
 
 ## One context budget across systems
 
