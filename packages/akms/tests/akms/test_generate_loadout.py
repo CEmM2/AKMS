@@ -553,6 +553,66 @@ class TestLocalNodeWithoutContentRef:
         assert "LOCALBODY" not in content
         assert "**Path:** `n1.md`" in content
 
+    @staticmethod
+    def _full(repo, node_id, **node):
+        node = {"title": "N", "confidence": 0.9, **node}
+        graph = nx.DiGraph()
+        graph.add_node(node_id, **node)
+        return generate_loadout(
+            graph,
+            [(node_id, node)],
+            task_id="TSK-001",
+            phase=1,
+            graph_version="abc123",
+            seed_tags=["x"],
+            agent_role=AgentRole.IMPLEMENTER,
+            mode=LoadoutMode.FULL,
+            repo_root=repo,
+        )
+
+    @pytest.fixture
+    def local_nodes(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("akms.graph.generate_loadout.shutil.which", lambda _: None)
+        directory = tmp_path / "repo" / ".knowledge" / "local-nodes"
+        directory.mkdir(parents=True)
+        return directory
+
+    def test_a_global_node_does_not_take_a_colliding_local_file(self, local_nodes):
+        (local_nodes / "n1.md").write_text("---\nid: n1\n---\nLOCALBODY\n")
+        content = self._full(local_nodes.parents[1], "n1", node_origin="global")
+        assert "LOCALBODY" not in content
+        assert "local-nodes/n1.md" not in content
+
+    def test_a_file_that_names_another_node_is_not_used(self, local_nodes):
+        (local_nodes / "sub").mkdir()
+        (local_nodes / "sub" / "n1.md").write_text("---\nid: other\n---\nOTHERBODY\n")
+        assert "OTHERBODY" not in self._full(local_nodes.parents[1], "n1")
+
+    @pytest.mark.parametrize("node_id", ["*", "[s]ecret", "s?cret"])
+    def test_a_node_id_is_not_a_file_pattern(self, local_nodes, node_id):
+        (local_nodes / "secret.md").write_text("---\nid: secret\n---\nSECRETBODY\n")
+        assert "SECRETBODY" not in self._full(local_nodes.parents[1], node_id)
+
+    def test_a_link_out_of_the_directory_is_not_followed(self, local_nodes, tmp_path):
+        outside = tmp_path / "outside.md"
+        outside.write_text("---\nid: n1\n---\nOUTSIDEBODY\n")
+        try:
+            (local_nodes / "n1.md").symlink_to(outside)
+        except OSError:
+            pytest.skip("symbolic links are not available")
+        assert "OUTSIDEBODY" not in self._full(local_nodes.parents[1], "n1")
+
+    def test_the_repository_copy_wins_over_the_working_directory(
+        self, local_nodes, tmp_path, monkeypatch
+    ):
+        (local_nodes / "n1.md").write_text("---\nid: n1\n---\nREPOBODY\n")
+        elsewhere = tmp_path / "cwd" / ".knowledge" / "local-nodes"
+        elsewhere.mkdir(parents=True)
+        (elsewhere / "n1.md").write_text("---\nid: n1\n---\nCWDBODY\n")
+        monkeypatch.chdir(tmp_path / "cwd")
+        content = self._full(local_nodes.parents[1], "n1")
+        assert "REPOBODY" in content and "CWDBODY" not in content
+
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Test: Empty/Edge Cases

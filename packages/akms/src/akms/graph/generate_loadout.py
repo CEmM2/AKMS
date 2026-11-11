@@ -217,10 +217,10 @@ def _load_node_content(content_ref: str | None, repo_root: Path | None = None) -
     if not content_ref:
         return ""
 
-    # Try the path as-is first, then relative to repo_root
+    # The repository's copy wins over one the working directory happens to hold.
     candidates = [Path(content_ref)]
     if repo_root:
-        candidates.append(repo_root / content_ref)
+        candidates.insert(0, repo_root / content_ref)
 
     for path in candidates:
         if path.exists():
@@ -270,23 +270,54 @@ def _mirror_summary_source(node_data: dict[str, Any], repo_root: Path | None) ->
     return content if _has_summary_section(head) else ""
 
 
-def _local_node_ref(node_id: str, repo_root: Path | None) -> str | None:
+def _local_node_files(repo_root: Path | None) -> dict[str, list[Path]]:
+    """Node files under ``<knowledge>/local-nodes/`` by file stem, nearest first.
+
+    A file reached through a link that leaves the directory is left out, and so
+    is anything under a ``content`` directory, which holds bodies, not nodes.
+    """
+    if repo_root is None:
+        return {}
+    directory = local_knowledge_dir(repo_root) / "local-nodes"
+    if not directory.is_dir():
+        return {}
+    root = directory.resolve()
+    files: dict[str, list[Path]] = {}
+    for path in sorted(directory.rglob("*.md"), key=lambda p: (len(p.parts), p)):
+        if "content" in path.relative_to(directory).parts[:-1]:
+            continue
+        if path.is_file() and path.resolve().is_relative_to(root):
+            files.setdefault(path.stem, []).append(path)
+    return files
+
+
+def _local_node_ref(
+    node_id: str,
+    node_data: dict[str, Any],
+    repo_root: Path | None,
+    local_files: dict[str, list[Path]],
+) -> str | None:
     """Repo-relative path of a local node written without ``content_ref``.
 
     Promotion writes ``<knowledge>/local-nodes/<id>.md`` and leaves
     ``content_ref`` empty. The graph then has the title and no body. The
     loadout reads that file, and an explicit ``content_ref`` is left alone.
+
+    Only a project-local node has such a file: a global node of the same ID
+    wins the collision at build time and must not take the local file's text.
+    A file that names another node in its frontmatter is not this node's.
     """
-    if repo_root is None or "/" in node_id or node_id in {"", ".", ".."}:
+    if repo_root is None or node_data.get("node_origin", "local") != "local":
         return None
-    directory = local_knowledge_dir(repo_root) / "local-nodes"
-    direct = directory / f"{node_id}.md"
-    nested = sorted(directory.glob(f"**/{node_id}.md")) if directory.is_dir() else []
-    seen: set[Path] = set()
-    for candidate in (direct, *nested):
-        if candidate in seen or not candidate.is_file():
+    for candidate in local_files.get(node_id, ()):
+        try:
+            named = frontmatter.load(str(candidate)).metadata.get("id", node_id)
+        except (OSError, ValueError, yaml.YAMLError):
+            # Unreadable frontmatter cannot name another node; the caller
+            # withholds a managed node it cannot parse.
+            named = node_id
+        if named != node_id:
             continue
-        seen.add(candidate)
         try:
             return candidate.relative_to(repo_root).as_posix()
         except ValueError:
@@ -784,6 +815,7 @@ def generate_loadout(
 
     # Disk is authoritative for managed projections: caches may predate a
     # record amendment, retraction, erasure, or a manual edit to its block.
+    local_files = _local_node_files(repo_path)
     projection_bodies: dict[str, str] = {}
     projection_refs: dict[str, str] = {}
     projection_titles: dict[str, str] = {}
@@ -793,7 +825,7 @@ def generate_loadout(
         # points at a separate authored document. Do not test the latter for
         # markers known to exist only in the former.
         local_ref = node_data.get("_record_projection_ref") or _local_node_ref(
-            node_id, repo_path
+            node_id, node_data, repo_path, local_files
         )
         ref = local_ref or node_data.get("content_ref")
         if not ref:
@@ -976,7 +1008,7 @@ def generate_loadout(
 
         content_ref = projection_refs.get(node_id) or node_data.get("content_ref")
         if not content_ref:
-            content_ref = _local_node_ref(node_id, repo_path)
+            content_ref = _local_node_ref(node_id, node_data, repo_path, local_files)
         reading_priority = _node_reading_priority(
             node_data, selection_class, loadout_config
         )
