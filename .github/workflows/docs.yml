@@ -8,15 +8,19 @@ on:
       - "packages/**/src/**"
       - "examples/**"
       - ".github/workflows/docs.yml"
+  # Publish only when a version is cut, so the site always matches the latest
+  # release on PyPI rather than unreleased work on main.
   push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - "mkdocs.yml"
-      - "packages/**/src/**"
-      - "examples/**"
-      - ".github/workflows/docs.yml"
+    tags: ["v*"]
+  # Manual publish, e.g. to re-deploy a release tag after a docs-only fix:
+  # run it from main with `tag` set, so this version of the workflow builds
+  # that tag's docs.
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and publish (e.g. v0.4.0). Empty = the selected branch."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -33,6 +37,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
       - name: Set up Python
@@ -56,14 +61,22 @@ jobs:
         run: uv run mkdocs build --strict --site-dir site
 
       - name: Upload Pages artifact
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
   deploy:
     name: Deploy GitHub Pages
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # Tags and manual runs only; never a pre-release tag (vX.Y.ZaN, bN, rcN).
+    # A tag deploy needs the github-pages environment to allow `v*` tags
+    # (Settings -> Environments -> github-pages -> deployment branches and tags).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.ref_type == 'tag' &&
+       !contains(github.ref_name, 'a') &&
+       !contains(github.ref_name, 'b') &&
+       !contains(github.ref_name, 'rc'))
     needs: build
     runs-on: ubuntu-latest
     permissions:
